@@ -25,10 +25,10 @@ git clone https://github.com/tangramproject/Tangram.Cypher
 ## After you build
 #
 
-## What is Cypher (Testnet V2.0 release)?
+## What is Cypher Network a.k.a Testnet 2.0 release?
 Cypher is a testnet network for the team and community to first and foremost find critical bugs, run tests and experiments in a Tangram-like environment. If you’re apart of this release, you’re apart of a huge milestone and something very special to the team and community members.
 
-Cypher test-net1 will be used as an early proving ground for things like consensus (messages, states and broadcasting), gossip protocol (dissemination of members - membership).
+Cypher Network will be used as an early proving ground for things like consensus (messages, states and broadcasting), gossip protocol (dissemination of members - membership).
 
 Have fun on Cypher and learn more about Tangram! Explore the open-source code, setup your node, and explore the features. The objective here is to get to a point where Cypher will mimic the eventual live environment of Tangram network. Things may get messy, this is expected, this will progressively get better over-time. From installation on the user’s end to protocol enhancements and feature add-ons to Cypher.
 
