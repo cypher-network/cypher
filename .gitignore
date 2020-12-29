@@ -1,0 +1,45 @@
+# IDE
+/.vscode
+/.vs
+
+# misc
+/bin
+/obj
+/publish1
+/publish2
+
+**/snapshots/
+**/publish/
+**/publish2/
+
+*.Jnrl
+*.rhp
+*.rol
+*.dll
+*.xml
+*.pdb
+
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+
+# MSTest test Results
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+
+# User-specific files
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.log
+*.db
+RetainedMessages.json
