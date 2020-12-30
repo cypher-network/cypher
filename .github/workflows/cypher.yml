@@ -23,7 +23,7 @@ jobs:
       with:
         name: dist
         path: |
-          ${{ github.workspace }}/cypher/publish/cypnode/
+          ${{ github.workspace }}/publish/cypnode/
     #- uses: actions/setup-ruby@v1
     #- name: Send Webhook Notification
     #  if: always()
