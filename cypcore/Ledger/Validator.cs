@@ -12,7 +12,7 @@ using Dawn;
 
 using BigInteger = NBitcoin.BouncyCastle.Math.BigInteger;
 
-using Secp256k1ZKP.Net;
+using Libsecp256k1Zkp.Net;
 
 using NBitcoin;
 
