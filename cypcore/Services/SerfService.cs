@@ -267,8 +267,9 @@ namespace CYPCore.Services
         {
             var entryAssemblyPath = Helper.Util.EntryAssemblyPath();
             var platform = Helper.Util.GetOSPlatform();
+            string folder = platform.ToString().ToLowerInvariant();
 
-            return Path.Combine(entryAssemblyPath, $"Serf/Terminal/{platform}/serf"); ;
+            return Path.Combine(entryAssemblyPath, $"Serf/Terminal/{folder}/serf"); ;
         }
     }
 }

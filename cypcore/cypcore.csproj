@@ -62,7 +62,6 @@
     <Folder Include="Messages\" />
     <Folder Include="Services\" />
     <Folder Include="Extensions\" />
-    <Folder Include="Serf\" />
     <Folder Include="Persistence\" />
     <Folder Include="Consensus\Blockmania\" />
     <Folder Include="Consensus\Blockmania\Messages\" />
@@ -73,21 +72,21 @@
   </ItemGroup>
   <ItemGroup>
     <None Remove="libs\libhydrogen.a" />
-    <None Remove="Serf\Terminal\OSX\serf" />
-    <None Remove="Serf\Terminal\Windows\serf.exe" />
-    <None Remove="Serf\Terminal\Linux\serf" />
+    <None Remove="Serf\Terminal\osx\serf" />
+    <None Remove="Serf\Terminal\windows\serf.exe" />
+    <None Remove="Serf\Terminal\linux\serf" />
   </ItemGroup>
   <ItemGroup>
     <Compile Remove="LibSodium\ICrypto.cs" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="Serf\Terminal\OSX\serf">
+    <Content Include="Serf\Terminal\osx\serf">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="Serf\Terminal\Windows\serf.exe">
+    <Content Include="Serf\Terminal\windows\serf.exe">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="Serf\Terminal\Linux\serf">
+    <Content Include="Serf\Terminal\linux\serf">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
