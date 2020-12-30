@@ -19,6 +19,7 @@ using CYPCore.Extentions;
 using CYPCore.Serf;
 using CYPCore.Models;
 using CYPCore.Cryptography;
+using System.Runtime.InteropServices;
 
 namespace CYPCore.Services
 {
@@ -83,7 +84,24 @@ namespace CYPCore.Services
                 _serfClient.Name = $"{_serfClient.SerfConfigurationOptions.NodeName}-{Helper.Util.SHA384ManagedHash(Guid.NewGuid().ToString().ToBytes()).ByteToHex()}";
                 _serfClient.P2PConnectionOptions.ClientId = Helper.Util.HashToId(pubKey.ByteToHex());
 
-                var cmd = Cli.Wrap(GetFilePath())
+                var serfPath = GetFilePath();
+
+                _logger.LogInformation($"Serf assembly path: {serfPath}");
+
+                //  Chmod before attempting to execute serf on Linux and Mac
+                if (new OSPlatform[] { OSPlatform.Linux, OSPlatform.OSX }.Contains(Helper.Util.GetOSPlatform()))
+                {
+                    _logger.LogInformation("Granting execute permission on serf assembly");
+
+                    var chmodCmd = Cli.Wrap("chmod")
+                       .WithArguments(a => a
+                       .Add("+x")
+                       .Add(serfPath));
+
+                    await chmodCmd.ExecuteAsync();
+                }
+
+                var cmd = Cli.Wrap(serfPath)
                     .WithArguments(a => a
                     .Add("agent")
                     .Add($"-bind={_serfClient.SerfConfigurationOptions.Listening}")
