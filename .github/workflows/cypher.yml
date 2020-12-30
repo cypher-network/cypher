@@ -20,10 +20,10 @@ jobs:
         dotnet publish cypnode --output publish/cypnode --configuration Release
     - name: Archive build artifacts
       uses: actions/upload-artifact@v2
-        with:
-          name: dist
-          path: |
-            cypher/publish/cypnode/
+      with:
+        name: dist
+        path: |
+          cypher/publish/cypnode/
     #- uses: actions/setup-ruby@v1
     #- name: Send Webhook Notification
     #  if: always()
