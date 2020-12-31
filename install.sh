@@ -5,11 +5,13 @@ version=$(curl https://api.github.com/repos/inkadnb/cypher/releases/latest | gre
 
 echo "Installing cypher node $version..."
 curl -L https://github.com/inkadnb/cypher/releases/download/$version/cypher.$version.zip > $tmp_dir/cypher.zip
-unzip $tmp_dir/cypher.zip -d $tmp_dir/cypher
+unzip -o $tmp_dir/cypher.zip -d $tmp_dir/cypher
 mkdir $HOME/.cypher
-cp -r $tmp_dir/cypher $HOME/.cypher/dist
+cp -rf $tmp_dir/cypher $HOME/.cypher/dist
 mkdir $HOME/.cypher/bin
-cp $HOME/.cypher/dist/Runners/cypnode.sh $HOME/.cypher/bin/cypnode
+
+cp -f $HOME/.cypher/dist/Runners/cypnode.sh $HOME/.cypher/bin/cypnode
+
 chmod +x $HOME/.cypher/bin/cypnode
 rm -rf $tmp_dir
 
