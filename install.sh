@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 tmp_dir=$(mktemp -d -t ci-XXXXXXXXXX)
 echo $tmp_dir
-version=$(curl https://api.github.com/repos/inkadnb/cypher/releases/latest | grep -Eo "\"tag_name\":\s*\"(.*)\"" | cut -d'"' -f4)
+version=$(curl https://api.github.com/repos/cypher-network/cypher/releases/latest | grep -Eo "\"tag_name\":\s*\"(.*)\"" | cut -d'"' -f4)
 
 echo "Installing cypher node $version..."
-curl -L https://github.com/inkadnb/cypher/releases/download/$version/cypher.$version.zip > $tmp_dir/cypher.zip
+curl -L https://github.com/cypher-network/cypher/releases/download/$version/cypher.$version.zip > $tmp_dir/cypher.zip
 unzip -o $tmp_dir/cypher.zip -d $tmp_dir/cypher
 mkdir $HOME/.cypher
 cp -rf $tmp_dir/cypher $HOME/.cypher/dist
