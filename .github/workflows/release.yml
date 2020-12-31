@@ -24,12 +24,12 @@ jobs:
       id: get_version
       run: echo ::set-output name=VERSION::${GITHUB_REF#refs/tags/}
     - name: Generate release artifact
+      id: gen_artifact
       run: |
-        ls -al ${{ github.workspace }}/publish/cypnode/
-        ls -al ${{ github.workspace }}/publish/cypnode/Serf/
-        zip -j cypnode.${{ steps.get_version.outputs.VERSION }}.zip ${{ github.workspace }}/publish/cypnode/*
-        echo $PWD
-        ls -al .
+        pushd ${{ github.workspace }}/publish/cypnode/
+        zip -r cypnode.${{ steps.get_version.outputs.VERSION }}.zip ${{ github.workspace }}/publish/cypnode/*
+        mv cypnode.${{ steps.get_version.outputs.VERSION }}.zip ${{ github.workspace }}
+        popd
     #- name: Archive build artifacts
     #  uses: actions/upload-artifact@v2
     #  with:
