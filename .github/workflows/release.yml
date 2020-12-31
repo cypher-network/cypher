@@ -29,6 +29,9 @@ jobs:
         name: dist
         path: |
           ${{ github.workspace }}/publish/cypnode/
+    - name: Get the version
+      id: get_version
+      run: echo ::set-output name=VERSION::${GITHUB_REF#refs/tags/}
     - name: Create Release
       id: create_release
       uses: actions/create-release@v1
@@ -47,5 +50,5 @@ jobs:
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }} 
         asset_path: ./dist.zip
-        asset_name: cypnode-${{ steps.create_release.outputs.id }}.zip
+        asset_name: cypnode-${{ steps.get_version.outputs.VERSION }}.zip
         asset_content_type: application/zip
