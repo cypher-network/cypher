@@ -20,18 +20,18 @@ jobs:
       run:  |
         dotnet restore cypher.sln
         dotnet publish cypnode --output publish/cypnode --configuration Release
-    - name: Build project # This would actually build your project, using zip for an example artifact
-      run: |
-        zip dist ${{ github.workspace }}/publish/cypnode/
-    - name: Archive build artifacts
-      uses: actions/upload-artifact@v2
-      with:
-        name: dist
-        path: |
-          ${{ github.workspace }}/publish/cypnode/
     - name: Get the version
       id: get_version
       run: echo ::set-output name=VERSION::${GITHUB_REF#refs/tags/}
+    - name: Build project # This would actually build your project, using zip for an example artifact
+      run: |
+        zip cypnode.${{ steps.get_version.outputs.VERSION }}.zip ${{ github.workspace }}/publish/cypnode/
+    #- name: Archive build artifacts
+    #  uses: actions/upload-artifact@v2
+    #  with:
+    #    name: dist
+    #    path: |
+    #      ${{ github.workspace }}/publish/cypnode/
     - name: Create Release
       id: create_release
       uses: actions/create-release@v1
@@ -49,6 +49,6 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }} 
-        asset_path: ./dist.zip
-        asset_name: cypnode-${{ steps.get_version.outputs.VERSION }}.zip
+        asset_path: cypnode.${{ steps.get_version.outputs.VERSION }}.zip
+        asset_name: cypnode.${{ steps.get_version.outputs.VERSION }}.zip
         asset_content_type: application/zip
