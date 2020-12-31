@@ -27,15 +27,9 @@ jobs:
       id: gen_artifact
       run: |
         pushd ${{ github.workspace }}/publish/cypnode/
-        zip -r cypnode.${{ steps.get_version.outputs.VERSION }}.zip *
-        mv cypnode.${{ steps.get_version.outputs.VERSION }}.zip ${{ github.workspace }}
+        zip -r cypher.${{ steps.get_version.outputs.VERSION }}.zip *
+        mv cypher.${{ steps.get_version.outputs.VERSION }}.zip ${{ github.workspace }}
         popd
-    #- name: Archive build artifacts
-    #  uses: actions/upload-artifact@v2
-    #  with:
-    #    name: dist
-    #    path: |
-    #      ${{ github.workspace }}/publish/cypnode/
     - name: Create Release
       id: create_release
       uses: actions/create-release@v1
@@ -53,6 +47,6 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }} 
-        asset_path: cypnode.${{ steps.get_version.outputs.VERSION }}.zip
-        asset_name: cypnode.${{ steps.get_version.outputs.VERSION }}.zip
+        asset_path: cypher.${{ steps.get_version.outputs.VERSION }}.zip
+        asset_name: cypher.${{ steps.get_version.outputs.VERSION }}.zip
         asset_content_type: application/zip
