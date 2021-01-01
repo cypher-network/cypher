@@ -20,7 +20,7 @@ Microsoft.PowerShell.Archive\Expand-Archive $zipFile -DestinationPath $installat
 Remove-Item $tempFolder -Recurse -Force
 
 $binFolder = Join-Path $installationFolder "bin"
-$runner = Join-Path $installationFolder "dist\Runners"
+$runner = Join-Path $installationFolder "Runners"
 $runner = Join-Path $runner "cypnode.cmd"
 
 If (!(Test-Path $binFolder))
