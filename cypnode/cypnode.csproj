@@ -70,6 +70,9 @@
     <None Include="**/*" />
   </ItemGroup>
   <ItemGroup>
+    <None Update="Runners\cypnode.cmd">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Update="Runners\cypnode.sh">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
