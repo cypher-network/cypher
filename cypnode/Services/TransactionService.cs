@@ -93,7 +93,7 @@ namespace CYPNode.Services
                     var found = blockHeaders.First().Transactions.FirstOrDefault(x => x.TxnId.SequenceEqual(txnId));
                     if (found != null)
                     {
-                        transaction = CYPCore.Helper.Util.SerializeProto(found);
+                        transaction = CYPCore.Helper.Util.SerializeProto(found.Vout[1]);
                     }
                 }
             }

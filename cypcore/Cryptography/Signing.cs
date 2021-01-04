@@ -202,5 +202,28 @@ namespace CYPCore.Cryptography
 
             return verified;
         }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="privateKey"></param>
+        /// <param name="message"></param>
+        /// <returns></returns>
+        public byte[] CalculateVrfSignature(ECPrivateKey privateKey, byte[] message)
+        {
+            return Curve.calculateVrfSignature(privateKey, message);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="publicKey"></param>
+        /// <param name="message"></param>
+        /// <param name="signature"></param>
+        /// <returns></returns>
+        public byte[] VerifyVrfSignature(ECPublicKey publicKey, byte[] message, byte[] signature)
+        {
+            return Curve.verifyVrfSignature(publicKey, message, signature);
+        }
     }
 }

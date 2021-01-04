@@ -15,5 +15,7 @@ namespace CYPCore.Cryptography
         Task<byte[]> Sign(string keyName, byte[] message);
         bool VerifySignature(byte[] signature, byte[] message);
         bool VerifySignature(byte[] signature, byte[] publicKey, byte[] message);
+        byte[] CalculateVrfSignature(libsignal.ecc.ECPrivateKey privateKey, byte[] message);
+        byte[] VerifyVrfSignature(libsignal.ecc.ECPublicKey publicKey, byte[] message, byte[] signature);
     }
 }

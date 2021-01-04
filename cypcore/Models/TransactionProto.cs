@@ -152,11 +152,11 @@ namespace CYPCore.Models
                       .Append(vout.A)
                       .Append(vout.C)
                       .Append(vout.E)
+                      .Append(vout.L)
                       .Append(vout.N)
                       .Append(vout.P)
-                      .Append(vout.Scr ?? string.Empty)
-                      .Append(vout.T.ToString())
-                      .Append(vout.UNLK);
+                      .Append(vout.S ?? string.Empty)
+                      .Append(vout.T.ToString());
                 }
 
                 foreach (var rct in Rct)

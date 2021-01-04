@@ -1,4 +1,4 @@
-﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
@@ -290,7 +290,7 @@ namespace CYPCore.Ledger
                 hash = Hashes.DoubleSHA256(ts.ToArray());
             }
 
-            var solution = Solution(blockHeader.VrfSig.HexToByte(), hash);
+            var solution = Solution(blockHeader.VrfSig.HexToByte(), hash.ToBytes(false));
             var networkShare = NetworkShare(solution);
             var bits = Difficulty(solution, networkShare);
 
@@ -624,7 +624,7 @@ namespace CYPCore.Ledger
                 var vouts = blockHeaders.SelectMany(blockHeader => blockHeader.Transactions).SelectMany(x => x.Vout);
                 foreach (var vout in vouts.Where(vout => vout.T == CoinType.Coinbase && vout.T == CoinType.fee))
                 {
-                    var verified = VerifyLockTime(new LockTime(Utils.UnixTimeToDateTime(vout.UNLK)), vout.Scr);
+                    var verified = VerifyLockTime(new LockTime(Utils.UnixTimeToDateTime(vout.L)), vout.S);
                     if (!verified)
                     {
                         return false;

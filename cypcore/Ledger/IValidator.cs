@@ -29,7 +29,7 @@ namespace CYPCore.Ledger
         int Difficulty(ulong solution, double networkShare);
         ulong Reward(ulong solution);
         double NetworkShare(ulong solution);
-        ulong Solution(byte[] vrfSig, uint256 kernel);
+        ulong Solution(byte[] vrfSig, byte[] kernel);
         long GetAdjustedTimeAsUnixTimestamp();
         Task<bool> ForkRule(IEnumerable<BlockHeaderProto> xChain);
         bool VerifyLockTime(LockTime target, string script);

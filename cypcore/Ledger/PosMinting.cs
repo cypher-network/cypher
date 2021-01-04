@@ -1,4 +1,4 @@
-﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
@@ -100,10 +100,10 @@ namespace CYPCore.Ledger
                 hash = NBitcoin.Crypto.Hashes.DoubleSHA256(ts.ToArray());
             }
 
-            var signature = Curve.calculateVrfSignature(Curve.decodePrivatePoint(_keyPair.PrivateKey), hash.ToBytes(false));
-            var vrfSig = Curve.verifyVrfSignature(Curve.decodePoint(_keyPair.PublicKey, 0), hash.ToBytes(false), signature);
+            var signature = _signing.CalculateVrfSignature(Curve.decodePrivatePoint(_keyPair.PrivateKey), hash.ToBytes(false));
+            var vrfSig = _signing.VerifyVrfSignature(Curve.decodePoint(_keyPair.PublicKey, 0), hash.ToBytes(false), signature);
 
-            var solution = _validator.Solution(vrfSig, hash);
+            var solution = _validator.Solution(vrfSig, hash.ToBytes(false));
             var networkShare = _validator.NetworkShare(solution);
             var reward = _validator.Reward(solution);
             var bits = _validator.Difficulty(solution, networkShare);
