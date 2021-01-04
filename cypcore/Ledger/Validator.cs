@@ -1,4 +1,4 @@
-// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
@@ -760,26 +760,24 @@ namespace CYPCore.Ledger
         /// <param name="vrfBytes"></param>
         /// <param name="kernel"></param>
         /// <returns></returns>
-        public ulong Solution(byte[] vrfSig, uint256 kernel)
+        public ulong Solution(byte[] vrfSig, byte[] kernel)
         {
             Guard.Argument(vrfSig, nameof(vrfSig)).NotNull().MaxCount(32);
-            Guard.Argument(kernel, nameof(kernel)).NotNull();
-
-            if (kernel.Size != 32)
-            {
-                throw new ArgumentOutOfRangeException(nameof(kernel), "The kernel size must be 32 bytes long");
-            }
+            Guard.Argument(kernel, nameof(kernel)).NotNull().MaxCount(32);
 
             bool calculating = true;
-            ulong itrr = 0;
+            long itrr = 0;
 
             var target = new BigInteger(1, vrfSig);
-            var hashTarget = new BigInteger(1, kernel.ToBytes(false));
+            var hashTarget = new BigInteger(1, kernel);
+
+            var hashTargetValue = new BigInteger((target.IntValue / hashTarget.BitCount).ToString()).Abs();
+            var hashWeightedTarget = new BigInteger(1, kernel).Multiply(hashTargetValue);
 
             while (calculating)
             {
-                var weightedTarget = target.Multiply(BigInteger.ValueOf(Convert.ToInt64(itrr)));
-                if (hashTarget.CompareTo(weightedTarget) <= 0)
+                var weightedTarget = target.Multiply(BigInteger.ValueOf(itrr));
+                if (hashWeightedTarget.CompareTo(weightedTarget) <= 0)
                 {
                     calculating = false;
                 }
@@ -787,7 +785,7 @@ namespace CYPCore.Ledger
                 itrr++;
             }
 
-            return itrr;
+            return (ulong)itrr;
         }
 
         /// <summary>
