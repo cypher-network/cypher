@@ -205,23 +205,24 @@ namespace CYPCore.Ledger
 
             var sloth = new Sloth();
             var nonce = sloth.Eval(bits, x, p256);
-
+            
             var lockTime = _validator.GetAdjustedTimeAsUnixTimestamp();
 
             var blockHeader = new BlockHeaderProto
             {
                 Bits = bits,
+                Height = deliveredBlockHeader.Height + 1,
+                Locktime = lockTime,
+                LocktimeScript = new Script(Op.GetPushOp(lockTime), OpcodeType.OP_CHECKLOCKTIMEVERIFY).ToString(),
                 Nonce = nonce,
                 PrevMrklRoot = deliveredBlockHeader.MrklRoot,
                 Proof = signature.ByteToHex(),
                 SecKey256 = _validator.Security256.ToStr(),
                 Seed = _validator.Seed.ByteToHex(),
                 Solution = solution,
-                Locktime = lockTime,
-                LocktimeScript = new Script(Op.GetPushOp(lockTime), OpcodeType.OP_CHECKLOCKTIMEVERIFY).ToString(),
                 Transactions = transactions.ToHashSet(),
                 Version = 0x1,
-                VrfSig = vrfBytes.ByteToHex()
+                VrfSig = vrfBytes.ByteToHex(),
             };
 
             return blockHeader;

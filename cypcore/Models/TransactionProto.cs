@@ -44,7 +44,11 @@ namespace CYPCore.Models
             {
                 results.Add(new ValidationResult("Range exeption", new[] { "TxnId" }));
             }
-            if (Mix != 17)
+            if (Mix < 0)
+            {
+                results.Add(new ValidationResult("Range exeption", new[] { "Mix" }));
+            }
+            if (Mix > 22)
             {
                 results.Add(new ValidationResult("Range exeption", new[] { "Mix" }));
             }

@@ -427,8 +427,6 @@ namespace CYPCore.Ledger
                 {
                     var pcm_in = new Span<byte[]>(new byte[mix * 1][]);
                     var pcm_out = new Span<byte[]>(new byte[3][]);
-                    var success = mlsag.Prepare(m, null, 3, 3, mix, rows, pcm_in, pcm_out, null);
-
                     var offsets = keyOffset.Split(33);
 
                     foreach (var cin in offsets.Take(mix).Select((value, i) => (i, value)))
