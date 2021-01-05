@@ -108,6 +108,38 @@ namespace CYPNode.Services
         /// <summary>
         /// 
         /// </summary>
+        /// <returns></returns>
+        public async Task<byte[]> GetSafeguardTransactions()
+        {
+            byte[] result = null;
+
+            try
+            {
+                var count = await _unitOfWork.DeliveredRepository.CountAsync();
+                var last = await _unitOfWork.DeliveredRepository.LastOrDefaultAsync();
+
+                int height = (int)last.Height - count;
+
+                height = height > 0 ? 0 : height;
+
+                var blockHeaders = await _unitOfWork.DeliveredRepository.RangeAsync(height, 147);
+
+                if (blockHeaders?.Any() == true)
+                {
+                    result = CYPCore.Helper.Util.SerializeProto(blockHeaders);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"<<< TransactionService.GetSafeguardTransactions >>>: {ex}");
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
         /// <param name="key"></param>
         /// <param name="skip"></param>
         /// <param name="take"></param>

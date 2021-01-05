@@ -274,6 +274,28 @@ namespace CYPCore.Persistence
         /// <summary>
         /// 
         /// </summary>
+        /// <param name="skip"></param>
+        /// <param name="take"></param>
+        /// <returns></returns>
+        public Task<IEnumerable<TEntity>> RangeAsync(int skip, int take)
+        {
+            var entities = Enumerable.Empty<TEntity>();
+
+            try
+            {
+                entities = IterateAsync().Skip(skip).Take(take).ToEnumerable();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"<<< Repository.RangeAsync >>>: {ex}");
+            }
+
+            return Task.FromResult(entities);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
         /// <param name="n"></param>
         /// <returns></returns>
         public Task<IEnumerable<TEntity>> TakeLastAsync(int n)

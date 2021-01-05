@@ -23,5 +23,6 @@ namespace CYPCore.Persistence
         Task<IEnumerable<TEntity>> TakeLastAsync(int n);
         Task<IEnumerable<TEntity>> SelectAsync(Func<TEntity, ValueTask<TEntity>> selector);
         Task<TEntity> PutAsync(TEntity entity, byte[] key);
+        Task<IEnumerable<TEntity>> RangeAsync(int skip, int take);
     }
 }

@@ -14,5 +14,6 @@ namespace CYPNode.Services
         Task<byte[]> GetTransactions(string key, int skip, int take);
         Task<byte[]> GetTransactions(string key);
         Task<byte[]> GetTransactions(int skip, int take);
+        Task<byte[]> GetSafeguardTransactions();
     }
 }

@@ -78,25 +78,23 @@ namespace CYPNode.Controllers
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="skip"></param>
-        /// <param name="take"></param>
         /// <returns></returns>
-        //[HttpGet("txns/{skip}/{take}", Name = "GetTransactions")]
-        //[ProducesResponseType(typeof(byte[]), StatusCodes.Status200OK)]
-        //[ProducesResponseType(StatusCodes.Status404NotFound)]
-        //public async Task<IActionResult> GetTransactions(int skip, int take)
-        //{
-        //    try
-        //    {
-        //        var txs = await _transactionService.GetTransactions(skip, take);
-        //        return new ObjectResult(new { protobufs = txs });
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        _logger.LogError($"<<< GetTransactions - Controller >>> {ex}");
-        //    }
+        [HttpGet("safeguard", Name = "GetSafeguardTransactions")]
+        [ProducesResponseType(typeof(byte[]), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetSafeguardTransactions()
+        {
+            try
+            {
+                var safeGuardTransactions = await _transactionService.GetSafeguardTransactions();
+                return new ObjectResult(new { protobufs = safeGuardTransactions });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"<<< GetTransactions - Controller >>> {ex}");
+            }
 
-        //    return NotFound();
-        //}
+            return NotFound();
+        }
     }
 }
