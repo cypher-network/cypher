@@ -118,15 +118,18 @@ namespace CYPNode.Services
                 var count = await _unitOfWork.DeliveredRepository.CountAsync();
                 var last = await _unitOfWork.DeliveredRepository.LastOrDefaultAsync();
 
-                int height = (int)last.Height - count;
-
-                height = height > 0 ? 0 : height;
-
-                var blockHeaders = await _unitOfWork.DeliveredRepository.RangeAsync(height, 147);
-
-                if (blockHeaders?.Any() == true)
+                if (last != null)
                 {
-                    result = CYPCore.Helper.Util.SerializeProto(blockHeaders);
+                    int height = (int)last.Height - count;
+
+                    height = height > 0 ? 0 : height;
+
+                    var blockHeaders = await _unitOfWork.DeliveredRepository.RangeAsync(height, 147);
+
+                    if (blockHeaders?.Any() == true)
+                    {
+                        result = CYPCore.Helper.Util.SerializeProto(blockHeaders);
+                    }
                 }
             }
             catch (Exception ex)
