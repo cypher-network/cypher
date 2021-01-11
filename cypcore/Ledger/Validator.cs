@@ -31,9 +31,7 @@ namespace CYPCore.Ledger
         private readonly ISigning _signingProvider;
         private readonly ILogger _logger;
 
-        // TODO:
-        // Distribution hard coded..
-        private double _distribution = 119434243.5;
+        private double _distribution;
         private double _runningDistributionTotal;
 
         public Validator(IUnitOfWork unitOfWork, ISigning signingProvider, ILogger<Validator> logger)
@@ -43,7 +41,6 @@ namespace CYPCore.Ledger
             _logger = logger;
         }
 
-        public int DefualtMiningDifficulty => 20555;
         public uint StakeTimestampMask => 0x0000000A;
         public byte[] Seed => "6b341e59ba355e73b1a8488e75b617fe1caa120aa3b56584a217862840c4f7b5d70cefc0d2b36038d67a35b3cd406d54f8065c1371a17a44c1abb38eea8883b2".HexToByte();
         public byte[] Security256 => "60464814417085833675395020742168312237934553084050601624605007846337253615407".ToBytes();
@@ -690,8 +687,9 @@ namespace CYPCore.Ledger
         /// 
         /// </summary>
         /// <param name="distribution"></param>
-        public void SetRunningDistribution(double distribution)
+        public void SetInitalRunningDistribution(double distribution)
         {
+            _distribution = distribution;
             _runningDistributionTotal = distribution;
         }
 
@@ -701,14 +699,12 @@ namespace CYPCore.Ledger
         /// <returns></returns>
         public async Task<double> GetRunningDistribution()
         {
-            double runningDistributionTotal = 0d;
-
             try
             {
                 var blockHeaders = await _unitOfWork.DeliveredRepository.SelectAsync(x => new ValueTask<BlockHeaderProto>(x));
                 for (int i = 0; i < blockHeaders.Count(); i++)
                 {
-                    runningDistributionTotal -= Math.Truncate(NetworkShare(blockHeaders.ElementAt(i).Solution));
+                    _runningDistributionTotal -= Math.Truncate(NetworkShare(blockHeaders.ElementAt(i).Solution));
                 }
             }
             catch (Exception ex)
@@ -716,7 +712,7 @@ namespace CYPCore.Ledger
                 _logger.LogError($"<<< Validator.GetRunningDistribution >>>: {ex}");
             }
 
-            return runningDistributionTotal;
+            return _runningDistributionTotal;
         }
 
         /// <summary>

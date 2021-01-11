@@ -58,6 +58,8 @@ namespace CYPCore.Ledger
 
             _seenBlockHeaderGenericRepository = _unitOfWork.GenericRepositoryFactory<SeenBlockHeaderProto>();
             _seenBlockHeaderGenericRepository.SetTableType(_seenBlockHeader);
+
+            _validator.SetInitalRunningDistribution(_stakingConfigurationOptions.Distribution);
         }
 
         /// <summary>
@@ -85,7 +87,7 @@ namespace CYPCore.Ledger
                 return;
             }
 
-            var transactions = await IncludeTransactions();
+            var transactions = await IncludeTransactions();       
 
             if (transactions.Any() != true)
             {
@@ -205,7 +207,7 @@ namespace CYPCore.Ledger
 
             var sloth = new Sloth();
             var nonce = sloth.Eval(bits, x, p256);
-            
+
             var lockTime = _validator.GetAdjustedTimeAsUnixTimestamp();
 
             var blockHeader = new BlockHeaderProto
