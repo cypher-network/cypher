@@ -220,7 +220,7 @@ namespace CYPCore.Ledger
                 Nonce = nonce,
                 PrevMrklRoot = deliveredBlockHeader.MrklRoot,
                 Proof = signature.ByteToHex(),
-                SecKey256 = _validator.Security256.ToStr(),
+                Sec = _validator.Security256.ToStr(),
                 Seed = _validator.Seed.ByteToHex(),
                 Solution = solution,
                 Transactions = transactions.ToHashSet(),
