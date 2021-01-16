@@ -1,4 +1,4 @@
-// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
@@ -22,6 +22,7 @@ using CYPCore.Persistence;
 using CYPCore.Extensions;
 using CYPCore.Cryptography;
 using NBitcoin.Crypto;
+using cypcore.Extensions;
 
 namespace CYPCore.Ledger
 {
@@ -679,8 +680,10 @@ namespace CYPCore.Ledger
         {
             Guard.Argument(solution, nameof(solution)).NotNegative();
 
-            _runningDistributionTotal -= Math.Truncate(NetworkShare(solution));
-            return Math.Truncate(NetworkShare(solution)).ConvertToUInt64();
+            var networkShare = NetworkShare(solution);
+
+            _runningDistributionTotal -= networkShare;
+            return networkShare.ConvertToUInt64();
         }
 
         /// <summary>
@@ -704,7 +707,7 @@ namespace CYPCore.Ledger
                 var blockHeaders = await _unitOfWork.DeliveredRepository.SelectAsync(x => new ValueTask<BlockHeaderProto>(x));
                 for (int i = 0; i < blockHeaders.Count(); i++)
                 {
-                    _runningDistributionTotal -= Math.Truncate(NetworkShare(blockHeaders.ElementAt(i).Solution));
+                    _runningDistributionTotal -= NetworkShare(blockHeaders.ElementAt(i).Solution);
                 }
             }
             catch (Exception ex)
@@ -724,8 +727,12 @@ namespace CYPCore.Ledger
         {
             Guard.Argument(solution, nameof(solution)).NotNegative();
 
-            var totalPrecentage = _runningDistributionTotal * (100 / _distribution);
-            var networkShare = solution * (totalPrecentage / _distribution);
+            var r = (_distribution - _runningDistributionTotal).FromExponential(11);
+            var percentage = r / (_runningDistributionTotal * 100) == 0 ? 0.1 : r / (_runningDistributionTotal * 100);
+
+            percentage = percentage.FromExponential(11);
+
+            var networkShare = (solution * percentage / _distribution).FromExponential(11);
 
             return networkShare;
         }
@@ -741,7 +748,7 @@ namespace CYPCore.Ledger
             Guard.Argument(solution, nameof(solution)).NotNegative();
             Guard.Argument(networkShare, nameof(networkShare)).NotNegative();
 
-            var diff = solution * (Convert.ToDouble($"0.0{Math.Truncate(networkShare)}") / 100);
+            var diff = Math.Truncate(solution * networkShare / 144);
 
             diff = diff == 0 ? 1 : diff;
 

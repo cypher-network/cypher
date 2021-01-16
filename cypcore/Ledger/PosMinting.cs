@@ -105,6 +105,7 @@ namespace CYPCore.Ledger
             var signature = _signing.CalculateVrfSignature(Curve.decodePrivatePoint(_keyPair.PrivateKey), hash.ToBytes(false));
             var vrfSig = _signing.VerifyVrfSignature(Curve.decodePoint(_keyPair.PublicKey, 0), hash.ToBytes(false), signature);
 
+            await _validator.GetRunningDistribution();
             var solution = _validator.Solution(vrfSig, hash.ToBytes(false));
             var networkShare = _validator.NetworkShare(solution);
             var reward = _validator.Reward(solution);
