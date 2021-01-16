@@ -65,7 +65,7 @@ namespace CYPNode.Controllers
             try
             {
                 var tx = await _transactionService.GetTransaction(txnid.HexToByte());
-                return new ObjectResult(new { protobuf = tx });
+                return new ObjectResult(new { protobufs = tx });
             }
             catch (Exception ex)
             {
