@@ -30,5 +30,16 @@ namespace CYPNode.StartupExtensions
             builder.RegisterType<MempoolService>().As<IMempoolService>();
             return builder;
         }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="builder"></param>
+        /// <returns></returns>
+        public static ContainerBuilder AddMemberService(this ContainerBuilder builder)
+        {
+            builder.RegisterType<MemberService>().As<IMemberService>();
+            return builder;
+        }
     }
 }
