@@ -40,6 +40,8 @@ namespace CYPCore.Services
                     stoppingToken.ThrowIfCancellationRequested();
 
                     await _posMinting.RunStakingBlockAsync();
+
+                    await Task.Delay(10100, stoppingToken);
                 }
             }
             catch (TaskCanceledException)
@@ -49,10 +51,6 @@ namespace CYPCore.Services
             catch (Exception ex)
             {
                 _logger.LogError($"<<< PosMintingBackgroundService.ExecuteAsync >>>: {ex}");
-            }
-            finally
-            {
-                await Task.Delay(10100, stoppingToken);
             }
         }
     }

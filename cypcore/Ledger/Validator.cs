@@ -1,4 +1,4 @@
-﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
@@ -273,7 +273,7 @@ namespace CYPCore.Ledger
         {
             Guard.Argument(blockHeader, nameof(blockHeader)).NotNull();
 
-            var verified = VerifySloth(blockHeader.Bits, blockHeader.VrfSig.HexToByte(), blockHeader.Nonce.ToBytes(), blockHeader.SecKey256.ToBytes());
+            var verified = VerifySloth(blockHeader.Bits, blockHeader.VrfSig.HexToByte(), blockHeader.Nonce.ToBytes(), blockHeader.Sec.ToBytes());
             if (!verified)
             {
                 _logger.LogCritical($"<<< Validator.VerifyBlockHeader >>>: Could not verify the block header solth");

@@ -61,7 +61,7 @@ namespace CYPCore.Extentions
                 var parts = value.ToString().Split(new char[] { '.', ',' });
                 var part1 = (ulong)Math.Truncate(value);
 
-                if (parts.Length.Equals(1))
+                if (parts.Length == 1)
                     amount = part1.MulWithNaT();
                 else
                 {
