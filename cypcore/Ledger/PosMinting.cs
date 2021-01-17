@@ -24,6 +24,7 @@ using CYPCore.Persistence;
 using CYPCore.Serf;
 using CYPCore.Network.P2P;
 using CYPCore.Cryptography;
+using Newtonsoft.Json.Linq;
 
 namespace CYPCore.Ledger
 {
@@ -105,7 +106,9 @@ namespace CYPCore.Ledger
             var signature = _signing.CalculateVrfSignature(Curve.decodePrivatePoint(_keyPair.PrivateKey), hash.ToBytes(false));
             var vrfSig = _signing.VerifyVrfSignature(Curve.decodePoint(_keyPair.PublicKey, 0), hash.ToBytes(false), signature);
 
+
             await _validator.GetRunningDistribution();
+
             var solution = _validator.Solution(vrfSig, hash.ToBytes(false));
             var networkShare = _validator.NetworkShare(solution);
             var reward = _validator.Reward(solution);
@@ -330,7 +333,7 @@ namespace CYPCore.Ledger
             Guard.Argument(bits, nameof(bits)).NotNegative();
             Guard.Argument(reward, nameof(reward)).NotNegative();
 
-            TransactionProto tx = null;
+            TransactionProto transaction = null;
 
             using (var client = new HttpClient())
             {
@@ -344,7 +347,7 @@ namespace CYPCore.Ledger
                     var sendPayment = new SendPaymentProto
                     {
                         Address = _stakingConfigurationOptions.WalletSettings.Address,
-                        Amount = bits,
+                        Amount = ((double)bits).ConvertToUInt64(),
                         Credentials = new CredentialsProto { Identifier = _stakingConfigurationOptions.WalletSettings.Identifier, Passphrase = _stakingConfigurationOptions.WalletSettings.Passphrase },
                         Fee = reward,
                         Memo = $"Coinstake transaction at {DateTime.UtcNow} from {_serfClient.SerfConfigurationOptions.NodeName}: {pub.ByteToHex()}",
@@ -356,9 +359,12 @@ namespace CYPCore.Ledger
                     using var response = await client.PostAsJsonAsync(_stakingConfigurationOptions.WalletSettings.SendPaymentEndpoint, proto, new System.Threading.CancellationToken());
 
                     var read = response.Content.ReadAsStringAsync().Result;
-
+                    var jObject = JObject.Parse(read);
+                    var jToken = jObject.GetValue("protobuf");
+                    var byteArray = Convert.FromBase64String(jToken.Value<string>());
+ 
                     if (response.IsSuccessStatusCode)
-                        tx = JsonConvert.DeserializeObject<TransactionProto>(read);
+                        transaction = Helper.Util.DeserializeProto<TransactionProto>(byteArray);
                     else
                     {
                         var content = await response.Content.ReadAsStringAsync();
@@ -372,7 +378,7 @@ namespace CYPCore.Ledger
                 }
             }
 
-            return tx;
+            return transaction;
         }
     }
 }

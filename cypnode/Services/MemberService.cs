@@ -66,7 +66,7 @@ namespace CYPNode.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< MemberService.GetPublicKey >>>: {ex}");
+                _logger.LogError($"<<< MemberService.GetMembers >>>: {ex}");
             }
 
             return members;
@@ -117,7 +117,7 @@ namespace CYPNode.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< MemberService.GetMemberCount >>>: {ex}");
+                _logger.LogError($"<<< MemberService.GetCount >>>: {ex}");
             }
 
             return count;
