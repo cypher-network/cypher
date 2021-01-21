@@ -22,7 +22,7 @@ namespace CYPNode
                 .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
                 .Enrich.FromLogContext()
                 .WriteTo.Console()
-                .WriteTo.File("tgmnode.log", rollingInterval: RollingInterval.Day, retainedFileCountLimit: 2)
+                .WriteTo.File("tgmnode.log", rollingInterval: RollingInterval.Day, retainedFileCountLimit: 7)
                 .CreateLogger();
             try
             {
