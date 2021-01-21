@@ -34,12 +34,12 @@ namespace CYPCore.Consensus.BlockMania
             InitialWorkDuration = 100 * Millisecond;
         }
 
-        public long Nanosecond { get; set; } = 1;
-        public long Microsecond { get; set; } = 1000;
-        public long Millisecond { get; set; } = 1000;
-        public long Second { get; set; } = 1000;
-        public long Minute { get; set; } = 60;
-        public long Hour { get; set; } = 60;
+        public long Nanosecond { get; } = 1;
+        public long Microsecond { get; } = 1000;
+        public long Millisecond { get; } = 1000;
+        public long Second { get; } = 1000;
+        public long Minute { get; } = 60;
+        public long Hour { get; } = 60;
 
 
         public int KB { get; set; } = 1024;

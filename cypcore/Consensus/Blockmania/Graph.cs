@@ -42,8 +42,8 @@ namespace CYPCore.Consensus.BlockMania
 
     public class BlockInfo
     {
-        public ulong Max;
-        public BlockGraph Data;
+        public readonly ulong Max;
+        public readonly BlockGraph Data;
 
         public BlockInfo(BlockGraph data, ulong max)
         {
@@ -68,10 +68,10 @@ namespace CYPCore.Consensus.BlockMania
 
     public class Config
     {
-        public ulong LastInterpreted;
-        public ulong[] Nodes;
-        public ulong SelfID;
-        public ulong TotalNodes;
+        public readonly ulong LastInterpreted;
+        public readonly ulong[] Nodes;
+        public readonly ulong SelfID;
+        public readonly ulong TotalNodes;
 
         public Config(ulong[] nodes, ulong id)
         {
@@ -103,16 +103,16 @@ namespace CYPCore.Consensus.BlockMania
 
         public List<BlockInfo> Blocks;
         public Func<Task<Interpreted>> action;
-        public Dictionary<BlockID, ulong> Max;
-        public int NodeCount;
-        public ulong[] Nodes;
-        public int Quorumf1;
-        public int Quorum2f;
-        public int Quorum2f1;
-        public Dictionary<ulong, Dictionary<ulong, string>> Resolved;
+        public readonly Dictionary<BlockID, ulong> Max;
+        public readonly int NodeCount;
+        public readonly ulong[] Nodes;
+        public readonly int Quorumf1;
+        public readonly int Quorum2f;
+        public readonly int Quorum2f1;
+        public readonly Dictionary<ulong, Dictionary<ulong, string>> Resolved;
         public ulong Round;
         public ulong Self;
-        public Dictionary<BlockID, State> Statess;
+        public readonly Dictionary<BlockID, State> Statess;
         public ulong TotalNodes;
         public List<Consensus> Consensus;
 
@@ -264,25 +264,25 @@ namespace CYPCore.Consensus.BlockMania
             return stat;
         }
 
-        private void Process(Entry ntry)
+        private void Process(Entry entry)
         {
-            Debug.WriteLine($"Interpreting block block.id={ntry.Block}");
+            Debug.WriteLine($"Interpreting block block.id={entry.Block}");
 
-            var state = FindOrCreateState(ntry);
-            var node = ntry.Block.Node;
-            var round = ntry.Block.Round;
-            var hash = ntry.Block.Hash;
+            var state = FindOrCreateState(entry);
+            var node = entry.Block.Node;
+            var round = entry.Block.Round;
+            var hash = entry.Block.Hash;
             var out_ = new List<IMessage>
             {
                 new PrePrepare(hash, node, round, 0)
             };
-            if (ntry.Deps.Length > 0)
+            if (entry.Deps.Length > 0)
             {
                 if (state.Delay == null)
                 {
                     state.Delay = new Dictionary<ulong, ulong>();
                 }
-                foreach (var dep in ntry.Deps)
+                foreach (var dep in entry.Deps)
                 {
                     state.Delay[dep.Node] = Util.Diff(round, dep.Round) * 10;
                 }
@@ -366,8 +366,8 @@ namespace CYPCore.Consensus.BlockMania
 
             var idx = out_.Count;
             var processed = new Dictionary<IMessage, bool>();
-            out_.AddRange(ProcessMessages(state, processed, node, node, ntry.Block, out_.GetRange(0, idx)));
-            foreach (var dep in ntry.Deps)
+            out_.AddRange(ProcessMessages(state, processed, node, node, entry.Block, out_.GetRange(0, idx)));
+            foreach (var dep in entry.Deps)
             {
                 Debug.WriteLine($"Processing block dep block.id={dep}");
 
@@ -376,10 +376,10 @@ namespace CYPCore.Consensus.BlockMania
                 {
                     output = Statess[dep].GetOutPut();
                 }
-                out_.AddRange(ProcessMessages(state, processed, dep.Node, node, ntry.Block, output));
+                out_.AddRange(ProcessMessages(state, processed, dep.Node, node, entry.Block, output));
             }
             state.Out = out_;
-            Statess[ntry.Block] = state;
+            Statess[entry.Block] = state;
         }
 
         private IMessage ProcessMessage(State s, ulong sender, ulong receiver, BlockID origin, IMessage msg)

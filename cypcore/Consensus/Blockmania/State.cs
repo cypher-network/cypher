@@ -34,13 +34,13 @@ namespace CYPCore.Consensus.BlockMania
 
     public class State
     {
-        public Dictionary<PrePrepare, BitSet> BitSets = new Dictionary<PrePrepare, BitSet>();
-        public StateKV Data = new StateKV();
-        public Dictionary<ulong, ulong> Delay = new Dictionary<ulong, ulong>();
-        public Dictionary<NodeRound, string> Final = new Dictionary<NodeRound, string>();
-        public List<IMessage> Out = new List<IMessage>();
+        public Dictionary<PrePrepare, BitSet> BitSets;
+        public StateKV Data;
+        public Dictionary<ulong, ulong> Delay;
+        public Dictionary<NodeRound, string> Final;
+        public List<IMessage> Out;
         public ulong Timeout;
-        public Dictionary<ulong, List<Timeout>> Timeouts = new Dictionary<ulong, List<Timeout>>();
+        public Dictionary<ulong, List<Timeout>> Timeouts;
 
         public State(Dictionary<ulong, List<Timeout>> timeouts) => Timeouts = timeouts;
 
@@ -109,13 +109,13 @@ namespace CYPCore.Consensus.BlockMania
             }
             n.Out = out_;
             var timeouts = new Dictionary<ulong, List<Timeout>>();
-            foreach (KeyValuePair<ulong, List<Timeout>> item in Timeouts)
+            foreach (var (key, value) in Timeouts)
             {
-                if (item.Key < minRound)
+                if (key < minRound)
                 {
                     continue;
                 }
-                timeouts[item.Key] = item.Value;
+                timeouts[key] = value;
             }
             n.Timeouts = timeouts;
             return n;
@@ -151,10 +151,8 @@ namespace CYPCore.Consensus.BlockMania
                 var val = Data[key];
                 return (uint)val;
             }
-            if (Data == null)
-            {
-                Data = new StateKV();
-            }
+            
+            Data ??= new StateKV();
             Data[key] = (uint)0;
             return 0;
         }
@@ -174,9 +172,9 @@ namespace CYPCore.Consensus.BlockMania
 
     public class Timeout
     {
-        public ulong Node;
-        public ulong Round;
-        public uint View;
+        public readonly ulong Node;
+        public readonly ulong Round;
+        public readonly uint View;
 
         public Timeout(ulong node, ulong round, uint view)
         {

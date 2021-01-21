@@ -7,12 +7,10 @@ namespace CYPCore.Consensus.BlockMania.Messages
 {
     public class PrePrepare : IMessage, IEquatable<PrePrepare>
     {
-        public string Hash { get; set; }
-        public ulong Node { get; set; }
-        public ulong Round { get; set; }
-        public uint View { get; set; }
-
-        public PrePrepare() { }
+        public string Hash { get; }
+        public ulong Node { get; }
+        public ulong Round { get; }
+        public uint View { get; }
 
         public PrePrepare(string hash, ulong node, ulong round, uint view)
         {

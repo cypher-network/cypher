@@ -9,7 +9,7 @@ namespace CYPCore.Consensus.BlockMania
 {
     public class BlockID : IEquatable<BlockID>
     {
-        private static readonly string hexUpper = "0123456789ABCDEF";
+        private const string hexUpper = "0123456789ABCDEF";
 
         public string Hash { get; }
         public ulong Node { get; }
