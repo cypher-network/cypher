@@ -66,6 +66,7 @@ namespace CYPNode
             builder.AddValidator();
             builder.AddTransactionService();
             builder.AddMempoolService();
+            builder.AddMemberService();
             builder.AddPosMintingProvider(Configuration);
             builder.AddLocalNode();
             builder.AddBlockHeaderSocketService();

@@ -26,7 +26,7 @@ namespace CYPCore.Extentions
                 b = bytes[i] & 0xF;
                 c[i * 2 + 1] = (char)(55 + b + (((b - 10) >> 31) & -7));
             }
-            return new string(c);
+            return new string(c).ToLower();
         }
 
         public static IEnumerable<byte[]> Split(this byte[] value, int bufferLength)

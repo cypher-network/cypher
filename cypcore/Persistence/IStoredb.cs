@@ -5,7 +5,7 @@ namespace CYPCore.Persistence
 {
     public interface IStoredb
     {
-        Guid Checkpoint();
+        Task<Guid> Checkpoint();
         void Dispose();
         bool InitAndRecover();
     }

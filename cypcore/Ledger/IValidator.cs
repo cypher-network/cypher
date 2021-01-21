@@ -12,7 +12,6 @@ namespace CYPCore.Ledger
 {
     public interface IValidator
     {
-        int DefualtMiningDifficulty { get; }
         uint StakeTimestampMask { get; }
         byte[] Seed { get; }
         byte[] Security256 { get; }
@@ -29,7 +28,7 @@ namespace CYPCore.Ledger
         int Difficulty(ulong solution, double networkShare);
         ulong Reward(ulong solution);
         double NetworkShare(ulong solution);
-        ulong Solution(byte[] vrfSig, uint256 kernel);
+        ulong Solution(byte[] vrfSig, byte[] kernel);
         long GetAdjustedTimeAsUnixTimestamp();
         Task<bool> ForkRule(IEnumerable<BlockHeaderProto> xChain);
         bool VerifyLockTime(LockTime target, string script);
@@ -38,7 +37,7 @@ namespace CYPCore.Ledger
         Task<bool> VerifyKimage(TransactionProto transaction);
         Task<bool> VerifyVoutCommits(TransactionProto transaction);
         Task<double> GetRunningDistribution();
-        void SetRunningDistribution(double runningDistributionTotal);
+        void SetInitalRunningDistribution(double runningDistributionTotal);
         ulong Fee(int nByte);
     }
 }

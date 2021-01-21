@@ -44,7 +44,11 @@ namespace CYPCore.Models
             {
                 results.Add(new ValidationResult("Range exeption", new[] { "TxnId" }));
             }
-            if (Mix != 17)
+            if (Mix < 0)
+            {
+                results.Add(new ValidationResult("Range exeption", new[] { "Mix" }));
+            }
+            if (Mix > 22)
             {
                 results.Add(new ValidationResult("Range exeption", new[] { "Mix" }));
             }
@@ -152,11 +156,11 @@ namespace CYPCore.Models
                       .Append(vout.A)
                       .Append(vout.C)
                       .Append(vout.E)
+                      .Append(vout.L)
                       .Append(vout.N)
                       .Append(vout.P)
-                      .Append(vout.Scr ?? string.Empty)
-                      .Append(vout.T.ToString())
-                      .Append(vout.UNLK);
+                      .Append(vout.S ?? string.Empty)
+                      .Append(vout.T.ToString());
                 }
 
                 foreach (var rct in Rct)

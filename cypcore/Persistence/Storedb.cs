@@ -49,14 +49,15 @@ namespace CYPCore.Persistence
                     },
                     new CheckpointSettings
                     {
-                        CheckpointDir = checkpointFolder
+                        CheckpointDir = checkpointFolder,
+                        CheckPointType = CheckpointType.FoldOver
                     },
                     new SerializerSettings<StoreKey, StoreValue>
                     {
                         keySerializer = () => new StoreKeySerializer(),
                         valueSerializer = () => new StoreValueSerializer()
                     }
-                );           
+                );
 
             if (Directory.Exists(checkpointFolder))
             {
@@ -71,10 +72,10 @@ namespace CYPCore.Persistence
         /// 
         /// </summary>
         /// <returns></returns>
-        public Guid Checkpoint()
+        public async Task<Guid> Checkpoint()
         {
             db.TakeFullCheckpoint(out Guid token);
-            db.CompleteCheckpointAsync().GetAwaiter().GetResult();
+            await db.CompleteCheckpointAsync();
 
             return token;
         }

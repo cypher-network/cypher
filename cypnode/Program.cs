@@ -57,7 +57,7 @@ namespace CYPNode
             .UseServiceProviderFactory(new AutofacServiceProviderFactory())
             .ConfigureWebHostDefaults(webBuilder =>
             {
-                webBuilder.UseStartup<Startup>().UseUrls("http://localhost:5001").UseSerilog();
+                webBuilder.UseStartup<Startup>().UseSerilog();
             });
     }
 }

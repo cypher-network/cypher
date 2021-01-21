@@ -1,4 +1,4 @@
-﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
@@ -24,6 +24,7 @@ using CYPCore.Persistence;
 using CYPCore.Serf;
 using CYPCore.Network.P2P;
 using CYPCore.Cryptography;
+using Newtonsoft.Json.Linq;
 
 namespace CYPCore.Ledger
 {
@@ -58,6 +59,8 @@ namespace CYPCore.Ledger
 
             _seenBlockHeaderGenericRepository = _unitOfWork.GenericRepositoryFactory<SeenBlockHeaderProto>();
             _seenBlockHeaderGenericRepository.SetTableType(_seenBlockHeader);
+
+            _validator.SetInitalRunningDistribution(_stakingConfigurationOptions.Distribution);
         }
 
         /// <summary>
@@ -85,7 +88,7 @@ namespace CYPCore.Ledger
                 return;
             }
 
-            var transactions = await IncludeTransactions();
+            var transactions = await IncludeTransactions();       
 
             if (transactions.Any() != true)
             {
@@ -100,10 +103,13 @@ namespace CYPCore.Ledger
                 hash = NBitcoin.Crypto.Hashes.DoubleSHA256(ts.ToArray());
             }
 
-            var signature = Curve.calculateVrfSignature(Curve.decodePrivatePoint(_keyPair.PrivateKey), hash.ToBytes(false));
-            var vrfSig = Curve.verifyVrfSignature(Curve.decodePoint(_keyPair.PublicKey, 0), hash.ToBytes(false), signature);
+            var signature = _signing.CalculateVrfSignature(Curve.decodePrivatePoint(_keyPair.PrivateKey), hash.ToBytes(false));
+            var vrfSig = _signing.VerifyVrfSignature(Curve.decodePoint(_keyPair.PublicKey, 0), hash.ToBytes(false), signature);
 
-            var solution = _validator.Solution(vrfSig, hash);
+
+            await _validator.GetRunningDistribution();
+
+            var solution = _validator.Solution(vrfSig, hash.ToBytes(false));
             var networkShare = _validator.NetworkShare(solution);
             var reward = _validator.Reward(solution);
             var bits = _validator.Difficulty(solution, networkShare);
@@ -211,17 +217,18 @@ namespace CYPCore.Ledger
             var blockHeader = new BlockHeaderProto
             {
                 Bits = bits,
+                Height = deliveredBlockHeader.Height + 1,
+                Locktime = lockTime,
+                LocktimeScript = new Script(Op.GetPushOp(lockTime), OpcodeType.OP_CHECKLOCKTIMEVERIFY).ToString(),
                 Nonce = nonce,
                 PrevMrklRoot = deliveredBlockHeader.MrklRoot,
                 Proof = signature.ByteToHex(),
-                SecKey256 = _validator.Security256.ToStr(),
+                Sec = _validator.Security256.ToStr(),
                 Seed = _validator.Seed.ByteToHex(),
                 Solution = solution,
-                Locktime = lockTime,
-                LocktimeScript = new Script(Op.GetPushOp(lockTime), OpcodeType.OP_CHECKLOCKTIMEVERIFY).ToString(),
                 Transactions = transactions.ToHashSet(),
                 Version = 0x1,
-                VrfSig = vrfBytes.ByteToHex()
+                VrfSig = vrfBytes.ByteToHex(),
             };
 
             return blockHeader;
@@ -326,7 +333,7 @@ namespace CYPCore.Ledger
             Guard.Argument(bits, nameof(bits)).NotNegative();
             Guard.Argument(reward, nameof(reward)).NotNegative();
 
-            TransactionProto tx = null;
+            TransactionProto transaction = null;
 
             using (var client = new HttpClient())
             {
@@ -340,7 +347,7 @@ namespace CYPCore.Ledger
                     var sendPayment = new SendPaymentProto
                     {
                         Address = _stakingConfigurationOptions.WalletSettings.Address,
-                        Amount = bits,
+                        Amount = ((double)bits).ConvertToUInt64(),
                         Credentials = new CredentialsProto { Identifier = _stakingConfigurationOptions.WalletSettings.Identifier, Passphrase = _stakingConfigurationOptions.WalletSettings.Passphrase },
                         Fee = reward,
                         Memo = $"Coinstake transaction at {DateTime.UtcNow} from {_serfClient.SerfConfigurationOptions.NodeName}: {pub.ByteToHex()}",
@@ -352,9 +359,12 @@ namespace CYPCore.Ledger
                     using var response = await client.PostAsJsonAsync(_stakingConfigurationOptions.WalletSettings.SendPaymentEndpoint, proto, new System.Threading.CancellationToken());
 
                     var read = response.Content.ReadAsStringAsync().Result;
-
+                    var jObject = JObject.Parse(read);
+                    var jToken = jObject.GetValue("protobuf");
+                    var byteArray = Convert.FromBase64String(jToken.Value<string>());
+ 
                     if (response.IsSuccessStatusCode)
-                        tx = JsonConvert.DeserializeObject<TransactionProto>(read);
+                        transaction = Helper.Util.DeserializeProto<TransactionProto>(byteArray);
                     else
                     {
                         var content = await response.Content.ReadAsStringAsync();
@@ -368,7 +378,7 @@ namespace CYPCore.Ledger
                 }
             }
 
-            return tx;
+            return transaction;
         }
     }
 }

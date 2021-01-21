@@ -93,7 +93,7 @@ namespace CYPNode.Services
                     var found = blockHeaders.First().Transactions.FirstOrDefault(x => x.TxnId.SequenceEqual(txnId));
                     if (found != null)
                     {
-                        transaction = CYPCore.Helper.Util.SerializeProto(found);
+                        transaction = CYPCore.Helper.Util.SerializeProto(found.Vout);
                     }
                 }
             }
@@ -103,6 +103,41 @@ namespace CYPNode.Services
             }
 
             return transaction;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        public async Task<byte[]> GetSafeguardTransactions()
+        {
+            byte[] result = null;
+
+            try
+            {
+                var count = await _unitOfWork.DeliveredRepository.CountAsync();
+                var last = await _unitOfWork.DeliveredRepository.LastOrDefaultAsync();
+
+                if (last != null)
+                {
+                    int height = (int)last.Height - count;
+
+                    height = height > 0 ? 0 : height;
+
+                    var blockHeaders = await _unitOfWork.DeliveredRepository.RangeAsync(height, 147);
+
+                    if (blockHeaders?.Any() == true)
+                    {
+                        result = CYPCore.Helper.Util.SerializeProto(blockHeaders);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"<<< TransactionService.GetSafeguardTransactions >>>: {ex}");
+            }
+
+            return result;
         }
 
         /// <summary>

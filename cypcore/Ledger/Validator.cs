@@ -22,6 +22,7 @@ using CYPCore.Persistence;
 using CYPCore.Extensions;
 using CYPCore.Cryptography;
 using NBitcoin.Crypto;
+using cypcore.Extensions;
 
 namespace CYPCore.Ledger
 {
@@ -31,9 +32,7 @@ namespace CYPCore.Ledger
         private readonly ISigning _signingProvider;
         private readonly ILogger _logger;
 
-        // TODO:
-        // Distribution hard coded..
-        private double _distribution = 119434243.5;
+        private double _distribution;
         private double _runningDistributionTotal;
 
         public Validator(IUnitOfWork unitOfWork, ISigning signingProvider, ILogger<Validator> logger)
@@ -43,7 +42,6 @@ namespace CYPCore.Ledger
             _logger = logger;
         }
 
-        public int DefualtMiningDifficulty => 20555;
         public uint StakeTimestampMask => 0x0000000A;
         public byte[] Seed => "6b341e59ba355e73b1a8488e75b617fe1caa120aa3b56584a217862840c4f7b5d70cefc0d2b36038d67a35b3cd406d54f8065c1371a17a44c1abb38eea8883b2".HexToByte();
         public byte[] Security256 => "60464814417085833675395020742168312237934553084050601624605007846337253615407".ToBytes();
@@ -276,7 +274,7 @@ namespace CYPCore.Ledger
         {
             Guard.Argument(blockHeader, nameof(blockHeader)).NotNull();
 
-            var verified = VerifySloth(blockHeader.Bits, blockHeader.VrfSig.HexToByte(), blockHeader.Nonce.ToBytes(), blockHeader.SecKey256.ToBytes());
+            var verified = VerifySloth(blockHeader.Bits, blockHeader.VrfSig.HexToByte(), blockHeader.Nonce.ToBytes(), blockHeader.Sec.ToBytes());
             if (!verified)
             {
                 _logger.LogCritical($"<<< Validator.VerifyBlockHeader >>>: Could not verify the block header solth");
@@ -290,7 +288,7 @@ namespace CYPCore.Ledger
                 hash = Hashes.DoubleSHA256(ts.ToArray());
             }
 
-            var solution = Solution(blockHeader.VrfSig.HexToByte(), hash);
+            var solution = Solution(blockHeader.VrfSig.HexToByte(), hash.ToBytes(false));
             var networkShare = NetworkShare(solution);
             var bits = Difficulty(solution, networkShare);
 
@@ -427,8 +425,6 @@ namespace CYPCore.Ledger
                 {
                     var pcm_in = new Span<byte[]>(new byte[mix * 1][]);
                     var pcm_out = new Span<byte[]>(new byte[3][]);
-                    var success = mlsag.Prepare(m, null, 3, 3, mix, rows, pcm_in, pcm_out, null);
-
                     var offsets = keyOffset.Split(33);
 
                     foreach (var cin in offsets.Take(mix).Select((value, i) => (i, value)))
@@ -624,7 +620,7 @@ namespace CYPCore.Ledger
                 var vouts = blockHeaders.SelectMany(blockHeader => blockHeader.Transactions).SelectMany(x => x.Vout);
                 foreach (var vout in vouts.Where(vout => vout.T == CoinType.Coinbase && vout.T == CoinType.fee))
                 {
-                    var verified = VerifyLockTime(new LockTime(Utils.UnixTimeToDateTime(vout.UNLK)), vout.Scr);
+                    var verified = VerifyLockTime(new LockTime(Utils.UnixTimeToDateTime(vout.L)), vout.S);
                     if (!verified)
                     {
                         return false;
@@ -684,16 +680,19 @@ namespace CYPCore.Ledger
         {
             Guard.Argument(solution, nameof(solution)).NotNegative();
 
-            _runningDistributionTotal -= Math.Truncate(NetworkShare(solution));
-            return Math.Truncate(NetworkShare(solution)).ConvertToUInt64();
+            var networkShare = NetworkShare(solution);
+
+            _runningDistributionTotal -= networkShare;
+            return networkShare.ConvertToUInt64();
         }
 
         /// <summary>
         /// 
         /// </summary>
         /// <param name="distribution"></param>
-        public void SetRunningDistribution(double distribution)
+        public void SetInitalRunningDistribution(double distribution)
         {
+            _distribution = distribution;
             _runningDistributionTotal = distribution;
         }
 
@@ -703,14 +702,12 @@ namespace CYPCore.Ledger
         /// <returns></returns>
         public async Task<double> GetRunningDistribution()
         {
-            double runningDistributionTotal = 0d;
-
             try
             {
                 var blockHeaders = await _unitOfWork.DeliveredRepository.SelectAsync(x => new ValueTask<BlockHeaderProto>(x));
                 for (int i = 0; i < blockHeaders.Count(); i++)
                 {
-                    runningDistributionTotal -= Math.Truncate(NetworkShare(blockHeaders.ElementAt(i).Solution));
+                    _runningDistributionTotal -= NetworkShare(blockHeaders.ElementAt(i).Solution);
                 }
             }
             catch (Exception ex)
@@ -718,7 +715,7 @@ namespace CYPCore.Ledger
                 _logger.LogError($"<<< Validator.GetRunningDistribution >>>: {ex}");
             }
 
-            return runningDistributionTotal;
+            return _runningDistributionTotal;
         }
 
         /// <summary>
@@ -730,8 +727,12 @@ namespace CYPCore.Ledger
         {
             Guard.Argument(solution, nameof(solution)).NotNegative();
 
-            var totalPrecentage = _runningDistributionTotal * (100 / _distribution);
-            var networkShare = solution * (totalPrecentage / _distribution);
+            var r = (_distribution - _runningDistributionTotal).FromExponential(11);
+            var percentage = r / (_runningDistributionTotal * 100) == 0 ? 0.1 : r / (_runningDistributionTotal * 100);
+
+            percentage = percentage.FromExponential(11);
+
+            var networkShare = (solution * percentage / _distribution).FromExponential(11);
 
             return networkShare;
         }
@@ -747,7 +748,7 @@ namespace CYPCore.Ledger
             Guard.Argument(solution, nameof(solution)).NotNegative();
             Guard.Argument(networkShare, nameof(networkShare)).NotNegative();
 
-            var diff = solution * (Convert.ToDouble($"0.0{Math.Truncate(networkShare)}") / 100);
+            var diff = Math.Truncate(solution * networkShare / 144);
 
             diff = diff == 0 ? 1 : diff;
 
@@ -760,26 +761,24 @@ namespace CYPCore.Ledger
         /// <param name="vrfBytes"></param>
         /// <param name="kernel"></param>
         /// <returns></returns>
-        public ulong Solution(byte[] vrfSig, uint256 kernel)
+        public ulong Solution(byte[] vrfSig, byte[] kernel)
         {
             Guard.Argument(vrfSig, nameof(vrfSig)).NotNull().MaxCount(32);
-            Guard.Argument(kernel, nameof(kernel)).NotNull();
-
-            if (kernel.Size != 32)
-            {
-                throw new ArgumentOutOfRangeException(nameof(kernel), "The kernel size must be 32 bytes long");
-            }
+            Guard.Argument(kernel, nameof(kernel)).NotNull().MaxCount(32);
 
             bool calculating = true;
-            ulong itrr = 0;
+            long itrr = 0;
 
             var target = new BigInteger(1, vrfSig);
-            var hashTarget = new BigInteger(1, kernel.ToBytes(false));
+            var hashTarget = new BigInteger(1, kernel);
+
+            var hashTargetValue = new BigInteger((target.IntValue / hashTarget.BitCount).ToString()).Abs();
+            var hashWeightedTarget = new BigInteger(1, kernel).Multiply(hashTargetValue);
 
             while (calculating)
             {
-                var weightedTarget = target.Multiply(BigInteger.ValueOf(Convert.ToInt64(itrr)));
-                if (hashTarget.CompareTo(weightedTarget) <= 0)
+                var weightedTarget = target.Multiply(BigInteger.ValueOf(itrr));
+                if (hashWeightedTarget.CompareTo(weightedTarget) <= 0)
                 {
                     calculating = false;
                 }
@@ -787,7 +786,7 @@ namespace CYPCore.Ledger
                 itrr++;
             }
 
-            return itrr;
+            return (ulong)itrr;
         }
 
         /// <summary>
