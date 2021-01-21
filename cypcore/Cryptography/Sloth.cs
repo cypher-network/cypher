@@ -15,11 +15,11 @@ namespace CYPCore.Cryptography
 
     public class Sloth
     {
-        private static readonly BigInteger Zero = new BigInteger();
-        private static readonly BigInteger One = new BigInteger(1);
-        private static readonly BigInteger Two = new BigInteger(2);
-        private static readonly BigInteger Three = new BigInteger(3);
-        private static readonly BigInteger Four = new BigInteger(4);
+        private static readonly BigInteger Zero = new(0);
+        private static readonly BigInteger One = new(1);
+        private static readonly BigInteger Two = new(2);
+        private static readonly BigInteger Three = new(3);
+        private static readonly BigInteger Four = new(4);
 
         /// <summary>
         /// 

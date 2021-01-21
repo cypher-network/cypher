@@ -5,9 +5,9 @@ namespace CYPCore.Consensus.BlockMania.States
 {
     public class Prepared : StateData
     {
-        public ulong Node { get; set; }
-        public ulong Round { get; set; }
-        public uint View { get; set; }
+        public ulong Node { get; }
+        public ulong Round { get; }
+        public uint View { get; }
 
         public Prepared() { }
 

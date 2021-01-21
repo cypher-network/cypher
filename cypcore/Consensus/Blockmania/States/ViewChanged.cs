@@ -5,11 +5,9 @@ namespace CYPCore.Consensus.BlockMania.States
 {
     public class ViewChanged : StateData
     {
-        public ulong Node { get; set; }
-        public ulong Round { get; set; }
-        public uint View { get; set; }
-
-        public ViewChanged() { }
+        public ulong Node { get; }
+        public ulong Round { get; }
+        public uint View { get; }
 
         public ViewChanged(ulong node, ulong round, uint view)
         {
