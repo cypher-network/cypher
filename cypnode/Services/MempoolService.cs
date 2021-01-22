@@ -15,9 +15,16 @@ namespace CYPNode.Services
     public class MempoolService : IMempoolService
     {
         private readonly IUnitOfWork _unitOfWork;
+        // TODO: Check deletion. _mempool is currently unused.
         private readonly IMempool _mempool;
         private readonly ILogger _logger;
 
+        /// <summary>
+        ///
+        /// </summary>
+        /// <param name="unitOfWork"></param>
+        /// <param name="mempool"></param>
+        /// <param name="logger"></param>
         public MempoolService(IUnitOfWork unitOfWork, IMempool mempool, ILogger<MempoolService> logger)
         {
             _unitOfWork = unitOfWork;

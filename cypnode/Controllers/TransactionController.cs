@@ -21,6 +21,11 @@ namespace CYPNode.Controllers
         private readonly ITransactionService _transactionService;
         private readonly ILogger _logger;
 
+        /// <summary>
+        ///
+        /// </summary>
+        /// <param name="transactionService"></param>
+        /// <param name="logger"></param>
         public TransactionController(ITransactionService transactionService, ILogger<TransactionController> logger)
         {
             _transactionService = transactionService;
@@ -30,7 +35,7 @@ namespace CYPNode.Controllers
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="coin"></param>
+        /// <param name="tx"></param>
         /// <returns></returns>
         [HttpPost("mempool", Name = "AddTransaction")]
         [ProducesResponseType(typeof(byte[]), StatusCodes.Status200OK)]
@@ -55,7 +60,7 @@ namespace CYPNode.Controllers
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="txnId"></param>
+        /// <param name="txnid"></param>
         /// <returns></returns>
         [HttpGet("{txnid}", Name = "GetTransaction")]
         [ProducesResponseType(typeof(byte[]), StatusCodes.Status200OK)]

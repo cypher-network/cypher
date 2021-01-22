@@ -18,6 +18,11 @@ namespace CYPNode.Controllers
         private readonly IMemberService _memberService;
         private readonly ILogger _logger;
 
+        /// <summary>
+        ///
+        /// </summary>
+        /// <param name="memberService"></param>
+        /// <param name="logger"></param>
         public MemberController(IMemberService memberService, ILogger<MemberController> logger)
         {
             _memberService = memberService;

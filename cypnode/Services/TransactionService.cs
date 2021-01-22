@@ -27,6 +27,14 @@ namespace CYPNode.Services
         private readonly ISerfClient _serfClient;
         private readonly ISigning _signingProvider;
 
+        /// <summary>
+        ///
+        /// </summary>
+        /// <param name="unitOfWork"></param>
+        /// <param name="mempool"></param>
+        /// <param name="serfClient"></param>
+        /// <param name="signingProvider"></param>
+        /// <param name="logger"></param>
         public TransactionService(IUnitOfWork unitOfWork, IMempool mempool,
             ISerfClient serfClient, ISigning signingProvider, ILogger<TransactionService> logger)
         {
@@ -48,20 +56,26 @@ namespace CYPNode.Services
 
             try
             {
-                var valid = tx.Validate().Any();
+                bool valid = tx.Validate().Any();
                 if (!valid)
                 {
-                    var delivered = await DeliveredTxExist(tx);
+                    bool delivered = await DeliveredTxExist(tx);
                     if (delivered)
+                    {
                         return await Payload(tx, "K_Image exists.", true);
+                    }
 
-                    var mempool = await MempoolTxExist(tx);
+                    bool mempool = await MempoolTxExist(tx);
                     if (mempool)
+                    {
                         return await Payload(tx, "Exists in mempool.", true);
+                    }
 
                     var memPoolProto = await _mempool.AddMemPoolTransaction(MempoolProtoFactory(tx));
                     if (memPoolProto == null)
+                    {
                         return await Payload(tx, "Unable to add txn mempool.", true);
+                    }
 
                     return await Payload(memPoolProto.Block.Transaction, string.Empty, false);
                 }
@@ -115,7 +129,7 @@ namespace CYPNode.Services
 
             try
             {
-                var count = await _unitOfWork.DeliveredRepository.CountAsync();
+                int count = await _unitOfWork.DeliveredRepository.CountAsync();
                 var last = await _unitOfWork.DeliveredRepository.LastOrDefaultAsync();
 
                 if (last != null)
@@ -198,6 +212,7 @@ namespace CYPNode.Services
 
         /// <summary>
         /// Gets transactions.
+        /// TODO: Check deletion. Function body is commented out.
         /// </summary>
         /// <returns>List of transactions.</returns>
         /// <param name="key">Key.</param>
@@ -233,7 +248,7 @@ namespace CYPNode.Services
         /// <returns></returns>
         private MemPoolProto MempoolProtoFactory(TransactionProto tx)
         {
-            return new MemPoolProto
+            return new()
             {
                 Block = new InterpretedProto
                 {
@@ -291,7 +306,7 @@ namespace CYPNode.Services
         /// <returns></returns>
         private async Task<byte[]> Payload(TransactionProto tx, string message, bool isError)
         {
-            var data = CYPCore.Helper.Util.SerializeProto(tx);
+            byte[] data = CYPCore.Helper.Util.SerializeProto(tx);
             var payload = new PayloadProto
             {
                 Error = isError,

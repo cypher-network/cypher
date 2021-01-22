@@ -7,7 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace CYPNode.StartupExtensions
 {
-    public static class SwaggerExtentions
+    public static class SwaggerExtensions
     {
         /// <summary>
         /// 

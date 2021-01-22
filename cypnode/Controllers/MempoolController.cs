@@ -8,10 +8,9 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 
-using CYPCore.Ledger;
 using CYPNode.Services;
 
-namespace TGMNode.Controllers
+namespace CYPNode.Controllers
 {
     [Route("api/mempool")]
     public class MempoolController : Controller
@@ -19,6 +18,11 @@ namespace TGMNode.Controllers
         private readonly IMempoolService _mempoolService;
         private readonly ILogger _logger;
 
+        /// <summary>
+        ///
+        /// </summary>
+        /// <param name="mempoolService"></param>
+        /// <param name="logger"></param>
         public MempoolController(IMempoolService mempoolService, ILogger<MempoolController> logger)
         {
             _mempoolService = mempoolService;
@@ -26,7 +30,7 @@ namespace TGMNode.Controllers
         }
 
         /// <summary>
-        /// 
+        /// TODO: Check deletion. Function commented-out completely.
         /// </summary>
         /// <param name="blockGraph"></param>
         /// <returns></returns>
@@ -51,7 +55,7 @@ namespace TGMNode.Controllers
         //}
 
         /// <summary>
-        /// 
+        /// TODO: Check deletion. Function commented-out completely.
         /// </summary>
         /// <param name="blockGraphs"></param>
         /// <returns></returns>
@@ -111,7 +115,7 @@ namespace TGMNode.Controllers
         }
 
         /// <summary>
-        /// 
+        /// TODO: Check deletion. Function commented-out completely.
         /// </summary>
         /// <returns></returns>
         //[HttpGet("networkheight", Name = "NetworkBlockHeight")]
@@ -133,7 +137,7 @@ namespace TGMNode.Controllers
         //}
 
         /// <summary>
-        /// 
+        /// TODO: Check deletion. Function commented-out completely.
         /// </summary>
         /// <param name="hash"></param>
         /// <param name="round"></param>

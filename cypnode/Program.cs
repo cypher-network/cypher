@@ -13,8 +13,13 @@ using Serilog.Events;
 
 namespace CYPNode
 {
-    public class Program
+    public static class Program
     {
+        /// <summary>
+        ///
+        /// </summary>
+        /// <param name="args"></param>
+        /// <returns></returns>
         public static int Main(string[] args)
         {
             Log.Logger = new LoggerConfiguration()
@@ -33,11 +38,12 @@ namespace CYPNode
                 {
                     host.Run();
                     host.WaitForShutdown();
-                    Console.WriteLine("Ran cleanup code inside using host block.");
+                    Log.Information("Ran cleanup code inside using host block.");
                 }
             }
             catch (ObjectDisposedException)
             {
+                // TODO: Check if ObjectDisposedException can occur given the above implementation. Either remove, add log output or a comment for the reason of this occurence.
             }
             catch (Exception ex)
             {
@@ -52,7 +58,7 @@ namespace CYPNode
             return 0;
         }
 
-        public static IHostBuilder CreateWebHostBuilder(string[] args) =>
+        private static IHostBuilder CreateWebHostBuilder(string[] args) =>
             Host.CreateDefaultBuilder(args)
             .UseServiceProviderFactory(new AutofacServiceProviderFactory())
             .ConfigureWebHostDefaults(webBuilder =>

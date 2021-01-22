@@ -19,6 +19,10 @@ namespace CYPNode
 {
     public class Startup
     {
+        /// <summary>
+        ///
+        /// </summary>
+        /// <param name="env"></param>
         public Startup(IWebHostEnvironment env)
         {
             var builder = new ConfigurationBuilder()
@@ -30,11 +34,10 @@ namespace CYPNode
             Configuration = builder.Build();
         }
 
-        public IConfigurationRoot Configuration { get; private set; }
-        public ILifetimeScope AutofacContainer { get; private set; }
+        private IConfigurationRoot Configuration { get; }
 
         /// <summary>
-        /// 
+        ///
         /// </summary>
         /// <param name="services"></param>
         public void ConfigureServices(IServiceCollection services)
@@ -51,7 +54,7 @@ namespace CYPNode
         }
 
         /// <summary>
-        /// 
+        /// TODO: Check deletion. This method is currently unused.
         /// </summary>
         /// <param name="builder"></param>
         public void ConfigureContainer(ContainerBuilder builder)
@@ -75,8 +78,8 @@ namespace CYPNode
         }
 
         /// <summary>
-        /// 
-        /// </summary>  
+        /// TODO: Check deletion. This method is currently unused.
+        /// </summary>
         /// <param name="app"></param>
         /// <param name="lifetime"></param>
         public void Configure(IApplicationBuilder app, IHostApplicationLifetime lifetime)
@@ -102,7 +105,7 @@ namespace CYPNode
                    c.OAuthAppName("CYPNode Swagger UI");
                });
 
-            AutofacContainer = app.ApplicationServices.GetAutofacRoot();
+            app.ApplicationServices.GetAutofacRoot();
 
             lifetime.ApplicationStarted.Register(() =>
             {

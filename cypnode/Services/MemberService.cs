@@ -22,6 +22,12 @@ namespace CYPNode.Services
 
         private TcpSession _tcpSession;
 
+        /// <summary>
+        ///
+        /// </summary>
+        /// <param name="serfClient"></param>
+        /// <param name="signingProvider"></param>
+        /// <param name="logger"></param>
         public MemberService(ISerfClient serfClient, ISigning signingProvider, ILogger<MemberService> logger)
         {
             _serfClient = serfClient;
@@ -54,6 +60,11 @@ namespace CYPNode.Services
                 if (tcpSession.Ready)
                 {
                     var connectResult = _serfClient.Connect(tcpSession.SessionId);
+                    if (!connectResult.Result.Success)
+                    {
+                        _logger.LogError($"Error connecting to {tcpSession.SessionId.ToString()}");
+                        return null;
+                    }
 
                     var membersResult = await _serfClient.Members(tcpSession.SessionId);
                     if (!membersResult.Success)
@@ -105,6 +116,11 @@ namespace CYPNode.Services
                 if (tcpSession.Ready)
                 {
                     var connectResult = _serfClient.Connect(tcpSession.SessionId);
+                    if (connectResult.Result.Success)
+                    {
+                        _logger.LogError($"Error connecting to {tcpSession.SessionId.ToString()}");
+                        return 0;
+                    }
 
                     var membersCountResult = await _serfClient.MembersCount(tcpSession.SessionId);
                     if (!membersCountResult.Success)
