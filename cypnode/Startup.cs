@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.AspNetCore.Hosting;
 
+// TODO: Check remove. Autofac is not (yet) used in the project. Remove or start using IoC
 using Autofac.Extensions.DependencyInjection;
 using Autofac;
 
