@@ -10,7 +10,7 @@ namespace CYPCore.Persistence
 
         public StoredbContext(string folder, ILogger logger)
         {
-            _logger = logger;
+            _logger = logger.ForContext<StoredbContext>();
 
             Store = new Storedb(folder);
             Store.InitAndRecover();

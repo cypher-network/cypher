@@ -27,7 +27,7 @@ namespace CYPCore.Network.P2P
         public LocalNode(ISerfClient serfClient, ILogger logger)
         {
             _serfClient = serfClient;
-            _logger = logger;
+            _logger = logger.ForContext<LocalNode>();
             _peers = new ConcurrentDictionary<ulong, List<PeerSocket>>();
         }
 

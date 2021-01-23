@@ -58,7 +58,7 @@ namespace CYPCore.Serf
             P2PConnectionOptions p2pConnectionOptions, ILogger logger)
         {
             _signing = signing;
-            _logger = logger;
+            _logger = logger.ForContext<SerfClient>();
 
             SerfConfigurationOptions = serfConfigurationOptions;
             P2PConnectionOptions = p2pConnectionOptions;
