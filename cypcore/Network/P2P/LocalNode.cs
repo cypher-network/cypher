@@ -44,6 +44,8 @@ namespace CYPCore.Network.P2P
         /// <returns></returns>
         public async Task BootstrapNodes()
         {
+            var log = _logger.ForContext("Method", "BootstrapNodes");
+            
             try
             {
                 var tcpSession = _serfClient.GetTcpSession(_tcpSession.SessionId);
@@ -81,7 +83,7 @@ namespace CYPCore.Network.P2P
 
                         if (!_peers.TryAdd(Helper.Util.HashToId(member.Tags["pubkey"]), peerSockets))
                         {
-                            _logger.Error($"<<< LocalNode.Connect >>>: Failed adding or exists in remote nodes: {member.Name}");
+                            log.Error("Failed adding or exists in remote nodes: {@Node}", member.Name);
                             return;
                         }
                     }
@@ -91,16 +93,16 @@ namespace CYPCore.Network.P2P
                     {
                         if (!_peers.TryRemove(node.Key, out List<PeerSocket> ws))
                         {
-                            _logger.Error($"<<< LocalNode.BootstrapClients >>>: Failed removing {node.Key}");
+                            log.Error("Failed removing {@Node}", node.Key);
                         }
                     }
                 }
             }
             catch (ArgumentException)
-            { }
+            {}
             catch (Exception ex)
             {
-                _logger.Error($"<<< LocalNode.BootstrapClients >>>: {ex}");
+                log.Fatal("Exception bootstrapping clients: {@Exception}", ex);
             }
         }
 
@@ -110,6 +112,8 @@ namespace CYPCore.Network.P2P
         /// <param name="data"></param>
         public async Task Broadcast(byte[] data, SocketTopicType topicType)
         {
+            var log = _logger.ForContext("Method", "Broadcast");
+            
             await Task.Run(() =>
             {
                 try
@@ -124,7 +128,7 @@ namespace CYPCore.Network.P2P
                 }
                 catch (Exception ex)
                 {
-                    _logger.Error($"<<< LocalNode.Broadcast >>>: {ex}");
+                    log.Error("Error broadcasting: {@Exception}", ex);
                 }
             });
         }
@@ -134,6 +138,8 @@ namespace CYPCore.Network.P2P
         /// </summary>
         public async Task Close()
         {
+            var log = _logger.ForContext("Method", "Close");
+            
             await Task.Run(() =>
             {
                 try
@@ -148,7 +154,7 @@ namespace CYPCore.Network.P2P
                 }
                 catch (Exception ex)
                 {
-                    _logger.Error($"<<< LocalNode.Broadcast >>>: {ex}");
+                    log.Error("Error closing: {@Exception}", ex);
                 }
             });
         }

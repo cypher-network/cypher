@@ -79,6 +79,8 @@ namespace CYPCore.Serf
         /// <returns></returns>
         public async Task<TaskResult<ulong>> GetClientID()
         {
+            var log = _logger.ForContext("Method", "GetClientID");
+            
             try
             {
                 var pubKey = await _signing.GePublicKey(_signing.DefaultSigningKeyName);
@@ -86,7 +88,7 @@ namespace CYPCore.Serf
             }
             catch (Exception ex)
             {
-                _logger.Error($"<<< SerfClient.MemberCount >>>: {ex}");
+                log.Error("Cannot get client ID: {@Error}", ex);
                 return TaskResult<ulong>.CreateFailure(new SerfError { Error = ex.Message });
             }
 
@@ -100,6 +102,8 @@ namespace CYPCore.Serf
         /// <returns></returns>
         public async Task<TaskResult<int>> MembersCount(Guid tcpSessionId)
         {
+            var log = _logger.ForContext("Method", "MembersCount");
+            
             int memberCount;
 
             try
@@ -118,7 +122,7 @@ namespace CYPCore.Serf
             }
             catch (Exception ex)
             {
-                _logger.Error($"<<< SerfClient.MemberCount >>>: {ex}");
+                log.Error("Error getting member count {@Error}", ex);
                 return TaskResult<int>.CreateFailure(new SerfError { Error = ex.Message });
             }
 
@@ -132,6 +136,8 @@ namespace CYPCore.Serf
         /// <returns></returns>
         public async Task<TaskResult<SerfError>> Connect(Guid tcpSessionId)
         {
+            var log = _logger.ForContext("Method", "Connect");
+            
             try
             {
                 _cancellationTokenSource = new CancellationTokenSource();
@@ -150,7 +156,7 @@ namespace CYPCore.Serf
             }
             catch (Exception ex)
             {
-                _logger.Error($"<<< SerfClient.Connect >>>: {ex}");
+                log.Error("Cannot connect {@Error}", ex);
                 return TaskResult<SerfError>.CreateFailure(new SerfError { Error = ex.Message });
             }
 

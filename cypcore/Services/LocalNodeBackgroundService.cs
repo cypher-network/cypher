@@ -4,9 +4,9 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
+
+using Serilog;
 
 using CYPCore.Network.P2P;
 
@@ -17,7 +17,7 @@ namespace CYPCore.Services
         private readonly ILocalNode _localNode;
         private readonly ILogger _logger;
 
-        public LocalNodeBackgroundService(ILocalNode localNode, ILogger<LocalNodeBackgroundService> logger)
+        public LocalNodeBackgroundService(ILocalNode localNode, ILogger logger)
         {
             _localNode = localNode;
             _logger = logger;
@@ -30,9 +30,11 @@ namespace CYPCore.Services
         /// <returns></returns>
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
+            var log = _logger.ForContext("Method", "ExecuteAsync");
+            
             try
             {
-                _logger.LogInformation("<<< LocalNodeBackgroundService.ExecuteAsync >>>: Bootstrapping seed nodes...");
+                log.Information("Bootstrapping seed nodes...");
 
                 while (true)
                 {
@@ -48,7 +50,7 @@ namespace CYPCore.Services
             }
             catch (Exception ex)
             {                
-                _logger.LogError($"<<< LocalNodeBackgroundService.ExecuteAsync >>>: {ex}");
+                log.Fatal("Cannot run local service {@Exception}", ex);
             }
         }
     }
