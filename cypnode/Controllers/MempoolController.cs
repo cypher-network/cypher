@@ -6,7 +6,8 @@ using System.Threading.Tasks;
 
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
+
+using Serilog;
 
 using CYPCore.Ledger;
 using CYPNode.Services;
@@ -19,10 +20,10 @@ namespace TGMNode.Controllers
         private readonly IMempoolService _mempoolService;
         private readonly ILogger _logger;
 
-        public MempoolController(IMempoolService mempoolService, ILogger<MempoolController> logger)
+        public MempoolController(IMempoolService mempoolService, ILogger logger)
         {
             _mempoolService = mempoolService;
-            _logger = logger;
+            _logger = logger.ForContext<MempoolController>();
         }
 
         /// <summary>
@@ -97,6 +98,8 @@ namespace TGMNode.Controllers
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> GetMempoolTransactionCount()
         {
+            var log = _logger.ForContext("Method", "GetMempoolTransactionCount");
+
             try
             {
                 var transactionCount = await _mempoolService.GetMempoolTransactionCount();
@@ -104,7 +107,7 @@ namespace TGMNode.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< BlockHeight - Controller >>>: {ex}");
+                log.Error("Cannot get transaction count {@Error}", ex);
             }
 
             return new StatusCodeResult(StatusCodes.Status500InternalServerError);

@@ -5,8 +5,9 @@ using System;
 using System.Threading.Tasks;
 
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Http;
+
+using Serilog;
 
 using CYPNode.Services;
 using CYPCore.Models;
@@ -21,10 +22,10 @@ namespace CYPNode.Controllers
         private readonly ITransactionService _transactionService;
         private readonly ILogger _logger;
 
-        public TransactionController(ITransactionService transactionService, ILogger<TransactionController> logger)
+        public TransactionController(ITransactionService transactionService, ILogger logger)
         {
             _transactionService = transactionService;
-            _logger = logger;
+            _logger = logger.ForContext<TransactionController>();
         }
 
         /// <summary>
@@ -37,6 +38,8 @@ namespace CYPNode.Controllers
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> AddTransaction([FromBody] byte[] tx)
         {
+            var log = _logger.ForContext("Method", "AddTransaction");
+
             try
             {
                 var txProto = CYPCore.Helper.Util.DeserializeProto<TransactionProto>(tx);
@@ -46,7 +49,7 @@ namespace CYPNode.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< AddTransaction - Controller >>> {ex}");
+                log.Error("Cannot add transaction {@Error}", ex);
             }
 
             return new StatusCodeResult(StatusCodes.Status500InternalServerError);
@@ -62,6 +65,8 @@ namespace CYPNode.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetTransaction(string txnid)
         {
+            var log = _logger.ForContext("Method", "GetTransaction");
+            
             try
             {
                 var tx = await _transactionService.GetTransaction(txnid.HexToByte());
@@ -69,7 +74,7 @@ namespace CYPNode.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< GetTransaction - Controller >>> {ex}");
+                log.Error("Cannot get transaction {@Error}", ex);
             }
 
             return NotFound();
@@ -84,6 +89,8 @@ namespace CYPNode.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetSafeguardTransactions()
         {
+            var log = _logger.ForContext("Method", "GetSafeguardTransactions");
+            
             try
             {
                 var safeGuardTransactions = await _transactionService.GetSafeguardTransactions();
@@ -91,7 +98,7 @@ namespace CYPNode.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< GetTransactions - Controller >>> {ex}");
+                log.Error("Cannot get safeguard transactions {@Error}", ex);
             }
 
             return NotFound();

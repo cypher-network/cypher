@@ -6,7 +6,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 
-using Microsoft.Extensions.Logging;
+using Serilog;
 
 using Dawn;
 
@@ -28,13 +28,13 @@ namespace CYPNode.Services
         private readonly ISigning _signingProvider;
 
         public TransactionService(IUnitOfWork unitOfWork, IMempool mempool,
-            ISerfClient serfClient, ISigning signingProvider, ILogger<TransactionService> logger)
+            ISerfClient serfClient, ISigning signingProvider, ILogger logger)
         {
             _unitOfWork = unitOfWork;
             _mempool = mempool;
             _serfClient = serfClient;
             _signingProvider = signingProvider;
-            _logger = logger;
+            _logger = logger.ForContext<TransactionService>();
         }
 
         /// <summary>
@@ -45,6 +45,8 @@ namespace CYPNode.Services
         public async Task<byte[]> AddTransaction(TransactionProto tx)
         {
             Guard.Argument(tx, nameof(tx)).NotNull();
+
+            var log = _logger.ForContext("Method", "AddTransaction");
 
             try
             {
@@ -68,7 +70,7 @@ namespace CYPNode.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< TransactionService.AddTransaction >>>: {ex}");
+                log.Error("Cannot add transaction {@Error}", ex);
             }
 
             return await Payload(tx, "No message", true);
@@ -82,6 +84,8 @@ namespace CYPNode.Services
         public async Task<byte[]> GetTransaction(byte[] txnId)
         {
             Guard.Argument(txnId, nameof(txnId)).NotNull().MaxCount(48);
+
+            var log = _logger.ForContext("Method", "GetTransaction");
 
             byte[] transaction = null;
 
@@ -99,7 +103,7 @@ namespace CYPNode.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< TransactionService.GetTransaction >>>: {ex}");
+                log.Error("Cannot get transaction {@Error}", ex);
             }
 
             return transaction;
@@ -111,6 +115,8 @@ namespace CYPNode.Services
         /// <returns></returns>
         public async Task<byte[]> GetSafeguardTransactions()
         {
+            var log = _logger.ForContext("Method", "GetSafeguardTransactions");
+            
             byte[] result = null;
 
             try
@@ -134,7 +140,7 @@ namespace CYPNode.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< TransactionService.GetSafeguardTransactions >>>: {ex}");
+                log.Error("Cannot get safeguard transactions {@Error}", ex);
             }
 
             return result;
@@ -153,6 +159,8 @@ namespace CYPNode.Services
             Guard.Argument(skip, nameof(skip)).NotNegative();
             Guard.Argument(take, nameof(take)).NotNegative();
 
+            var log = _logger.ForContext("Method", "GetTransactions");
+
             byte[] result = null;
 
             try
@@ -161,7 +169,7 @@ namespace CYPNode.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< TransactionService.GetTransactions >>>: {ex}");
+                log.Error("Cannot get transactions {@Error}", ex);
             }
 
             return result;
@@ -178,6 +186,8 @@ namespace CYPNode.Services
             Guard.Argument(skip, nameof(skip)).NotNegative();
             Guard.Argument(take, nameof(take)).NotNegative();
 
+            var log = _logger.ForContext("Method", "GetTransactions");
+
             byte[] result = null;
 
             try
@@ -190,7 +200,7 @@ namespace CYPNode.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< TransactionService.GetTransactions >>>: {ex}");
+                log.Error("Cannot get transactions {@Error}", ex);
             }
 
             return result;

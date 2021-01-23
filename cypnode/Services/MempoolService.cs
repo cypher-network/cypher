@@ -4,7 +4,7 @@
 using System;
 using System.Threading.Tasks;
 
-using Microsoft.Extensions.Logging;
+using Serilog;
 
 using CYPCore.Ledger;
 using CYPCore.Persistence;
@@ -18,11 +18,11 @@ namespace CYPNode.Services
         private readonly IMempool _mempool;
         private readonly ILogger _logger;
 
-        public MempoolService(IUnitOfWork unitOfWork, IMempool mempool, ILogger<MempoolService> logger)
+        public MempoolService(IUnitOfWork unitOfWork, IMempool mempool, ILogger logger)
         {
             _unitOfWork = unitOfWork;
             _mempool = mempool;
-            _logger = logger;
+            _logger = logger.ForContext<MempoolService>();
         }
 
         /// <summary>
@@ -31,6 +31,8 @@ namespace CYPNode.Services
         /// <returns></returns>
         public async Task<int> GetMempoolTransactionCount()
         {
+            var log = _logger.ForContext("Method", "GetMempoolTransactionCount");
+            
             int count = 0;
 
             try
@@ -39,7 +41,7 @@ namespace CYPNode.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< MempoolService.GetMempoolBlockHeight >>>: {ex}");
+                log.Error("Cannot get mempool transaction count {@Error}", ex);
             }
 
             return count;

@@ -5,7 +5,8 @@ using System.Threading.Tasks;
 
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
+
+using Serilog;
 
 using CYPNode.Services;
 
@@ -18,10 +19,10 @@ namespace CYPNode.Controllers
         private readonly IMemberService _memberService;
         private readonly ILogger _logger;
 
-        public MemberController(IMemberService memberService, ILogger<MemberController> logger)
+        public MemberController(IMemberService memberService, ILogger logger)
         {
             _memberService = memberService;
-            _logger = logger;
+            _logger = logger.ForContext<MemberController>();
         }
 
         /// <summary>

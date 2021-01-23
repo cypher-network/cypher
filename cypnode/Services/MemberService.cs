@@ -6,7 +6,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 
-using Microsoft.Extensions.Logging;
+using Serilog;
 
 using CYPCore.Cryptography;
 using CYPCore.Serf;
@@ -22,11 +22,11 @@ namespace CYPNode.Services
 
         private TcpSession _tcpSession;
 
-        public MemberService(ISerfClient serfClient, ISigning signingProvider, ILogger<MemberService> logger)
+        public MemberService(ISerfClient serfClient, ISigning signingProvider, ILogger logger)
         {
             _serfClient = serfClient;
             _signingProvider = signingProvider;
-            _logger = logger;
+            _logger = logger.ForContext<MemberService>();
 
             Ready();
         }
@@ -46,6 +46,8 @@ namespace CYPNode.Services
         /// </summary>
         public async Task<IEnumerable<Members>> GetMembers()
         {
+            var log = _logger.ForContext("Method", "GetMembers");
+            
             var members = Enumerable.Empty<Members>();
 
             try
@@ -66,7 +68,7 @@ namespace CYPNode.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< MemberService.GetMembers >>>: {ex}");
+                log.Error("Cannot get members {@Error}", ex);
             }
 
             return members;
@@ -77,6 +79,8 @@ namespace CYPNode.Services
         /// </summary>
         public async Task<byte[]> GetPublicKey()
         {
+            var log = _logger.ForContext("Method", "GetPublicKey");
+            
             byte[] publicKey = null;
 
             try
@@ -85,7 +89,7 @@ namespace CYPNode.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< MemberService.GetPublicKey >>>: {ex}");
+                log.Error("Cannot get public key {@Error}", ex);
             }
 
             return publicKey;
@@ -97,6 +101,8 @@ namespace CYPNode.Services
         /// <returns></returns>
         public async Task<int> GetCount()
         {
+            var log = _logger.ForContext("Method", "GetCount");
+            
             int count = 0;
 
             try
@@ -117,7 +123,7 @@ namespace CYPNode.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< MemberService.GetCount >>>: {ex}");
+                log.Error("Cannot get member count {@Error}", ex);
             }
 
             return count;
