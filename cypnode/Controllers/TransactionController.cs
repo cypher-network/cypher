@@ -74,27 +74,5 @@ namespace CYPNode.Controllers
 
             return NotFound();
         }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <returns></returns>
-        [HttpGet("safeguard", Name = "GetSafeguardTransactions")]
-        [ProducesResponseType(typeof(byte[]), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> GetSafeguardTransactions()
-        {
-            try
-            {
-                var safeGuardTransactions = await _transactionService.GetSafeguardTransactions();
-                return new ObjectResult(new { protobufs = safeGuardTransactions });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"<<< GetTransactions - Controller >>> {ex}");
-            }
-
-            return NotFound();
-        }
     }
 }
