@@ -34,8 +34,9 @@ namespace CYPNode
             Configuration = builder.Build();
         }
 
-        private IConfigurationRoot Configuration { get; }
-
+        public IConfigurationRoot Configuration { get; private set; }
+        public ILifetimeScope AutofacContainer { get; private set; }
+        
         /// <summary>
         ///
         /// </summary>
@@ -105,7 +106,7 @@ namespace CYPNode
                    c.OAuthAppName("CYPNode Swagger UI");
                });
 
-            app.ApplicationServices.GetAutofacRoot();
+            AutofacContainer = app.ApplicationServices.GetAutofacRoot();
 
             lifetime.ApplicationStarted.Register(() =>
             {
