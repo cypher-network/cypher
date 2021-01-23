@@ -9,11 +9,11 @@ using System.Net.NetworkInformation;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Win32.SafeHandles;
 
 using MessagePack;
+using Serilog;
 
-using Microsoft.Extensions.Logging;
-using Microsoft.Win32.SafeHandles;
 using CYPCore.Cryptography;
 using CYPCore.Extentions;
 using CYPCore.Helper;
@@ -55,7 +55,7 @@ namespace CYPCore.Serf
         private readonly ILogger _logger;
 
         public SerfClient(ISigning signing, SerfConfigurationOptions serfConfigurationOptions,
-            P2PConnectionOptions p2pConnectionOptions, ILogger<SerfClient> logger)
+            P2PConnectionOptions p2pConnectionOptions, ILogger logger)
         {
             _signing = signing;
             _logger = logger;
@@ -86,7 +86,7 @@ namespace CYPCore.Serf
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< SerfClient.MemberCount >>>: {ex}");
+                _logger.Error($"<<< SerfClient.MemberCount >>>: {ex}");
                 return TaskResult<ulong>.CreateFailure(new SerfError { Error = ex.Message });
             }
 
@@ -118,7 +118,7 @@ namespace CYPCore.Serf
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< SerfClient.MemberCount >>>: {ex}");
+                _logger.Error($"<<< SerfClient.MemberCount >>>: {ex}");
                 return TaskResult<int>.CreateFailure(new SerfError { Error = ex.Message });
             }
 
@@ -150,7 +150,7 @@ namespace CYPCore.Serf
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< SerfClient.Connect >>>: {ex}");
+                _logger.Error($"<<< SerfClient.Connect >>>: {ex}");
                 return TaskResult<SerfError>.CreateFailure(new SerfError { Error = ex.Message });
             }
 

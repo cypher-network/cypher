@@ -1,9 +1,4 @@
-﻿using System;
-using System.Threading.Tasks;
-
-using Microsoft.Extensions.Logging;
-
-using FASTER.core;
+﻿using Serilog;
 
 namespace CYPCore.Persistence
 {
@@ -13,7 +8,7 @@ namespace CYPCore.Persistence
 
         private readonly ILogger _logger;
 
-        public StoredbContext(string folder, ILogger<StoredbContext> logger)
+        public StoredbContext(string folder, ILogger logger)
         {
             _logger = logger;
 

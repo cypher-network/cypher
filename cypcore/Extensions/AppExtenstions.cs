@@ -9,11 +9,11 @@ using System.Linq;
 
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Configuration;
 
 using Autofac;
+using Serilog;
 
 using CYPCore.Models;
 using CYPCore.Services;
@@ -69,7 +69,7 @@ namespace CYPCore.Extensions
                     c.Resolve<IValidator>(),
                     c.Resolve<ILocalNode>(),
                     stakingConfigurationOptions,
-                    c.Resolve<ILogger<PosMinting>>());
+                    c.Resolve<ILogger>());
 
                 return posMintingProvider;
             })
@@ -97,7 +97,7 @@ namespace CYPCore.Extensions
                 var storedbContext = new StoredbContext
                 (
                     dataFolder.Value,
-                    c.Resolve<ILogger<StoredbContext>>()
+                    c.Resolve<ILogger>()
                 );
 
                 return storedbContext;
@@ -143,7 +143,7 @@ namespace CYPCore.Extensions
                 (
                     c.Resolve<IMempool>(),
                     c.Resolve<ISerfClient>(),
-                    c.Resolve<ILogger<MempoolSocketService>>()
+                    c.Resolve<ILogger>()
                 );
 
                 return mempoolSocketService;
@@ -168,7 +168,7 @@ namespace CYPCore.Extensions
                      c.Resolve<ISerfClient>(),
                      c.Resolve<ISigning>(),
                      c.Resolve<IValidator>(),
-                     c.Resolve<ILogger<BlockHeaderSocketService>>()
+                     c.Resolve<ILogger>()
                  );
 
                 return blockHeaderSocketService;
@@ -191,7 +191,7 @@ namespace CYPCore.Extensions
                 var localNode = new LocalNode
                 (
                      c.Resolve<ISerfClient>(),
-                     c.Resolve<ILogger<LocalNode>>()
+                     c.Resolve<ILogger>()
                  );
 
                 return localNode;
@@ -220,7 +220,7 @@ namespace CYPCore.Extensions
                 configurationRoot.Bind("Serf", serfConfigurationOptions);
                 configurationRoot.Bind("P2P", p2pConnectionOptions);
 
-                var logger = c.Resolve<ILogger<SerfClient>>();
+                var logger = c.Resolve<ILogger>();
                 var serfClient = new SerfClient(c.Resolve<ISigning>(), serfConfigurationOptions, p2pConnectionOptions, logger);
 
                 return serfClient;
@@ -300,7 +300,7 @@ namespace CYPCore.Extensions
                 var lifetime = c.Resolve<IHostApplicationLifetime>();
                 var unitOfWork = c.Resolve<IUnitOfWork>();
                 var serfClient = c.Resolve<ISerfClient>();
-                var logger = c.Resolve<ILogger<SerfService>>();
+                var logger = c.Resolve<ILogger>();
 
                 var serfService = new SerfService(serfClient, signing, logger);
 
@@ -331,7 +331,7 @@ namespace CYPCore.Extensions
                 }
                 else
                 {
-                    logger.LogCritical($"<<< GraphProvider.InitializeBlocks >>>: {((SerfError)connectResult.NonSuccessMessage).Error}");
+                    logger.Fatal($"<<< GraphProvider.InitializeBlocks >>>: {((SerfError)connectResult.NonSuccessMessage).Error}");
                 }
 
                 return serfService;

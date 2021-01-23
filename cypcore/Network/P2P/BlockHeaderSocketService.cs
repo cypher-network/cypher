@@ -6,10 +6,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
-
 using Autofac;
+using Serilog;
 
 using WebSocketSharp;
 using WebSocketSharp.Server;
@@ -35,11 +33,10 @@ namespace CYPCore.Network.P2P
 
         public BlockHeaderSocketService()
         {
-            _logger = NullLogger<BlockHeaderSocketService>.Instance;
         }
 
         public BlockHeaderSocketService(ISerfClient serfClient, ISigning signingProvider,
-            IValidator validator, ILogger<BlockHeaderSocketService> logger)
+            IValidator validator, ILogger logger)
         {
             _serfClient = serfClient;
             _signingProvider = signingProvider;
@@ -74,11 +71,11 @@ namespace CYPCore.Network.P2P
                 _wss.AddWebSocketService<BlockHeaderSocketService>($"/{SocketTopicType.Block}");
                 _wss.Start();
 
-                _logger.LogInformation($"<<< BlockHeaderSocketService.Start >>>: Started P2P socket block header at ws://{endpoint.Address}:{endpoint.Port}");
+                _logger.Information($"<<< BlockHeaderSocketService.Start >>>: Started P2P socket block header at ws://{endpoint.Address}:{endpoint.Port}");
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< BlockHeaderSocketService.Start >>: {ex.Message}");
+                _logger.Error($"<<< BlockHeaderSocketService.Start >>: {ex.Message}");
             }
         }
 
@@ -120,7 +117,7 @@ namespace CYPCore.Network.P2P
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError($"<<< BlockHeaderSocketService.OnMessage >>>: {ex}");
+                        _logger.Error($"<<< BlockHeaderSocketService.OnMessage >>>: {ex}");
                     }
 
                     return payloads;
@@ -147,7 +144,7 @@ namespace CYPCore.Network.P2P
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< BlockHeaderSocketService.OnMessage >>>: {ex}");
+                _logger.Error($"<<< BlockHeaderSocketService.OnMessage >>>: {ex}");
             }
         }
 

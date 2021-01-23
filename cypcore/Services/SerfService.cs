@@ -8,9 +8,8 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Microsoft.Extensions.Logging;
-
 using Autofac;
+using Serilog;
 
 using CliWrap;
 using CliWrap.EventStream;
@@ -30,11 +29,11 @@ namespace CYPCore.Services
         private readonly ILogger _logger;
         private readonly TcpSession _tcpSession;
 
-        public SerfService(ISerfClient serfClient, ISigning signing, ILogger<SerfService> logger)
+        public SerfService(ISerfClient serfClient, ISigning signing, ILogger logger)
         {
             _serfClient = serfClient;
             _signing = signing;
-            _logger = logger;
+            _logger = logger.ForContext<SerfService>();
 
             _tcpSession = _serfClient.TcpSessionsAddOrUpdate(new TcpSession(
                 serfClient.SerfConfigurationOptions.Listening).Connect(_serfClient.SerfConfigurationOptions.RPC));
@@ -55,19 +54,21 @@ namespace CYPCore.Services
         /// <returns></returns>
         public async Task StartAsync(CancellationToken stoppingToken)
         {
+            var log = _logger.ForContext("Method", "StartAsync");
+            
             if (_serfClient.ProcessStarted)
                 return;
 
             if (IsRunning())
             {
-                _logger.LogWarning("Serf is already running. It's OK if you are running on a different port.");
+                log.Warning("Serf is already running. It's OK if you are running on a different port.");
             }
 
             var useExisting = await TryUseExisting();
             if (useExisting)
             {
                 _serfClient.ProcessStarted = true;
-                _logger.LogInformation("Process Id cannot be found at this moment.");
+                log.Information("Process ID cannot be found at this moment.");
                 return;
             }
 
@@ -86,12 +87,12 @@ namespace CYPCore.Services
 
                 var serfPath = GetFilePath();
 
-                _logger.LogInformation($"Serf assembly path: {serfPath}");
+                log.Information("Serf assembly path: {@SerfPath}", serfPath);
 
                 //  Chmod before attempting to execute serf on Linux and Mac
                 if (new OSPlatform[] { OSPlatform.Linux, OSPlatform.OSX }.Contains(Helper.Util.GetOSPlatform()))
                 {
-                    _logger.LogInformation("Granting execute permission on serf assembly");
+                    log.Information("Granting execute permission on serf assembly");
 
                     var chmodCmd = Cli.Wrap("chmod")
                        .WithArguments(a => a
@@ -126,30 +127,30 @@ namespace CYPCore.Services
                     switch (cmdEvent)
                     {
                         case StartedCommandEvent started:
-                            _logger.LogInformation($"Process started; ID: {started.ProcessId}");
+                            log.Information("Process started; ID: {@ID}", started.ProcessId.ToString());
                             _serfClient.ProcessId = started.ProcessId;
                             break;
                         case StandardOutputCommandEvent stdOut:
                             if (stdOut.Text.Contains("agent: Serf agent starting"))
                             {
-                                _logger.LogInformation("Serf has started!");
+                                log.Information("Serf has started!");
                                 _serfClient.ProcessStarted = true;
                             }
-                            _logger.LogInformation($"Out> {stdOut.Text}");
+                            log.Information("Out> {@Out}", stdOut.Text);
                             break;
                         case StandardErrorCommandEvent stdErr:
-                            _logger.LogError($"Err> {stdErr.Text}");
+                            log.Error("Err> {@Err}", stdErr.Text);
                             _serfClient.ProcessError = stdErr.Text;
                             break;
                         case ExitedCommandEvent exited:
-                            _logger.LogInformation($"Process exited; Code: {exited.ExitCode}");
+                            log.Information("Process exited; Code: {@ExitCode}", exited.ExitCode);
                             break;
                     }
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< SerfService.StartAsync >>>: {ex}");
+                _logger.Fatal("Exception starting Serf: {@Exception}", ex);
             }
         }
 
@@ -169,6 +170,8 @@ namespace CYPCore.Services
         /// <returns></returns>
         private Task<bool> TryUseExisting()
         {
+            var log = _logger.ForContext("Method", "TryUseExisting");
+            
             var cancellationToken = new CancellationTokenSource();
             bool existing = false;
 
@@ -190,7 +193,7 @@ namespace CYPCore.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< SerfService.UseExisting >>>: {ex}");
+                log.Fatal("Exception using existing Serf: {@Exception}", ex);
             }
 
             return Task.FromResult(existing);
@@ -252,6 +255,8 @@ namespace CYPCore.Services
         /// <param name="seedNode"></param>
         public async Task JoinSeedNodes(SeedNode seedNode)
         {
+            var log = _logger.ForContext("Method", "JoinSeedNodes");
+            
             try
             {
                 var tcpSession = _serfClient.GetTcpSession(_tcpSession.SessionId);
@@ -265,15 +270,15 @@ namespace CYPCore.Services
 
                 if (!joinResult.Success)
                 {
-                    _logger.LogError($"<<< SerfService.JoinSeedNodes >>>: {((SerfError)joinResult.NonSuccessMessage).Error}");
+                    log.Error("Error joining seed nodes: {@Error}", ((SerfError)joinResult.NonSuccessMessage).Error);
                     return;
                 }
 
-                _logger.LogInformation($"<<< SerfService.JoinSeedNodes >>>: Serf might still be trying to join the seed nodes. Number of nodes joined {joinResult.Value.Peers}");
+                log.Information("Serf might still be trying to join the seed nodes. Number of nodes joined: {@PeerCount}", joinResult.Value.Peers);
             }
             catch (Exception ex)
             {
-                _logger.LogCritical($"<<< SerfService.JoinSeedNodes >>>: Could not create Serf RPC address {ex}");
+                _logger.Fatal("Could not create Serf RPC address: {@Exception}", ex);
             }
         }
 

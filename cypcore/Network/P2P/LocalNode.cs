@@ -8,7 +8,7 @@ using System.Net;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 
-using Microsoft.Extensions.Logging;
+using Serilog;
 
 using WebSocketSharp;
 
@@ -24,7 +24,7 @@ namespace CYPCore.Network.P2P
         private readonly ILogger _logger;
         private TcpSession _tcpSession;
 
-        public LocalNode(ISerfClient serfClient, ILogger<LocalNode> logger)
+        public LocalNode(ISerfClient serfClient, ILogger logger)
         {
             _serfClient = serfClient;
             _logger = logger;
@@ -81,7 +81,7 @@ namespace CYPCore.Network.P2P
 
                         if (!_peers.TryAdd(Helper.Util.HashToId(member.Tags["pubkey"]), peerSockets))
                         {
-                            _logger.LogError($"<<< LocalNode.Connect >>>: Failed adding or exists in remote nodes: {member.Name}");
+                            _logger.Error($"<<< LocalNode.Connect >>>: Failed adding or exists in remote nodes: {member.Name}");
                             return;
                         }
                     }
@@ -91,7 +91,7 @@ namespace CYPCore.Network.P2P
                     {
                         if (!_peers.TryRemove(node.Key, out List<PeerSocket> ws))
                         {
-                            _logger.LogError($"<<< LocalNode.BootstrapClients >>>: Failed removing {node.Key}");
+                            _logger.Error($"<<< LocalNode.BootstrapClients >>>: Failed removing {node.Key}");
                         }
                     }
                 }
@@ -100,7 +100,7 @@ namespace CYPCore.Network.P2P
             { }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< LocalNode.BootstrapClients >>>: {ex}");
+                _logger.Error($"<<< LocalNode.BootstrapClients >>>: {ex}");
             }
         }
 
@@ -124,7 +124,7 @@ namespace CYPCore.Network.P2P
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError($"<<< LocalNode.Broadcast >>>: {ex}");
+                    _logger.Error($"<<< LocalNode.Broadcast >>>: {ex}");
                 }
             });
         }
@@ -148,7 +148,7 @@ namespace CYPCore.Network.P2P
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError($"<<< LocalNode.Broadcast >>>: {ex}");
+                    _logger.Error($"<<< LocalNode.Broadcast >>>: {ex}");
                 }
             });
         }

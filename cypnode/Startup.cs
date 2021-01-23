@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Hosting;
 
 using Autofac.Extensions.DependencyInjection;
 using Autofac;
-
+using AutofacSerilogIntegration;
 using CYPNode.StartupExtensions;
 using CYPCore.Consensus.BlockMania;
 using CYPCore.Extensions;
@@ -72,6 +72,7 @@ namespace CYPNode
             builder.AddBlockHeaderSocketService();
             builder.AddMempoolSocketService();
             builder.AddDataKeysProtection();
+            builder.RegisterLogger();
         }
 
         /// <summary>

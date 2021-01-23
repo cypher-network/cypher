@@ -6,10 +6,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
-
 using Autofac;
+using Serilog;
 
 using WebSocketSharp;
 using WebSocketSharp.Server;
@@ -33,10 +31,9 @@ namespace CYPCore.Network.P2P
 
         public MempoolSocketService()
         {
-            _logger = NullLogger<MempoolSocketService>.Instance;
         }
 
-        public MempoolSocketService(IMempool memPool, ISerfClient serfClient, ILogger<MempoolSocketService> logger)
+        public MempoolSocketService(IMempool memPool, ISerfClient serfClient, ILogger logger)
         {
             _memPool = memPool;
             _serfClient = serfClient;
@@ -69,7 +66,7 @@ namespace CYPCore.Network.P2P
             _wss.AddWebSocketService<MempoolSocketService>($"/{SocketTopicType.Mempool}");
             _wss.Start();
 
-            _logger.LogInformation($"<<< MempoolSocketService.Start >>>: Started P2P socket mempool at ws://{endpoint.Address}:{endpoint.Port}");
+            _logger.Information($"<<< MempoolSocketService.Start >>>: Started P2P socket mempool at ws://{endpoint.Address}:{endpoint.Port}");
         }
 
         /// <summary>
@@ -92,7 +89,7 @@ namespace CYPCore.Network.P2P
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError($"<<< MempoolSocketService.OnMessage >>>: Could not deserialize payload {ex.Message}");
+                        _logger.Error($"<<< MempoolSocketService.OnMessage >>>: Could not deserialize payload {ex.Message}");
                     }
 
                     return memPools;
@@ -127,7 +124,7 @@ namespace CYPCore.Network.P2P
                             var added = await GetInstance()._memPool.AddMemPoolTransaction(mempool);
                             if (added == null)
                             {
-                                _logger.LogError($"<<< MempoolSocketService.OnMessage >>>: " +
+                                _logger.Error($"<<< MempoolSocketService.OnMessage >>>: " +
                                     $"Blockgraph: {mempool.Block.Hash} was not add " +
                                     $"for node {mempool.Block.Node} and round {mempool.Block.Round}");
                             }
@@ -140,7 +137,7 @@ namespace CYPCore.Network.P2P
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< MempoolSocketService.OnMessage >>>: {ex.Message}");
+                _logger.Error($"<<< MempoolSocketService.OnMessage >>>: {ex.Message}");
             }
         }
 
