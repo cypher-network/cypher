@@ -12,7 +12,7 @@ namespace CYPCore.Network.P2P
         public string TcpServerMempool { get; set; }
         public bool UseTls { get; set; }
         public bool UseCleanSession { get; set; }
-
+        public string LocalHost { get; set; }
         /// <summary>
         /// 
         /// </summary>
@@ -29,6 +29,15 @@ namespace CYPCore.Network.P2P
         public System.Net.IPEndPoint GetMempoolSocketIPEndPoint()
         {
             return Helper.Util.TryParseAddress(TcpServerMempool);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        public string GetLocalHost()
+        {
+            return LocalHost;
         }
     }
 }

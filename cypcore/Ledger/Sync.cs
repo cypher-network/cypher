@@ -1,206 +1,175 @@
-﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+﻿//CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
-//using System;
-//using System.Collections.Concurrent;
-//using System.Collections.Generic;
-//using System.Linq;
-//using System.Threading;
-//using System.Threading.Tasks;
-//using CYPCore.Actors.Providers;
-//using CYPCore.Models;
-//using CYPCore.Network;
-//using Microsoft.Extensions.Logging;
-//using Newtonsoft.Json.Linq;
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
-//namespace CYPCore.Providers
-//{
-//    public class SyncProvider<TAttach>
-//    {
-//        public bool IsRunning { get; private set; }
-//        public bool IsSynchronized { get; private set; }
-//        public string Route { get; }
+using Microsoft.Extensions.Logging;
 
-//        private readonly IUnitOfWork unitOfWork;
-//        private readonly IHttpClientService httpClientService;
-//        private readonly INetworkActorProvider networkActorProvider;
-//        private readonly IInterpretActorProvider<TAttach> interpretActorProvider;
-//        private readonly ILogger logger;
+using CYPCore.Serf;
+using CYPCore.Models;
+using CYPCore.Persistence;
+using CYPCore.Serf.Message;
+using CYPCore.Services.Rest;
 
-//        public SyncProvider(IUnitOfWork unitOfWork, IHttpClientService httpClientService, INetworkActorProvider networkActorProvider,
-//            IInterpretActorProvider<TAttach> interpretActorProvider, string route, ILogger<SyncProvider<TAttach>> logger)
-//        {
-//            this.unitOfWork = unitOfWork;
-//            this.httpClientService = httpClientService;
-//            this.networkActorProvider = networkActorProvider;
-//            this.interpretActorProvider = interpretActorProvider;
+namespace CYPCore.Ledger
+{
+    public class Sync : ISync
+    {
+        public bool SyncRunning { get; private set; }
 
-//            Route = route;
+        private const int BatchSize = 20;
 
-//            this.logger = logger;
-//        }
+        private readonly IUnitOfWork _unitOfWork;
+        private readonly ISerfClient _serfClient;
+        private readonly IValidator _validator;
+        private readonly ILogger _logger;
+        private readonly TcpSession _tcpSession;
 
-//        /// <summary>
-//        /// 
-//        /// </summary>
-//        /// <returns></returns>
-//        public async Task SynchronizeCheck()
-//        {
-//            IsRunning = true;
+        public Sync(IUnitOfWork unitOfWork, ISerfClient serfClient, IValidator validator, ILogger<Sync> logger)
+        {
+            _unitOfWork = unitOfWork;
+            _serfClient = serfClient;
+            _validator = validator;
+            _logger = logger;
 
-//            try
-//            {
-//                logger.LogInformation("<<< SyncProvider.SynchronizeCheck >>>: Checking block height.");
+            _tcpSession = serfClient.TcpSessionsAddOrUpdate(new TcpSession(
+                serfClient.SerfConfigurationOptions.Listening).Connect(serfClient.SerfConfigurationOptions.RPC));
+        }
 
-//                var maxNetworks = Enumerable.Empty<NodeBlockCountProto>();
-//                ulong maxNetworkHeight = 0;
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        public async Task Check()
+        {
+            SyncRunning = true;
 
-//                var (local, network) = await Height();
+            try
+            {
+                _logger.LogInformation("<<< Sync.SyncCheck >>>: Checking block height.");
 
-//                if (network.Any())
-//                {
-//                    maxNetworkHeight = network.Max(m => m.BlockCount);
-//                    maxNetworks = network.Where(x => x.BlockCount == maxNetworkHeight);
-//                }
+                var tcpSession = _serfClient.GetTcpSession(_tcpSession.SessionId);
+                if (!tcpSession.Ready)
+                {
+                    SyncRunning = false;
+                    return;
+                }
 
-//                logger.LogInformation($"<<< SyncProvider.SynchronizeCheck >>>: Local node block height ({local}). Network block height ({maxNetworkHeight}).");
+                List<Members> members = null;
 
-//                if (local < maxNetworkHeight)
-//                {
-//                    var numberOfBlocks = Difference(local, maxNetworkHeight);
+                await _serfClient.Connect(tcpSession.SessionId);
+                var membersResult = await _serfClient.Members(tcpSession.SessionId);
 
-//                    logger.LogInformation($"<<< SyncProvider.SynchronizeCheck >>>: Synchronizing node. Total blocks behind ({numberOfBlocks})");
+                if (!membersResult.Success)
+                {
+                    _logger.LogCritical("<<< Sync.SyncCheck >>>: Failed to get membership.");
+                    return;
+                }
 
-//                    var downloads = await Synchronize(maxNetworks, numberOfBlocks);
-//                    if (downloads.Any() != true)
-//                    {
-//                        IsSynchronized = false;
-//                        logger.LogError($"<<< SyncProvider.SynchronizeCheck >>>: Failed to synchronize node. Number of blocks reached {local + (ulong)downloads.Count()} Expected Network block height ({maxNetworkHeight}");
-//                        return;
-//                    }
+                BlockHeight local = new(), remote = null;
 
-//                    var downloadSum = (ulong)downloads.Sum(v => v.Value);
-//                    if (!downloadSum.Equals(numberOfBlocks))
-//                    {
-//                        IsSynchronized = false;
-//                        return;
-//                    }
-//                }
+                members = membersResult.Value.Members.ToList();
 
-//                IsSynchronized = true;
-//            }
-//            catch (Exception ex)
-//            {
-//                logger.LogError($"<<< SyncProvider.SynchronizeCheck >>>: {ex.ToString()}");
-//            }
+                foreach (var member in members)
+                {
+                    if (_serfClient.Name == member.Name || member.Status != "alive")
+                        continue;
 
-//            IsRunning = false;
-//        }
+                    local.Height = await _unitOfWork.DeliveredRepository.CountAsync();
 
-//        /// <summary>
-//        /// 
-//        /// </summary>
-//        /// <returns></returns>
-//        public async Task<IEnumerable<KeyValuePair<ulong, int>>> Synchronize(IEnumerable<NodeBlockCountProto> pool, ulong numberOfBlocks)
-//        {
-//            if (pool.Any() != true)
-//            {
-//                throw new InvalidOperationException("Sequence contains no elements");
-//            }
+                    Uri.TryCreate($"{member.Tags["localhost"]}", UriKind.RelativeOrAbsolute, out Uri uri);
 
-//            var throttler = new SemaphoreSlim(int.MaxValue);
-//            var downloads = new ConcurrentDictionary<ulong, int>();
+                    var blockRestApi = new BlockRestService(uri);
 
-//            try
-//            {
-//                var allTasks = new List<Task>();
-//                var numberOfBatches = (int)Math.Ceiling((double)numberOfBlocks / numberOfBlocks);
+                    remote = await blockRestApi.Height();
 
-//                var series = new long[numberOfBatches];
-//                foreach (var n in series)
-//                {
-//                    await throttler.WaitAsync();
+                    _logger.LogInformation($"<<< Sync.SyncCheck >>>: Local node block height ({local.Height}). Network block height ({remote.Height}).");
 
-//                    allTasks.Add(Task.Run(async () =>
-//                    {
-//                        try
-//                        {
-//                            Helper.Util.Shuffle(pool.ToArray());
+                    if (local.Height < remote.Height)
+                    {   
+                        await Synchronize(uri, (int)local.Height);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"<<< Sync.SyncCheck >>>: {ex}");
+            }
 
-//                            var response = await httpClientService.Dial(DialType.Get, pool.First().Address, $"{Route}/{n * (long)numberOfBlocks}/{numberOfBlocks}");
+            SyncRunning = false;
+        }
 
-//                            var read = Helper.Util.ReadJToken(response, "protobufs");
-//                            var byteArray = Convert.FromBase64String(read.Value<string>());
-//                            var blockIdProtos = Helper.Util.DeserializeListProto<BaseBlockIDProto<TAttach>>(byteArray);
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        public async Task Synchronize(Uri uri, int skip)
+        {
+            var throttler = new SemaphoreSlim(int.MaxValue);
 
-//                            logger.LogInformation($"<<< Synchronize >>>: Retrieved {byteArray.Length} bytes from {response.RequestMessage.RequestUri.Authority}");
+            try
+            {
+                var allTasks = new List<Task>();
 
-//                            var fullIdentity = httpClientService.GetFullNodeIdentity(response);
+                await throttler.WaitAsync();
 
-//                            if (byteArray.Length > 0)
-//                            {
-//                                var blockIDs = blockIdProtos.Select(x => new BaseBlockIDProto<TAttach>
-//                                {
-//                                    Hash = x.Hash,
-//                                    Node = x.Node,
-//                                    Round = x.Round,
-//                                    SignedBlock = x.SignedBlock
-//                                }).AsEnumerable();
+                allTasks.Add(Task.Run(async () =>
+                {
+                    try
+                    {
+                        var blockRestApi = new BlockRestService(uri);
+                        var blockHeaders = await blockRestApi.Range(skip, BatchSize);
 
-//                                var success = await interpretActorProvider.Interpret(new Messages.InterpretMessage<TAttach>(httpClientService.NodeIdentity, blockIDs));
+                        if (blockHeaders.Any())
+                        {
+                            foreach (var blockHeader in blockHeaders)
+                            {
+                                try
+                                {
+                                    bool verified = await _validator.VerifyBlockHeader(blockHeader);
+                                    if (!verified)
+                                    {
+                                        return;
+                                    }
 
-//                                downloads.TryAdd(fullIdentity.Key, blockIDs.Count());
-//                                return;
-//                            }
+                                    var saved = await _unitOfWork.DeliveredRepository.PutAsync(blockHeader, blockHeader.ToIdentifier());
+                                    if (saved == null)
+                                    {
+                                        _logger.LogError($"<<< Sync.Synchronize >>>: Unable to save block header: {blockHeader.MrklRoot}");
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    _logger.LogCritical($"<<< Sync.Synchronize >>>: {ex.Message}");
+                                }
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        throttler.Release();
+                    }
+                }));
 
-//                            downloads.TryAdd(fullIdentity.Key, 0);
-//                        }
-//                        finally
-//                        {
-//                            throttler.Release();
-//                        }
-//                    }));
-//                }
-
-//                try
-//                {
-//                    await Task.WhenAll(allTasks);
-//                }
-//                catch { }
-//            }
-//            catch (Exception ex)
-//            {
-//                logger.LogError($"<<< SyncProvider.Synchronize >>>: Failed to synchronize node: {ex.ToString()}");
-//            }
-//            finally
-//            {
-//                throttler.Dispose();
-//            }
-
-//            return downloads;
-//        }
-
-//        /// <summary>
-//        /// 
-//        /// </summary>
-//        /// <returns></returns>
-//        private async Task<(ulong local, IEnumerable<NodeBlockCountProto> network)> Height()
-//        {
-//            var l = (ulong)await networkActorProvider.BlockHeight();
-//            var n = await networkActorProvider.FullNetworkBlockHeight();
-
-//            return (l, n);
-//        }
-
-//        /// <summary>
-//        /// 
-//        /// </summary>
-//        /// <param name="local"></param>
-//        /// <param name="network"></param>
-//        /// <returns></returns>
-//        private ulong Difference(ulong local, ulong network)
-//        {
-//            return network > local ? network - local : local - network;
-//        }
-//    }
-//}
+                try
+                {
+                    await Task.WhenAll(allTasks);
+                }
+                catch { }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"<<< Sync.Synchronize >>>: Failed to synchronize node: {ex}");
+            }
+            finally
+            {
+                throttler.Dispose();
+            }
+        }
+    }
+}

@@ -1,4 +1,4 @@
-// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
@@ -200,6 +200,7 @@ namespace CYPCore.Extensions
             .SingleInstance();
 
             builder.RegisterType<LocalNodeBackgroundService>().As<IHostedService>().SingleInstance();
+            builder.RegisterType<SyncBackgroundService>().As<IHostedService>().SingleInstance();
 
             return builder;
         }
@@ -339,6 +340,17 @@ namespace CYPCore.Extensions
             .As<IStartable>()
             .SingleInstance();
 
+            return builder;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="builder"></param>
+        /// <returns></returns>
+        public static ContainerBuilder AddSync(this ContainerBuilder builder)
+        {
+            builder.RegisterType<Sync>().As<ISync>().SingleInstance();
             return builder;
         }
     }

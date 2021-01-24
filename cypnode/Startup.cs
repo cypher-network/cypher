@@ -73,6 +73,7 @@ namespace CYPNode
             builder.AddMempoolService();
             builder.AddMemberService();
             builder.AddPosMinting(Configuration);
+            builder.AddSync();
             builder.AddLocalNode();
             builder.AddBlockHeaderSocketService();
             builder.AddMempoolSocketService();
