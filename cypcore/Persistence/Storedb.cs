@@ -19,12 +19,6 @@ namespace CYPCore.Persistence
         /// 
         /// </summary>
         /// <param name="folder"></param>
-        /// <exception cref="ArgumentException">Invalid path</exception>
-        /// <exception cref="ArgumentNullException">Path is null</exception>
-        /// <exception cref="SecurityException">User does not have required permissions</exception>
-        /// <exception cref="NotSupportedException">Path is not supported</exception>
-        /// <exception cref="PathTooLongException">Path is too long</exception>
-        /// <exception cref="UnauthorizedAccessException">Access is denied</exception>
         /// 
         public Storedb(string folder)
         {
