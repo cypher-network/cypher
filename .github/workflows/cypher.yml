@@ -11,7 +11,9 @@ jobs:
       with:
         dotnet-version: '5.0.101' # SDK Version to use.
     - name: Checkout latest
-      uses: actions/checkout@master
+      uses: actions/checkout@v2
+    - name: unit test
+      run: dotnet test
     - name: build cypher
       run:  |
         dotnet restore cypher.sln
