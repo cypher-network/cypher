@@ -102,13 +102,11 @@ namespace CYPNode.Services
             try
             {
                 var blockHeaders = await _unitOfWork.DeliveredRepository.WhereAsync(x => new ValueTask<bool>(x.Transactions.Any(t => t.TxnId.SequenceEqual(txnId))));
-                if (blockHeaders.Any())
+                var firstBlockHeader = blockHeaders.FirstOrDefault();
+                var found = firstBlockHeader?.Transactions.FirstOrDefault(x => x.TxnId.SequenceEqual(txnId));
+                if (found != null)
                 {
-                    var found = blockHeaders.First().Transactions.FirstOrDefault(x => x.TxnId.SequenceEqual(txnId));
-                    if (found != null)
-                    {
-                        transaction = CYPCore.Helper.Util.SerializeProto(found.Vout);
-                    }
+                    transaction = CYPCore.Helper.Util.SerializeProto(found.Vout);
                 }
             }
             catch (Exception ex)
