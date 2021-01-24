@@ -55,13 +55,13 @@ if [ -d "/run/systemd/system/" ]
 then
    if ! service_exists cypnode; then
       echo "cypnode.service not detected"
+         
+      read -p "Would you like to install cynode as a service?"
 
-      while true; do
-         read -p "Would you like to install cynode as a service?" yn
+      select yn in "Yes" "No"; do
          case $yn in
-               [Yy]* ) curl -s https://raw.githubusercontent.com/cypher-network/cypher/$version/create-service.sh | bash; break;;
-               [Nn]* ) break;;
-               * ) echo "Please answer yes or no.";;
+               Yes ) curl -s https://raw.githubusercontent.com/cypher-network/cypher/$version/create-service.sh | bash; break;;
+               No ) break;;
          esac
       done
    else
