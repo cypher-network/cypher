@@ -20,6 +20,9 @@ echo "Extracting $tmp_dir/cypher.zip"
 
 unzip -o $tmp_dir/cypher.zip -d $tmp_dir/cypher
 
+# Rename appsettings.json to appsettings.default.json
+mv $tmp_dir/cypher/appsettings.json $tmp_dir/cypher/appsettings.default.json
+
 if [ ! -d $HOME/.cypher ]
 then
     echo "Creating $HOME/.cypher"
@@ -61,6 +64,9 @@ then
                * ) echo "Please answer yes or no.";;
          esac
       done
+   else
+      echo "cynode.service already installed, restarting..."
+      systemctl restart cypnode.service
    fi
 fi
 
@@ -68,7 +74,7 @@ if grep -q "$HOME/.cypher/bin" ~/.profile
 then
         :
 else
-	    echo Reloading profile
+        echo Reloading profile
         echo "" >> ~/.profile
         echo "export PATH=$PATH:$HOME/.cypher/bin" >> ~/.profile
 fi
