@@ -80,12 +80,16 @@ namespace CYPCore.Ledger
                     if (_serfClient.Name == member.Name || member.Status != "alive")
                         continue;
 
-                    local.Height = await _unitOfWork.DeliveredRepository.CountAsync();
+                    member.Tags.TryGetValue("localhost", out string localHost);
 
-                    Uri.TryCreate($"{member.Tags["localhost"]}", UriKind.RelativeOrAbsolute, out Uri uri);
+                    if (string.IsNullOrEmpty(localHost))
+                        continue;
+
+                    Uri.TryCreate($"{localHost}", UriKind.RelativeOrAbsolute, out Uri uri);
 
                     var blockRestApi = new BlockRestService(uri);
 
+                    local.Height = await _unitOfWork.DeliveredRepository.CountAsync();
                     remote = await blockRestApi.Height();
 
                     _logger.LogInformation($"<<< Sync.SyncCheck >>>: Local node block height ({local.Height}). Network block height ({remote.Height}).");
