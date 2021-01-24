@@ -1,4 +1,4 @@
-// CYPNode by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+﻿// CYPNode by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using Microsoft.AspNetCore.Builder;
@@ -69,6 +69,7 @@ namespace CYPNode
             builder.AddStaging();
             builder.AddSigning();
             builder.AddValidator();
+            builder.AddBlockService();
             builder.AddTransactionService();
             builder.AddMempoolService();
             builder.AddMemberService();

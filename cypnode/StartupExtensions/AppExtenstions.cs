@@ -41,5 +41,16 @@ namespace CYPNode.StartupExtensions
             builder.RegisterType<MemberService>().As<IMemberService>();
             return builder;
         }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="builder"></param>
+        /// <returns></returns>
+        public static ContainerBuilder AddBlockService(this ContainerBuilder builder)
+        {
+            builder.RegisterType<BlockService>().As<IBlockService>();
+            return builder;
+        }
     }
 }
