@@ -1,4 +1,4 @@
-﻿// CYPNode by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+// CYPNode by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using Microsoft.AspNetCore.Builder;
@@ -65,14 +65,14 @@ namespace CYPNode
             builder.AddSerfProcessService(Configuration);
             builder.AddStoredbContext(Configuration);
             builder.AddUnitOfWork();
-            builder.AddMemPoolProvider();
-            builder.AddStagingProvider();
-            builder.AddSigningProvider();
+            builder.AddMempool();
+            builder.AddStaging();
+            builder.AddSigning();
             builder.AddValidator();
             builder.AddTransactionService();
             builder.AddMempoolService();
             builder.AddMemberService();
-            builder.AddPosMintingProvider(Configuration);
+            builder.AddPosMinting(Configuration);
             builder.AddLocalNode();
             builder.AddBlockHeaderSocketService();
             builder.AddMempoolSocketService();
