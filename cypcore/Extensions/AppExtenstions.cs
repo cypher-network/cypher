@@ -33,7 +33,7 @@ namespace CYPCore.Extensions
         /// </summary>
         /// <param name="builder"></param>
         /// <returns></returns>
-        public static ContainerBuilder AddSigningProvider(this ContainerBuilder builder)
+        public static ContainerBuilder AddSigning(this ContainerBuilder builder)
         {
             builder.RegisterType<Signing>().As<ISigning>().InstancePerLifetimeScope();
             return builder;
@@ -44,7 +44,7 @@ namespace CYPCore.Extensions
         /// </summary>
         /// <param name="builder"></param>
         /// <returns></returns>
-        public static ContainerBuilder AddMemPoolProvider(this ContainerBuilder builder)
+        public static ContainerBuilder AddMempool(this ContainerBuilder builder)
         {
             builder.RegisterType<Mempool>().As<IMempool>().InstancePerDependency();
             return builder;
@@ -55,7 +55,7 @@ namespace CYPCore.Extensions
         /// </summary>
         /// <param name="builder"></param>
         /// <returns></returns>
-        public static ContainerBuilder AddPosMintingProvider(this ContainerBuilder builder, IConfigurationRoot configurationRoot)
+        public static ContainerBuilder AddPosMinting(this ContainerBuilder builder, IConfigurationRoot configurationRoot)
         { 
             builder.Register(c =>
             {
@@ -124,7 +124,7 @@ namespace CYPCore.Extensions
         /// </summary>
         /// <param name="builder"></param>
         /// <returns></returns>
-        public static ContainerBuilder AddStagingProvider(this ContainerBuilder builder)
+        public static ContainerBuilder AddStaging(this ContainerBuilder builder)
         {
             builder.RegisterType<Staging>().As<IStaging>().InstancePerLifetimeScope();
             return builder;
@@ -200,6 +200,7 @@ namespace CYPCore.Extensions
             .SingleInstance();
 
             builder.RegisterType<LocalNodeBackgroundService>().As<IHostedService>().SingleInstance();
+            builder.RegisterType<SyncBackgroundService>().As<IHostedService>().SingleInstance();
 
             return builder;
         }
@@ -339,6 +340,17 @@ namespace CYPCore.Extensions
             .As<IStartable>()
             .SingleInstance();
 
+            return builder;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="builder"></param>
+        /// <returns></returns>
+        public static ContainerBuilder AddSync(this ContainerBuilder builder)
+        {
+            builder.RegisterType<Sync>().As<ISync>().SingleInstance();
             return builder;
         }
     }

@@ -5,6 +5,7 @@
     <TargetFramework>net5.0</TargetFramework>
     <Platforms>AnyCPU;x64</Platforms>
     <AssemblyName>Coin.API</AssemblyName>
+    <RootNamespace>CYPNode</RootNamespace>
   </PropertyGroup>
 
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
@@ -61,12 +62,6 @@
     </Content>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\cypcore\cypcore.csproj">
-      <GlobalPropertiesToRemove></GlobalPropertiesToRemove>
-      <ReferenceSourceTarget></ReferenceSourceTarget>
-    </ProjectReference>
-  </ItemGroup>
-  <ItemGroup>
     <None Include="**/*" />
   </ItemGroup>
   <ItemGroup>
@@ -76,5 +71,11 @@
     <None Update="Runners\cypnode.sh">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\cypcore\cypcore.csproj">
+      <GlobalPropertiesToRemove></GlobalPropertiesToRemove>
+      <ReferenceSourceTarget>ProjectReference</ReferenceSourceTarget>
+    </ProjectReference>
   </ItemGroup>
 </Project>

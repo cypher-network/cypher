@@ -8,35 +8,50 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
+using CYPCore.Ledger;
+
 namespace CYPCore.Services
 {
-
-    public class SyncBackgroundService //: BackgroundService
+    public class SyncBackgroundService : BackgroundService
     {
-        //private readonly SyncProvider<I> _syncProvider;
-        //private readonly ILogger _logger;
+        private readonly ISync _sync;
+        private readonly ILogger _logger;
 
-        //public SyncService(SyncProvider<I> syncProvider, ILogger<SyncService<I>> logger)
-        //{
-        //    _syncProvider = syncProvider;
-        //    _logger = logger;
-        //}
+        public SyncBackgroundService(ISync sync, ILogger<SyncBackgroundService> logger)
+        {
+            _sync = sync;
+            _logger = logger;
+        }
 
-        ///// <summary>
-        ///// 
-        ///// </summary>
-        ///// <param name="stoppingToken"></param>
-        ///// <returns></returns>
-        //protected async override Task ExecuteAsync(CancellationToken stoppingToken)
-        //{
-        //    try
-        //    {
-        //        await _syncProvider.SynchronizeCheck();
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        _logger.LogError($"<<< SyncService >>>: {ex.ToString()}");
-        //    }
-        //}
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="stoppingToken"></param>
+        /// <returns></returns>
+        protected async override Task ExecuteAsync(CancellationToken stoppingToken)
+        {
+            try
+            {
+                while (true)
+                {
+                    stoppingToken.ThrowIfCancellationRequested();
+
+                    await _sync.Check();
+
+                    await Task.Delay(600000, stoppingToken);
+
+                    while (_sync.SyncRunning)
+                    {
+                        stoppingToken.ThrowIfCancellationRequested();
+
+                        await Task.Delay(6000, stoppingToken);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"<<< SyncService >>>: {ex}");
+            }
+        }
     }
 }

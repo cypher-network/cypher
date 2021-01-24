@@ -13,17 +13,12 @@ namespace CYPNode.Controllers
 {
     [Route("api/member")]
     [ApiController]
-    public class MemberController : Controller
+    public class MembershipController : Controller
     {
         private readonly IMemberService _memberService;
         private readonly ILogger _logger;
 
-        /// <summary>
-        ///
-        /// </summary>
-        /// <param name="memberService"></param>
-        /// <param name="logger"></param>
-        public MemberController(IMemberService memberService, ILogger<MemberController> logger)
+        public MembershipController(IMemberService memberService, ILogger<MembershipController> logger)
         {
             _memberService = memberService;
             _logger = logger;
