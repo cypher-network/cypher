@@ -8,6 +8,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "cypcore", "cypcore\cypcore.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "cypnode", "cypnode\cypnode.csproj", "{04AC85C3-F32D-4641-99DA-84322C891966}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "cypcore-test-unit", "test\unit\cypcore-test-unit\cypcore-test-unit.csproj", "{F100EC82-5359-4C03-AB68-61CBD4370005}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -32,6 +34,14 @@ Global
 		{04AC85C3-F32D-4641-99DA-84322C891966}.Release|Any CPU.Build.0 = Release|Any CPU
 		{04AC85C3-F32D-4641-99DA-84322C891966}.Release|x64.ActiveCfg = Release|x64
 		{04AC85C3-F32D-4641-99DA-84322C891966}.Release|x64.Build.0 = Release|x64
+		{F100EC82-5359-4C03-AB68-61CBD4370005}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F100EC82-5359-4C03-AB68-61CBD4370005}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F100EC82-5359-4C03-AB68-61CBD4370005}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{F100EC82-5359-4C03-AB68-61CBD4370005}.Debug|x64.Build.0 = Debug|Any CPU
+		{F100EC82-5359-4C03-AB68-61CBD4370005}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F100EC82-5359-4C03-AB68-61CBD4370005}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F100EC82-5359-4C03-AB68-61CBD4370005}.Release|x64.ActiveCfg = Release|Any CPU
+		{F100EC82-5359-4C03-AB68-61CBD4370005}.Release|x64.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -39,6 +49,7 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{8D7FCA1A-6ED0-4780-AF3B-3B655995D03A} = {E8DE6A81-3601-4229-B38D-EBAC19DCAE42}
 		{04AC85C3-F32D-4641-99DA-84322C891966} = {E8DE6A81-3601-4229-B38D-EBAC19DCAE42}
+		{F100EC82-5359-4C03-AB68-61CBD4370005} = {E8DE6A81-3601-4229-B38D-EBAC19DCAE42}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {89F13E13-009F-4FE0-A95A-47F2E1258CC7}

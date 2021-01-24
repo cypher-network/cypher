@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Security;
 using System.Threading.Tasks;
 using FASTER.core;
 
@@ -7,49 +8,49 @@ namespace CYPCore.Persistence
 {
     public class Storedb : IStoredb
     {
-        private readonly string _dataFolder;
+        private readonly string _checkpointPath;
+        private const long LogSize = 1L << 20;
 
-        public FasterKV<StoreKey, StoreValue> db;
-        public IDevice log;
-        public IDevice objLog;
-
-        public Storedb(string folder)
-        {
-            _dataFolder = folder;
-        }
+        public FasterKV<StoreKey, StoreValue> Database { get; }
+        private readonly IDevice _log;
+        private readonly IDevice _objLog;
 
         /// <summary>
         /// 
         /// </summary>
-        /// <returns></returns>
-        public bool InitAndRecover()
+        /// <param name="folder"></param>
+        /// <exception cref="ArgumentException">Invalid path</exception>
+        /// <exception cref="ArgumentNullException">Path is null</exception>
+        /// <exception cref="SecurityException">User does not have required permissions</exception>
+        /// <exception cref="NotSupportedException">Path is not supported</exception>
+        /// <exception cref="PathTooLongException">Path is too long</exception>
+        /// <exception cref="UnauthorizedAccessException">Access is denied</exception>
+        /// 
+        public Storedb(string folder)
         {
-            var logSize = 1L << 20; // 1M cache lines of 64 bytes each = 64MB hash table
+            var dataPath = Path.Combine(Path.GetDirectoryName(AppDomain.CurrentDomain.BaseDirectory), folder);
 
-            var currentDirectory = Path.Combine(Path.GetDirectoryName(AppDomain.CurrentDomain.BaseDirectory), _dataFolder);
+            var storehlogFolder = Path.Combine(dataPath, "Store-hlog.log");
+            var storehlogObjFolder = Path.Combine(dataPath, "Store-hlog-obj.log");
+            _checkpointPath = Path.Combine(dataPath, "checkpoints");
 
-            var storehlogFolder = Path.Combine(currentDirectory, "Store-hlog.log");
-            var storehlogObjFolder = Path.Combine(currentDirectory, "Store-hlog-obj.log");
-
-            log = Devices.CreateLogDevice(storehlogFolder, preallocateFile: false);
-            objLog = Devices.CreateLogDevice(storehlogObjFolder, preallocateFile: false);
-
-            var checkpointFolder = Path.Combine(currentDirectory, "checkpoints");
-
-            db = new FasterKV
+            _log = Devices.CreateLogDevice(storehlogFolder, preallocateFile: false);
+            _objLog = Devices.CreateLogDevice(storehlogObjFolder, preallocateFile: false);
+            
+            Database = new FasterKV
                 <StoreKey, StoreValue>(
-                    logSize,
+                    LogSize,
                     new LogSettings
                     {
-                        LogDevice = log,
-                        ObjectLogDevice = objLog,
+                        LogDevice = _log,
+                        ObjectLogDevice = _objLog,
                         MutableFraction = 0.3,
                         PageSizeBits = 15,
                         MemorySizeBits = 20
                     },
                     new CheckpointSettings
                     {
-                        CheckpointDir = checkpointFolder,
+                        CheckpointDir = _checkpointPath,
                         CheckPointType = CheckpointType.FoldOver
                     },
                     new SerializerSettings<StoreKey, StoreValue>
@@ -58,14 +59,18 @@ namespace CYPCore.Persistence
                         valueSerializer = () => new StoreValueSerializer()
                     }
                 );
+        }
 
-            if (Directory.Exists(checkpointFolder))
-            {
-                db.Recover();
-                return false;
-            }
-
-            return true;
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        public bool InitAndRecover()
+        {
+            if (!Directory.Exists(_checkpointPath)) return true;
+            
+            Database.Recover();
+            return false;
         }
 
         /// <summary>
@@ -74,8 +79,8 @@ namespace CYPCore.Persistence
         /// <returns></returns>
         public async Task<Guid> Checkpoint()
         {
-            db.TakeFullCheckpoint(out Guid token);
-            await db.CompleteCheckpointAsync();
+            Database.TakeFullCheckpoint(out Guid token);
+            await Database.CompleteCheckpointAsync();
 
             return token;
         }
@@ -85,9 +90,9 @@ namespace CYPCore.Persistence
         /// </summary>
         public void Dispose()
         {
-            db.Dispose();
-            log.Dispose();
-            objLog.Dispose();
+            Database.Dispose();
+            _log.Dispose();
+            _objLog.Dispose();
         }
     }
 }

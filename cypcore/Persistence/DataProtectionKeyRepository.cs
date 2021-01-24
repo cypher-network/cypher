@@ -40,8 +40,10 @@ namespace CYPCore.Persistence
 
             try
             {
-                var session = _storedbContext.Store.db.NewSession(new StoreFunctions());
-                using var scanner = _storedbContext.Store.db.Log.Scan(_storedbContext.Store.db.Log.BeginAddress, _storedbContext.Store.db.Log.TailAddress);
+                var session = _storedbContext.Store.Database.NewSession(new StoreFunctions());
+                using var scanner = _storedbContext.Store.Database.Log.Scan(
+                    _storedbContext.Store.Database.Log.BeginAddress,
+                    _storedbContext.Store.Database.Log.TailAddress);
 
                 while (scanner.GetNext(out RecordInfo recordInfo, out StoreKey storeKey, out StoreValue storeValue))
                 {                    
@@ -82,7 +84,7 @@ namespace CYPCore.Persistence
 
             try
             {
-                var session = _storedbContext.Store.db.NewSession(new StoreFunctions());
+                var session = _storedbContext.Store.Database.NewSession(new StoreFunctions());
 
                 var blockKey = new StoreKey { tableType = DataProtection, key = friendlyName.ToBytes() };
 

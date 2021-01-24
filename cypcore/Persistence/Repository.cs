@@ -47,7 +47,7 @@ namespace CYPCore.Persistence
 
             try
             {
-                using var session = _storedbContext.Store.db.NewSession(new StoreFunctions());
+                using var session = _storedbContext.Store.Database.NewSession(new StoreFunctions());
 
                 var output = new StoreOutput();
                 var blockKey = new StoreKey { tableType = _tableType, key = key };
@@ -78,7 +78,7 @@ namespace CYPCore.Persistence
 
             try
             {
-                using var session = _storedbContext.Store.db.NewSession(new StoreFunctions());
+                using var session = _storedbContext.Store.Database.NewSession(new StoreFunctions());
 
                 var blockKey = new StoreKey { tableType = _tableType, key = key };
                 var blockvalue = new StoreValue { value = Helper.Util.SerializeProto(entity) };
@@ -234,7 +234,7 @@ namespace CYPCore.Persistence
 
             try
             {
-                using var session = _storedbContext.Store.db.NewSession(new StoreFunctions());
+                using var session = _storedbContext.Store.Database.NewSession(new StoreFunctions());
                 var deleteStatus = session.Delete(ref storeKey);
 
                 if (deleteStatus != Status.OK)
@@ -362,7 +362,7 @@ namespace CYPCore.Persistence
         /// <returns></returns>
         internal async IAsyncEnumerable<TEntity> IterateAsync()
         {
-            var iter = _storedbContext.Store.db.Iterate();
+            var iter = _storedbContext.Store.Database.Iterate();
             while (iter.GetNext(out RecordInfo recordInfo, out StoreKey storeKey, out StoreValue storeValue))
             {
                 if (storeKey.tableType == _tableType)
