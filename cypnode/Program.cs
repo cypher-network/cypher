@@ -2,12 +2,12 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
-
+using System.IO;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Hosting;
 
 using Autofac.Extensions.DependencyInjection;
-
+using Microsoft.Extensions.Configuration;
 using Serilog;
 using Serilog.Events;
 
@@ -22,13 +22,15 @@ namespace CYPNode
         /// <returns></returns>
         public static int Main(string[] args)
         {
+            var configuration = new ConfigurationBuilder()
+                .SetBasePath(Directory.GetCurrentDirectory())
+                .AddJsonFile("appsettings.json")
+                .Build();
+            
             Log.Logger = new LoggerConfiguration()
-                .MinimumLevel.Debug()
-                .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
-                .Enrich.FromLogContext()
-                .WriteTo.Console()
-                .WriteTo.File("tgmnode.log", rollingInterval: RollingInterval.Day, retainedFileCountLimit: 7)
+                .ReadFrom.Configuration(configuration, "Log")
                 .CreateLogger();
+            
             try
             {
                 Log.Information("Starting web host");
