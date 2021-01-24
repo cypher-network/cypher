@@ -56,7 +56,7 @@ then
    if ! service_exists cypnode; then
       echo "cypnode.service not detected"
          
-      read -p "Would you like to install cynode as a service?"
+      echo "Would you like to install cynode as a service?"
 
       select yn in "Yes" "No"; do
          case $yn in
