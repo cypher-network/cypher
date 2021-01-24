@@ -12,9 +12,9 @@ jobs:
         dotnet-version: '5.0.101' # SDK Version to use.
     - name: Checkout latest
       uses: actions/checkout@v2
-    - name: unit test
+    - name: Run unit tests
       run: dotnet test
-    - name: build cypher
+    - name: Build cypher
       run:  |
         dotnet restore cypher.sln
         dotnet publish cypnode --output publish/cypnode --configuration Release
