@@ -1,4 +1,13 @@
 #!/usr/bin/env bash
+service_exists() {
+    local n=$1
+    if [[ $(systemctl list-units --all -t service --full --no-legend "$n.service" | cut -f1 -d' ') == $n.service ]]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
 echo Beginning cypher node install
 tmp_dir=$(mktemp -d -t ci-XXXXXXXXXX)
 echo "Temporary directory ${tmp_dir} created"
@@ -10,6 +19,9 @@ curl -L https://github.com/cypher-network/cypher/releases/download/$version/cyph
 echo "Extracting $tmp_dir/cypher.zip"
 
 unzip -o $tmp_dir/cypher.zip -d $tmp_dir/cypher
+
+# Rename appsettings.json to appsettings.default.json
+mv $tmp_dir/cypher/appsettings.json $tmp_dir/cypher/appsettings.default.json
 
 if [ ! -d $HOME/.cypher ]
 then
@@ -38,6 +50,25 @@ chmod +x $HOME/.cypher/bin/cypnode
 echo "Cleaning up temporary directory ${tmp_dir}"
 
 rm -rf $tmp_dir
+
+if [ -d "/run/systemd/system/" ]
+then
+   if ! service_exists cypnode; then
+      echo "cypnode.service not detected"
+
+      while true; do
+         read -p "Would you like to install cynode as a service?" yn
+         case $yn in
+               [Yy]* ) curl -s https://raw.githubusercontent.com/cypher-network/cypher/$version/create-service.sh | bash; break;;
+               [Nn]* ) break;;
+               * ) echo "Please answer yes or no.";;
+         esac
+      done
+   else
+      echo "cynode.service already installed, restarting..."
+      systemctl restart cypnode.service
+   fi
+fi
 
 if grep -q "$HOME/.cypher/bin" ~/.profile
 then
