@@ -27,7 +27,7 @@ namespace cypcore_test_unit
         [Test]
         public void Instantiation_InvalidPath_Throws()
         {
-            const string invalidPath = "test:path";
+            const string invalidPath = null;
             
             Assert.That(() => _storedb = new Storedb(invalidPath), Throws.Exception);
             Assert.Null(_storedb);
