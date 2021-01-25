@@ -1,4 +1,4 @@
-// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
@@ -18,11 +18,13 @@ using CYPCore.Models;
 using CYPCore.Serf;
 using CYPCore.Cryptography;
 using CYPCore.Ledger;
+using CYPCore.Persistence;
 
 namespace CYPCore.Network.P2P
 {
     public class BlockHeaderSocketService : WebSocketBehavior, IStartable, IDisposable
     {
+        private readonly IUnitOfWork _unitOfWork;
         private readonly ISerfClient _serfClient;
         private readonly ISigning _signingProvider;
         private readonly IValidator _validator;
@@ -38,9 +40,10 @@ namespace CYPCore.Network.P2P
             _logger = NullLogger<BlockHeaderSocketService>.Instance;
         }
 
-        public BlockHeaderSocketService(ISerfClient serfClient, ISigning signingProvider,
+        public BlockHeaderSocketService(IUnitOfWork unitOfWork, ISerfClient serfClient, ISigning signingProvider,
             IValidator validator, ILogger<BlockHeaderSocketService> logger)
         {
+            _unitOfWork = unitOfWork;
             _serfClient = serfClient;
             _signingProvider = signingProvider;
             _validator = validator;
@@ -145,6 +148,15 @@ namespace CYPCore.Network.P2P
                         {
                             var blockHeader = Helper.Util.DeserializeProto<BlockHeaderProto>(payloadProto.Payload);
                             var valid = await _validator.VerifyBlockHeader(blockHeader);
+
+                            if (valid)
+                            {
+                                var saved = await _unitOfWork.DeliveredRepository.PutAsync(blockHeader, blockHeader.ToIdentifier());
+                                if (saved == null)
+                                {
+                                    _logger.LogError($"<<< BlockHeaderSocketService.OnMessage >>>: Unable to save block header: {blockHeader.MrklRoot}");
+                                }
+                            }
                         }
                     }
 
