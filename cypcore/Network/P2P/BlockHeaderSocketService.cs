@@ -1,4 +1,4 @@
-﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
@@ -74,7 +74,14 @@ namespace CYPCore.Network.P2P
                 _wss.AddWebSocketService<BlockHeaderSocketService>($"/{SocketTopicType.Block}");
                 _wss.Start();
 
-                _logger.LogInformation($"<<< BlockHeaderSocketService.Start >>>: Started P2P socket block header at ws://{endpoint.Address}:{endpoint.Port}");
+                if (!_wss.IsListening)
+                {
+                    _logger.LogError($"<<< BlockHeaderSocketService.Start >>>: Faild to started P2P socket block header at ws://{endpoint.Address}:{endpoint.Port}");
+                }
+                else
+                {
+                    _logger.LogInformation($"<<< BlockHeaderSocketService.Start >>>: Started P2P socket block header at ws://{endpoint.Address}:{endpoint.Port}");
+                }
             }
             catch (Exception ex)
             {

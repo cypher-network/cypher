@@ -69,7 +69,14 @@ namespace CYPCore.Network.P2P
             _wss.AddWebSocketService<MempoolSocketService>($"/{SocketTopicType.Mempool}");
             _wss.Start();
 
-            _logger.LogInformation($"<<< MempoolSocketService.Start >>>: Started P2P socket mempool at ws://{endpoint.Address}:{endpoint.Port}");
+            if (!_wss.IsListening)
+            {
+                _logger.LogError($"<<< MempoolSocketService.Start >>>: Faild to started P2P socket mempool at ws://{endpoint.Address}:{endpoint.Port}");
+            }
+            else
+            {
+                _logger.LogInformation($"<<< MempoolSocketService.Start >>>: Started P2P socket mempool at ws://{endpoint.Address}:{endpoint.Port}");
+            }
         }
 
         /// <summary>
