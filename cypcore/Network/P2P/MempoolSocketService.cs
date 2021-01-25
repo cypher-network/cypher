@@ -3,7 +3,6 @@
 
 using System;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 
 using Microsoft.Extensions.Logging;
@@ -11,12 +10,15 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 using Autofac;
 
+using Dawn;
+
 using WebSocketSharp;
 using WebSocketSharp.Server;
 
 using CYPCore.Models;
 using CYPCore.Serf;
 using CYPCore.Ledger;
+using CYPCore.Helper;
 
 namespace CYPCore.Network.P2P
 {
@@ -25,9 +27,9 @@ namespace CYPCore.Network.P2P
         private readonly IMempool _memPool;
         private readonly ISerfClient _serfClient;
         private readonly ILogger _logger;
+        private readonly BackgroundQueue _queue;
 
         private WebSocketServer _wss;
-        private CancellationTokenSource _cancel;
 
         private static MempoolSocketService _instance;
 
@@ -41,7 +43,8 @@ namespace CYPCore.Network.P2P
             _memPool = memPool;
             _serfClient = serfClient;
             _logger = logger;
-            _serfClient.GetClientID().GetAwaiter();
+
+            _queue = new();
 
             if (_instance == null)
             {
@@ -65,10 +68,10 @@ namespace CYPCore.Network.P2P
         {
             if (GetInstance() == null)
             {
-                throw new Exception("Null reference exception on GetInstance()");
+                throw new Exception("<<< MempoolSocketService.Start >>>: Null reference exception on GetInstance()");
             }
 
-            var endpoint = Helper.Util.TryParseAddress(GetInstance()._serfClient.P2PConnectionOptions.TcpServerMempool);
+            var endpoint = Util.TryParseAddress(GetInstance()._serfClient.P2PConnectionOptions.TcpServerMempool);
 
             GetInstance()._wss = new WebSocketServer($"ws://{endpoint.Address}:{endpoint.Port}");
             GetInstance()._wss.AddWebSocketService<MempoolSocketService>($"/{SocketTopicType.Mempool}");
@@ -90,72 +93,78 @@ namespace CYPCore.Network.P2P
         /// <param name="e"></param>
         protected async override void OnMessage(MessageEventArgs e)
         {
-            try
+            if (GetInstance() == null)
             {
-                _cancel = new CancellationTokenSource();
+                throw new Exception("<<< MempoolSocketService.OnMessage >>>: Null reference exception on GetInstance()");
+            }
 
-                await Task.Run(() =>
+            await GetInstance()._queue.QueueTask(async () =>
+            {
+                try
                 {
-                    var memPools = Enumerable.Empty<MemPoolProto>();
-
-                    try
+                    var memPools = Util.DeserializeListProto<MemPoolProto>(e.RawData);
+                    if (memPools.Any())
                     {
-                        memPools = Helper.Util.DeserializeListProto<MemPoolProto>(e.RawData);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError($"<<< MempoolSocketService.OnMessage >>>: Could not deserialize payload {ex.Message}");
-                    }
-
-                    return memPools;
-
-                }, _cancel.Token).ContinueWith(async mempools =>
-                {
-                    if (mempools.IsCanceled || mempools.IsFaulted)
-                    {
-                        throw new Exception(mempools.Exception.Message);
-                    }
-
-                    if (mempools.Result?.Any() == true)
-                    {
-                        foreach (var mempool in mempools.Result)
+                        foreach (var mempool in memPools)
                         {
-                            if (mempool != null)
+                            var processed = await Process(mempool);
+                            if (!processed)
                             {
-                                if (GetInstance() == null)
-                                {
-                                    break;
-                                }
-
-                                if (GetInstance()._serfClient.P2PConnectionOptions.ClientId == mempool.Block.Node)
-                                {
-                                    continue;
-                                }
-                            }
-
-                            mempool.Included = false;
-                            mempool.Replied = false;
-
-                            var added = await GetInstance()._memPool.AddMemPoolTransaction(mempool);
-                            if (added == null)
-                            {
-                                _logger.LogError($"<<< MempoolSocketService.OnMessage >>>: " +
-                                    $"Blockgraph: {mempool.Block.Hash} was not add " +
-                                    $"for node {mempool.Block.Node} and round {mempool.Block.Round}");
+                                break;
                             }
                         }
                     }
+                    else
+                    {
+                        var payload = Util.DeserializeProto<MemPoolProto>(e.RawData);
+                        if (payload != null)
+                        {
+                            await Process(payload);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    GetInstance()._logger.LogError($"<<< MempoolSocketService.OnMessage >>>: {ex}");
+                }
 
-                    _cancel.Cancel();
+                Send($"Replied from: {GetInstance()._serfClient.P2PConnectionOptions.ClientId}");
+            });
+        }
 
-                }, TaskContinuationOptions.ExecuteSynchronously);
-            }
-            catch (Exception ex)
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="memPool"></param>
+        /// <returns></returns>
+        private static async Task<bool> Process(MemPoolProto memPool)
+        {
+            Guard.Argument(memPool, nameof(memPool)).NotNull();
+
+            if (GetInstance() == null)
             {
-                _logger.LogError($"<<< MempoolSocketService.OnMessage >>>: {ex.Message}");
+                throw new Exception("<<< MempoolSocketService.Process >>>: Null reference exception on GetInstance()");
             }
 
-            Send($"Received mempool: {GetInstance()._serfClient.P2PConnectionOptions.ClientId}");
+            if (GetInstance()._serfClient.P2PConnectionOptions.ClientId == memPool.Block.Node)
+            {
+                return false;
+            }
+
+            memPool.Included = false;
+            memPool.Replied = false;
+
+            var added = await GetInstance()._memPool.AddMemPoolTransaction(memPool);
+            if (added == null)
+            {
+                GetInstance()._logger.LogError($"<<< MempoolSocketService.Process >>>: " +
+                    $"Blockgraph: {memPool.Block.Hash} was not add " +
+                    $"for node {memPool.Block.Node} and round {memPool.Block.Round}");
+
+                return false;
+            }
+
+            return true;
         }
 
         /// <summary>

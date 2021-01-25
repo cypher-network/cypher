@@ -3,13 +3,14 @@
 
 using System;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 using Autofac;
+
+using Dawn;
 
 using WebSocketSharp;
 using WebSocketSharp.Server;
@@ -19,6 +20,7 @@ using CYPCore.Serf;
 using CYPCore.Cryptography;
 using CYPCore.Ledger;
 using CYPCore.Persistence;
+using CYPCore.Helper;
 
 namespace CYPCore.Network.P2P
 {
@@ -29,9 +31,9 @@ namespace CYPCore.Network.P2P
         private readonly ISigning _signingProvider;
         private readonly IValidator _validator;
         private readonly ILogger _logger;
+        private readonly BackgroundQueue _queue;
 
         private WebSocketServer _wss;
-        private CancellationTokenSource _cancel;
 
         private static BlockHeaderSocketService _instance;
 
@@ -48,6 +50,8 @@ namespace CYPCore.Network.P2P
             _signingProvider = signingProvider;
             _validator = validator;
             _logger = logger;
+
+            _queue = new();
 
             if (_instance == null)
             {
@@ -73,10 +77,10 @@ namespace CYPCore.Network.P2P
             {
                 if (GetInstance() == null)
                 {
-                    throw new Exception("Null reference exception on GetInstance()");
+                    throw new Exception("<<< BlockHeaderSocketService.Start >>>: Null reference exception on GetInstance()");
                 }
 
-                var endpoint = Helper.Util.TryParseAddress(GetInstance()._serfClient.P2PConnectionOptions.TcpServerBlock);
+                var endpoint = Util.TryParseAddress(GetInstance()._serfClient.P2PConnectionOptions.TcpServerBlock);
 
                 GetInstance()._wss = new WebSocketServer($"ws://{endpoint.Address}:{endpoint.Port}");
                 GetInstance()._wss.AddWebSocketService<BlockHeaderSocketService>($"/{SocketTopicType.Block}");
@@ -93,7 +97,7 @@ namespace CYPCore.Network.P2P
             }
             catch (Exception ex)
             {
-                GetInstance()._logger.LogError($"<<< BlockHeaderSocketService.Start >>: {ex.Message}");
+                GetInstance()._logger.LogError($"<<< BlockHeaderSocketService.Start >>>: {ex.Message}");
             }
         }
 
@@ -103,78 +107,87 @@ namespace CYPCore.Network.P2P
         /// <param name="e"></param>
         protected async override void OnMessage(MessageEventArgs e)
         {
-            try
+            if (GetInstance() == null)
             {
-                _cancel = new CancellationTokenSource();
+                throw new Exception("<<< BlockHeaderSocketService.OnMessage >>>: Null reference exception on GetInstance()");
+            }
 
-                await Task.Run(() =>
+            await GetInstance()._queue.QueueTask(async () =>
+            {
+                try
                 {
-                    var payloads = Enumerable.Empty<PayloadProto>();
-
-                    try
+                    if (e.RawData.Length > 26214400)
                     {
-                        if (e.RawData.Length > 26214400)
-                        {
-                            throw new Exception("Payload size exceeds 25MB.");
-                        }
+                        GetInstance()._logger.LogError("<<< BlockHeaderSocketService.OnMessage >>>: Payload size exceeds 25MB");
+                        return;
+                    }
 
-                        if (GetInstance() == null)
-                        {
-                            throw new Exception("Null reference exception on GetInstance()");
-                        }
-
-                        payloads = Helper.Util.DeserializeListProto<PayloadProto>(e.RawData);
+                    var payloads = Util.DeserializeListProto<PayloadProto>(e.RawData);
+                    if (payloads.Any())
+                    {
                         foreach (var payload in payloads)
                         {
-                            var valid = GetInstance()._signingProvider.VerifySignature(payload.Signature, payload.PublicKey, Helper.Util.SHA384ManagedHash(payload.Payload));
-                            if (!valid)
+                            var processed = await Process(payload);
+                            if (!processed)
                             {
-                                throw new Exception("Signature failed to validate.");
+                                break;
                             }
                         }
                     }
-                    catch (Exception ex)
+                    else
                     {
-                        GetInstance()._logger.LogError($"<<< BlockHeaderSocketService.OnMessage >>>: {ex}");
-                    }
-
-                    return payloads;
-
-                }, _cancel.Token).ContinueWith(async payload =>
-                {
-                    if (payload.IsCanceled || payload.IsFaulted)
-                    {
-                        throw new Exception(payload.Exception.Message);
-                    }
-
-                    if (payload.Result?.Any() == true)
-                    {
-                        foreach (PayloadProto payloadProto in payload.Result)
+                        var payload = Util.DeserializeProto<PayloadProto>(e.RawData);
+                        if (payload != null)
                         {
-                            var blockHeader = Helper.Util.DeserializeProto<BlockHeaderProto>(payloadProto.Payload);
-                            var valid = await GetInstance()._validator.VerifyBlockHeader(blockHeader);
-
-                            if (valid)
-                            {
-                                var saved = await GetInstance()._unitOfWork.DeliveredRepository.PutAsync(blockHeader, blockHeader.ToIdentifier());
-                                if (saved == null)
-                                {
-                                    GetInstance()._logger.LogError($"<<< BlockHeaderSocketService.OnMessage >>>: Unable to save block header: {blockHeader.MrklRoot}");
-                                }
-                            }
+                            await Process(payload);
                         }
                     }
+                }
+                catch (Exception ex)
+                {
+                    GetInstance()._logger.LogError($"<<< BlockHeaderSocketService.OnMessage >>>: {ex}");
+                }
 
-                    _cancel.Cancel();
+                Send($"Replied from: {GetInstance()._serfClient.P2PConnectionOptions.ClientId}");
+            });
+        }
 
-                }, TaskContinuationOptions.ExecuteSynchronously);
-            }
-            catch (Exception ex)
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="payload"></param>
+        /// <returns></returns>
+        private static async Task<bool> Process(PayloadProto payload)
+        {
+            Guard.Argument(payload, nameof(payload)).NotNull();
+
+            if (GetInstance() == null)
             {
-                GetInstance()._logger.LogError($"<<< BlockHeaderSocketService.OnMessage >>>: {ex}");
+                throw new Exception("<<< MempoolSocketService.Process >>>: Null reference exception on GetInstance()");
             }
 
-            Send($"Received block header: {GetInstance()._serfClient.P2PConnectionOptions.ClientId}");
+            var valid = GetInstance()._signingProvider.VerifySignature(payload.Signature, payload.PublicKey, Util.SHA384ManagedHash(payload.Payload));
+            if (!valid)
+            {
+                GetInstance()._logger.LogError($"<<< BlockHeaderSocketService.Process >>: Unable to verifiy signature.");
+                return false;
+            }
+
+            var blockHeader = Util.DeserializeProto<BlockHeaderProto>(payload.Payload);
+
+            valid = await GetInstance()._validator.VerifyBlockHeader(blockHeader);
+
+            if (valid)
+            {
+                var saved = await GetInstance()._unitOfWork.DeliveredRepository.PutAsync(blockHeader, blockHeader.ToIdentifier());
+                if (saved == null)
+                {
+                    GetInstance()._logger.LogError($"<<< BlockHeaderSocketService.Process >>>: Unable to save block header: {blockHeader.MrklRoot}");
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         /// <summary>
