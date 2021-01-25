@@ -13,6 +13,9 @@ namespace CYPCore.Ledger
     public interface IValidator
     {
         uint StakeTimestampMask { get; }
+
+        byte[] BlockZeroMR { get; }
+        byte[] BlockZeroPR { get; }
         byte[] Seed { get; }
         byte[] Security256 { get; }
 

@@ -43,6 +43,8 @@ namespace CYPCore.Ledger
         }
 
         public uint StakeTimestampMask => 0x0000000A;
+        public byte[] BlockZeroMR => "a7ea0e90863ebf05419bbc47a4719c4bf3c7685fdcaa9d6cfe1f6dc4d3d87200".HexToByte();
+        public byte[] BlockZeroPR => "3030303030303030437970686572204e6574776f726b2076742e322e30303030".HexToByte();
         public byte[] Seed => "6b341e59ba355e73b1a8488e75b617fe1caa120aa3b56584a217862840c4f7b5d70cefc0d2b36038d67a35b3cd406d54f8065c1371a17a44c1abb38eea8883b2".HexToByte();
         public byte[] Security256 => "60464814417085833675395020742168312237934553084050601624605007846337253615407".ToBytes();
 
@@ -292,6 +294,12 @@ namespace CYPCore.Ledger
             var networkShare = NetworkShare(solution);
             var bits = Difficulty(solution, networkShare);
 
+            if (blockHeader.Solution != solution)
+            {
+                _logger.LogCritical($"<<< Validator.VerifyBlockHeader >>>: Could not verify the block header solution");
+                return false;
+            }
+
             if (blockHeader.Bits != bits)
             {
                 _logger.LogCritical($"<<< Validator.VerifyBlockHeader >>>: Could not verify the block header bits");
@@ -320,12 +328,6 @@ namespace CYPCore.Ledger
                 return false;
             }
 
-            if (blockHeader.Solution != solution)
-            {
-                _logger.LogCritical($"<<< Validator.VerifyBlockHeader >>>: Could not verify the block header solution");
-                return false;
-            }
-
             verified = VerifyLockTime(new LockTime(Utils.UnixTimeToDateTime(blockHeader.Locktime)), blockHeader.LocktimeScript);
             if (!verified)
             {
@@ -338,6 +340,11 @@ namespace CYPCore.Ledger
             {
                 _logger.LogCritical($"<<< Validator.VerifyBlockHeader >>>: Could not verify the block header transactions");
                 return false;
+            }
+
+            if (blockHeader.MrklRoot.Equals(BlockZeroMR.ByteToHex()) && blockHeader.PrevMrklRoot.Equals(BlockZeroPR.ByteToHex()))
+            {
+                return true;
             }
 
             verified = await VerifyTransactions(blockHeader.Transactions);
