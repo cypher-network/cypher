@@ -165,10 +165,11 @@ namespace CYPCore.Extensions
             {
                 var blockHeaderSocketService = new BlockHeaderSocketService
                 (
-                     c.Resolve<ISerfClient>(),
-                     c.Resolve<ISigning>(),
-                     c.Resolve<IValidator>(),
-                     c.Resolve<ILogger<BlockHeaderSocketService>>()
+                    c.Resolve<IUnitOfWork>(),
+                    c.Resolve<ISerfClient>(),
+                    c.Resolve<ISigning>(),
+                    c.Resolve<IValidator>(),
+                    c.Resolve<ILogger<BlockHeaderSocketService>>()
                  );
 
                 return blockHeaderSocketService;
