@@ -217,12 +217,14 @@ namespace CYPCore.Extensions
             {
                 var serfConfigurationOptions = new SerfConfigurationOptions();
                 var p2pConnectionOptions = new P2PConnectionOptions();
+                var apiConfigurationOptions = new ApiConfigurationOptions();
 
                 configurationRoot.Bind("Serf", serfConfigurationOptions);
                 configurationRoot.Bind("P2P", p2pConnectionOptions);
+                configurationRoot.Bind("Api", apiConfigurationOptions);
 
                 var logger = c.Resolve<ILogger<SerfClient>>();
-                var serfClient = new SerfClient(c.Resolve<ISigning>(), serfConfigurationOptions, p2pConnectionOptions, logger);
+                var serfClient = new SerfClient(c.Resolve<ISigning>(), serfConfigurationOptions, p2pConnectionOptions, apiConfigurationOptions, logger);
 
                 return serfClient;
             })

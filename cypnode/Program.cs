@@ -10,11 +10,23 @@ using Autofac.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Serilog;
 using Serilog.Events;
+using CYPCore.Models;
 
 namespace CYPNode
 {
     public static class Program
     {
+        static IConfigurationRoot ConfigurationRoot
+        {
+            get
+            {
+                return new ConfigurationBuilder()
+                                .SetBasePath(Directory.GetCurrentDirectory())
+                                .AddJsonFile("appsettings.json")
+                                .Build();
+            }
+        }
+
         /// <summary>
         ///
         /// </summary>
@@ -22,13 +34,8 @@ namespace CYPNode
         /// <returns></returns>
         public static int Main(string[] args)
         {
-            var configuration = new ConfigurationBuilder()
-                .SetBasePath(Directory.GetCurrentDirectory())
-                .AddJsonFile("appsettings.json")
-                .Build();
-            
             Log.Logger = new LoggerConfiguration()
-                .ReadFrom.Configuration(configuration, "Log")
+                .ReadFrom.Configuration(ConfigurationRoot, "Log")
                 .CreateLogger();
             
             try
@@ -65,7 +72,12 @@ namespace CYPNode
             .UseServiceProviderFactory(new AutofacServiceProviderFactory())
             .ConfigureWebHostDefaults(webBuilder =>
             {
-                webBuilder.UseStartup<Startup>().UseSerilog();
+                ApiConfigurationOptions apiConfigurationOptions = new();
+                ConfigurationRoot.Bind("Api", apiConfigurationOptions);
+
+                webBuilder.UseStartup<Startup>()
+                          .UseUrls(new string[] { apiConfigurationOptions.Listening })
+                          .UseSerilog();
             });
     }
 }

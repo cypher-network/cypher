@@ -115,7 +115,7 @@ namespace CYPCore.Services
                     .Add($"-retry-max={_serfClient.SerfConfigurationOptions.RetryMax}")
                     .Add($"-log-level={_serfClient.SerfConfigurationOptions.Loglevel}")
                     .Add("-tag")
-                    .Add($"localhost={_serfClient.P2PConnectionOptions.GetLocalHost()}")
+                    .Add($"rest={_serfClient.ApiConfigurationOptions.Advertise}")
                     .Add("-tag")
                     .Add($"pubkey={pubKey.ByteToHex()}")
                     .Add("-tag")

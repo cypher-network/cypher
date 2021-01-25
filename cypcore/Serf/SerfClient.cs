@@ -40,6 +40,7 @@ namespace CYPCore.Serf
 
         public SerfConfigurationOptions SerfConfigurationOptions { get; private set; }
         public P2PConnectionOptions P2PConnectionOptions { get; private set; }
+        public ApiConfigurationOptions ApiConfigurationOptions { get; private set; }
 
         private bool _disposed = false;
         private SafeHandle _safeHandle = new SafeFileHandle(IntPtr.Zero, true);
@@ -55,13 +56,14 @@ namespace CYPCore.Serf
         private readonly ILogger _logger;
 
         public SerfClient(ISigning signing, SerfConfigurationOptions serfConfigurationOptions,
-            P2PConnectionOptions p2pConnectionOptions, ILogger<SerfClient> logger)
+            P2PConnectionOptions p2pConnectionOptions, ApiConfigurationOptions apiConfigurationOptions, ILogger<SerfClient> logger)
         {
             _signing = signing;
             _logger = logger;
 
             SerfConfigurationOptions = serfConfigurationOptions;
             P2PConnectionOptions = p2pConnectionOptions;
+            ApiConfigurationOptions = apiConfigurationOptions;
 
             TcpSessions = new ConcurrentDictionary<Guid, TcpSession>();
         }

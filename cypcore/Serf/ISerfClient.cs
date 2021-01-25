@@ -24,6 +24,8 @@ namespace CYPCore.Serf
         SerfConfigurationOptions SerfConfigurationOptions { get; }
         P2PConnectionOptions P2PConnectionOptions { get; }
 
+        ApiConfigurationOptions ApiConfigurationOptions { get; }
+
         Task<TaskResult<int>> MembersCount(Guid tcpSessionId);
 
         Task<SerfError> Authenticate(string secret, Guid tcpSessionId);

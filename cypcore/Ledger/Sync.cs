@@ -80,12 +80,12 @@ namespace CYPCore.Ledger
                     if (_serfClient.Name == member.Name || member.Status != "alive")
                         continue;
 
-                    member.Tags.TryGetValue("localhost", out string localHost);
+                    member.Tags.TryGetValue("rest", out string restEndpoint);
 
-                    if (string.IsNullOrEmpty(localHost))
+                    if (string.IsNullOrEmpty(restEndpoint))
                         continue;
 
-                    Uri.TryCreate($"{localHost}", UriKind.RelativeOrAbsolute, out Uri uri);
+                    Uri.TryCreate($"{restEndpoint}", UriKind.RelativeOrAbsolute, out Uri uri);
 
                     var blockRestApi = new BlockRestService(uri);
 
