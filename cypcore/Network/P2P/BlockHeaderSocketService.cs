@@ -71,24 +71,29 @@ namespace CYPCore.Network.P2P
         {
             try
             {
-                var endpoint = Helper.Util.TryParseAddress(_serfClient.P2PConnectionOptions.TcpServerBlock);
+                if (GetInstance() == null)
+                {
+                    throw new Exception("Null reference exception on GetInstance()");
+                }
 
-                _wss = new WebSocketServer($"ws://{endpoint.Address}:{endpoint.Port}");
-                _wss.AddWebSocketService<BlockHeaderSocketService>($"/{SocketTopicType.Block}");
-                _wss.Start();
+                var endpoint = Helper.Util.TryParseAddress(GetInstance()._serfClient.P2PConnectionOptions.TcpServerBlock);
+
+                GetInstance()._wss = new WebSocketServer($"ws://{endpoint.Address}:{endpoint.Port}");
+                GetInstance()._wss.AddWebSocketService<BlockHeaderSocketService>($"/{SocketTopicType.Block}");
+                GetInstance()._wss.Start();
 
                 if (!_wss.IsListening)
                 {
-                    _logger.LogError($"<<< BlockHeaderSocketService.Start >>>: Faild to started P2P socket block header at ws://{endpoint.Address}:{endpoint.Port}");
+                    GetInstance()._logger.LogError($"<<< BlockHeaderSocketService.Start >>>: Faild to started P2P socket block header at ws://{endpoint.Address}:{endpoint.Port}");
                 }
                 else
                 {
-                    _logger.LogInformation($"<<< BlockHeaderSocketService.Start >>>: Started P2P socket block header at ws://{endpoint.Address}:{endpoint.Port}");
+                    GetInstance()._logger.LogInformation($"<<< BlockHeaderSocketService.Start >>>: Started P2P socket block header at ws://{endpoint.Address}:{endpoint.Port}");
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< BlockHeaderSocketService.Start >>: {ex.Message}");
+                GetInstance()._logger.LogError($"<<< BlockHeaderSocketService.Start >>: {ex.Message}");
             }
         }
 
@@ -121,7 +126,7 @@ namespace CYPCore.Network.P2P
                         payloads = Helper.Util.DeserializeListProto<PayloadProto>(e.RawData);
                         foreach (var payload in payloads)
                         {
-                            var valid = _signingProvider.VerifySignature(payload.Signature, payload.PublicKey, Helper.Util.SHA384ManagedHash(payload.Payload));
+                            var valid = GetInstance()._signingProvider.VerifySignature(payload.Signature, payload.PublicKey, Helper.Util.SHA384ManagedHash(payload.Payload));
                             if (!valid)
                             {
                                 throw new Exception("Signature failed to validate.");
@@ -130,7 +135,7 @@ namespace CYPCore.Network.P2P
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError($"<<< BlockHeaderSocketService.OnMessage >>>: {ex}");
+                        GetInstance()._logger.LogError($"<<< BlockHeaderSocketService.OnMessage >>>: {ex}");
                     }
 
                     return payloads;
@@ -147,14 +152,14 @@ namespace CYPCore.Network.P2P
                         foreach (PayloadProto payloadProto in payload.Result)
                         {
                             var blockHeader = Helper.Util.DeserializeProto<BlockHeaderProto>(payloadProto.Payload);
-                            var valid = await _validator.VerifyBlockHeader(blockHeader);
+                            var valid = await GetInstance()._validator.VerifyBlockHeader(blockHeader);
 
                             if (valid)
                             {
-                                var saved = await _unitOfWork.DeliveredRepository.PutAsync(blockHeader, blockHeader.ToIdentifier());
+                                var saved = await GetInstance()._unitOfWork.DeliveredRepository.PutAsync(blockHeader, blockHeader.ToIdentifier());
                                 if (saved == null)
                                 {
-                                    _logger.LogError($"<<< BlockHeaderSocketService.OnMessage >>>: Unable to save block header: {blockHeader.MrklRoot}");
+                                    GetInstance()._logger.LogError($"<<< BlockHeaderSocketService.OnMessage >>>: Unable to save block header: {blockHeader.MrklRoot}");
                                 }
                             }
                         }
@@ -166,23 +171,26 @@ namespace CYPCore.Network.P2P
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< BlockHeaderSocketService.OnMessage >>>: {ex}");
+                GetInstance()._logger.LogError($"<<< BlockHeaderSocketService.OnMessage >>>: {ex}");
             }
 
-            Send($"Received block header: {_serfClient.P2PConnectionOptions.ClientId}");
+            Send($"Received block header: {GetInstance()._serfClient.P2PConnectionOptions.ClientId}");
         }
-       
+
         /// <summary>
         /// 
         /// </summary>
         public void Dispose()
         {
-            if (_wss != null)
+            if (GetInstance() != null)
             {
-                if (_wss.IsListening)
+                if (GetInstance()._wss != null)
                 {
-                    _wss.Stop();
-                    _wss = null;
+                    if (GetInstance()._wss.IsListening)
+                    {
+                        GetInstance()._wss.Stop();
+                        GetInstance()._wss = null;
+                    }
                 }
             }
 

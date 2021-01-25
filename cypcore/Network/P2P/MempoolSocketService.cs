@@ -63,19 +63,24 @@ namespace CYPCore.Network.P2P
         /// </summary>
         public void Start()
         {
-            var endpoint = Helper.Util.TryParseAddress(_serfClient.P2PConnectionOptions.TcpServerMempool);
+            if (GetInstance() == null)
+            {
+                throw new Exception("Null reference exception on GetInstance()");
+            }
 
-            _wss = new WebSocketServer($"ws://{endpoint.Address}:{endpoint.Port}");
-            _wss.AddWebSocketService<MempoolSocketService>($"/{SocketTopicType.Mempool}");
-            _wss.Start();
+            var endpoint = Helper.Util.TryParseAddress(GetInstance()._serfClient.P2PConnectionOptions.TcpServerMempool);
+
+            GetInstance()._wss = new WebSocketServer($"ws://{endpoint.Address}:{endpoint.Port}");
+            GetInstance()._wss.AddWebSocketService<MempoolSocketService>($"/{SocketTopicType.Mempool}");
+            GetInstance()._wss.Start();
 
             if (!_wss.IsListening)
             {
-                _logger.LogError($"<<< MempoolSocketService.Start >>>: Faild to started P2P socket mempool at ws://{endpoint.Address}:{endpoint.Port}");
+                GetInstance()._logger.LogError($"<<< MempoolSocketService.Start >>>: Faild to started P2P socket mempool at ws://{endpoint.Address}:{endpoint.Port}");
             }
             else
             {
-                _logger.LogInformation($"<<< MempoolSocketService.Start >>>: Started P2P socket mempool at ws://{endpoint.Address}:{endpoint.Port}");
+                GetInstance()._logger.LogInformation($"<<< MempoolSocketService.Start >>>: Started P2P socket mempool at ws://{endpoint.Address}:{endpoint.Port}");
             }
         }
 
@@ -150,7 +155,7 @@ namespace CYPCore.Network.P2P
                 _logger.LogError($"<<< MempoolSocketService.OnMessage >>>: {ex.Message}");
             }
 
-            Send($"Received mempool: {_serfClient.P2PConnectionOptions.ClientId}");
+            Send($"Received mempool: {GetInstance()._serfClient.P2PConnectionOptions.ClientId}");
         }
 
         /// <summary>
@@ -158,12 +163,15 @@ namespace CYPCore.Network.P2P
         /// </summary>
         public void Dispose()
         {
-            if (_wss != null)
+            if (GetInstance() != null)
             {
-                if (_wss.IsListening)
+                if (GetInstance()._wss != null)
                 {
-                    _wss.Stop();
-                    _wss = null;
+                    if (GetInstance()._wss.IsListening)
+                    {
+                        GetInstance()._wss.Stop();
+                        GetInstance()._wss = null;
+                    }
                 }
             }
 
