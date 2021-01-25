@@ -85,18 +85,19 @@ namespace CYPCore.Ledger
                     if (string.IsNullOrEmpty(restEndpoint))
                         continue;
 
-                    Uri.TryCreate($"{restEndpoint}", UriKind.RelativeOrAbsolute, out Uri uri);
+                    if (Uri.TryCreate($"{restEndpoint}", UriKind.RelativeOrAbsolute, out Uri uri))
+                    {
+                        var blockRestApi = new BlockRestService(uri);
 
-                    var blockRestApi = new BlockRestService(uri);
+                        local.Height = await _unitOfWork.DeliveredRepository.CountAsync();
+                        remote = await blockRestApi.Height();
 
-                    local.Height = await _unitOfWork.DeliveredRepository.CountAsync();
-                    remote = await blockRestApi.Height();
+                        _logger.LogInformation($"<<< Sync.SyncCheck >>>: Local node block height ({local.Height}). Network block height ({remote.Height}).");
 
-                    _logger.LogInformation($"<<< Sync.SyncCheck >>>: Local node block height ({local.Height}). Network block height ({remote.Height}).");
-
-                    if (local.Height < remote.Height)
-                    {   
-                        await Synchronize(uri, (int)local.Height);
+                        if (local.Height < remote.Height)
+                        {
+                            await Synchronize(uri, (int)local.Height);
+                        }
                     }
                 }
             }
