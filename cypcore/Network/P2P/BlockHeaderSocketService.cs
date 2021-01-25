@@ -168,8 +168,10 @@ namespace CYPCore.Network.P2P
             {
                 _logger.LogError($"<<< BlockHeaderSocketService.OnMessage >>>: {ex}");
             }
-        }
 
+            Send($"Received block header: {_serfClient.P2PConnectionOptions.ClientId}");
+        }
+       
         /// <summary>
         /// 
         /// </summary>

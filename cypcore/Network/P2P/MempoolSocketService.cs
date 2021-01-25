@@ -149,6 +149,8 @@ namespace CYPCore.Network.P2P
             {
                 _logger.LogError($"<<< MempoolSocketService.OnMessage >>>: {ex.Message}");
             }
+
+            Send($"Received mempool: {_serfClient.P2PConnectionOptions.ClientId}");
         }
 
         /// <summary>
