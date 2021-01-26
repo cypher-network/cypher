@@ -13,12 +13,27 @@ namespace CYPCore.Services
     public class PosMintingBackgroundService : BackgroundService
     {
         private readonly IPosMinting _posMinting;
+        private readonly IHostApplicationLifetime _applicationLifetime;
+        private bool _applicationRunning = true;
         private readonly ILogger _logger;
 
-        public PosMintingBackgroundService(IPosMinting posMinting, ILogger<PosMintingBackgroundService> logger)
+        public PosMintingBackgroundService(IPosMinting posMinting, IHostApplicationLifetime applicationLifetime,
+            ILogger<PosMintingBackgroundService> logger)
         {
             _posMinting = posMinting;
+            _applicationLifetime = applicationLifetime;
             _logger = logger;
+            
+            _applicationLifetime.ApplicationStopping.Register(OnApplicationStopping);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        private void OnApplicationStopping()
+        {
+            _logger.LogInformation("<<< PosMintingBackgroundService.OnApplicationStopping >>>");
+            _applicationRunning = false;
         }
 
         /// <summary>
@@ -26,7 +41,7 @@ namespace CYPCore.Services
         /// </summary>
         /// <param name="stoppingToken"></param>
         /// <returns></returns>
-        protected async override Task ExecuteAsync(CancellationToken stoppingToken)
+        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             try
             {
@@ -35,13 +50,16 @@ namespace CYPCore.Services
                     return;
                 }
 
-                while (true)
+                while (_applicationRunning)
                 {
                     stoppingToken.ThrowIfCancellationRequested();
 
                     await _posMinting.RunStakingBlockAsync();
 
-                    await Task.Delay(10100, stoppingToken);
+                    if (_applicationRunning)
+                    {
+                        await Task.Delay(10100, stoppingToken);
+                    }
                 }
             }
             catch (TaskCanceledException)

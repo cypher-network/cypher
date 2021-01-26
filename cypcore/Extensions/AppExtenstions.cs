@@ -302,13 +302,12 @@ namespace CYPCore.Extensions
                 var localNode = c.Resolve<ILocalNode>();
                 var signing = c.Resolve<ISigning>();
                 var lifetime = c.Resolve<IHostApplicationLifetime>();
-                var unitOfWork = c.Resolve<IUnitOfWork>();
                 var serfClient = c.Resolve<ISerfClient>();
                 var logger = c.Resolve<ILogger<SerfService>>();
 
                 var serfService = new SerfService(serfClient, signing, logger);
 
-                serfService.StartAsync(lifetime.ApplicationStopping).ConfigureAwait(false).GetAwaiter();
+                serfService.StartAsync(lifetime).ConfigureAwait(false).GetAwaiter();
 
                 ct.CancelAfter(30000);
 

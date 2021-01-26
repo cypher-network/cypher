@@ -20,6 +20,7 @@ using CYPCore.Serf;
 using CYPCore.Models;
 using CYPCore.Cryptography;
 using System.Runtime.InteropServices;
+using Microsoft.Extensions.Hosting;
 
 namespace CYPCore.Services
 {
@@ -39,7 +40,7 @@ namespace CYPCore.Services
             _tcpSession = _serfClient.TcpSessionsAddOrUpdate(new TcpSession(
                 serfClient.SerfConfigurationOptions.Listening).Connect(_serfClient.SerfConfigurationOptions.RPC));
         }
-
+        
         /// <summary>
         /// 
         /// </summary>
@@ -51,9 +52,9 @@ namespace CYPCore.Services
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="stoppingToken"></param>
+        /// <param name="applicationLifetime"></param>
         /// <returns></returns>
-        public async Task StartAsync(CancellationToken stoppingToken)
+        public async Task StartAsync(IHostApplicationLifetime applicationLifetime)
         {
             if (_serfClient.ProcessStarted)
                 return;
@@ -73,7 +74,7 @@ namespace CYPCore.Services
 
             try
             {
-                stoppingToken.Register(() =>
+                applicationLifetime.ApplicationStopping.Register(() =>
                 {
                     var process = Process.GetProcessById(_serfClient.ProcessId);
                     process?.Kill();
@@ -123,7 +124,7 @@ namespace CYPCore.Services
                     .Add("-tag")
                     .Add($"p2pmempoolport={_serfClient.P2PConnectionOptions.GetMempoolSocketIPEndPoint().Port}"));
 
-                await foreach (var cmdEvent in cmd.ListenAsync(stoppingToken))
+                await foreach (var cmdEvent in cmd.ListenAsync(applicationLifetime.ApplicationStopping))
                 {
                     switch (cmdEvent)
                     {
@@ -145,6 +146,7 @@ namespace CYPCore.Services
                             break;
                         case ExitedCommandEvent exited:
                             _logger.LogInformation($"Process exited; Code: {exited.ExitCode}");
+                            applicationLifetime.StopApplication();
                             break;
                     }
                 }
