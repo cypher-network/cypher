@@ -158,48 +158,49 @@ namespace CYPCore.Helper
 
         public static byte[] SerializeProto<T>(T data)
         {
+            byte[] mArray = default;
+
             try
             {
                 using var ms = new MemoryStream();
+
                 Serializer.Serialize(ms, data);
-                return ms.ToArray();
+                mArray = ms.ToArray();
             }
-            catch (Exception ex)
-            {
-                throw ex;
-            }
+            catch { }
+
+            return mArray;
         }
 
         public static T DeserializeProto<T>(byte[] data)
         {
+            T item = default;
+
             try
             {
                 using var ms = new MemoryStream(data);
-                return Serializer.Deserialize<T>(ms);
+                item = Serializer.Deserialize<T>(ms);
             }
-            catch (Exception ex)
-            {
-                throw ex;
-            }
+            catch { }
+
+            return item;
         }
 
         public static IEnumerable<T> DeserializeListProto<T>(byte[] data) where T : class
         {
-            List<T> list = new List<T>();
+            List<T> list = new();
+            T item;
 
             try
             {
                 using var ms = new MemoryStream(data);
-                T item;
+
                 while ((item = Serializer.DeserializeWithLengthPrefix<T>(ms, PrefixStyle.Base128, fieldNumber: 1)) != null)
                 {
                     list.Add(item);
                 }
             }
-            catch (Exception ex)
-            {
-                throw ex;
-            }
+            catch { }
 
             return list.AsEnumerable();
         }
@@ -254,9 +255,9 @@ namespace CYPCore.Helper
                 id = (ulong)BitConverter.ToInt64(byteHex, 0);
                 id = (ulong)Convert.ToInt64(id.ToString().Substring(0, xBase));
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                throw ex;
+                throw;
             }
 
             return id;
