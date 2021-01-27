@@ -136,6 +136,8 @@ namespace CYPCore.Ledger
                             {
                                 try
                                 {
+                                    await _validator.GetRunningDistribution();
+
                                     bool verified = await _validator.VerifyBlockHeader(blockHeader);
                                     if (!verified)
                                     {

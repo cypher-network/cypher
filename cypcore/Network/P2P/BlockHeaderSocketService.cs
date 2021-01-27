@@ -175,6 +175,8 @@ namespace CYPCore.Network.P2P
 
             var blockHeader = Util.DeserializeProto<BlockHeaderProto>(payload.Payload);
 
+            await GetInstance()._validator.GetRunningDistribution();
+
             valid = await GetInstance()._validator.VerifyBlockHeader(blockHeader);
 
             if (valid)
