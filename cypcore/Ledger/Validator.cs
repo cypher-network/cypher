@@ -1,4 +1,4 @@
-// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
@@ -43,7 +43,7 @@ namespace CYPCore.Ledger
         }
 
         public uint StakeTimestampMask => 0x0000000A;
-        public byte[] BlockZeroMR => "a7ea0e90863ebf05419bbc47a4719c4bf3c7685fdcaa9d6cfe1f6dc4d3d87200".HexToByte();
+        public byte[] BlockZeroMR => "1a4e00081a8c83f10a427145df6b84beba286b368b5b9a7f9e8f13f426dfd6e8".HexToByte();
         public byte[] BlockZeroPR => "3030303030303030437970686572204e6574776f726b2076742e322e30303030".HexToByte();
         public byte[] Seed => "6b341e59ba355e73b1a8488e75b617fe1caa120aa3b56584a217862840c4f7b5d70cefc0d2b36038d67a35b3cd406d54f8065c1371a17a44c1abb38eea8883b2".HexToByte();
         public byte[] Security256 => "60464814417085833675395020742168312237934553084050601624605007846337253615407".ToBytes();
@@ -283,35 +283,45 @@ namespace CYPCore.Ledger
                 return false;
             }
 
+            verified = VerifyCoinbaseTransaction(blockHeader.Transactions.First(), blockHeader.Solution);
+            if (!verified)
+            {
+                _logger.LogCritical($"<<< Validator.VerifyBlockHeader >>>: Could not verify the block header transactions");
+                return false;
+            }
+
             uint256 hash;
             using (var ts = new Helper.TangramStream())
             {
-                blockHeader.Transactions.ForEach(x => ts.Append(x.Stream()));
+                blockHeader.Transactions.Skip(1).ForEach(x => ts.Append(x.Stream()));
                 hash = Hashes.DoubleSHA256(ts.ToArray());
             }
 
-            var solution = Solution(blockHeader.VrfSig.HexToByte(), hash.ToBytes(false));
-            var networkShare = NetworkShare(solution);
-            var bits = Difficulty(solution, networkShare);
-
-            if (blockHeader.Solution != solution)
+            var solution = VerifySolution(blockHeader.VrfSig.HexToByte(), hash.ToBytes(false), blockHeader.Solution);
+            if (!solution)
             {
                 _logger.LogCritical($"<<< Validator.VerifyBlockHeader >>>: Could not verify the block header solution");
                 return false;
             }
 
+            var bits = Difficulty(blockHeader.Solution, blockHeader.Transactions.First().Vout.First().A.DivWithNaT());
             if (blockHeader.Bits != bits)
             {
                 _logger.LogCritical($"<<< Validator.VerifyBlockHeader >>>: Could not verify the block header bits");
                 return false;
             }
 
-            blockHeader = _unitOfWork.DeliveredRepository.ToTrie(blockHeader);
-            if (blockHeader == null)
+            var merkel = blockHeader.MrklRoot.HexToByte();
+            blockHeader.MrklRoot = null;
+
+            var tempBlockHeader = _unitOfWork.DeliveredRepository.ToTrie(blockHeader);
+            if (tempBlockHeader == null)
             {
                 _logger.LogCritical($"<<< Validator.VerifyBlockHeader >>>: Could not add the block header to merkel");
                 return false;
             }
+
+            blockHeader.MrklRoot = merkel.ByteToHex();
 
             if (blockHeader.MrklRoot != _unitOfWork.DeliveredRepository.MrklRoot.ByteToHex())
             {
@@ -321,13 +331,6 @@ namespace CYPCore.Ledger
 
             _unitOfWork.DeliveredRepository.ResetTrie();
 
-            var prevBlock = await _unitOfWork.DeliveredRepository.FirstOrDefaultAsync(x => x.MrklRoot == blockHeader.PrevMrklRoot);
-            if (prevBlock == null)
-            {
-                _logger.LogCritical($"<<< Validator.VerifyBlockHeader >>>: Could not find previous block header");
-                return false;
-            }
-
             verified = VerifyLockTime(new LockTime(Utils.UnixTimeToDateTime(blockHeader.Locktime)), blockHeader.LocktimeScript);
             if (!verified)
             {
@@ -335,16 +338,16 @@ namespace CYPCore.Ledger
                 return false;
             }
 
-            verified = VerifyCoinbaseTransaction(blockHeader.Transactions.First(), solution);
-            if (!verified)
-            {
-                _logger.LogCritical($"<<< Validator.VerifyBlockHeader >>>: Could not verify the block header transactions");
-                return false;
-            }
-
-            if (blockHeader.MrklRoot.Equals(BlockZeroMR.ByteToHex()) && blockHeader.PrevMrklRoot.Equals(BlockZeroPR.ByteToHex()))
+            if (blockHeader.MrklRoot.Equals(BlockZeroMR.ByteToHex(), StringComparison.Ordinal) || blockHeader.PrevMrklRoot.Equals(BlockZeroPR.ByteToHex(), StringComparison.Ordinal))
             {
                 return true;
+            }
+
+            var prevBlock = await _unitOfWork.DeliveredRepository.FirstOrDefaultAsync(x => x.MrklRoot == blockHeader.PrevMrklRoot);
+            if (prevBlock == null)
+            {
+                _logger.LogCritical($"<<< Validator.VerifyBlockHeader >>>: Could not find previous block header");
+                return false;
             }
 
             verified = await VerifyTransactions(blockHeader.Transactions);
@@ -529,8 +532,8 @@ namespace CYPCore.Ledger
                 return false;
             }
 
-            var reward = Reward(solution);
-            if (vout.A != reward)
+            var verified = VerifyNetworkShare(solution, vout.A.DivWithNaT(), ref _runningDistributionTotal);
+            if (!verified)
             {
                 return false;
             }

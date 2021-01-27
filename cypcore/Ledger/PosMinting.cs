@@ -12,7 +12,7 @@ using Microsoft.Extensions.Logging;
 
 using libsignal.ecc;
 
-using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 using NBitcoin;
 
@@ -24,7 +24,6 @@ using CYPCore.Persistence;
 using CYPCore.Serf;
 using CYPCore.Network.P2P;
 using CYPCore.Cryptography;
-using Newtonsoft.Json.Linq;
 
 namespace CYPCore.Ledger
 {
@@ -88,13 +87,15 @@ namespace CYPCore.Ledger
                 return;
             }
 
-            var transactions = await IncludeTransactions();       
+            var transactions = await IncludeTransactions();
 
             if (transactions.Any() != true)
             {
                 _logger.LogWarning($"<<< PosMinting.RunStakingBlockAsync >>>: Cannot add zero transactions to the block header");
                 return;
             }
+
+            await _validator.GetRunningDistribution();
 
             uint256 hash;
             using (var ts = new Helper.TangramStream())
@@ -103,16 +104,12 @@ namespace CYPCore.Ledger
                 hash = NBitcoin.Crypto.Hashes.DoubleSHA256(ts.ToArray());
             }
 
-            var signature = _signing.CalculateVrfSignature(Curve.decodePrivatePoint(_keyPair.PrivateKey), hash.ToBytes(false));
-            var vrfSig = _signing.VerifyVrfSignature(Curve.decodePoint(_keyPair.PublicKey, 0), hash.ToBytes(false), signature);
-
-
-            await _validator.GetRunningDistribution();
-
-            var solution = _validator.Solution(vrfSig, hash.ToBytes(false));
-            var networkShare = _validator.NetworkShare(solution);
-            var reward = _validator.Reward(solution);
-            var bits = _validator.Difficulty(solution, networkShare);
+            byte[] signature = _signing.CalculateVrfSignature(Curve.decodePrivatePoint(_keyPair.PrivateKey), hash.ToBytes(false));
+            byte[] vrfSig = _signing.VerifyVrfSignature(Curve.decodePoint(_keyPair.PublicKey, 0), hash.ToBytes(false), signature);
+            ulong solution = _validator.Solution(vrfSig, hash.ToBytes(false));
+            double networkShare = _validator.NetworkShare(solution);
+            ulong reward = _validator.Reward(solution);
+            int bits = _validator.Difficulty(solution, networkShare);
 
             try
             {

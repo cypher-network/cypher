@@ -97,7 +97,7 @@ namespace CYPNode.Services
                 var last = await _unitOfWork.DeliveredRepository.LastOrDefaultAsync();
                 if (last != null)
                 {
-                    height = last.Height;
+                    height = last.Height + 1;
                 }
             }
             catch (Exception ex)
