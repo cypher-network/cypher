@@ -11,7 +11,7 @@ namespace CYPCore.Network.P2P
     {
         Task BootstrapNodes();
         Task Broadcast(byte[] data, SocketTopicType topicType);
-        Task Close();
+        Task Send(byte[] data, string address);
         void Ready();
     }
 }

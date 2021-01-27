@@ -68,16 +68,13 @@ namespace CYPCore.Network.P2P
 
                         var peerSockets = new List<PeerSocket>();
                         var address = new IPAddress(member.Address).MapToIPv4();
+                        int port;
 
-                        var port = member.Tags["p2pblockport"];
-                        var webSocket = new WebSocket($"ws://{address}:{Convert.ToInt32(port)}/{SocketTopicType.Block}");
-                        
-                        peerSockets.Add(new PeerSocket { Socket = webSocket, TopicType = SocketTopicType.Block });
+                        port = Convert.ToInt32(member.Tags["p2pblockport"]);
+                        peerSockets.Add(new PeerSocket { WSAddress = $"ws://{address}:{port}/{SocketTopicType.Block}", TopicType = SocketTopicType.Block });
 
-                        port = member.Tags["p2pmempoolport"];
-                        webSocket = new WebSocket($"ws://{address}:{Convert.ToInt32(port)}/{SocketTopicType.Mempool}");
-
-                        peerSockets.Add(new PeerSocket { Socket = webSocket, TopicType = SocketTopicType.Mempool });
+                        port = Convert.ToInt32(member.Tags["p2pmempoolport"]);
+                        peerSockets.Add(new PeerSocket { WSAddress = $"ws://{address}:{port}/{SocketTopicType.Mempool}", TopicType = SocketTopicType.Mempool });
 
                         if (!_peers.TryAdd(Helper.Util.HashToId(member.Tags["pubkey"]), peerSockets))
                         {
@@ -108,49 +105,37 @@ namespace CYPCore.Network.P2P
         /// 
         /// </summary>
         /// <param name="data"></param>
+        /// <param name="topicType"></param>
+        /// <returns></returns>
         public async Task Broadcast(byte[] data, SocketTopicType topicType)
         {
-            await Task.Run(() =>
-            {
-                try
-                {
-                    var peers = _peers.Select(p => p.Value.FirstOrDefault(x => x.TopicType == topicType));
-                    foreach (var peer in peers)
-                    {
-                        peer.Socket.Compression = CompressionMethod.Deflate;
-                        peer.Socket.Connect();
-                        peer.Socket.Send(data);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError($"<<< LocalNode.Broadcast >>>: {ex}");
-                }
-            });
+            var peers = _peers.Select(p => p.Value.FirstOrDefault(x => x.TopicType == topicType)).ToList();
+            await Task.Run(() => Parallel.ForEach(peers, peer => Send(data, peer.WSAddress)));
         }
 
         /// <summary>
         /// 
         /// </summary>
-        public async Task Close()
+        /// <param name="data"></param>
+        /// <param name="peer"></param>
+        /// <returns></returns>
+        public Task Send(byte[] data, string address)
         {
-            await Task.Run(() =>
+            try
             {
-                try
+                using var ws = new WebSocket(address)
                 {
-                    foreach (var peer in _peers)
-                    {
-                        peer.Value.ForEach(p =>
-                        {
-                            p.Socket.CloseAsync();
-                        });
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError($"<<< LocalNode.Broadcast >>>: {ex}");
-                }
-            });
+                    Compression = CompressionMethod.Deflate
+                };
+                ws.Connect();
+                ws.Send(data);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"<<< LocalNode.Send >>>: {ex}");
+            }
+
+            return Task.CompletedTask;
         }
     }
 }
