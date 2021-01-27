@@ -338,7 +338,7 @@ namespace CYPCore.Ledger
                 return false;
             }
 
-            if (blockHeader.MrklRoot.Equals(BlockZeroMR.ByteToHex(), StringComparison.Ordinal) || blockHeader.PrevMrklRoot.Equals(BlockZeroPR.ByteToHex(), StringComparison.Ordinal))
+            if (blockHeader.MrklRoot.HexToByte().Xor(BlockZeroMR) && blockHeader.PrevMrklRoot.HexToByte().Xor(BlockZeroPR))
             {
                 return true;
             }
@@ -596,7 +596,7 @@ namespace CYPCore.Ledger
                 foreach (var vin in transaction.Vin)
                 {
                     var blockHeaders = await _unitOfWork.DeliveredRepository
-                        .WhereAsync(x => new ValueTask<bool>(x.Transactions.Any(t => t.Vin.First().Key.K_Image.SequenceEqual(vin.Key.K_Image))));
+                        .WhereAsync(x => new ValueTask<bool>(x.Transactions.Any(t => t.Vin.First().Key.K_Image.Xor(vin.Key.K_Image))));
 
                     if (blockHeaders.Count() > 1)
                     {
@@ -620,7 +620,7 @@ namespace CYPCore.Ledger
             foreach (var commit in transaction.Vin.Select(v => v.Key).SelectMany(k => k.K_Offsets.Split(33)))
             {
                 var blockHeaders = await _unitOfWork.DeliveredRepository
-                    .WhereAsync(x => new ValueTask<bool>(x.Transactions.Any(t => t.Vout.FirstOrDefault().C.SequenceEqual(commit))));
+                    .WhereAsync(x => new ValueTask<bool>(x.Transactions.Any(t => t.Vout.FirstOrDefault().C.Xor(commit))));
 
                 if (!blockHeaders.Any())
                 {

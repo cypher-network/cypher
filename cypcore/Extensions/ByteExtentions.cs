@@ -40,5 +40,17 @@ namespace CYPCore.Extentions
 
             }
         }
+
+        public static bool Xor(this byte[] a, byte[] b)
+        {
+            int x = a.Length ^ b.Length;
+
+            for (int i = 0; i < a.Length && i < b.Length; ++i)
+            {
+                x |= a[i] ^ b[i];
+            }
+
+            return x == 0;
+        }
     }
 }
