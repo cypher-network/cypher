@@ -42,5 +42,6 @@ namespace CYPCore.Ledger
         Task<double> GetRunningDistribution();
         void SetInitalRunningDistribution(double runningDistributionTotal);
         ulong Fee(int nByte);
+        bool VerifyNetworkShare(ulong solution, double previousNetworkShare, ref double runningDistributionTotal);
     }
 }

@@ -1,4 +1,4 @@
-﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
@@ -742,6 +742,28 @@ namespace CYPCore.Ledger
             var networkShare = (solution * percentage / _distribution).FromExponential(11);
 
             return networkShare;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="solution"></param>
+        /// <param name="previousNetworkShare"></param>
+        /// <param name="runningDistributionTotal"></param>
+        /// <returns></returns>
+        public bool VerifyNetworkShare(ulong solution, double previousNetworkShare, ref double runningDistributionTotal)
+        {
+            Guard.Argument(solution, nameof(solution)).NotNegative();
+
+            var previousRunningDistribution = runningDistributionTotal + previousNetworkShare;
+            var r = (_distribution - previousRunningDistribution).FromExponential(11);
+            var percentage = r / (previousRunningDistribution * 100) == 0 ? 0.1 : r / (previousRunningDistribution * 100);
+
+            percentage = percentage.FromExponential(11);
+
+            var networkShare = (solution * percentage / _distribution).FromExponential(11);
+
+            return networkShare == previousNetworkShare;
         }
 
         /// <summary>
