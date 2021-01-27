@@ -110,7 +110,8 @@ namespace CYPCore.Persistence
 
             try
             {
-                count = IterateAsync().CountAsync().Result;
+                using var iterateAsync = CreateIterateAsync();
+                count = iterateAsync.Iterate().CountAsync().Result;
             }
             catch (Exception ex)
             {
@@ -131,7 +132,8 @@ namespace CYPCore.Persistence
 
             try
             {
-                entities = IterateAsync().WhereAwait(expression).ToEnumerable();
+                using var iterateAsync = CreateIterateAsync();
+                entities = iterateAsync.Iterate().WhereAwait(expression).ToEnumerable();
             }
             catch (Exception ex)
             {
@@ -151,7 +153,8 @@ namespace CYPCore.Persistence
 
             try
             {
-                entity = IterateAsync().FirstOrDefaultAsync().Result;
+                using var iterateAsync = CreateIterateAsync();
+                entity = iterateAsync.Iterate().FirstOrDefaultAsync().Result;
             }
             catch (Exception ex)
             {
@@ -172,7 +175,8 @@ namespace CYPCore.Persistence
 
             try
             {
-                entity = IterateAsync().FirstOrDefaultAsync(expression).Result;
+                using var iterateAsync = CreateIterateAsync();
+                entity = iterateAsync.Iterate().FirstOrDefaultAsync(expression).Result;
             }
             catch (Exception ex)
             {
@@ -193,7 +197,8 @@ namespace CYPCore.Persistence
 
             try
             {
-                entity = IterateAsync().LastOrDefaultAsync(expression).Result;
+                using var iterateAsync = CreateIterateAsync();
+                entity = iterateAsync.Iterate().LastOrDefaultAsync(expression).Result;
             }
             catch (Exception ex)
             {
@@ -213,7 +218,8 @@ namespace CYPCore.Persistence
 
             try
             {
-                entity = IterateAsync().LastOrDefaultAsync().Result;
+                using var iterateAsync = CreateIterateAsync();
+                entity = iterateAsync.Iterate().LastOrDefaultAsync().Result;
             }
             catch (Exception ex)
             {
@@ -261,7 +267,8 @@ namespace CYPCore.Persistence
 
             try
             {
-                entities = IterateAsync().Take(take).ToEnumerable();
+                using var iterateAsync = CreateIterateAsync();
+                entities = iterateAsync.Iterate().Take(take).ToEnumerable();
             }
             catch (Exception ex)
             {
@@ -283,7 +290,8 @@ namespace CYPCore.Persistence
 
             try
             {
-                entities = IterateAsync().Skip(skip).Take(take).ToEnumerable();
+                using var iterateAsync = CreateIterateAsync();
+                entities = iterateAsync.Iterate().Skip(skip).Take(take).ToEnumerable();
             }
             catch (Exception ex)
             {
@@ -304,7 +312,8 @@ namespace CYPCore.Persistence
 
             try
             {
-                entities = IterateAsync().TakeLast(n).ToEnumerable();
+                using var iterateAsync = CreateIterateAsync();
+                entities = iterateAsync.Iterate().TakeLast(n).ToEnumerable();
             }
             catch (Exception ex)
             {
@@ -325,7 +334,8 @@ namespace CYPCore.Persistence
 
             try
             {
-                entities = IterateAsync().TakeWhileAwait(expression).ToEnumerable();
+                using var iterateAsync = CreateIterateAsync();
+                entities = iterateAsync.Iterate().TakeWhileAwait(expression).ToEnumerable();
             }
             catch (Exception ex)
             {
@@ -346,7 +356,8 @@ namespace CYPCore.Persistence
 
             try
             {
-                entities = IterateAsync().SelectAwait(selector).ToEnumerable();
+                using var iterateAsync = CreateIterateAsync();
+                entities = iterateAsync.Iterate().SelectAwait(selector).ToEnumerable();
             }
             catch (Exception ex)
             {
@@ -356,20 +367,37 @@ namespace CYPCore.Persistence
             return Task.FromResult(entities);
         }
 
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <returns></returns>
-        internal async IAsyncEnumerable<TEntity> IterateAsync()
+        protected class IterateAsyncWrapper : IDisposable
         {
-            var iter = _storedbContext.Store.Database.Iterate();
-            while (iter.GetNext(out RecordInfo recordInfo, out StoreKey storeKey, out StoreValue storeValue))
+            private IFasterScanIterator<StoreKey, StoreValue> _iterator;
+            private string _tableType;
+
+            public IterateAsyncWrapper(IStoredbContext context, string tableType)
             {
-                if (storeKey.tableType == _tableType)
+                _iterator = context.Store.Database.Iterate();
+                _tableType = tableType;
+            }
+
+            public async IAsyncEnumerable<TEntity> Iterate()
+            {
+                while (_iterator.GetNext(out RecordInfo recordInfo, out StoreKey storeKey, out StoreValue storeValue))
                 {
-                    yield return Helper.Util.DeserializeProto<TEntity>(storeValue.value);
+                    if (storeKey.tableType == _tableType)
+                    {
+                        yield return Helper.Util.DeserializeProto<TEntity>(storeValue.value);
+                    }
                 }
             }
+
+            public void Dispose()
+            {
+                _iterator.Dispose();
+            }
+        }
+
+        protected IterateAsyncWrapper CreateIterateAsync()
+        {
+            return new (_storedbContext, _tableType);
         }
     }
 }

@@ -48,7 +48,8 @@ namespace CYPCore.Persistence
 
             try
             {
-                blocks = IterateAsync().Skip(skip).Take(take).ToEnumerable();
+                using var iterateAsync = CreateIterateAsync();
+                blocks = iterateAsync.Iterate().Skip(skip).Take(take).ToEnumerable();
             }
             catch (Exception ex)
             {
