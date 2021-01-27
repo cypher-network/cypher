@@ -51,7 +51,7 @@
     <PackageReference Include="CliWrap" Version="3.3.0" />
     <PackageReference Include="Microsoft.FASTER.Core" Version="1.8.0" />
     <PackageReference Include="Stratis.Patricia" Version="1.0.7" />
-    <PackageReference Include="NBitcoin" Version="5.0.69" />
+    <PackageReference Include="NBitcoin" Version="5.0.73" />
     <PackageReference Include="Isopoh.Cryptography.SecureArray" Version="1.1.10" />
     <PackageReference Include="RestSharp" Version="106.11.7" />
     <PackageReference Include="websocketsharp.core" Version="1.0.0" />
@@ -72,7 +72,6 @@
     <Folder Include="Network\P2P\" />
     <Folder Include="Cryptography\" />
     <Folder Include="Services\Rest\" />
-    <Folder Include="Network\Controllers\" />
   </ItemGroup>
   <ItemGroup>
     <None Remove="libs\libhydrogen.a" />
