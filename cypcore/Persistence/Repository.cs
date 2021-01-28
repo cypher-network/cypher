@@ -90,6 +90,8 @@ namespace CYPCore.Persistence
                 }
 
                 session.CompletePending(true);
+
+                ///TODO: Implement a better solution as this is incorrect.
                 _storedbContext.Store.Checkpoint().Wait();
             }
             catch (Exception ex)
@@ -111,7 +113,12 @@ namespace CYPCore.Persistence
             try
             {
                 using var iterateAsync = CreateIterateAsync();
-                count = iterateAsync.Iterate().CountAsync().Result;
+                ValueTask<int> total = iterateAsync.Iterate().CountAsync();
+
+                if (total.IsCompleted)
+                {
+                    count = total.Result;
+                }
             }
             catch (Exception ex)
             {
@@ -126,21 +133,21 @@ namespace CYPCore.Persistence
         /// </summary>
         /// <param name="expression"></param>
         /// <returns></returns>
-        public Task<IEnumerable<TEntity>> WhereAsync(Func<TEntity, ValueTask<bool>> expression)
+        public ValueTask<List<TEntity>> WhereAsync(Func<TEntity, ValueTask<bool>> expression)
         {
-            var entities = Enumerable.Empty<TEntity>();
+            ValueTask<List<TEntity>> entities = default;
 
             try
             {
                 using var iterateAsync = CreateIterateAsync();
-                entities = iterateAsync.Iterate().WhereAwait(expression).ToEnumerable();
+                entities = iterateAsync.Iterate().WhereAwait(expression).ToListAsync();
             }
             catch (Exception ex)
             {
                 _logger.LogError($"<<< Repository.WhereAsync >>>: {ex}");
             }
 
-            return Task.FromResult(entities);
+            return entities;
         }
 
         /// <summary>
@@ -154,7 +161,12 @@ namespace CYPCore.Persistence
             try
             {
                 using var iterateAsync = CreateIterateAsync();
-                entity = iterateAsync.Iterate().FirstOrDefaultAsync().Result;
+                ValueTask<TEntity> first = iterateAsync.Iterate().FirstOrDefaultAsync();
+
+                if (first.IsCompleted)
+                {
+                    entity = first.Result;
+                }
             }
             catch (Exception ex)
             {
@@ -169,14 +181,19 @@ namespace CYPCore.Persistence
         /// </summary>
         /// <param name="expression"></param>
         /// <returns></returns>
-        public Task<TEntity> FirstOrDefaultAsync(Func<TEntity, bool> expression)
+        public Task<TEntity> FirstOrDefaultAsync(Func<TEntity, ValueTask<bool>> expression)
         {
             TEntity entity = default;
 
             try
             {
                 using var iterateAsync = CreateIterateAsync();
-                entity = iterateAsync.Iterate().FirstOrDefaultAsync(expression).Result;
+                ValueTask<TEntity> first = iterateAsync.Iterate().FirstOrDefaultAwaitAsync(expression);
+
+                if (first.IsCompleted)
+                {
+                    entity = first.Result;
+                }
             }
             catch (Exception ex)
             {
@@ -191,14 +208,19 @@ namespace CYPCore.Persistence
         /// </summary>
         /// <param name="expression"></param>
         /// <returns></returns>
-        public Task<TEntity> LastOrDefaultAsync(Func<TEntity, bool> expression)
+        public Task<TEntity> LastOrDefaultAsync(Func<TEntity, ValueTask<bool>> expression)
         {
             TEntity entity = default;
 
             try
             {
                 using var iterateAsync = CreateIterateAsync();
-                entity = iterateAsync.Iterate().LastOrDefaultAsync(expression).Result;
+                ValueTask<TEntity> last = iterateAsync.Iterate().LastOrDefaultAwaitAsync(expression);
+
+                if(last.IsCompleted)
+                {
+                    entity = last.Result;
+                }
             }
             catch (Exception ex)
             {
@@ -219,7 +241,12 @@ namespace CYPCore.Persistence
             try
             {
                 using var iterateAsync = CreateIterateAsync();
-                entity = iterateAsync.Iterate().LastOrDefaultAsync().Result;
+                var last = iterateAsync.Iterate().LastOrDefaultAsync();
+
+                if(last.IsCompleted)
+                {
+                    entity = last.Result;
+                }
             }
             catch (Exception ex)
             {
@@ -261,21 +288,21 @@ namespace CYPCore.Persistence
         /// </summary>
         /// <param name="take"></param>
         /// <returns></returns>
-        public Task<IEnumerable<TEntity>> TakeAsync(int take)
+        public ValueTask<List<TEntity>> TakeAsync(int take)
         {
-            var entities = Enumerable.Empty<TEntity>();
+            ValueTask<List<TEntity>> entities = default;
 
             try
             {
                 using var iterateAsync = CreateIterateAsync();
-                entities = iterateAsync.Iterate().Take(take).ToEnumerable();
+                entities = iterateAsync.Iterate().Take(take).ToListAsync();
             }
             catch (Exception ex)
             {
                 _logger.LogError($"<<< Repository.TakeAsync >>>: {ex}");
             }
 
-            return Task.FromResult(entities);
+            return entities;
         }
 
         /// <summary>
@@ -284,21 +311,21 @@ namespace CYPCore.Persistence
         /// <param name="skip"></param>
         /// <param name="take"></param>
         /// <returns></returns>
-        public Task<IEnumerable<TEntity>> RangeAsync(int skip, int take)
+        public ValueTask<List<TEntity>> RangeAsync(int skip, int take)
         {
-            var entities = Enumerable.Empty<TEntity>();
+            ValueTask<List<TEntity>> entities = default;
 
             try
             {
                 using var iterateAsync = CreateIterateAsync();
-                entities = iterateAsync.Iterate().Skip(skip).Take(take).ToEnumerable();
+                entities = iterateAsync.Iterate().Skip(skip).Take(take).ToListAsync();
             }
             catch (Exception ex)
             {
                 _logger.LogError($"<<< Repository.RangeAsync >>>: {ex}");
             }
 
-            return Task.FromResult(entities);
+            return entities;
         }
 
         /// <summary>
@@ -306,21 +333,21 @@ namespace CYPCore.Persistence
         /// </summary>
         /// <param name="n"></param>
         /// <returns></returns>
-        public Task<IEnumerable<TEntity>> TakeLastAsync(int n)
+        public ValueTask<List<TEntity>> TakeLastAsync(int n)
         {
-            var entities = Enumerable.Empty<TEntity>();
+            ValueTask<List<TEntity>> entities = default;
 
             try
             {
                 using var iterateAsync = CreateIterateAsync();
-                entities = iterateAsync.Iterate().TakeLast(n).ToEnumerable();
+                entities = iterateAsync.Iterate().TakeLast(n).ToListAsync();
             }
             catch (Exception ex)
             {
                 _logger.LogError($"<<< Repository.TakeLastAsync >>>: {ex}");
             }
 
-            return Task.FromResult(entities);
+            return entities;
         }
 
         /// <summary>
@@ -328,21 +355,21 @@ namespace CYPCore.Persistence
         /// </summary>
         /// <param name="expression"></param>
         /// <returns></returns>
-        public Task<IEnumerable<TEntity>> TakeWhileAsync(Func<TEntity, ValueTask<bool>> expression)
+        public ValueTask<List<TEntity>> TakeWhileAsync(Func<TEntity, ValueTask<bool>> expression)
         {
-            var entities = Enumerable.Empty<TEntity>();
+            ValueTask<List<TEntity>> entities = default;
 
             try
             {
                 using var iterateAsync = CreateIterateAsync();
-                entities = iterateAsync.Iterate().TakeWhileAwait(expression).ToEnumerable();
+                entities = iterateAsync.Iterate().TakeWhileAwait(expression).ToListAsync();
             }
             catch (Exception ex)
             {
                 _logger.LogError($"<<< Repository.TakeWhileAsync >>>: {ex}");
             }
 
-            return Task.FromResult(entities);
+            return entities;
         }
 
         /// <summary>
@@ -350,25 +377,26 @@ namespace CYPCore.Persistence
         /// </summary>
         /// <param name="selector"></param>
         /// <returns></returns>
-        public Task<IEnumerable<TEntity>> SelectAsync(Func<TEntity, ValueTask<TEntity>> selector)
+        public ValueTask<List<TEntity>> SelectAsync(Func<TEntity, ValueTask<TEntity>> selector)
         {
-            var entities = Enumerable.Empty<TEntity>();
+            ValueTask<List<TEntity>> entities = default;
 
             try
             {
                 using var iterateAsync = CreateIterateAsync();
-                entities = iterateAsync.Iterate().SelectAwait(selector).ToEnumerable();
+                entities = iterateAsync.Iterate().SelectAwait(selector).ToListAsync();
             }
             catch (Exception ex)
             {
                 _logger.LogError($"<<< Repository.SelectAsync >>>: {ex}");
             }
 
-            return Task.FromResult(entities);
+            return entities;
         }
 
         protected class IterateAsyncWrapper : IDisposable
         {
+            private bool _disposed = false;
             private IFasterScanIterator<StoreKey, StoreValue> _iterator;
             private string _tableType;
 
@@ -391,13 +419,37 @@ namespace CYPCore.Persistence
 
             public void Dispose()
             {
-                _iterator.Dispose();
+                Dispose(true);
+                GC.SuppressFinalize(this);
+            }
+
+            protected virtual void Dispose(bool disposing)
+            {
+                if (_disposed)
+                {
+                    return;
+                }
+
+                if (disposing)
+                {
+                    try
+                    {
+                        _iterator.Dispose();
+                    }
+                    catch (NullReferenceException)
+                    {
+
+                    }
+                }
+
+                _iterator = null;
+                _disposed = true;
             }
         }
 
         protected IterateAsyncWrapper CreateIterateAsync()
         {
-            return new (_storedbContext, _tableType);
+            return new(_storedbContext, _tableType);
         }
     }
 }

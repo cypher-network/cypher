@@ -71,7 +71,7 @@ namespace CYPCore.Cryptography
             try
             {
                 _dataProtector = _dataProtectionProvider.CreateProtector(keyName);
-                _protectionPayloadProto = await _unitOfWork.DataProtectionPayload.FirstOrDefaultAsync(x => x.FriendlyName == keyName);
+                _protectionPayloadProto = await _unitOfWork.DataProtectionPayload.FirstOrDefaultAsync(x => new(x.FriendlyName == keyName));
 
                 if (_protectionPayloadProto == null)
                 {
@@ -91,7 +91,7 @@ namespace CYPCore.Cryptography
 
                 kp = GetKeyPair();
             }
-            catch(CryptographicException ex)
+            catch (CryptographicException ex)
             {
                 _logger.LogCritical($"<<< SigningProvider.GetOrUpsertKeyName >>>: {ex}");
             }

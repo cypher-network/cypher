@@ -60,7 +60,7 @@ namespace CYPCore.Ledger
             try
             {
                 var exists = await _unitOfWork.MemPoolRepository
-                    .FirstOrDefaultAsync(x => x.Block.Hash.Equals(memPool.Block.Hash) && x.Block.Node == memPool.Block.Node && x.Block.Round == memPool.Block.Round);
+                    .FirstOrDefaultAsync(x => new(x.Block.Hash.Equals(memPool.Block.Hash) && x.Block.Node == memPool.Block.Node && x.Block.Round == memPool.Block.Round));
 
                 if (exists != null)
                 {
@@ -181,7 +181,7 @@ namespace CYPCore.Ledger
 
             try
             {
-                var staging = await _unitOfWork.StagingRepository.FirstOrDefaultAsync(x => x.Hash.Equals(memPool.Block.Hash) && x.Status == StagingState.Blockmainia);
+                var staging = await _unitOfWork.StagingRepository.FirstOrDefaultAsync(x => new(x.Hash.Equals(memPool.Block.Hash) && x.Status == StagingState.Blockmainia));
                 if (staging != null)
                 {
                     var verified = await _validator.VerifyMemPoolSignatures(memPool);
@@ -218,7 +218,7 @@ namespace CYPCore.Ledger
 
             try
             {
-                blockID = await _unitOfWork.InterpretedRepository.LastOrDefaultAsync(x => x.Hash == hash.ByteToHex());
+                blockID = await _unitOfWork.InterpretedRepository.LastOrDefaultAsync(x => new(x.Hash == hash.ByteToHex()));
             }
             catch (Exception ex)
             {
@@ -248,7 +248,7 @@ namespace CYPCore.Ledger
             {
                 foreach (var next in blockmaniaInterpreted.Blocks)
                 {
-                    var memPool = await _unitOfWork.MemPoolRepository.FirstOrDefaultAsync(x => x.Block.Hash.Equals(next.Hash) && x.Block.Node == next.Node && x.Block.Round == next.Round);
+                    var memPool = await _unitOfWork.MemPoolRepository.FirstOrDefaultAsync(x => new(x.Block.Hash.Equals(next.Hash) && x.Block.Node == next.Node && x.Block.Round == next.Round));
                     if (memPool == null)
                     {
                         _logger.LogError($"<<< MemPool.BlockmaniaCallback >>>: Unable to find matching block - Hash: {next.Hash} Round: {next.Round} from node {next.Node}");
@@ -274,7 +274,7 @@ namespace CYPCore.Ledger
                         Transaction = memPool.Block.Transaction
                     };
 
-                    var hasSeen = await _unitOfWork.InterpretedRepository.FirstOrDefaultAsync(x => x.Hash.Equals(interpreted.Hash));
+                    var hasSeen = await _unitOfWork.InterpretedRepository.FirstOrDefaultAsync(x => new(x.Hash.Equals(interpreted.Hash)));
                     if (hasSeen != null)
                     {
                         _logger.LogError($"<<< MemPool.BlockmaniaCallback >>>: Already seen interpreted block - Hash: {next.Hash} Round: {next.Round} from node {next.Node}");

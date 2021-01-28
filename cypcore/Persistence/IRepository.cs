@@ -11,18 +11,18 @@ namespace CYPCore.Persistence
     {
         Task<int> CountAsync();
         Task<TEntity> FirstOrDefaultAsync();
-        Task<TEntity> FirstOrDefaultAsync(Func<TEntity, bool> expression);
+        Task<TEntity> FirstOrDefaultAsync(Func<TEntity, ValueTask<bool>> expression);
         Task<TEntity> GetAsync(byte[] key);
-        Task<IEnumerable<TEntity>> WhereAsync(Func<TEntity, ValueTask<bool>> expression);
-        Task<TEntity> LastOrDefaultAsync(Func<TEntity, bool> expression);
+        ValueTask<List<TEntity>> WhereAsync(Func<TEntity, ValueTask<bool>> expression);
+        Task<TEntity> LastOrDefaultAsync(Func<TEntity, ValueTask<bool>> expression);
         Task<TEntity> LastOrDefaultAsync();
         Task<bool> DeleteAsync(StoreKey storeKey);
         void SetTableType(string table);
-        Task<IEnumerable<TEntity>> TakeAsync(int take);
-        Task<IEnumerable<TEntity>> TakeWhileAsync(Func<TEntity, ValueTask<bool>> expression);
-        Task<IEnumerable<TEntity>> TakeLastAsync(int n);
-        Task<IEnumerable<TEntity>> SelectAsync(Func<TEntity, ValueTask<TEntity>> selector);
+        ValueTask<List<TEntity>> TakeAsync(int take);
+        ValueTask<List<TEntity>> TakeWhileAsync(Func<TEntity, ValueTask<bool>> expression);
+        ValueTask<List<TEntity>> TakeLastAsync(int n);
+        ValueTask<List<TEntity>> SelectAsync(Func<TEntity, ValueTask<TEntity>> selector);
         Task<TEntity> PutAsync(TEntity entity, byte[] key);
-        Task<IEnumerable<TEntity>> RangeAsync(int skip, int take);
+        ValueTask<List<TEntity>> RangeAsync(int skip, int take);
     }
 }

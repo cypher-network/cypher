@@ -49,7 +49,7 @@ namespace CYPCore.Persistence
                     if (hash.Length != 32)
                         throw new IndexOutOfRangeException("Hash length must be 32 bytes in size.");
 
-                    var staging = await FirstOrDefaultAsync(x => x.Hash == hash.ByteToHex());
+                    var staging = await FirstOrDefaultAsync(x => new(x.Hash == hash.ByteToHex()));
                     if (staging != null)
                     {
                         staging.Status = StagingState.Delivered;

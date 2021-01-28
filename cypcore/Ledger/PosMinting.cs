@@ -172,7 +172,7 @@ namespace CYPCore.Ledger
         private async Task<BlockHeaderProto> TryGetDeliveredBlockHeader(SeenBlockHeaderProto lastSeenBlockHeader)
         {
             var deliveredBlockHeader = lastSeenBlockHeader != null
-                ? await _unitOfWork.DeliveredRepository.FirstOrDefaultAsync(x => x.MrklRoot == lastSeenBlockHeader.MrklRoot)
+                ? await _unitOfWork.DeliveredRepository.FirstOrDefaultAsync(x => new(x.MrklRoot == lastSeenBlockHeader.MrklRoot))
                 : await _unitOfWork.DeliveredRepository.FirstOrDefaultAsync();
 
             return deliveredBlockHeader;

@@ -343,7 +343,7 @@ namespace CYPCore.Ledger
                 return true;
             }
 
-            var prevBlock = await _unitOfWork.DeliveredRepository.FirstOrDefaultAsync(x => x.MrklRoot == blockHeader.PrevMrklRoot);
+            var prevBlock = await _unitOfWork.DeliveredRepository.FirstOrDefaultAsync(x => new(x.MrklRoot == blockHeader.PrevMrklRoot));
             if (prevBlock == null)
             {
                 _logger.LogCritical($"<<< Validator.VerifyBlockHeader >>>: Could not find previous block header");
@@ -715,7 +715,7 @@ namespace CYPCore.Ledger
             try
             {
                 var blockHeaders = await _unitOfWork.DeliveredRepository.SelectAsync(x => new ValueTask<BlockHeaderProto>(x));
-                for (int i = 0; i < blockHeaders.Count(); i++)
+                for (int i = 0; i < blockHeaders.Count; i++)
                 {
                     _runningDistributionTotal -= NetworkShare(blockHeaders.ElementAt(i).Solution);
                 }
@@ -840,7 +840,7 @@ namespace CYPCore.Ledger
                     return false;
                 }
 
-                blockHeader = await _unitOfWork.DeliveredRepository.FirstOrDefaultAsync(x => x.MrklRoot.Equals(xBlockHeader.PrevMrklRoot));
+                blockHeader = await _unitOfWork.DeliveredRepository.FirstOrDefaultAsync(x => new(x.MrklRoot.Equals(xBlockHeader.PrevMrklRoot)));
                 if (blockHeader == null)
                 {
                     return false;

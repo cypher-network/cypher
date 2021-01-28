@@ -56,7 +56,7 @@ namespace CYPCore.Extensions
         /// <param name="builder"></param>
         /// <returns></returns>
         public static ContainerBuilder AddPosMinting(this ContainerBuilder builder, IConfigurationRoot configurationRoot)
-        { 
+        {
             builder.Register(c =>
             {
                 var stakingConfigurationOptions = new StakingConfigurationOptions();
@@ -94,12 +94,7 @@ namespace CYPCore.Extensions
 
             builder.Register(c =>
             {
-                var storedbContext = new StoredbContext
-                (
-                    dataFolder.Value,
-                    c.Resolve<ILogger<StoredbContext>>()
-                );
-
+                var storedbContext = new StoredbContext(dataFolder.Value);
                 return storedbContext;
             })
             .As<IStoredbContext>()

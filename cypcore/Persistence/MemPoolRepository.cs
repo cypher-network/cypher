@@ -49,7 +49,7 @@ namespace CYPCore.Persistence
             try
             {
                 round -= 1;
-                block = FirstOrDefaultAsync(x => x.Block.Node == node && x.Block.Round == round).Result;
+                block = FirstOrDefaultAsync(x => new(x.Block.Node == node && x.Block.Round == round)).Result;
             }
             catch (Exception ex)
             {
@@ -77,7 +77,7 @@ namespace CYPCore.Persistence
             try
             {
                 round -= 1;
-                block = FirstOrDefaultAsync(x => x.Block.Hash.Equals(hash) && x.Block.Node == node && x.Block.Round == round).Result;
+                block = FirstOrDefaultAsync(x => new(x.Block.Hash.Equals(hash) && x.Block.Node == node && x.Block.Round == round)).Result;
             }
             catch (Exception ex)
             {
@@ -102,7 +102,7 @@ namespace CYPCore.Persistence
             {
                 foreach (var next in memPools)
                 {
-                    var hasNext = await WhereAsync(x => new ValueTask<bool>(x.Block.Hash.Equals(next.Block.Hash)));
+                    var hasNext = await WhereAsync(x => new(x.Block.Hash.Equals(next.Block.Hash)));
 
                     IEnumerable<(MemPoolProto nNext, MemPoolProto included)> enumerable()
                     {
@@ -176,7 +176,7 @@ namespace CYPCore.Persistence
 
             try
             {
-                 memPool = FirstOrDefaultAsync(x => x.Block.Hash.Equals(hash.ByteToHex()) && x.Block.Node == node && x.Block.Round == round).Result;
+                memPool = FirstOrDefaultAsync(x => new(x.Block.Hash.Equals(hash.ByteToHex()) && x.Block.Node == node && x.Block.Round == round)).Result;
             }
             catch (Exception ex)
             {

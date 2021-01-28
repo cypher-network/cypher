@@ -144,10 +144,10 @@ namespace CYPNode.Services
         /// <returns></returns>
         private async Task<bool> MempoolTxExist(TransactionProto tx)
         {
-            var memPool = await _unitOfWork.MemPoolRepository.FirstOrDefaultAsync(x =>
+            var memPool = await _unitOfWork.MemPoolRepository.FirstOrDefaultAsync(x => new(
                 x.Block.Hash.Equals(tx.ToHash().ByteToHex()) &&
                 x.Block.Transaction.Ver == tx.Ver &&
-                x.Block.Node == _serfClient.P2PConnectionOptions.ClientId);
+                x.Block.Node == _serfClient.P2PConnectionOptions.ClientId));
 
             return memPool != null;
         }
@@ -162,7 +162,7 @@ namespace CYPNode.Services
             foreach (var vin in tx.Vin)
             {
                 var exists = await _unitOfWork.DeliveredRepository
-                    .FirstOrDefaultAsync(x => x.Transactions.Any(t => t.Vin.First().Key.K_Image.SequenceEqual(vin.Key.K_Image)));
+                    .FirstOrDefaultAsync(x => new(x.Transactions.Any(t => t.Vin.First().Key.K_Image.SequenceEqual(vin.Key.K_Image))));
 
                 if (exists != null)
                 {

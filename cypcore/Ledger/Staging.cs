@@ -80,7 +80,7 @@ namespace CYPCore.Ledger
 
             try
             {
-                var memPool = await _unitOfWork.MemPoolRepository.LastOrDefaultAsync(x => x.Block.Hash.Equals(hash.ByteToHex()));
+                var memPool = await _unitOfWork.MemPoolRepository.LastOrDefaultAsync(x => new(x.Block.Hash.Equals(hash.ByteToHex())));
                 if (memPool == null)
                 {
                     return;
@@ -88,7 +88,7 @@ namespace CYPCore.Ledger
 
                 await _localNode.Broadcast(Helper.Util.SerializeProto(new List<MemPoolProto> { memPool }), SocketTopicType.Mempool);
 
-                var staging = await _unitOfWork.StagingRepository.FirstOrDefaultAsync(x => x.Hash.Equals(memPool.Block.Hash));
+                var staging = await _unitOfWork.StagingRepository.FirstOrDefaultAsync(x => new(x.Hash.Equals(memPool.Block.Hash)));
                 if (staging != null)
                 {
                     if (staging.Status != StagingState.Blockmainia
@@ -211,7 +211,7 @@ namespace CYPCore.Ledger
 
             try
             {
-                staging = await _unitOfWork.StagingRepository.FirstOrDefaultAsync(x => x.Hash.Equals(next.Block.Hash));
+                staging = await _unitOfWork.StagingRepository.FirstOrDefaultAsync(x => new(x.Hash.Equals(next.Block.Hash)));
                 if (staging != null)
                 {
                     staging.Nodes = new List<ulong>();
@@ -286,7 +286,7 @@ namespace CYPCore.Ledger
 
             foreach (var next in MemPoolProto.NextBlockGraph(blockHashLookup, _serfClient.P2PConnectionOptions.ClientId))
             {
-                var staging = await _unitOfWork.StagingRepository.FirstOrDefaultAsync(x => x.Hash.Equals(next.Block.Hash));
+                var staging = await _unitOfWork.StagingRepository.FirstOrDefaultAsync(x => new(x.Hash.Equals(next.Block.Hash)));
                 if (staging != null)
                 {
                     if (staging.Status != StagingState.Blockmainia &&
