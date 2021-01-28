@@ -286,7 +286,7 @@ namespace CYPCore.Ledger
             verified = VerifyCoinbaseTransaction(blockHeader.Transactions.First(), blockHeader.Solution);
             if (!verified)
             {
-                _logger.LogCritical($"<<< Validator.VerifyBlockHeader >>>: Could not verify the block header transactions");
+                _logger.LogCritical($"<<< Validator.VerifyBlockHeader >>>: Could not verify the block header coinbase transaction");
                 return false;
             }
 
