@@ -105,14 +105,14 @@ namespace CYPCore.Network.P2P
         /// 
         /// </summary>
         /// <param name="e"></param>
-        protected async override void OnMessage(MessageEventArgs e)
+        protected override void OnMessage(MessageEventArgs e)
         {
             if (GetInstance() == null)
             {
                 throw new Exception("<<< BlockHeaderSocketService.OnMessage >>>: Null reference exception on GetInstance()");
             }
 
-            await GetInstance()._queue.QueueTask(async () =>
+            GetInstance()._queue.QueueTask(() =>
             {
                 try
                 {
@@ -127,9 +127,10 @@ namespace CYPCore.Network.P2P
                     {
                         foreach (var payload in payloads)
                         {
-                            var processed = await Process(payload);
+                            var processed = Process(payload).GetAwaiter().GetResult();
                             if (!processed)
                             {
+                                GetInstance()._logger.LogError($"<<< BlockHeaderSocketService.OnMessage >>>: Unable to process the block header");
                                 break;
                             }
                         }
@@ -139,7 +140,11 @@ namespace CYPCore.Network.P2P
                         var payload = Util.DeserializeProto<PayloadProto>(e.RawData);
                         if (payload != null)
                         {
-                            await Process(payload);
+                            var processed = Process(payload).GetAwaiter().GetResult();
+                            if(!processed)
+                            {
+                                GetInstance()._logger.LogError($"<<< BlockHeaderSocketService.OnMessage >>>: Unable to process the block header");
+                            }
                         }
                     }
                 }
@@ -166,8 +171,8 @@ namespace CYPCore.Network.P2P
                 throw new Exception("<<< MempoolSocketService.Process >>>: Null reference exception on GetInstance()");
             }
 
-            var valid = GetInstance()._signingProvider.VerifySignature(payload.Signature, payload.PublicKey, Util.SHA384ManagedHash(payload.Payload));
-            if (!valid)
+            var verified = GetInstance()._signingProvider.VerifySignature(payload.Signature, payload.PublicKey, Util.SHA384ManagedHash(payload.Payload));
+            if (!verified)
             {
                 GetInstance()._logger.LogError($"<<< BlockHeaderSocketService.Process >>: Unable to verifiy signature.");
                 return false;
@@ -177,16 +182,17 @@ namespace CYPCore.Network.P2P
 
             await GetInstance()._validator.GetRunningDistribution();
 
-            valid = await GetInstance()._validator.VerifyBlockHeader(blockHeader);
-
-            if (valid)
+            verified = await GetInstance()._validator.VerifyBlockHeader(blockHeader);
+            if (!verified)
             {
-                var saved = await GetInstance()._unitOfWork.DeliveredRepository.PutAsync(blockHeader, blockHeader.ToIdentifier());
-                if (saved == null)
-                {
-                    GetInstance()._logger.LogError($"<<< BlockHeaderSocketService.Process >>>: Unable to save block header: {blockHeader.MrklRoot}");
-                    return false;
-                }
+                GetInstance()._logger.LogError($"<<< BlockHeaderSocketService.Process >>: Unable to verifiy block header.");
+            }
+
+            var saved = await GetInstance()._unitOfWork.DeliveredRepository.PutAsync(blockHeader, blockHeader.ToIdentifier());
+            if (saved == null)
+            {
+                GetInstance()._logger.LogError($"<<< BlockHeaderSocketService.Process >>>: Unable to save block header: {blockHeader.MrklRoot}");
+                return false;
             }
 
             return true;
