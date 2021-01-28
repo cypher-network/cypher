@@ -85,7 +85,7 @@ namespace CYPCore.Ledger
                     if (string.IsNullOrEmpty(restEndpoint))
                         continue;
 
-                    if (Uri.TryCreate($"{restEndpoint}", UriKind.RelativeOrAbsolute, out Uri uri))
+                    if (Uri.TryCreate($"{restEndpoint}", UriKind.Absolute, out Uri uri))
                     {
                         var blockRestApi = new BlockRestService(uri);
 
