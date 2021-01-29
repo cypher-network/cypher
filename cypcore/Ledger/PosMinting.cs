@@ -58,8 +58,6 @@ namespace CYPCore.Ledger
 
             _seenBlockHeaderGenericRepository = _unitOfWork.GenericRepositoryFactory<SeenBlockHeaderProto>();
             _seenBlockHeaderGenericRepository.SetTableType(_seenBlockHeader);
-
-            _validator.SetInitalRunningDistribution(_stakingConfigurationOptions.Distribution);
         }
 
         /// <summary>

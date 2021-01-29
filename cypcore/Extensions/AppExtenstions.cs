@@ -234,10 +234,22 @@ namespace CYPCore.Extensions
         /// 
         /// </summary>
         /// <param name="builder"></param>
+        /// <param name="configurationRoot"></param>
         /// <returns></returns>
-        public static ContainerBuilder AddValidator(this ContainerBuilder builder)
-        {
-            builder.RegisterType<Validator>().As<IValidator>().InstancePerLifetimeScope();
+        public static ContainerBuilder AddValidator(this ContainerBuilder builder, IConfigurationRoot configurationRoot)
+        {          
+            builder.Register(c =>
+            {
+                IConfigurationSection distribution = configurationRoot.GetSection("Distribution");
+                Validator validator = new Validator(c.Resolve<IUnitOfWork>(), c.Resolve<ISigning>(), c.Resolve<ILogger<Validator>>());
+
+                validator.SetInitalRunningDistribution(Convert.ToDouble(distribution.Value));
+
+                return validator;
+            })
+            .As<IValidator>()
+            .InstancePerLifetimeScope();
+
             return builder;
         }
 

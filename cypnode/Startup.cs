@@ -68,7 +68,7 @@ namespace CYPNode
             builder.AddMempool();
             builder.AddStaging();
             builder.AddSigning();
-            builder.AddValidator();
+            builder.AddValidator(Configuration);
             builder.AddBlockService();
             builder.AddTransactionService();
             builder.AddMempoolService();

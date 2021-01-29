@@ -5,7 +5,6 @@ namespace CYPCore.Models
 {
     public class StakingConfigurationOptions
     {
-        public double Distribution { get; set; }
         public bool OnOff { get; set; }
         public WalletSettings WalletSettings { get; set; }
     }
