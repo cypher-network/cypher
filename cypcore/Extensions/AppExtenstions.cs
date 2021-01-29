@@ -248,7 +248,7 @@ namespace CYPCore.Extensions
                 return validator;
             })
             .As<IValidator>()
-            .InstancePerLifetimeScope();
+            .SingleInstance();
 
             return builder;
         }
