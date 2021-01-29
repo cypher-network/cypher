@@ -283,6 +283,11 @@ namespace CYPCore.Ledger
                 return false;
             }
 
+            if (blockHeader.MrklRoot.HexToByte().Xor(BlockZeroMR) && blockHeader.PrevMrklRoot.HexToByte().Xor(BlockZeroPR))
+            {
+                _runningDistributionTotal -= blockHeader.Transactions.First().Vout.First().A.DivWithNaT();
+            }
+
             verified = VerifyCoinbaseTransaction(blockHeader.Transactions.First(), blockHeader.Solution);
             if (!verified)
             {
