@@ -5,24 +5,32 @@ on: [push]
 jobs:
   build:
     runs-on: ubuntu-latest
-    steps:
+    steps:    
     - name: Setup .NET Core 5.0
       uses: actions/setup-dotnet@v1
       with:
         dotnet-version: '5.0.101' # SDK Version to use.
+        
     - name: Checkout latest
       uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+        
     - name: Lint code base
       uses: github/super-linter@v3
       env:
         ERROR_ON_MISSING_EXEC_BIT: true
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        VALIDATE_ALL_CODEBASE: false
+        
     - name: Run unit tests
       run: dotnet test
+      
     - name: Build cypher
       run:  |
         dotnet restore cypher.sln
         dotnet publish cypnode --output publish/cypnode --configuration Release
+        
     - name: Archive build artifacts
       uses: actions/upload-artifact@v2
       with:
