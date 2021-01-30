@@ -11,7 +11,7 @@ namespace CYPCore.Extentions
 {
     public static class ExtentionMethods
     {
-        public static TResult IfNotNull<T, TResult>(this T target, Func<T, TResult> getValue) where T: class
+        public static TResult IfNotNull<T, TResult>(this T target, Func<T, TResult> getValue) where T : class
         {
             return target == null ? default : getValue(target);
         }

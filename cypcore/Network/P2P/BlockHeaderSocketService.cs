@@ -141,7 +141,7 @@ namespace CYPCore.Network.P2P
                         if (payload != null)
                         {
                             var processed = Process(payload).GetAwaiter().GetResult();
-                            if(!processed)
+                            if (!processed)
                             {
                                 GetInstance()._logger.LogError($"<<< BlockHeaderSocketService.OnMessage >>>: Unable to process the block header");
                             }

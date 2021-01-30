@@ -9,7 +9,7 @@ namespace CYPCore.Persistence
     {
         IStoredbContext StoredbContext { get; }
         IXmlRepository DataProtectionKeys { get; }
-        IDataProtectionPayloadReposittory DataProtectionPayload { get; }
+        IDataProtectionPayloadRepository DataProtectionPayload { get; }
         IInterpretedRepository InterpretedRepository { get; }
         IMemPoolRepository MemPoolRepository { get; }
         IStagingRepository StagingRepository { get; }

@@ -42,7 +42,7 @@ namespace CYPCore.Services.Rest
                 Block block = await _blockAPI.Range(skip, take).ConfigureAwait(false);
                 if (block != null)
                 {
-                    if(block.Protobufs != null)
+                    if (block.Protobufs != null)
                     {
                         blockHeaders = Helper.Util.DeserializeListProto<BlockHeaderProto>(block.Protobufs);
                     }

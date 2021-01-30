@@ -37,7 +37,7 @@ namespace CYPNode
 
         public IConfigurationRoot Configuration { get; private set; }
         public ILifetimeScope AutofacContainer { get; private set; }
-        
+
         /// <summary>
         ///
         /// </summary>

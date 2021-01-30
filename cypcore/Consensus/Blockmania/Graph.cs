@@ -465,7 +465,7 @@ namespace CYPCore.Consensus.BlockMania
                         return null;
                     }
                     // b = s.GetBitSet(NodeCount, m.Pre());
-                    b = s.GetBitSet((int)sender, m.Pre()); 
+                    b = s.GetBitSet((int)sender, m.Pre());
                     b.SetCommit(m.Sender);
 
                     Debug.WriteLine($"Commit count == {b.CommitCount()}");
@@ -563,35 +563,21 @@ namespace CYPCore.Consensus.BlockMania
 
         private List<IMessage> ProcessMessages(State s, Dictionary<IMessage, bool> processed, ulong sender, ulong receiver, BlockID origin, List<IMessage> msgs)
         {
-            var out_ = new List<IMessage>();
+            var messagesOut = new List<IMessage>();
             foreach (var msg in msgs)
             {
-                if (processed.ContainsKey(msg) && processed[msg])
+                if (!processed.ContainsKey(msg) || !processed[msg])
                 {
-                    continue;
-                }
-                var resp = ProcessMessage(s, sender, receiver, origin, msg);
-                processed[msg] = true;
-                if (resp != null)
-                {
-                    out_.Add(resp);
-                }
-            }
-            for (var i = 0; i < out_.Count; i++)
-            {
-                var msg = out_[i];
-                if (processed.ContainsKey(msg) && processed[msg])
-                {
-                    continue;
-                }
-                var resp = ProcessMessage(s, sender, receiver, origin, msg);
-                processed[msg] = true;
-                if (resp != null)
-                {
-                    out_.Add(resp);
+                    var resp = ProcessMessage(s, sender, receiver, origin, msg);
+                    processed[msg] = true;
+                    if (resp != null)
+                    {
+                        messagesOut.Add(resp);
+                    }
                 }
             }
-            return out_;
+
+            return messagesOut;
         }
 
         private async Task Run(ChannelReader<BlockGraph> reader)

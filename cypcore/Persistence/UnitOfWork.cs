@@ -10,7 +10,7 @@ namespace CYPCore.Persistence
     {
         public IStoredbContext StoredbContext { get; }
         public IXmlRepository DataProtectionKeys { get; }
-        public IDataProtectionPayloadReposittory DataProtectionPayload { get; }
+        public IDataProtectionPayloadRepository DataProtectionPayload { get; }
         public IInterpretedRepository InterpretedRepository { get; }
         public IMemPoolRepository MemPoolRepository { get; }
         public IStagingRepository StagingRepository { get; }
@@ -25,7 +25,7 @@ namespace CYPCore.Persistence
             _logger = logger;
 
             DataProtectionKeys = new DataProtectionKeyRepository(storedbContext);
-            DataProtectionPayload = new DataProtectionPayloadReposittory(storedbContext, logger);
+            DataProtectionPayload = new DataProtectionPayloadRepository(storedbContext, logger);
             DeliveredRepository = new DeliveredRepository(storedbContext, logger);
             InterpretedRepository = new InterpretedRepository(storedbContext, logger);
             MemPoolRepository = new MemPoolRepository(storedbContext, logger);

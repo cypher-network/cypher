@@ -37,7 +37,7 @@ namespace CYPNode
             Log.Logger = new LoggerConfiguration()
                 .ReadFrom.Configuration(ConfigurationRoot, "Log")
                 .CreateLogger();
-            
+
             try
             {
                 Log.Information("Starting web host");

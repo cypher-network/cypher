@@ -113,7 +113,7 @@ namespace CYPCore.Helper
         /// </summary>
         public void Dispose()
         {
-            Array.Clear(buffer, 0,buffer.Length);
+            Array.Clear(buffer, 0, buffer.Length);
         }
     }
 }

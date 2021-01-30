@@ -12,7 +12,7 @@ namespace CYPCore.Consensus.BlockMania.Messages
         public ulong Round { get; }
         public ulong Sender { get; }
         public uint View { get; }
-        
+
         public NewView(string hash, ulong node, ulong round, ulong sender, uint view)
         {
             Hash = hash;

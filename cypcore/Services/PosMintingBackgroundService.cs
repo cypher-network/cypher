@@ -23,7 +23,7 @@ namespace CYPCore.Services
             _posMinting = posMinting;
             _applicationLifetime = applicationLifetime;
             _logger = logger;
-            
+
             _applicationLifetime.ApplicationStopping.Register(OnApplicationStopping);
         }
 

@@ -9,7 +9,7 @@ namespace cypcore_test_unit
     {
         private const string _path = "StoreDB";
         private Storedb _storedb;
-        
+
         [SetUp]
         public void Setup()
         {
@@ -28,7 +28,7 @@ namespace cypcore_test_unit
         public void Instantiation_InvalidPath_Throws()
         {
             const string invalidPath = null;
-            
+
             Assert.That(() => _storedb = new Storedb(invalidPath), Throws.Exception);
             Assert.Null(_storedb);
         }

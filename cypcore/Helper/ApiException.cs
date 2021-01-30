@@ -5,7 +5,7 @@ using System;
 
 namespace CYPCore.Helper
 {
-    public class ApiException: Exception
+    public class ApiException : Exception
     {
         public int StatusCode { get; set; }
 

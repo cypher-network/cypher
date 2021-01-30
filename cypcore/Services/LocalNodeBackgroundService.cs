@@ -42,12 +42,12 @@ namespace CYPCore.Services
                     await Task.Delay(3000, stoppingToken);
                 }
             }
-            catch(TaskCanceledException)
+            catch (TaskCanceledException)
             {
 
             }
             catch (Exception ex)
-            {                
+            {
                 _logger.LogError($"<<< LocalNodeBackgroundService.ExecuteAsync >>>: {ex}");
             }
         }
