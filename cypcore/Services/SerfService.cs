@@ -154,6 +154,7 @@ namespace CYPCore.Services
             catch (Exception ex)
             {
                 _logger.LogError($"<<< SerfService.StartAsync >>>: {ex}");
+                applicationLifetime.StopApplication();
             }
         }
 
