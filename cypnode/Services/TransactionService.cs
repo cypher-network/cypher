@@ -189,7 +189,7 @@ namespace CYPNode.Services
                 Message = message,
                 Node = _serfClient.P2PConnectionOptions.ClientId,
                 Payload = data,
-                PublicKey = await _signingProvider.GePublicKey(_signingProvider.DefaultSigningKeyName),
+                PublicKey = await _signingProvider.GetPublicKey(_signingProvider.DefaultSigningKeyName),
                 Signature = await _signingProvider.Sign(_signingProvider.DefaultSigningKeyName, CYPCore.Helper.Util.SHA384ManagedHash(data))
             };
 

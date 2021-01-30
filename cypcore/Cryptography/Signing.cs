@@ -118,7 +118,7 @@ namespace CYPCore.Cryptography
         /// </summary>
         /// <param name="keyName"></param>
         /// <returns></returns>
-        public async Task<byte[]> GePublicKey(string keyName)
+        public async Task<byte[]> GetPublicKey(string keyName)
         {
             var kp = await GetOrUpsertKeyName(keyName);
             return kp.PublicKey;

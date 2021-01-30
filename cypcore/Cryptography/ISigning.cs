@@ -11,7 +11,7 @@ namespace CYPCore.Cryptography
     {
         string DefaultSigningKeyName { get; }
         Task<KeyPair> GetOrUpsertKeyName(string keyName);
-        Task<byte[]> GePublicKey(string keyName);
+        Task<byte[]> GetPublicKey(string keyName);
         Task<byte[]> Sign(string keyName, byte[] message);
         bool VerifySignature(byte[] signature, byte[] message);
         bool VerifySignature(byte[] signature, byte[] publicKey, byte[] message);

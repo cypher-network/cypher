@@ -80,7 +80,7 @@ namespace CYPCore.Services
                     process?.Kill();
                 });
 
-                var pubKey = await _signing.GePublicKey(_signing.DefaultSigningKeyName);
+                var pubKey = await _signing.GetPublicKey(_signing.DefaultSigningKeyName);
 
                 _serfClient.Name = $"{_serfClient.SerfConfigurationOptions.NodeName}-{Helper.Util.SHA384ManagedHash(pubKey).ByteToHex()}";
                 _serfClient.P2PConnectionOptions.ClientId = Helper.Util.HashToId(pubKey.ByteToHex());
@@ -231,7 +231,7 @@ namespace CYPCore.Services
                         return connect;
                     }
 
-                    var pubkey = await _signing.GePublicKey(_signing.DefaultSigningKeyName);
+                    var pubkey = await _signing.GetPublicKey(_signing.DefaultSigningKeyName);
                     var hasMember = membersResult.Value.Members.FirstOrDefault(x => x.Tags["pubkey"] == pubkey.ByteToHex());
                     if (hasMember != null)
                     {

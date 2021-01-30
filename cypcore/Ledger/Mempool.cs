@@ -376,7 +376,7 @@ namespace CYPCore.Ledger
             Guard.Argument(memPool, nameof(memPool)).NotNull();
 
             var signature = await _signing.Sign(_signing.DefaultSigningKeyName, memPool.Block.Transaction.ToHash());
-            var pubKey = await _signing.GePublicKey(_signing.DefaultSigningKeyName);
+            var pubKey = await _signing.GetPublicKey(_signing.DefaultSigningKeyName);
 
             var signed = new MemPoolProto
             {

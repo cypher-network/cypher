@@ -83,7 +83,7 @@ namespace CYPCore.Serf
         {
             try
             {
-                var pubKey = await _signing.GePublicKey(_signing.DefaultSigningKeyName);
+                var pubKey = await _signing.GetPublicKey(_signing.DefaultSigningKeyName);
                 P2PConnectionOptions.ClientId = Util.HashToId(pubKey.ByteToHex());
             }
             catch (Exception ex)

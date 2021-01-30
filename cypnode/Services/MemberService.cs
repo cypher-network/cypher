@@ -92,7 +92,7 @@ namespace CYPNode.Services
 
             try
             {
-                publicKey = await _signingProvider.GePublicKey(_signingProvider.DefaultSigningKeyName);
+                publicKey = await _signingProvider.GetPublicKey(_signingProvider.DefaultSigningKeyName);
             }
             catch (Exception ex)
             {

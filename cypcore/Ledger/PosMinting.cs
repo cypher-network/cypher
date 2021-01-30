@@ -243,7 +243,7 @@ namespace CYPCore.Ledger
                 Message = string.Empty,
                 Node = _serfClient.P2PConnectionOptions.ClientId,
                 Payload = data,
-                PublicKey = await _signing.GePublicKey(_signing.DefaultSigningKeyName),
+                PublicKey = await _signing.GetPublicKey(_signing.DefaultSigningKeyName),
                 Signature = await _signing.Sign(_signing.DefaultSigningKeyName, Helper.Util.SHA384ManagedHash(data))
             };
 
@@ -338,7 +338,7 @@ namespace CYPCore.Ledger
 
                 try
                 {
-                    var pub = await _signing.GePublicKey(_signing.DefaultSigningKeyName);
+                    var pub = await _signing.GetPublicKey(_signing.DefaultSigningKeyName);
                     var sendPayment = new SendPaymentProto
                     {
                         Address = _stakingConfigurationOptions.WalletSettings.Address,
