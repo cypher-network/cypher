@@ -5,7 +5,7 @@ using CYPCore.Models;
 
 namespace CYPCore.Persistence
 {
-    public interface IDataProtectionPayloadReposittory : IRepository<DataProtectionPayloadProto>
+    public interface IDataProtectionPayloadRepository : IRepository<DataProtectionPayloadProto>
     {
         string Table { get; }
     }

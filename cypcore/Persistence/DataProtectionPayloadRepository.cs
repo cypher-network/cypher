@@ -7,13 +7,13 @@ using CYPCore.Models;
 
 namespace CYPCore.Persistence
 {
-    public class DataProtectionPayloadReposittory : Repository<DataProtectionPayloadProto>, IDataProtectionPayloadReposittory
+    public class DataProtectionPayloadRepository : Repository<DataProtectionPayloadProto>, IDataProtectionPayloadRepository
     {
         private const string TableDataProtectionPayload = "DataProtectionPayload";
 
         public string Table => TableDataProtectionPayload;
 
-        public DataProtectionPayloadReposittory(IStoredbContext storedbContext, ILogger logger)
+        public DataProtectionPayloadRepository(IStoredbContext storedbContext, ILogger logger)
             : base(storedbContext, logger)
         {
             SetTableType(TableDataProtectionPayload);
