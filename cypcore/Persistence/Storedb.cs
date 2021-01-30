@@ -30,7 +30,7 @@ namespace CYPCore.Persistence
 
             _log = Devices.CreateLogDevice(storehlogFolder, preallocateFile: false);
             _objLog = Devices.CreateLogDevice(storehlogObjFolder, preallocateFile: false);
-            
+
             Database = new FasterKV
                 <StoreKey, StoreValue>(
                     LogSize,
@@ -62,7 +62,7 @@ namespace CYPCore.Persistence
         public bool InitAndRecover()
         {
             if (!Directory.Exists(_checkpointPath)) return true;
-            
+
             Database.Recover();
             return false;
         }

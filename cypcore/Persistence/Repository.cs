@@ -217,7 +217,7 @@ namespace CYPCore.Persistence
                 using var iterateAsync = CreateIterateAsync();
                 ValueTask<TEntity> last = iterateAsync.Iterate().LastOrDefaultAwaitAsync(expression);
 
-                if(last.IsCompleted)
+                if (last.IsCompleted)
                 {
                     entity = last.Result;
                 }
@@ -243,7 +243,7 @@ namespace CYPCore.Persistence
                 using var iterateAsync = CreateIterateAsync();
                 var last = iterateAsync.Iterate().LastOrDefaultAsync();
 
-                if(last.IsCompleted)
+                if (last.IsCompleted)
                 {
                     entity = last.Result;
                 }

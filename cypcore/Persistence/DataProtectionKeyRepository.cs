@@ -46,7 +46,7 @@ namespace CYPCore.Persistence
                     _storedbContext.Store.Database.Log.TailAddress);
 
                 while (scanner.GetNext(out RecordInfo recordInfo, out StoreKey storeKey, out StoreValue storeValue))
-                {                    
+                {
                     if (storeKey.tableType == DataProtection)
                     {
                         var xElement = Helper.Util.DeserializeProto<XElement>(storeValue.value);

@@ -237,7 +237,7 @@ namespace CYPCore.Extensions
         /// <param name="configurationRoot"></param>
         /// <returns></returns>
         public static ContainerBuilder AddValidator(this ContainerBuilder builder, IConfigurationRoot configurationRoot)
-        {          
+        {
             builder.Register(c =>
             {
                 IConfigurationSection distribution = configurationRoot.GetSection("Distribution");

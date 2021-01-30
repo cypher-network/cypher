@@ -7,7 +7,7 @@ using CYPCore.Models;
 
 namespace CYPCore.Persistence
 {
-    public class DataProtectionPayloadReposittory: Repository<DataProtectionPayloadProto>, IDataProtectionPayloadReposittory
+    public class DataProtectionPayloadReposittory : Repository<DataProtectionPayloadProto>, IDataProtectionPayloadReposittory
     {
         private const string TableDataProtectionPayload = "DataProtectionPayload";
 

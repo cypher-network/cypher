@@ -465,7 +465,7 @@ namespace CYPCore.Consensus.BlockMania
                         return null;
                     }
                     // b = s.GetBitSet(NodeCount, m.Pre());
-                    b = s.GetBitSet((int)sender, m.Pre()); 
+                    b = s.GetBitSet((int)sender, m.Pre());
                     b.SetCommit(m.Sender);
 
                     Debug.WriteLine($"Commit count == {b.CommitCount()}");

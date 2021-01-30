@@ -95,7 +95,7 @@ namespace CYPCore.Cryptography
         {
             var y = ModSqrtOp(t, x, p);
             return y.ToString();
-        }   
+        }
 
         /// <summary>
         ///     

@@ -15,7 +15,7 @@ namespace CYPCore.Messages
         public MemberMessage(IEnumerable<Members> members, SerfError serfError)
         {
             Members = members;
-            SerfError =  serfError;
+            SerfError = serfError;
         }
     }
 }

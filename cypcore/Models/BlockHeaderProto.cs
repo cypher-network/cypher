@@ -42,7 +42,7 @@ namespace CYPCore.Models
         public int Version { get; set; }
         [ProtoMember(14)]
         public string VrfSig { get; set; }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -50,7 +50,7 @@ namespace CYPCore.Models
         public IEnumerable<ValidationResult> Validate()
         {
             var results = new List<ValidationResult>();
-            
+
             return results;
         }
 

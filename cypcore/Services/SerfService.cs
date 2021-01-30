@@ -40,7 +40,7 @@ namespace CYPCore.Services
             _tcpSession = _serfClient.TcpSessionsAddOrUpdate(new TcpSession(
                 serfClient.SerfConfigurationOptions.Listening).Connect(_serfClient.SerfConfigurationOptions.RPC));
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -79,7 +79,7 @@ namespace CYPCore.Services
                     var process = Process.GetProcessById(_serfClient.ProcessId);
                     process?.Kill();
                 });
-                
+
                 var pubKey = await _signing.GePublicKey(_signing.DefaultSigningKeyName);
 
                 _serfClient.Name = $"{_serfClient.SerfConfigurationOptions.NodeName}-{Helper.Util.SHA384ManagedHash(pubKey).ByteToHex()}";

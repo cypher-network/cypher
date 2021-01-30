@@ -151,7 +151,7 @@ namespace CYPCore.Consensus.BlockMania
                 var val = Data[key];
                 return (uint)val;
             }
-            
+
             Data ??= new StateKV();
             Data[key] = (uint)0;
             return 0;
