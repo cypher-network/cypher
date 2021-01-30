@@ -25,7 +25,7 @@ namespace CYPCore.Persistence
             _logger = logger;
 
             DataProtectionKeys = new DataProtectionKeyRepository(storedbContext);
-            DataProtectionPayload = new DataProtectionPayloadReposittory(storedbContext, logger);
+            DataProtectionPayload = new DataProtectionPayloadRepository(storedbContext, logger);
             DeliveredRepository = new DeliveredRepository(storedbContext, logger);
             InterpretedRepository = new InterpretedRepository(storedbContext, logger);
             MemPoolRepository = new MemPoolRepository(storedbContext, logger);
