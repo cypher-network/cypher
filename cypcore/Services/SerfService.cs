@@ -187,7 +187,7 @@ namespace CYPCore.Services
                     if (cancellationToken.Token.IsCancellationRequested)
                         cancellationToken.Token.ThrowIfCancellationRequested();
 
-                    Task.Delay(100, cancellationToken.Token);
+                    Task.Delay(100, cancellationToken.Token).Wait(cancellationToken.Token);
                 }
             }
             catch (OperationCanceledException)
