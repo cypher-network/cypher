@@ -576,7 +576,7 @@ namespace CYPCore.Consensus.BlockMania
                     }
                 }
             }
-            
+
             return messagesOut;
         }
 
