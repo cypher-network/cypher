@@ -240,11 +240,7 @@ namespace CYPCore.Extensions
         {
             builder.Register(c =>
             {
-                IConfigurationSection distribution = configurationRoot.GetSection("Distribution");
                 Validator validator = new Validator(c.Resolve<IUnitOfWork>(), c.Resolve<ISigning>(), c.Resolve<ILogger<Validator>>());
-
-                validator.SetInitalRunningDistribution(Convert.ToDouble(distribution.Value));
-
                 return validator;
             })
             .As<IValidator>()

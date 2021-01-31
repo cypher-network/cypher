@@ -1,4 +1,4 @@
-﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
@@ -10,24 +10,25 @@ using Microsoft.Extensions.Logging;
 
 using Dawn;
 
-using BigInteger = NBitcoin.BouncyCastle.Math.BigInteger;
-
 using Libsecp256k1Zkp.Net;
 
 using NBitcoin;
+using NBitcoin.Crypto;
+using BigInteger = NBitcoin.BouncyCastle.Math.BigInteger;
 
 using CYPCore.Extentions;
 using CYPCore.Models;
 using CYPCore.Persistence;
 using CYPCore.Extensions;
 using CYPCore.Cryptography;
-using NBitcoin.Crypto;
 using cypcore.Extensions;
 
 namespace CYPCore.Ledger
 {
     public class Validator : IValidator
     {
+        private const double Distribution = 29858560.875;
+
         protected readonly IUnitOfWork _unitOfWork;
         private readonly ISigning _signingProvider;
         private readonly ILogger _logger;
@@ -40,6 +41,8 @@ namespace CYPCore.Ledger
             _unitOfWork = unitOfWork;
             _signingProvider = signingProvider;
             _logger = logger;
+
+            SetInitalRunningDistribution(Distribution);
         }
 
         public uint StakeTimestampMask => 0x0000000A;
@@ -704,16 +707,6 @@ namespace CYPCore.Ledger
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="distribution"></param>
-        public void SetInitalRunningDistribution(double distribution)
-        {
-            _distribution = distribution;
-            _runningDistributionTotal = distribution;
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
         /// <returns></returns>
         public async Task<double> GetRunningDistribution()
         {
@@ -879,6 +872,16 @@ namespace CYPCore.Ledger
         public long GetAdjustedTimeAsUnixTimestamp()
         {
             return Helper.Util.GetAdjustedTimeAsUnixTimestamp() & ~StakeTimestampMask;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="distribution"></param>
+        private void SetInitalRunningDistribution(double distribution)
+        {
+            _distribution = distribution;
+            _runningDistributionTotal = distribution;
         }
     }
 }
