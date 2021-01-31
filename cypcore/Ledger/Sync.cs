@@ -50,7 +50,7 @@ namespace CYPCore.Ledger
 
             try
             {
-                _logger.LogInformation("<<< Sync.SyncCheck >>>: Checking block height.");
+                _logger.LogInformation("<<< Sync.Check >>>: Checking block height.");
 
                 var tcpSession = _serfClient.GetTcpSession(_tcpSession.SessionId);
                 if (!tcpSession.Ready)
@@ -66,7 +66,7 @@ namespace CYPCore.Ledger
 
                 if (!membersResult.Success)
                 {
-                    _logger.LogCritical("<<< Sync.SyncCheck >>>: Failed to get membership.");
+                    _logger.LogCritical("<<< Sync.Check >>>: Failed to get membership.");
                     return;
                 }
 
@@ -91,7 +91,7 @@ namespace CYPCore.Ledger
                         local.Height = await _unitOfWork.DeliveredRepository.CountAsync();
                         remote = await blockRestApi.Height();
 
-                        _logger.LogInformation($"<<< Sync.SyncCheck >>>: Local node block height ({local.Height}). Network block height ({remote.Height}).");
+                        _logger.LogInformation($"<<< Sync.Check >>>: Local node block height ({local.Height}). Network block height ({remote.Height}).");
 
                         if (local.Height < remote.Height)
                         {
