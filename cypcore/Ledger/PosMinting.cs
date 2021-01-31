@@ -345,7 +345,7 @@ namespace CYPCore.Ledger
                         Amount = ((double)bits).ConvertToUInt64(),
                         Credentials = new CredentialsProto { Identifier = _stakingConfigurationOptions.WalletSettings.Identifier, Passphrase = _stakingConfigurationOptions.WalletSettings.Passphrase },
                         Fee = reward,
-                        Memo = $"Coinstake transaction at {DateTime.UtcNow} from {_serfClient.SerfConfigurationOptions.NodeName}: {pub.ByteToHex()}",
+                        Memo = $"Coinstake {_serfClient.SerfConfigurationOptions.NodeName}: {pub.ByteToHex()}",
                         SessionType = SessionType.Coinstake
                     };
 
