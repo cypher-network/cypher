@@ -112,23 +112,10 @@ namespace CYPNode.Services
 
             try
             {
-                var tcpSession = _serfClient.GetTcpSession(_tcpSession.SessionId);
-                if (tcpSession.Ready)
+                var members = await GetMembers();
+                if (members.Any())
                 {
-                    var connectResult = _serfClient.Connect(tcpSession.SessionId);
-                    if (connectResult.Result.Success)
-                    {
-                        _logger.LogError($"Error connecting to {tcpSession.SessionId.ToString()}");
-                        return 0;
-                    }
-
-                    var membersCountResult = await _serfClient.MembersCount(tcpSession.SessionId);
-                    if (!membersCountResult.Success)
-                    {
-                        return 0;
-                    }
-
-                    count = membersCountResult.Value;
+                    count = members.Count(x => x.Status.Equals("alive"));
                 }
             }
             catch (Exception ex)
