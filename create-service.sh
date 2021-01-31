@@ -7,7 +7,7 @@ Description=cypnode
 
 [Service]
 WorkingDirectory=$HOME/.cypher/dist
-ExecStart=dotnet $HOME/.cypher/dist/TGMNode.dll "$@"
+ExecStart=dotnet $HOME/.cypher/dist/CYPNode.dll "$@"
 Restart=always
 RestartSec=10
 KillSignal=SIGINT
