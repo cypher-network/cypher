@@ -1,4 +1,4 @@
-// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
@@ -439,33 +439,7 @@ namespace CYPCore.Ledger
             using var mlsag = new MLSAG();
             for (int i = 0; i < transaction.Vin.Length; i++)
             {
-                byte[] Prepare(byte[] m, byte[] keyOffset, int mix, int rows)
-                {
-                    var pcm_in = new Span<byte[]>(new byte[mix * 1][]);
-                    var pcm_out = new Span<byte[]>(new byte[3][]);
-                    var offsets = keyOffset.Split(33);
-
-                    foreach (var cin in offsets.Take(mix).Select((value, i) => (i, value)))
-                    {
-                        pcm_in[cin.i] = cin.value;
-                    }
-
-                    foreach (var cout in offsets.Skip(mix).Select((value, i) => (i, value)))
-                    {
-                        pcm_out[cout.i] = cout.value;
-                    }
-
-                    var prepareMLSAG = mlsag.Prepare(m, null, pcm_out.Length, pcm_out.Length, mix, rows, pcm_in, pcm_out, null);
-                    if (!prepareMLSAG)
-                    {
-                        _logger.LogCritical($"<<< Validator.VerifyTransaction >>>: Could not verify the MLSAG transaction");
-                        return null;
-                    }
-
-                    return m;
-                }
-
-                var m = Prepare(transaction.Rct[i].M, transaction.Vin[i].Key.K_Offsets, transaction.Mix, 2);
+                var m = PrepareMLSAG(transaction.Rct[i].M, transaction.Vout, transaction.Vin[i].Key.K_Offsets, transaction.Mix, 2);
                 var verifyMLSAG = mlsag.Verify(transaction.Rct[i].I, transaction.Mix, 2, m, transaction.Vin[i].Key.K_Image, transaction.Rct[i].P, transaction.Rct[i].S);
                 if (!verifyMLSAG)
                 {
@@ -882,6 +856,42 @@ namespace CYPCore.Ledger
         {
             _distribution = distribution;
             _runningDistributionTotal = distribution;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="m"></param>
+        /// <param name="vout"></param>
+        /// <param name="keyOffset"></param>
+        /// <param name="cols"></param>
+        /// <param name="rows"></param>
+        /// <returns></returns>
+        private byte[] PrepareMLSAG(byte[] m, VoutProto[] vout, byte[] keyOffset, int cols, int rows)
+        {
+            Guard.Argument(m, nameof(m)).NotNull();
+            Guard.Argument(vout, nameof(vout)).NotNull();
+            Guard.Argument(keyOffset, nameof(keyOffset)).NotNull();
+            Guard.Argument(cols, nameof(cols)).NotZero().NotNegative();
+            Guard.Argument(rows, nameof(rows)).NotZero().NotNegative();
+
+            var pcm_in = new Span<byte[]>(new byte[cols * 1][]);
+            var pcm_out = new Span<byte[]>(new byte[3][] { vout[0].C, vout[1].C, vout[2].C });
+            var k_offsets = keyOffset.Split(33).Select(x => x);
+
+            pcm_in[0] = k_offsets.ElementAt(0);
+            pcm_in[1] = k_offsets.ElementAt(2);
+
+            using var mlsag = new MLSAG();
+
+            var prepareMLSAG = mlsag.Prepare(m, null, pcm_out.Length, pcm_out.Length, cols, rows, pcm_in, pcm_out, null);
+            if (!prepareMLSAG)
+            {
+                _logger.LogCritical($"<<< Validator.PrepareMLSAG >>>: Could not verify the MLSAG transaction");
+                return null;
+            }
+
+            return m;
         }
     }
 }
