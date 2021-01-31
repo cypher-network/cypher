@@ -24,11 +24,45 @@ using CYPCore.Serf.Message;
 
 namespace CYPCore.Serf
 {
-    class TransactionContext
+    class TransactionContext: IDisposable
     {
         public CancellationTokenSource CancellationTokenSource { get; set; }
         public ResponseHeader Header { get; set; }
         public byte[] ResponseBuffer { get; set; }
+
+        private bool _disposed;
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            if (disposing)
+            {
+                try
+                {
+                    CancellationTokenSource?.Dispose();
+                    Header = default;
+                    Array.Clear(ResponseBuffer, 0, ResponseBuffer.Length);
+                    ResponseBuffer = null;
+
+                }
+                catch (NullReferenceException)
+                {
+
+                }
+            }
+
+            _disposed = true;
+        }
     }
 
     public class SerfClient : ISerfClient, IDisposable
@@ -396,7 +430,14 @@ namespace CYPCore.Serf
                     }
                 }
 
-                _handlers.Remove(sequence);
+                //_handlers.Remove(sequence);
+
+                foreach (var handler in _handlers)
+                {
+                    handler.Value.Dispose();
+                    _handlers.Remove(handler);
+                }
+
                 reset.Set();
             });
 
@@ -482,7 +523,7 @@ namespace CYPCore.Serf
                         }
 
                         var read_buffer = new byte[8048];
-                        var size = await tcpSession.TransportStream.ReadAsync(read_buffer, 0, read_buffer.Length, _cancellationTokenSource.Token);
+                        var size =  await tcpSession.TransportStream.ReadAsync(read_buffer.AsMemory(0, read_buffer.Length), _cancellationTokenSource.Token);
 
                         if (size <= 0)
                         {
