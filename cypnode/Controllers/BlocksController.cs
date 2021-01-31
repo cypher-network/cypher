@@ -36,7 +36,7 @@ namespace cypnode.Controllers
             try
             {
                 var safeGuardTransactions = await _blockService.GetSafeguardBlocks();
-                return new ObjectResult(new { protobufs = safeGuardTransactions });
+                return new ObjectResult(new { protobufs = CYPCore.Helper.Util.SerializeProto(safeGuardTransactions) });
             }
             catch (Exception ex)
             {
