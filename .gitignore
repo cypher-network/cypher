@@ -45,3 +45,4 @@ bld/
 RetainedMessages.json
 
 cypnode/snapshot
+appsettings.Development.json
