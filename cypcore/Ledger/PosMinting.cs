@@ -334,7 +334,7 @@ namespace CYPCore.Ledger
             {
                 client.BaseAddress = new Uri(_stakingConfigurationOptions.WalletSettings.Url);
                 client.DefaultRequestHeaders.Accept.Clear();
-                client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/x-protobuf"));
 
                 try
                 {
@@ -351,7 +351,10 @@ namespace CYPCore.Ledger
 
                     var proto = Helper.Util.SerializeProto(sendPayment);
 
-                    using var response = await client.PostAsJsonAsync(_stakingConfigurationOptions.WalletSettings.SendPaymentEndpoint, proto, new System.Threading.CancellationToken());
+                    var byteArrayContent = new ByteArrayContent(proto);
+                    byteArrayContent.Headers.ContentType = new MediaTypeHeaderValue("application/x-protobuf");
+
+                    using var response = await client.PostAsync(_stakingConfigurationOptions.WalletSettings.SendPaymentEndpoint, byteArrayContent, new System.Threading.CancellationToken());
 
                     var read = response.Content.ReadAsStringAsync().Result;
                     var jObject = JObject.Parse(read);
