@@ -14,6 +14,7 @@ using CYPCore.Models;
 using CYPCore.Persistence;
 using CYPCore.Serf.Message;
 using CYPCore.Services.Rest;
+using System.Net.Http;
 
 namespace CYPCore.Ledger
 {
@@ -99,6 +100,10 @@ namespace CYPCore.Ledger
                             {
                                 await Synchronize(uri, (int)local.Height);
                             }
+                        }
+                        catch (HttpRequestException)
+                        {
+
                         }
                         catch (TaskCanceledException)
                         {
