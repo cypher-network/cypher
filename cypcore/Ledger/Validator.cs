@@ -46,8 +46,8 @@ namespace CYPCore.Ledger
         }
 
         public uint StakeTimestampMask => 0x0000000A;
-        public byte[] BlockZeroMR => "1a4e00081a8c83f10a427145df6b84beba286b368b5b9a7f9e8f13f426dfd6e8".HexToByte();
-        public byte[] BlockZeroPR => "3030303030303030437970686572204e6574776f726b2076742e322e30303030".HexToByte();
+        public byte[] BlockZeroMR => "c10ab10e789edccd02fbb02d9c58e962416729a795ebee19aa85bac15a9e320c".HexToByte();
+        public byte[] BlockZeroPR => "3030303030303030437970686572204e6574776f726b2076742e322e32303231".HexToByte();
         public byte[] Seed => "6b341e59ba355e73b1a8488e75b617fe1caa120aa3b56584a217862840c4f7b5d70cefc0d2b36038d67a35b3cd406d54f8065c1371a17a44c1abb38eea8883b2".HexToByte();
         public byte[] Security256 => "60464814417085833675395020742168312237934553084050601624605007846337253615407".ToBytes();
 
