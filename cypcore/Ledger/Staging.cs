@@ -129,9 +129,9 @@ namespace CYPCore.Ledger
                 if (tcpSession.Ready)
                 {
                     await _serfClient.Connect(tcpSession.SessionId);
-                    var countResult = await _serfClient.MembersCount(tcpSession.SessionId);
-                    // Replace with toal dependency count
-                    nodeCount = countResult.Success ? countResult.Value : 0;
+                    var memberResult = await _serfClient.Members(tcpSession.SessionId);
+
+                    nodeCount = memberResult.Success ? memberResult.Value.Members.Count(x => x.Status.Equals("alive")) : 0;
                 }
 
                 stageProto = new StagingProto
