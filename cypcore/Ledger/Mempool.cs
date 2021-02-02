@@ -16,6 +16,7 @@ using CYPCore.Models;
 using CYPCore.Persistence;
 using CYPCore.Serf;
 using CYPCore.Cryptography;
+using CYPCore.Helper;
 
 namespace CYPCore.Ledger
 {
@@ -27,6 +28,7 @@ namespace CYPCore.Ledger
         private readonly ISigning _signing;
         private readonly IStaging _staging;
         private readonly ILogger _logger;
+        private readonly BackgroundQueue _queue;
 
         private TcpSession _tcpSession;
         private int _totalNodes;
@@ -44,6 +46,8 @@ namespace CYPCore.Ledger
             _signing = signing;
             _staging = staging;
             _logger = logger;
+
+            _queue = new();
         }
 
         /// <summary>
@@ -75,12 +79,11 @@ namespace CYPCore.Ledger
                     return null;
                 }
 
-                //await Task.Run(() =>
-                //{
-                //    Ready(memPool.Block.Hash.HexToByte());
-                //});
+                await _queue.QueueTask(() =>
+                {
+                    return Ready(memPool.Block.Hash.HexToByte());
+                });
 
-                await Ready(memPool.Block.Hash.HexToByte());
             }
             catch (Exception ex)
             {
