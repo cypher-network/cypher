@@ -13,7 +13,7 @@
 
 # Install with this command (from your Linux machine):
 #
-# curl -sSL  https://github.com/cypher-network/cypher/blob/master/install.sh | bash
+# curl -sSL https://raw.githubusercontent.com/cypher-network/cypher/sk_installer/install.sh | bash
 
 # -e option instructs bash to immediately exit if any command [1] has a non-zero exit status
 # We do not want users to end up with a partially working install, so we exit the script
@@ -227,7 +227,7 @@ else
             printf "  %b Not installing TGMNode as a service\\n" "${CROSS}"
         else
             printf "  %b Installing TGMNode as a service" "${INFO}"
-            curl -sL https://github.com/cypher-network/cypher/blob/sk_installer/systemd/cypnode.service | sudo tee /etc/systemd/system/cypnode.service &> /dev/null
+            curl -sL https://raw.githubusercontent.com/cypher-network/cypher/sk_installer/systemd/cypnode.service | sudo tee /etc/systemd/system/cypnode.service &> /dev/null
             printf "%b  %b Installing TGMNode as a service" "${OVER}" "${INFO}"
             enable_service cypnode
         fi
@@ -493,7 +493,7 @@ main() {
             # when run via curl piping
             if [[ "$0" == "bash" ]]; then
                 # Download the install script and run it with admin rights
-                exec curl -sSL https://github.com/cypher-network/cypher/blob/sk_installer/install.sh | sudo bash "$@"
+                exec curl -sSL https://raw.githubusercontent.com/cypher-network/cypher/sk_installer/install.sh | sudo bash "$@"
             else
                 # when run via calling local bash script
                 exec sudo bash "$0" "$@"
