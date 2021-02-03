@@ -1,0 +1,15 @@
+[Unit]
+Description=cypnode
+
+[Service]
+WorkingDirectory=$HOME/.cypher/dist
+ExecStart=dotnet $HOME/.cypher/dist/CYPNode.dll "$@"
+Restart=always
+RestartSec=10
+KillSignal=SIGINT
+SyslogIdentifier=cypnode
+User=$USER
+Environment=DOTNET_PRINT_TELEMETRY_MESSAGE=false
+
+[Install]
+WantedBy=multi-user.target
