@@ -34,6 +34,11 @@ namespace CYPNode
         /// <returns></returns>
         public static int Main(string[] args)
         {
+            AppDomain.CurrentDomain.FirstChanceException += (sender, e) =>
+            {
+                Log.Error(e.Exception, e.Exception.Message);
+            };
+
             Log.Logger = new LoggerConfiguration()
                 .ReadFrom.Configuration(ConfigurationRoot, "Log")
                 .CreateLogger();
@@ -43,12 +48,11 @@ namespace CYPNode
                 Log.Information("Starting web host");
                 var builder = CreateWebHostBuilder(args);
 
-                using (IHost host = builder.Build())
-                {
-                    host.Run();
-                    host.WaitForShutdown();
-                    Log.Information("Ran cleanup code inside using host block.");
-                }
+                using IHost host = builder.Build();
+
+                host.Run();
+                host.WaitForShutdown();
+                Log.Information("Ran cleanup code inside using host block.");
             }
             catch (ObjectDisposedException)
             {
