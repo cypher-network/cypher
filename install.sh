@@ -529,7 +529,7 @@ main() {
     install_service
     restart_service cypnode
 
-    printf "  Installation of TGMNode complete!\\n\\n"
+    printf "  %bInstallation of TGMNode complete!%b\\n\\n" "${COL_LIGHT_GREEN}" "${COL_NC}"
 }
 
 if [[ "${TGMNODE_TEST}" != true ]] ; then
