@@ -31,9 +31,8 @@ VERSION=$(grep '^VERSION_ID=' /etc/os-release | cut -d '=' -f 2 | tr -d '"')
 MS_PACKAGE_SIGNING_KEY_URL="https://packages.microsoft.com/config/${DISTRO}/${VERSION}/packages-microsoft-prod.deb"
 
 
-if [ -z "${USER}" ]; then
-  USER="$(id -un)"
-fi
+USER="$(id -un)"
+USERHOME="${HOME}"
 
 # Check if we are running on a real terminal and find the rows and columns
 # If there is no real terminal, we will default to 80x24
@@ -394,48 +393,48 @@ installTGMNode() {
     mv "${TMPDIR}"/cypher/appsettings.json "${TMPDIR}"/cypher/appsettings.default.json
     printf "%b  %b Renaming appsettings.json to appsettings.default.json\\n" "${OVER}" "${TICK}"
 
-    printf "  %b Checking distribution path $HOME/.cypher" "${INFO}"
-    if [ -d "$HOME"/.cypher ]
+    printf "  %b Checking distribution path $USERHOME/.cypher" "${INFO}"
+    if [ -d "$USERHOME"/.cypher ]
     then
-        printf "%b  %b Checking distribution path $HOME/.cypher\\n" "${OVER}" "${TICK}"
+        printf "%b  %b Checking distribution path $USERHOME/.cypher\\n" "${OVER}" "${TICK}"
     else
-        printf "%b  %b Checking distribution path $HOME/.cypher\\n" "${OVER}" "${CROSS}"
-        printf "  %b Creating distribution path $HOME/.cypher" "${INFO}"
-        mkdir "$HOME"/.cypher
-        printf "%b  %b Creating distribution path $HOME/.cypher\\n" "${OVER}" "${TICK}"
+        printf "%b  %b Checking distribution path $USERHOME/.cypher\\n" "${OVER}" "${CROSS}"
+        printf "  %b Creating distribution path $USERHOME/.cypher" "${INFO}"
+        mkdir "$USERHOME"/.cypher
+        printf "%b  %b Creating distribution path $USERHOME/.cypher\\n" "${OVER}" "${TICK}"
     fi
     
     printf "\\n  %b Installing distribution\\n" "${INFO}"
     printf "  %b Copying distribution" "${INFO}"
-    cp -fR "${TMPDIR}"/cypher/. "$HOME"/.cypher/dist
+    cp -fR "${TMPDIR}"/cypher/. "$USERHOME"/.cypher/dist
     printf "%b  %b Copying distribution" "${OVER}" "${TICK}"
 
-    printf "  %b Checking binary distribution path $HOME/.cypher/bin" "${INFO}"
-    if [ -d "$HOME"/.cypher/bin ]
+    printf "  %b Checking binary distribution path $USERHOME/.cypher/bin" "${INFO}"
+    if [ -d "$USERHOME"/.cypher/bin ]
     then
-        printf "%b  %b Checking binary distribution path $HOME/.cypher/bin\\n" "${OVER}" "${TICK}"
+        printf "%b  %b Checking binary distribution path $USERHOME/.cypher/bin\\n" "${OVER}" "${TICK}"
     else
-        printf "%b  %b Checking binary distribution path $HOME/.cypher/bin\\n" "${OVER}" "${CROSS}"
-        printf "  %b Creating binary distribution path $HOME/.cypher/bin" "${INFO}"
-        mkdir "$HOME"/.cypher/bin
-        printf "%b  %b Creating binary distribution path $HOME/.cypher/bin\\n" "${OVER}" "${TICK}"
+        printf "%b  %b Checking binary distribution path $USERHOME/.cypher/bin\\n" "${OVER}" "${CROSS}"
+        printf "  %b Creating binary distribution path $USERHOME/.cypher/bin" "${INFO}"
+        mkdir "$USERHOME"/.cypher/bin
+        printf "%b  %b Creating binary distribution path $USERHOME/.cypher/bin\\n" "${OVER}" "${TICK}"
     fi
 
     printf "  %b Copying cypnode command" "${INFO}"
-    cp -fR "$HOME"/.cypher/dist/Runners/cypnode.sh "$HOME"/.cypher/bin/cypnode
+    cp -fR "$USERHOME"/.cypher/dist/Runners/cypnode.sh "$USERHOME"/.cypher/bin/cypnode
     printf "%b  %b Copying cypnode command\\n" "${OVER}" "${TICK}"
 
     printf "  %b Setting execute permission" "${INFO}"
-    chmod +x "$HOME"/.cypher/bin/cypnode
+    chmod +x "$USERHOME"/.cypher/bin/cypnode
     printf "%b  %b Setting execute permission\\n" "${OVER}" "${TICK}"
 
     printf "  %b Setting path" "${INFO}"
-    if grep -q "$HOME/.cypher/bin" ~/.profile
+    if grep -q "$USERHOME/.cypher/bin" ~/.profile
     then
         :
     else
         echo "" >> ~/.profile
-        echo "export PATH=$PATH:$HOME/.cypher/bin" >> ~/.profile
+        echo "export PATH=$PATH:$USERHOME/.cypher/bin" >> ~/.profile
     fi
     printf "%b  %b Setting path\\n" "${OVER}" "${TICK}"
 
