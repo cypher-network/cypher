@@ -135,9 +135,9 @@ if is_command apt-get ; then
     PKG_COUNT="${PKG_MANAGER} -s -o Debug::NoLocking=true upgrade | grep -c ^Inst || true"
     # Update package cache. This is required already here to assure apt-cache calls have package lists available.
     update_package_cache || exit 1
-    # Check whether dotnet core runtime is known
+    # Check whether aspnetcore-runtime is known
     printf "  %b Checking for Microsoft package repository" "${INFO}"
-    if apt-cache show dotnet-runtime-5.0 > /dev/null 2>&1; then
+    if apt-cache show aspnetcore-runtime-5.0 > /dev/null 2>&1; then
         printf "%b  %b Checking for Microsoft package repository\\n" "${OVER}" "${TICK}"
     else
         printf "%b  %b Checking for Microsoft package repository\\n" "${OVER}" "${CROSS}"
@@ -156,7 +156,7 @@ if is_command apt-get ; then
     # These programs are stored in an array so they can be looped through later
     INSTALLER_DEPS=(curl unzip whiptail)
     # TGMNode itself has several dependencies that also need to be installed
-    TGMNODE_DEPS=(apt-transport-https dotnet-runtime-5.0)
+    TGMNODE_DEPS=(apt-transport-https aspnetcore-runtime-5.0)
 
     # A function to check...
     test_dpkg_lock() {
