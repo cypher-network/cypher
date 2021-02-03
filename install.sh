@@ -13,7 +13,7 @@
 
 # Install with this command (from your Linux machine):
 #
-# curl -sSL https://raw.githubusercontent.com/cypher-network/cypher/sk_installer/install.sh | bash
+# curl -sL https://raw.githubusercontent.com/cypher-network/cypher/sk_installer/install.sh | bash
 
 # -e option instructs bash to immediately exit if any command [1] has a non-zero exit status
 # We do not want users to end up with a partially working install, so we exit the script
@@ -26,8 +26,8 @@ set -e
 # These variables should all be GLOBAL variables, written in CAPS
 # Local variables will be in lowercase and will exist only within functions
 # It's still a work in progress, so you may see some variance in this guideline until it is complete
-DISTRO="grep '^ID=' /etc/os-release | cut -d '=' -f 2"
-VERSION="grep '^VERSION_ID=' /etc/os-release | cut -d '=' -f 2 | tr -d '\"'"
+DISTRO=`grep '^ID=' /etc/os-release | cut -d '=' -f 2`
+VERSION=`grep '^VERSION_ID=' /etc/os-release | cut -d '=' -f 2 | tr -d '"'`
 MS_PACKAGE_SIGNING_KEY_URL="https://packages.microsoft.com/config/${DISTRO}/${VERSION}/packages-microsoft-prod.deb"
 
 
@@ -54,23 +54,17 @@ c=$(( columns / 2 ))
 r=$(( r < 20 ? 20 : r ))
 c=$(( c < 70 ? 70 : c ))
 
-# If the color table file exists,
-if [[ -f "${coltable}" ]]; then
-    # source it
-    source "${coltable}"
-# Otherwise,
-else
-    # Set these values so the installer can still run in color
-    COL_NC='\e[0m' # No Color
-    COL_LIGHT_GREEN='\e[1;32m'
-    COL_LIGHT_RED='\e[1;31m'
-    TICK="[${COL_LIGHT_GREEN}✓${COL_NC}]"
-    CROSS="[${COL_LIGHT_RED}✗${COL_NC}]"
-    INFO="[i]"
-    # shellcheck disable=SC2034
-    DONE="${COL_LIGHT_GREEN} done!${COL_NC}"
-    OVER="\\r\\033[K"
-fi
+
+# Set these values so the installer can still run in color
+COL_NC='\e[0m' # No Color
+COL_LIGHT_GREEN='\e[1;32m'
+COL_LIGHT_RED='\e[1;31m'
+TICK="[${COL_LIGHT_GREEN}✓${COL_NC}]"
+CROSS="[${COL_LIGHT_RED}✗${COL_NC}]"
+INFO="[i]"
+# shellcheck disable=SC2034
+DONE="${COL_LIGHT_GREEN} done!${COL_NC}"
+OVER="\\r\\033[K"
 
 
 is_command() {
@@ -153,7 +147,7 @@ if is_command apt-get ; then
         else
             printf "  %b Adding Microsoft package repository" "${INFO}"
             MSPROD=/tmp/packages-microsoft-prod.deb
-            wget ${MS_PACKAGE_SIGNING_KEY_URL} -O "${MSPROD}"
+            curl -sL "${MS_PACKAGE_SIGNING_KEY_URL}" > "${MSPROD}"
             sudo dpkg -i "${MSPROD}"
             rm "${MSPROD}"
             printf "%b  %b Adding Microsoft package repository\\n" "${OVER}" "${INFO}"
@@ -211,11 +205,10 @@ service_exists() {
 
 install_service() {
 printf "  %b Checking for systemd" "${INFO}"
-if [ ! "/run/systemd/system/" ]
-then
-    printf "%b  %b Checking for systemd\\n" "${OVER}" "${CROSS}"
-else
+if is_command systemctl ; then
     printf "%b  %b Checking for systemd\\n" "${OVER}" "${TICK}"
+else
+    printf "%b  %b Checking for systemd\\n" "${OVER}" "${CROSS}"
 
     printf "  %b Checking for installed service" "${INFO}"
     if service_exists cypnode; then
@@ -492,7 +485,7 @@ main() {
             # when run via curl piping
             if [[ "$0" == "bash" ]]; then
                 # Download the install script and run it with admin rights
-                exec curl -sSL https://raw.githubusercontent.com/cypher-network/cypher/sk_installer/install.sh | sudo bash "$@"
+                exec curl -sL https://raw.githubusercontent.com/cypher-network/cypher/sk_installer/install.sh | sudo bash "$@"
             else
                 # when run via calling local bash script
                 exec sudo bash "$0" "$@"
@@ -523,7 +516,7 @@ main() {
     install_dependent_packages "${TGMNODE_DEPS[@]}"
 
     # Install and log everything to a file
-    installTGMNode | tee -a ${TMPLOG}
+    installTGMNode | tee -a "${TMPLOG}"
 
     printf "\\n  %b TGMNode service intallation\\n" "${INFO}"
     install_service
