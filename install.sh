@@ -145,12 +145,12 @@ if is_command apt-get ; then
             printf "  %b Aborting installation: Dependencies could not be installed.\\n" "${CROSS}"
             exit 1 # exit the installer
         else
-            printf "  %b Adding Microsoft package repository" "${INFO}"
+            printf "  %b Adding Microsoft package repository\\n" "${INFO}"
             MSPROD=/tmp/packages-microsoft-prod.deb
             curl -sL "${MS_PACKAGE_SIGNING_KEY_URL}" > "${MSPROD}"
             sudo dpkg -i "${MSPROD}"
             rm "${MSPROD}"
-            printf "%b  %b Adding Microsoft package repository\\n" "${OVER}" "${INFO}"
+            update_package_cache || exit 1
         fi
     fi
     # These programs are stored in an array so they can be looped through later
