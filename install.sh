@@ -116,7 +116,7 @@ notify_package_updates_available() {
             printf "%b  %b %s... up to date!\\n\\n" "${OVER}" "${TICK}" "${str}"
         else
             printf "%b  %b %s... %s updates available\\n" "${OVER}" "${TICK}" "${str}" "${updatesToInstall}"
-            printf "  %b %bIt is recommended to update your OS after installing the Pi-hole!%b\\n\\n" "${INFO}" "${COL_LIGHT_GREEN}" "${COL_NC}"
+            printf "  %b %bIt is recommended to update your OS after installing TGMNode!%b\\n\\n" "${INFO}" "${COL_LIGHT_GREEN}" "${COL_NC}"
         fi
     else
         printf "%b  %b %s\\n" "${OVER}" "${CROSS}" "${str}"
@@ -425,7 +425,7 @@ installTGMNode() {
         printf "%b  %b Checking binary distribution path $HOME/.cypher/bin\\n" "${OVER}" "${CROSS}"
         printf "  %b Creating binary distribution path $HOME/.cypher/bin" "${INFO}"
         mkdir "$HOME"/.cypher/bin
-        printf "%b  %b Creating binary distribution path $HOME/.cypher/bin\\n" "${OVER}" "${INFO}"
+        printf "%b  %b Creating binary distribution path $HOME/.cypher/bin\\n" "${OVER}" "${TICK}"
     fi
 
     printf "  %b Copying cypnode command" "${INFO}"
