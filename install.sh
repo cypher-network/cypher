@@ -219,9 +219,9 @@ else
 
     printf "  %b Checking for installed service" "${INFO}"
     if service_exists cypnode; then
-        printf "%b  %b Checking for installed service\\n" "${OVER}" "${CROSS}"
-    else
         printf "%b  %b Checking for installed service\\n" "${OVER}" "${TICK}"
+    else
+        printf "%b  %b Checking for installed service\\n" "${OVER}" "${CROSS}"
 
         if ! whiptail --defaultno --title "systemd TGMNode service" --yesno "Would you like to install TGMNode as a service?\\nWhen TGMNode is installed as a service, it will automatically start, restart and keep on running after you log out." "${r}" "${c}"; then
             printf "  %b Not installing TGMNode as a service\\n" "${CROSS}"
@@ -408,7 +408,6 @@ installTGMNode() {
     else
         printf "%b  %b Checking distribution path $HOME/.cypher\\n" "${OVER}" "${CROSS}"
         printf "  %b Creating distribution path $HOME/.cypher" "${INFO}"
-        printf "Creating $HOME/.cypher\n"
         mkdir "$HOME"/.cypher
         printf "%b  %b Creating distribution path $HOME/.cypher\\n" "${OVER}" "${TICK}"
     fi
@@ -424,7 +423,7 @@ installTGMNode() {
         printf "%b  %b Checking binary distribution path $HOME/.cypher/bin\\n" "${OVER}" "${TICK}"
     else
         printf "%b  %b Checking binary distribution path $HOME/.cypher/bin\\n" "${OVER}" "${CROSS}"
-        printf "%b Creating binary distribution path $HOME/.cypher/bin" "${INFO}"
+        printf "  %b Creating binary distribution path $HOME/.cypher/bin" "${INFO}"
         mkdir "$HOME"/.cypher/bin
         printf "%b  %b Creating binary distribution path $HOME/.cypher/bin\\n" "${OVER}" "${INFO}"
     fi
