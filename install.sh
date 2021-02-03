@@ -26,8 +26,8 @@ set -e
 # These variables should all be GLOBAL variables, written in CAPS
 # Local variables will be in lowercase and will exist only within functions
 # It's still a work in progress, so you may see some variance in this guideline until it is complete
-DISTRO=`grep '^ID=' /etc/os-release | cut -d '=' -f 2`
-VERSION=`grep '^VERSION_ID=' /etc/os-release | cut -d '=' -f 2 | tr -d '"'`
+DISTRO=$(grep '^ID=' /etc/os-release | cut -d '=' -f 2)
+VERSION=$(grep '^VERSION_ID=' /etc/os-release | cut -d '=' -f 2 | tr -d '"')
 MS_PACKAGE_SIGNING_KEY_URL="https://packages.microsoft.com/config/${DISTRO}/${VERSION}/packages-microsoft-prod.deb"
 
 
