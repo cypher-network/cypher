@@ -207,8 +207,6 @@ install_service() {
 printf "  %b Checking for systemd" "${INFO}"
 if is_command systemctl ; then
     printf "%b  %b Checking for systemd\\n" "${OVER}" "${TICK}"
-else
-    printf "%b  %b Checking for systemd\\n" "${OVER}" "${CROSS}"
 
     printf "  %b Checking for installed service" "${INFO}"
     if service_exists cypnode; then
@@ -225,6 +223,8 @@ else
             enable_service cypnode
         fi
     fi
+else
+    printf "%b  %b Checking for systemd\\n" "${OVER}" "${CROSS}"
 fi
 }
 
