@@ -30,9 +30,8 @@ DISTRO=$(grep '^ID=' /etc/os-release | cut -d '=' -f 2)
 VERSION=$(grep '^VERSION_ID=' /etc/os-release | cut -d '=' -f 2 | tr -d '"')
 MS_PACKAGE_SIGNING_KEY_URL="https://packages.microsoft.com/config/${DISTRO}/${VERSION}/packages-microsoft-prod.deb"
 
-
-USER="$(id -un)"
-USERHOME="${HOME}"
+USER="${SUDO_USER}"
+USERHOME=$(awk -v FS=':' -v user="${SUDO_USER}" '($1==user) {print $6}' "/etc/passwd")
 
 # Check if we are running on a real terminal and find the rows and columns
 # If there is no real terminal, we will default to 80x24
@@ -192,7 +191,7 @@ fi
 service_exists() {
     if is_command systemctl ; then
       local n=$1
-      if [[ $(systemctl list-units --all -t service --full --no-legend "$n.service" | cut -f1 -d' ') == $n.service ]]; then
+      if [[ $(systemctl list-units --all -t service --full --no-legend "$n.service" | grep -v "not-found" | grep -v "bad-setting" | cut -f1 -d' ') == $n.service ]]; then
           return 0
       else
           return 1
@@ -217,7 +216,12 @@ if is_command systemctl ; then
             printf "  %b Not installing TGMNode as a service\\n" "${CROSS}"
         else
             printf "  %b Installing TGMNode as a service" "${INFO}"
-            curl -sL https://raw.githubusercontent.com/cypher-network/cypher/sk_installer/systemd/cypnode.service | sudo tee /etc/systemd/system/cypnode.service &> /dev/null
+            curl -sL https://raw.githubusercontent.com/cypher-network/cypher/sk_installer/systemd/cypnode.service | \
+                tac | tac | \
+                sed "s/{USERHOME}/${USERHOME//\//\\/}/g" | \
+                sed "s/{USER}/${USER//\//\\/}/g" | \
+                sudo tee /etc/systemd/system/cypnode.service &> /dev/null
+            
             printf "%b  %b Installing TGMNode as a service" "${OVER}" "${INFO}"
             enable_service cypnode
         fi
