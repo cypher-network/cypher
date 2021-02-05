@@ -1,5 +1,5 @@
 ﻿using System.Linq;
-
+using CYPCore.Extentions;
 using FASTER.core;
 
 namespace CYPCore.Persistence
@@ -25,7 +25,7 @@ namespace CYPCore.Persistence
 
         public virtual bool Equals(ref StoreKey k1, ref StoreKey k2)
         {
-            return k1.key.SequenceEqual(k2.key) && k1.tableType == k2.tableType;
+            return k1.key.Xor(k2.key) && k1.tableType == k2.tableType;
         }
     }
 }

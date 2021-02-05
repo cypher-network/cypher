@@ -101,9 +101,9 @@ namespace CYPNode.Services
 
             try
             {
-                var blockHeaders = await _unitOfWork.DeliveredRepository.WhereAsync(x => new ValueTask<bool>(x.Transactions.Any(t => t.TxnId.SequenceEqual(txnId))));
+                var blockHeaders = await _unitOfWork.DeliveredRepository.WhereAsync(x => new ValueTask<bool>(x.Transactions.Any(t => t.TxnId.Xor(txnId))));
                 var firstBlockHeader = blockHeaders.FirstOrDefault();
-                var found = firstBlockHeader?.Transactions.FirstOrDefault(x => x.TxnId.SequenceEqual(txnId));
+                var found = firstBlockHeader?.Transactions.FirstOrDefault(x => x.TxnId.Xor(txnId));
                 if (found != null)
                 {
                     transaction = CYPCore.Helper.Util.SerializeProto(found.Vout);
@@ -162,7 +162,7 @@ namespace CYPNode.Services
             foreach (var vin in tx.Vin)
             {
                 var exists = await _unitOfWork.DeliveredRepository
-                    .FirstOrDefaultAsync(x => new(x.Transactions.Any(t => t.Vin.First().Key.K_Image.SequenceEqual(vin.Key.K_Image))));
+                    .FirstOrDefaultAsync(x => new(x.Transactions.Any(t => t.Vin.First().Key.K_Image.Xor(vin.Key.K_Image))));
 
                 if (exists != null)
                 {
