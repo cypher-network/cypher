@@ -28,6 +28,7 @@ namespace CYPCore.Ledger
     public class Validator : IValidator
     {
         private const double Distribution = 29858560.875;
+        private const int FeeNByte = 6000;
 
         protected readonly IUnitOfWork _unitOfWork;
         private readonly ISigning _signingProvider;
@@ -471,7 +472,7 @@ namespace CYPCore.Ledger
                 return false;
             }
 
-            var feeRate = Fee(transaction.Stream().Length);
+            var feeRate = Fee(FeeNByte);
             if (vout.A != feeRate)
             {
                 return false;
