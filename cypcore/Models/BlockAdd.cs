@@ -3,9 +3,8 @@
 
 namespace CYPCore.Models
 {
-    public class Block
+    public class BlockAdd
     {
-        public byte[] Protobuf { get; set; }
-        public byte[] Protobufs { get; set; }
+        public bool Added { get; set; }
     }
 }

@@ -71,8 +71,6 @@ namespace CYPCore.Ledger
                     return;
                 }
 
-                long localHeight, remoteHeight;
-
                 members = membersResult.Value.Members.ToList();
 
                 foreach (var member in members)
@@ -89,29 +87,28 @@ namespace CYPCore.Ledger
                     {
                         try
                         {
-                            var blockRestApi = new RestBlockService(uri);
-                            remoteHeight = await blockRestApi.GetHeight();
+                            BlockHeight local = new(), remote;
 
-                            localHeight = await _unitOfWork.DeliveredRepository.CountAsync();
+                            local.Height = await _unitOfWork.DeliveredRepository.CountAsync();
 
-                            _logger.LogInformation($"<<< Sync.Check >>>: Local node block height ({localHeight}). Network block height ({remoteHeight}).");
+                            RestBlockService blockRestApi = new(uri);
+                            remote = await blockRestApi.GetHeight();
 
-                            if (localHeight < remoteHeight)
+                            _logger.LogInformation($"<<< Sync.Check >>>: Local node block height ({local.Height}). Network block height ({remote.Height}).");
+
+                            if (local.Height < remote.Height)
                             {
-                                await Synchronize(uri, (int)localHeight);
+                                await Synchronize(uri, (int)local.Height);
                             }
                         }
                         catch (HttpRequestException)
                         {
-
                         }
                         catch (TaskCanceledException)
                         {
-
                         }
                         catch (Refit.ApiException)
                         {
-
                         }
                     }
                 }
@@ -143,10 +140,11 @@ namespace CYPCore.Ledger
                     try
                     {
                         var blockRestApi = new RestBlockService(uri);
-                        var blockHeaders = await blockRestApi.GetBlockHeaders(skip, BatchSize);
+                        ProtobufStream blockHeaderStream = await blockRestApi.GetBlockHeaders(skip, BatchSize);
 
-                        if (blockHeaders.Any())
+                        if (blockHeaderStream.Protobufs.Any())
                         {
+                            var blockHeaders = Helper.Util.DeserializeListProto<BlockHeaderProto>(blockHeaderStream.Protobufs);
                             foreach (var blockHeader in blockHeaders)
                             {
                                 try
