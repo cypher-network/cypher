@@ -35,10 +35,13 @@ namespace CYPNode
         /// <returns></returns>
         public static int Main(string[] args)
         {
-            AppDomain.CurrentDomain.FirstChanceException += (sender, e) =>
+            if (ConfigurationRoot.GetValue<bool>("FirstChanceException"))
             {
-                Log.Error(e.Exception, e.Exception.Message);
-            };
+                AppDomain.CurrentDomain.FirstChanceException += (sender, e) =>
+                {
+                    Log.Error(e.Exception, e.Exception.Message);
+                };
+            }
 
             Log.Logger = new LoggerConfiguration()
                 .ReadFrom.Configuration(ConfigurationRoot, "Log")
