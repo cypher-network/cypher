@@ -38,7 +38,6 @@
     <PackageReference Include="protobuf-net" Version="3.0.73" />
     <PackageReference Include="Refit" Version="5.2.4" />
     <PackageReference Include="Stratis.Patricia" Version="1.0.7" />
-    <PackageReference Include="websocketsharp.core" Version="1.0.0" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Consensus\" />
