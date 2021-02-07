@@ -109,6 +109,10 @@ namespace CYPCore.Ledger
                         {
 
                         }
+                        catch (Refit.ApiException)
+                        {
+
+                        }
                     }
                 }
             }
