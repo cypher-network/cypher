@@ -18,6 +18,6 @@ namespace CYPCore.Services.Rest
         Task<ProtobufStream> GetBlockHeaders(int skip, int take);
 
         [Post("/header/block")]
-        Task<BlockAdd> AddBlock(byte[] payload);
+        Task<WebResponse> AddBlock(byte[] payload);
     }
 }

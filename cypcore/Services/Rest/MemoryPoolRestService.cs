@@ -11,15 +11,15 @@ using CYPCore.Models;
 
 namespace CYPCore.Services.Rest
 {
-    public class MemoryPoolRestService : IMemoryPoolService
+    public class RestMemoryPoolService
     {
         private readonly HttpClient _httpClient;
-        private readonly IMemoryPoolService _memoryPoolRestApi;
+        private readonly IRestMemoryPoolService _restMemoryPoolService;
 
-        public MemoryPoolRestService(Uri baseUrl)
+        public RestMemoryPoolService(Uri baseUrl)
         {
             _httpClient = new() { BaseAddress = baseUrl };
-            _memoryPoolRestApi = RestService.For<IMemoryPoolService>(_httpClient);
+            _restMemoryPoolService = RestService.For<IRestMemoryPoolService>(_httpClient);
         }
 
         /// <summary>
@@ -27,38 +27,9 @@ namespace CYPCore.Services.Rest
         /// </summary>
         /// <param name="pool"></param>
         /// <returns></returns>
-        public async Task<bool> AddMemoryPool(byte[] pool)
+        public async Task<WebResponse> AddMemoryPool(byte[] pool)
         {
-            return await _memoryPoolRestApi.AddMemoryPool(pool).ConfigureAwait(false);
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="pools"></param>
-        /// <returns></returns>
-        public async Task AddMemoryPools(byte[] pools)
-        {
-            await _memoryPoolRestApi.AddMemoryPools(pools).ConfigureAwait(false);
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="tx"></param>
-        /// <returns></returns>
-        public async Task<byte[]> AddTransaction(TransactionProto tx)
-        {
-            return await _memoryPoolRestApi.AddTransaction(tx).ConfigureAwait(false);
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <returns></returns>
-        public async Task<int> GetTransactionCount()
-        {
-            return await _memoryPoolRestApi.GetTransactionCount().ConfigureAwait(false);
+            return await _restMemoryPoolService.AddMemoryPool(pool).ConfigureAwait(false);
         }
     }
 }

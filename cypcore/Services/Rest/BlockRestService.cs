@@ -47,7 +47,7 @@ namespace CYPCore.Services.Rest
         /// </summary>
         /// <param name="payload"></param>
         /// <returns></returns>
-        public async Task<BlockAdd> AddBlock(byte[] payload)
+        public async Task<WebResponse> AddBlock(byte[] payload)
         {
             return await _restBlockService.AddBlock(payload).ConfigureAwait(false);
         }
