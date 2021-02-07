@@ -127,6 +127,10 @@ namespace CYPCore.Network
                     {
                         await new RestBlockService(uri).AddBlock(data);
                     }
+                    if (topicType == TopicType.AddMemoryPool)
+                    {
+                        await new RestMemoryPoolService(uri).AddMemoryPool(data);
+                    }
                 }
             }
             catch (Exception ex)
