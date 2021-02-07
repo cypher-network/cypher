@@ -35,7 +35,7 @@ namespace CYPNode
         /// <returns></returns>
         public static int Main(string[] args)
         {
-            if (ConfigurationRoot.GetValue<bool>("FirstChanceException"))
+            if (ConfigurationRoot.GetValue<bool>("Log:FirstChanceException"))
             {
                 AppDomain.CurrentDomain.FirstChanceException += (sender, e) =>
                 {
