@@ -2,6 +2,7 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Diagnostics;
 using System.IO;
@@ -232,10 +233,24 @@ namespace CYPCore.Services
                     }
 
                     var pubkey = await _signing.GetPublicKey(_signing.DefaultSigningKeyName);
-                    var hasMember = membersResult.Value.Members.FirstOrDefault(x => x.Tags["pubkey"] == pubkey.ByteToHex());
-                    if (hasMember != null)
+                    if (pubkey == null)
                     {
-                        connect = true;
+                        cancellationToken.Cancel();
+                    }
+                    else
+                    {
+                        try
+                        {
+                            if (null != membersResult.Value.Members.FirstOrDefault(x =>
+                                x.Tags["pubkey"] == pubkey.ByteToHex()))
+                            {
+                                connect = true;
+                            }
+                        }
+                        catch (KeyNotFoundException keyNotFoundException)
+                        {
+                            _logger.LogError(keyNotFoundException, "Public key was not found in member list");
+                        }
                     }
                 }
                 else
