@@ -11,6 +11,7 @@ using Microsoft.Extensions.Configuration;
 using Serilog;
 using Serilog.Events;
 using CYPCore.Models;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace CYPNode
 {
@@ -21,7 +22,7 @@ namespace CYPNode
             get
             {
                 return new ConfigurationBuilder()
-                                .SetBasePath(Directory.GetCurrentDirectory())
+                                .SetBasePath(AppDomain.CurrentDomain.BaseDirectory)
                                 .AddJsonFile("appsettings.json")
                                 .Build();
             }
@@ -73,15 +74,17 @@ namespace CYPNode
 
         private static IHostBuilder CreateWebHostBuilder(string[] args) =>
             Host.CreateDefaultBuilder(args)
-            .UseServiceProviderFactory(new AutofacServiceProviderFactory())
-            .ConfigureWebHostDefaults(webBuilder =>
-            {
-                ApiConfigurationOptions apiConfigurationOptions = new();
-                ConfigurationRoot.Bind("Api", apiConfigurationOptions);
+                .UseServiceProviderFactory(new AutofacServiceProviderFactory())
+                .ConfigureWebHostDefaults(webBuilder =>
+                {
+                    ApiConfigurationOptions apiConfigurationOptions = new();
+                    ConfigurationRoot.Bind("Api", apiConfigurationOptions);
 
-                webBuilder.UseStartup<Startup>()
-                          .UseUrls(new string[] { apiConfigurationOptions.Listening })
-                          .UseSerilog();
-            });
+                    webBuilder.UseStartup<Startup>()
+                        .UseUrls(apiConfigurationOptions.Listening)
+                        .UseSerilog();
+                })
+                .UseSystemd()
+                .UseWindowsService();
     }
 }
