@@ -37,7 +37,7 @@ namespace CYPCore.Controllers
         public async Task<IActionResult> AddMemoryPool([FromBody] byte[] pool)
         {
             var added = await _memoryPoolService.AddMemoryPool(pool);
-            return new ObjectResult(new { added });
+            return new ObjectResult(new { code = added == true ? StatusCodes.Status200OK : StatusCodes.Status500InternalServerError });
         }
 
         /// <summary>

@@ -37,7 +37,7 @@ namespace CYPCore.Controllers
         public async Task<IActionResult> AddBlock([FromBody] byte[] payload)
         {
             var added = await _blockService.AddBlock(payload);
-            return new ObjectResult(new { added });
+            return new ObjectResult(new { code = added == true ? StatusCodes.Status200OK : StatusCodes.Status500InternalServerError });
         }
 
         /// <summary>
