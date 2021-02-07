@@ -5,13 +5,13 @@ using System.Threading.Tasks;
 
 using CYPCore.Models;
 
-namespace CYPCore.Network.P2P
+namespace CYPCore.Network
 {
     public interface ILocalNode
     {
         Task BootstrapNodes();
-        Task Broadcast(byte[] data, SocketTopicType topicType);
-        Task Send(byte[] data, string address);
+        Task Broadcast(byte[] data, TopicType topicType, string path);
+        Task Send(byte[] data, TopicType topicType, string host, string path);
         void Ready();
     }
 }

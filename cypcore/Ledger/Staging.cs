@@ -14,7 +14,7 @@ using CYPCore.Extentions;
 using CYPCore.Models;
 using CYPCore.Persistence;
 using CYPCore.Serf;
-using CYPCore.Network.P2P;
+using CYPCore.Network;
 
 namespace CYPCore.Ledger
 {
@@ -57,7 +57,7 @@ namespace CYPCore.Ledger
                     var moreBlocks = await _unitOfWork.MemPoolRepository.MoreAsync(memPools);
                     var blockHashLookup = moreBlocks.ToLookup(i => i.Block.Hash);
 
-                    await _unitOfWork.MemPoolRepository.IncludeAllAsync(memPools, _serfClient.P2PConnectionOptions.ClientId);
+                    await _unitOfWork.MemPoolRepository.IncludeAllAsync(memPools, _serfClient.ClientId);
                     await AddOrUpdate(blockHashLookup);
                 }
 
@@ -86,7 +86,7 @@ namespace CYPCore.Ledger
                     return;
                 }
 
-                await _localNode.Broadcast(Helper.Util.SerializeProto(new List<MemPoolProto> { memPool }), SocketTopicType.Mempool);
+                await _localNode.Broadcast(Helper.Util.SerializeProto(new List<MemPoolProto> { memPool }), TopicType.AddMemoryPool, "pool");
 
                 var staging = await _unitOfWork.StagingRepository.FirstOrDefaultAsync(x => new(x.Hash.Equals(memPool.Block.Hash)));
                 if (staging != null)
@@ -140,7 +140,7 @@ namespace CYPCore.Ledger
                     Hash = next.Block.Hash,
                     MemPoolProto = next,
                     ExpectedTotalNodes = 4,
-                    Node = _serfClient.P2PConnectionOptions.ClientId,
+                    Node = _serfClient.ClientId,
                     TotalNodes = nodeCount,
                     Status = StagingState.Started
                 };
@@ -284,7 +284,7 @@ namespace CYPCore.Ledger
                 return;
             }
 
-            foreach (var next in MemPoolProto.NextBlockGraph(blockHashLookup, _serfClient.P2PConnectionOptions.ClientId))
+            foreach (var next in MemPoolProto.NextBlockGraph(blockHashLookup, _serfClient.ClientId))
             {
                 var staging = await _unitOfWork.StagingRepository.FirstOrDefaultAsync(x => new(x.Hash.Equals(next.Block.Hash)));
                 if (staging != null)

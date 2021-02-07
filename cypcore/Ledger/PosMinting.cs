@@ -22,8 +22,8 @@ using CYPCore.Extentions;
 using CYPCore.Models;
 using CYPCore.Persistence;
 using CYPCore.Serf;
-using CYPCore.Network.P2P;
 using CYPCore.Cryptography;
+using CYPCore.Network;
 
 namespace CYPCore.Ledger
 {
@@ -241,13 +241,13 @@ namespace CYPCore.Ledger
             {
                 Error = false,
                 Message = string.Empty,
-                Node = _serfClient.P2PConnectionOptions.ClientId,
-                Payload = data,
+                Node = _serfClient.ClientId,
+                Data = data,
                 PublicKey = await _signing.GetPublicKey(_signing.DefaultSigningKeyName),
                 Signature = await _signing.Sign(_signing.DefaultSigningKeyName, Helper.Util.SHA384ManagedHash(data))
             };
 
-            await _localNode.Broadcast(Helper.Util.SerializeProto(payload), SocketTopicType.Block);
+            await _localNode.Broadcast(Helper.Util.SerializeProto(payload), TopicType.AddBlock, "header/block");
 
             return true;
         }

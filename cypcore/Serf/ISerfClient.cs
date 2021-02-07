@@ -8,13 +8,13 @@ using System.Threading.Tasks;
 using CYPCore.Helper;
 using CYPCore.Messages;
 using CYPCore.Models;
-using CYPCore.Network.P2P;
 using CYPCore.Serf.Message;
 
 namespace CYPCore.Serf
 {
     public interface ISerfClient
     {
+        ulong ClientId { get; }
         string ProcessError { get; set; }
         bool ProcessStarted { get; set; }
         int ProcessId { get; set; }
@@ -22,7 +22,6 @@ namespace CYPCore.Serf
         string Name { get; set; }
 
         SerfConfigurationOptions SerfConfigurationOptions { get; }
-        P2PConnectionOptions P2PConnectionOptions { get; }
 
         ApiConfigurationOptions ApiConfigurationOptions { get; }
 

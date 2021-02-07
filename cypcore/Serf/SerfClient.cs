@@ -19,7 +19,6 @@ using CYPCore.Extentions;
 using CYPCore.Helper;
 using CYPCore.Messages;
 using CYPCore.Models;
-using CYPCore.Network.P2P;
 using CYPCore.Serf.Message;
 
 namespace CYPCore.Serf
@@ -73,7 +72,6 @@ namespace CYPCore.Serf
         public string Name { get; set; }
 
         public SerfConfigurationOptions SerfConfigurationOptions { get; private set; }
-        public P2PConnectionOptions P2PConnectionOptions { get; private set; }
         public ApiConfigurationOptions ApiConfigurationOptions { get; private set; }
 
         private bool _disposed = false;
@@ -90,17 +88,21 @@ namespace CYPCore.Serf
         private readonly ILogger _logger;
 
         public SerfClient(ISigning signing, SerfConfigurationOptions serfConfigurationOptions,
-            P2PConnectionOptions p2pConnectionOptions, ApiConfigurationOptions apiConfigurationOptions, ILogger<SerfClient> logger)
+            ApiConfigurationOptions apiConfigurationOptions, ILogger<SerfClient> logger)
         {
             _signing = signing;
             _logger = logger;
 
             SerfConfigurationOptions = serfConfigurationOptions;
-            P2PConnectionOptions = p2pConnectionOptions;
             ApiConfigurationOptions = apiConfigurationOptions;
 
             TcpSessions = new ConcurrentDictionary<Guid, TcpSession>();
         }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public ulong ClientId => GetClientID().GetAwaiter().GetResult().Value;
 
         /// <summary>
         /// 
@@ -115,18 +117,20 @@ namespace CYPCore.Serf
         /// <returns></returns>
         public async Task<TaskResult<ulong>> GetClientID()
         {
+            ulong clientId;
+
             try
             {
                 var pubKey = await _signing.GetPublicKey(_signing.DefaultSigningKeyName);
-                P2PConnectionOptions.ClientId = Util.HashToId(pubKey.ByteToHex());
+                clientId = Util.HashToId(pubKey.ByteToHex());
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< SerfClient.MemberCount >>>: {ex}");
+                _logger.LogError($"<<< SerfClient.GetClientID >>>: {ex}");
                 return TaskResult<ulong>.CreateFailure(new SerfError { Error = ex.Message });
             }
 
-            return TaskResult<ulong>.CreateSuccess(P2PConnectionOptions.ClientId);
+            return TaskResult<ulong>.CreateSuccess(clientId);
         }
 
         /// <summary>

@@ -1,31 +1,47 @@
-﻿using System;
+﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+// To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
+
+using System;
+using System.Collections.Generic;
 using System.Net.Http;
 using System.Threading.Tasks;
-using System.Collections.Generic;
 
 using Refit;
 
 using CYPCore.Models;
-using System.Linq;
 
 namespace CYPCore.Services.Rest
 {
-    public class BlockRestService
+    public class RestBlockService : IBlockService
     {
         private readonly HttpClient _httpClient;
-        private readonly IBlockRestAPI _blockAPI;
+        private readonly IBlockService _blockRestAPI;
 
-        public BlockRestService(Uri baseUrl)
+        public RestBlockService(Uri baseUrl)
         {
             _httpClient = new() { BaseAddress = baseUrl };
-            _blockAPI = RestService.For<IBlockRestAPI>(_httpClient);
+            _blockRestAPI = RestService.For<IBlockService>(_httpClient);
         }
 
         /// <summary>
-		/// 
-		/// </summary>
-		/// <returns></returns>
-        public async Task<BlockHeight> Height() => await _blockAPI.Height().ConfigureAwait(false);
+        /// 
+        /// </summary>
+        /// <param name="payload"></param>
+        /// <returns></returns>
+        public async Task<bool> AddBlock(byte[] payload)
+        {
+            return await _blockRestAPI.AddBlock(payload);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="payloads"></param>
+        /// <returns></returns>
+        public async Task AddBlocks(byte[] payloads)
+        {
+            await _blockRestAPI.AddBlocks(payloads).ConfigureAwait(false);
+        }
 
         /// <summary>
         /// 
@@ -33,26 +49,37 @@ namespace CYPCore.Services.Rest
         /// <param name="skip"></param>
         /// <param name="take"></param>
         /// <returns></returns>
-        public async Task<IEnumerable<BlockHeaderProto>> Range(int skip, int take)
+        public async Task<IEnumerable<BlockHeaderProto>> GetBlockHeaders(int skip, int take)
         {
-            var blockHeaders = Enumerable.Empty<BlockHeaderProto>();
+            return await _blockRestAPI.GetBlockHeaders(skip, take).ConfigureAwait(false);
+        }
 
-            try
-            {
-                Block block = await _blockAPI.Range(skip, take).ConfigureAwait(false);
-                if (block != null)
-                {
-                    if (block.Protobufs != null)
-                    {
-                        blockHeaders = Helper.Util.DeserializeListProto<BlockHeaderProto>(block.Protobufs);
-                    }
-                }
-            }
-            catch (Exception)
-            {
-            }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        public async Task<long> GetHeight()
+        {
+            return await _blockRestAPI.GetHeight().ConfigureAwait(false);
+        }
 
-            return blockHeaders;
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        public async Task<IEnumerable<BlockHeaderProto>> GetSafeguardBlocks()
+        {
+            return await _blockRestAPI.GetSafeguardBlocks().ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="txnId"></param>
+        /// <returns></returns>
+        public async Task<byte[]> GetVout(byte[] txnId)
+        {
+            return await _blockRestAPI.GetVout(txnId).ConfigureAwait(false);
         }
     }
 }

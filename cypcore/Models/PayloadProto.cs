@@ -11,7 +11,7 @@ namespace CYPCore.Models
         [ProtoMember(1)]
         public ulong Node { get; set; }
         [ProtoMember(2)]
-        public byte[] Payload { get; set; }
+        public byte[] Data { get; set; }
         [ProtoMember(3)]
         public byte[] PublicKey { get; set; }
         [ProtoMember(4)]

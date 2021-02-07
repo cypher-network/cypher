@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-using CYPCore.Network.P2P;
+using CYPCore.Network;
 
 namespace CYPCore.Services
 {

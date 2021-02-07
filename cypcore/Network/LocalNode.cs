@@ -4,22 +4,19 @@
 using System;
 using System.Collections.Concurrent;
 using System.Linq;
-using System.Net;
 using System.Threading.Tasks;
-using System.Collections.Generic;
 
 using Microsoft.Extensions.Logging;
 
-using WebSocketSharp;
-
 using CYPCore.Serf;
 using CYPCore.Models;
+using CYPCore.Services.Rest;
 
-namespace CYPCore.Network.P2P
+namespace CYPCore.Network
 {
     public class LocalNode : ILocalNode
     {
-        private readonly ConcurrentDictionary<ulong, List<PeerSocket>> _peers;
+        private readonly ConcurrentDictionary<ulong, Peer> _peers;
         private readonly ISerfClient _serfClient;
         private readonly ILogger _logger;
         private TcpSession _tcpSession;
@@ -28,7 +25,7 @@ namespace CYPCore.Network.P2P
         {
             _serfClient = serfClient;
             _logger = logger;
-            _peers = new ConcurrentDictionary<ulong, List<PeerSocket>>();
+            _peers = new ConcurrentDictionary<ulong, Peer>();
         }
 
         public void Ready()
@@ -58,7 +55,7 @@ namespace CYPCore.Network.P2P
                     }
 
                     foreach (var member in membersResult.Value.Members
-                        .Where(member => !_peers.TryGetValue(Helper.Util.HashToId(member.Tags["pubkey"]), out List<PeerSocket> ws)).Select(member => member))
+                        .Where(member => !_peers.TryGetValue(Helper.Util.HashToId(member.Tags["pubkey"]), out Peer peer)).Select(member => member))
                     {
                         if (_serfClient.Name == member.Name)
                             continue;
@@ -66,27 +63,25 @@ namespace CYPCore.Network.P2P
                         if (member.Status != "alive")
                             continue;
 
-                        var peerSockets = new List<PeerSocket>();
-                        var address = new IPAddress(member.Address).MapToIPv4();
-                        int port;
+                        member.Tags.TryGetValue("rest", out string restEndpoint);
 
-                        port = Convert.ToInt32(member.Tags["p2pblockport"]);
-                        peerSockets.Add(new PeerSocket { WSAddress = $"ws://{address}:{port}/{SocketTopicType.Block}", TopicType = SocketTopicType.Block });
+                        if (string.IsNullOrEmpty(restEndpoint))
+                            continue;
 
-                        port = Convert.ToInt32(member.Tags["p2pmempoolport"]);
-                        peerSockets.Add(new PeerSocket { WSAddress = $"ws://{address}:{port}/{SocketTopicType.Mempool}", TopicType = SocketTopicType.Mempool });
-
-                        if (!_peers.TryAdd(Helper.Util.HashToId(member.Tags["pubkey"]), peerSockets))
+                        if (Uri.TryCreate($"{restEndpoint}", UriKind.Absolute, out Uri uri))
                         {
-                            _logger.LogError($"<<< LocalNode.Connect >>>: Failed adding or exists in remote nodes: {member.Name}");
-                            return;
+                            if (!_peers.TryAdd(Helper.Util.HashToId(member.Tags["pubkey"]), new Peer { Host = uri.AbsolutePath }))
+                            {
+                                _logger.LogError($"<<< LocalNode.Connect >>>: Failed adding or exists in remote nodes: {member.Name}");
+                                return;
+                            }
                         }
                     }
 
                     foreach (var node in _peers
                         .Where(node => !membersResult.Value.Members.ToDictionary(x => Helper.Util.HashToId(x.Tags["pubkey"])).TryGetValue(node.Key, out Serf.Message.Members members1)).Select(x => x))
                     {
-                        if (!_peers.TryRemove(node.Key, out List<PeerSocket> ws))
+                        if (!_peers.TryRemove(node.Key, out Peer peer))
                         {
                             _logger.LogError($"<<< LocalNode.BootstrapClients >>>: Failed removing {node.Key}");
                         }
@@ -106,36 +101,38 @@ namespace CYPCore.Network.P2P
         /// </summary>
         /// <param name="data"></param>
         /// <param name="topicType"></param>
+        /// <param name="path"></param>
         /// <returns></returns>
-        public async Task Broadcast(byte[] data, SocketTopicType topicType)
+        public async Task Broadcast(byte[] data, TopicType topicType, string path)
         {
-            var peers = _peers.Select(p => p.Value.FirstOrDefault(x => x.TopicType == topicType)).ToList();
-            await Task.Run(() => Parallel.ForEach(peers, peer => Send(data, peer.WSAddress)));
+            var peers = _peers.Select(p => p).ToList();
+            await Task.Run(() => Parallel.ForEach(peers, async peer => await Send(data, topicType, peer.Value.Host, path)));
         }
 
         /// <summary>
         /// 
         /// </summary>
         /// <param name="data"></param>
-        /// <param name="peer"></param>
+        /// <param name="topicType"></param>
+        /// <param name="host"></param>
+        /// <param name="path"></param>
         /// <returns></returns>
-        public Task Send(byte[] data, string address)
+        public async Task Send(byte[] data, TopicType topicType, string host, string path)
         {
             try
             {
-                using var ws = new WebSocket(address)
+                if (Uri.TryCreate($"{host}/{path}", UriKind.Absolute, out Uri uri))
                 {
-                    Compression = CompressionMethod.Deflate
-                };
-                ws.Connect();
-                ws.Send(data);
+                    if (topicType == TopicType.AddBlock)
+                    {
+                        await new RestBlockService(uri).AddBlock(data);
+                    }
+                }
             }
             catch (Exception ex)
             {
                 _logger.LogError($"<<< LocalNode.Send >>>: {ex}");
             }
-
-            return Task.CompletedTask;
         }
     }
 }

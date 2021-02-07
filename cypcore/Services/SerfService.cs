@@ -84,7 +84,6 @@ namespace CYPCore.Services
                 var pubKey = await _signing.GetPublicKey(_signing.DefaultSigningKeyName);
 
                 _serfClient.Name = $"{_serfClient.SerfConfigurationOptions.NodeName}-{Helper.Util.SHA384ManagedHash(pubKey).ByteToHex().Substring(0, 16)}";
-                _serfClient.P2PConnectionOptions.ClientId = Helper.Util.HashToId(pubKey.ByteToHex());
 
                 var serfPath = GetFilePath();
 
@@ -119,11 +118,8 @@ namespace CYPCore.Services
                     .Add("-tag")
                     .Add($"rest={_serfClient.ApiConfigurationOptions.Advertise}")
                     .Add("-tag")
-                    .Add($"pubkey={pubKey.ByteToHex()}")
-                    .Add("-tag")
-                    .Add($"p2pblockport={_serfClient.P2PConnectionOptions.GetBlockSocketIPEndPoint().Port}")
-                    .Add("-tag")
-                    .Add($"p2pmempoolport={_serfClient.P2PConnectionOptions.GetMempoolSocketIPEndPoint().Port}"));
+                    .Add($"pubkey={pubKey.ByteToHex()}"));
+
 
                 await foreach (var cmdEvent in cmd.ListenAsync(applicationLifetime.ApplicationStopping))
                 {
