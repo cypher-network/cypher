@@ -10,33 +10,37 @@ using Microsoft.Extensions.Logging;
 
 using Dawn;
 
-using CYPCore.Models;
-using CYPCore.Serf;
-using CYPCore.Persistence;
-using CYPCore.Extentions;
-using CYPCore.Cryptography;
 using CYPCore.Ledger;
+using CYPCore.Persistence;
+using CYPCore.Models;
+using CYPCore.Extentions;
+using CYPCore.Serf;
+using CYPCore.Cryptography;
 
-namespace CYPNode.Services
+namespace CYPCore.Services
 {
-    public class TransactionService : ITransactionService
+    /// <summary>
+    /// 
+    /// </summary>
+    public class MemoryPoolService : IMemoryPoolService
     {
         private readonly IUnitOfWork _unitOfWork;
-        private readonly IMempool _mempool;
-        private readonly ILogger _logger;
+        // TODO: Check deletion. _mempool is currently unused.
+        private readonly IMemoryPool _mempool;
         private readonly ISerfClient _serfClient;
         private readonly ISigning _signingProvider;
+        private readonly ILogger _logger;
 
         /// <summary>
-        ///
+        /// 
         /// </summary>
         /// <param name="unitOfWork"></param>
         /// <param name="mempool"></param>
         /// <param name="serfClient"></param>
         /// <param name="signingProvider"></param>
         /// <param name="logger"></param>
-        public TransactionService(IUnitOfWork unitOfWork, IMempool mempool,
-            ISerfClient serfClient, ISigning signingProvider, ILogger<TransactionService> logger)
+        public MemoryPoolService(IUnitOfWork unitOfWork, IMemoryPool mempool,
+            ISerfClient serfClient, ISigning signingProvider, ILogger<MemoryPoolService> logger)
         {
             _unitOfWork = unitOfWork;
             _mempool = mempool;
@@ -46,7 +50,7 @@ namespace CYPNode.Services
         }
 
         /// <summary>
-        /// Add transaction
+        /// 
         /// </summary>
         /// <param name="tx"></param>
         /// <returns></returns>
@@ -71,7 +75,7 @@ namespace CYPNode.Services
                         return await Payload(tx, "Exists in mempool.", true);
                     }
 
-                    var memPoolProto = await _mempool.AddMemPoolTransaction(MempoolProtoFactory(tx));
+                    var memPoolProto = await _mempool.AddTransaction(MempoolProtoFactory(tx));
                     if (memPoolProto == null)
                     {
                         return await Payload(tx, "Unable to add txn mempool.", true);
@@ -91,50 +95,104 @@ namespace CYPNode.Services
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="txnId"></param>
         /// <returns></returns>
-        public async Task<byte[]> GetTransaction(byte[] txnId)
+        public async Task<int> GetTransactionCount()
         {
-            Guard.Argument(txnId, nameof(txnId)).NotNull().MaxCount(48);
-
-            byte[] transaction = null;
+            int count = 0;
 
             try
             {
-                var blockHeaders = await _unitOfWork.DeliveredRepository.WhereAsync(x => new ValueTask<bool>(x.Transactions.Any(t => t.TxnId.Xor(txnId))));
-                var firstBlockHeader = blockHeaders.FirstOrDefault();
-                var found = firstBlockHeader?.Transactions.FirstOrDefault(x => x.TxnId.Xor(txnId));
-                if (found != null)
-                {
-                    transaction = CYPCore.Helper.Util.SerializeProto(found.Vout);
-                }
+                count = await _unitOfWork.MemPoolRepository.CountAsync();
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< TransactionService.GetTransaction >>>: {ex}");
+                _logger.LogError($"<<< MemoryPoolService.GetMempoolBlockHeight >>>: {ex}");
             }
 
-            return transaction;
+            return count;
         }
 
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="tx"></param>
+        /// <param name="pools"></param>
         /// <returns></returns>
-        private MemPoolProto MempoolProtoFactory(TransactionProto tx)
+        public async Task AddMemoryPools(byte[] pools)
         {
-            return new()
+            try
             {
-                Block = new InterpretedProto
+                var memPools = Helper.Util.DeserializeListProto<MemPoolProto>(pools);
+                if (memPools.Any())
                 {
-                    Hash = tx.ToKeyImage().ByteToHex(),
-                    Node = _serfClient.P2PConnectionOptions.ClientId,
-                    Round = 0,
-                    Transaction = tx
-                },
-                Deps = new List<DepProto>()
-            };
+                    foreach (var mempool in memPools)
+                    {
+                        var processed = await Process(mempool);
+                        if (!processed)
+                        {
+
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"<<< MemoryPoolService.AddMemoryPools >>>: {ex}");
+            }
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="pool"></param>
+        /// <returns></returns>
+        public async Task<bool> AddMemoryPool(byte[] pool)
+        {
+            bool processed = false;
+
+            try
+            {
+                var payload = Helper.Util.DeserializeProto<MemPoolProto>(pool);
+                if (payload != null)
+                {
+                    processed = await Process(payload);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"<<< MemoryPoolService.AddMemoryPool >>>: {ex}");
+            }
+
+            return processed;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="memPool"></param>
+        /// <returns></returns>
+        private async Task<bool> Process(MemPoolProto memPool)
+        {
+            Guard.Argument(memPool, nameof(memPool)).NotNull();
+
+            if (_serfClient.ClientId == memPool.Block.Node)
+            {
+                return false;
+            }
+
+            memPool.Included = false;
+            memPool.Replied = false;
+
+            var added = await _mempool.AddTransaction(memPool);
+            if (added == null)
+            {
+                _logger.LogError($"<<< MemoryPoolService.Process >>>: " +
+                    $"Blockgraph: {memPool.Block.Hash} was not add " +
+                    $"for node {memPool.Block.Node} and round {memPool.Block.Round}");
+
+                return false;
+            }
+
+            return true;
         }
 
         /// <summary>
@@ -147,7 +205,7 @@ namespace CYPNode.Services
             var memPool = await _unitOfWork.MemPoolRepository.FirstOrDefaultAsync(x => new(
                 x.Block.Hash.Equals(tx.ToHash().ByteToHex()) &&
                 x.Block.Transaction.Ver == tx.Ver &&
-                x.Block.Node == _serfClient.P2PConnectionOptions.ClientId));
+                x.Block.Node == _serfClient.ClientId));
 
             return memPool != null;
         }
@@ -187,13 +245,33 @@ namespace CYPNode.Services
             {
                 Error = isError,
                 Message = message,
-                Node = _serfClient.P2PConnectionOptions.ClientId,
-                Payload = data,
+                Node = _serfClient.ClientId,
+                Data = data,
                 PublicKey = await _signingProvider.GetPublicKey(_signingProvider.DefaultSigningKeyName),
-                Signature = await _signingProvider.Sign(_signingProvider.DefaultSigningKeyName, CYPCore.Helper.Util.SHA384ManagedHash(data))
+                Signature = await _signingProvider.Sign(_signingProvider.DefaultSigningKeyName, Helper.Util.SHA384ManagedHash(data))
             };
 
-            return CYPCore.Helper.Util.SerializeProto(payload);
+            return Helper.Util.SerializeProto(payload);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="tx"></param>
+        /// <returns></returns>
+        private MemPoolProto MempoolProtoFactory(TransactionProto tx)
+        {
+            return new()
+            {
+                Block = new InterpretedProto
+                {
+                    Hash = tx.ToKeyImage().ByteToHex(),
+                    Node = _serfClient.ClientId,
+                    Round = 0,
+                    Transaction = tx
+                },
+                Deps = new List<DepProto>()
+            };
         }
     }
 }

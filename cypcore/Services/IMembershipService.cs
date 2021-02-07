@@ -6,9 +6,9 @@ using System.Threading.Tasks;
 
 using CYPCore.Serf.Message;
 
-namespace CYPNode.Services
+namespace CYPCore.Services
 {
-    public interface IMemberService
+    public interface IMembershipService
     {
         Task<int> GetCount();
         Task<IEnumerable<Members>> GetMembers();

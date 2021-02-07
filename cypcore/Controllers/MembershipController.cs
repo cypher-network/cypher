@@ -7,20 +7,20 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 
-using CYPNode.Services;
+using CYPCore.Services;
 
-namespace CYPNode.Controllers
+namespace CYPCore.Controllers
 {
-    [Route("api/member")]
+    [Route("membership")]
     [ApiController]
     public class MembershipController : Controller
     {
-        private readonly IMemberService _memberService;
+        private readonly IMembershipService _membershipService;
         private readonly ILogger _logger;
 
-        public MembershipController(IMemberService memberService, ILogger<MembershipController> logger)
+        public MembershipController(IMembershipService membershipService, ILogger<MembershipController> logger)
         {
-            _memberService = memberService;
+            _membershipService = membershipService;
             _logger = logger;
         }
 
@@ -28,12 +28,12 @@ namespace CYPNode.Controllers
         /// 
         /// </summary>
         /// <returns></returns>
-        [HttpGet("membership", Name = "GetMembers")]
+        [HttpGet("members", Name = "GetMembers")]
         [ProducesResponseType(typeof(byte[]), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetMembers()
         {
-            return new ObjectResult(new { members = await _memberService.GetMembers() });
+            return new ObjectResult(new { members = await _membershipService.GetMembers() });
         }
 
         /// <summary>
@@ -45,7 +45,7 @@ namespace CYPNode.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetPublicKey()
         {
-            return new ObjectResult(new { publicKey = await _memberService.GetPublicKey() });
+            return new ObjectResult(new { publicKey = await _membershipService.GetPublicKey() });
         }
 
         /// <summary>
@@ -57,7 +57,7 @@ namespace CYPNode.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetMemberCount()
         {
-            return new ObjectResult(new { count = await _memberService.GetCount() });
+            return new ObjectResult(new { count = await _membershipService.GetCount() });
         }
     }
 }

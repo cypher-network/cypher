@@ -1,5 +1,6 @@
 // CYPNode by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
+using System.Linq;
 
 using System;
 using Microsoft.AspNetCore.Builder;
@@ -45,8 +46,7 @@ namespace CYPNode
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddResponseCompression();
-            services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_3_0);
-            services.AddMvc(option => option.EnableEndpointRouting = false);
+            services.AddMvc(option => option.EnableEndpointRouting = false).SetCompatibilityVersion(CompatibilityVersion.Version_3_0);
             services.AddControllers();
             services.AddSwaggerGenOptions();
             services.AddHttpContextAccessor();
@@ -70,14 +70,11 @@ namespace CYPNode
             builder.AddSigning();
             builder.AddValidator(Configuration);
             builder.AddBlockService();
-            builder.AddTransactionService();
-            builder.AddMempoolService();
-            builder.AddMemberService();
+            builder.AddMemoryPoolService();
+            builder.AddMembershipService();
             builder.AddPosMinting(Configuration);
             builder.AddSync();
             builder.AddLocalNode();
-            builder.AddBlockHeaderSocketService();
-            builder.AddMempoolSocketService();
             builder.AddDataKeysProtection();
         }
 

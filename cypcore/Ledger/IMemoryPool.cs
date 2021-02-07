@@ -2,13 +2,14 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System.Threading.Tasks;
+
 using CYPCore.Models;
 
 namespace CYPCore.Ledger
 {
-    public interface IMempool
+    public interface IMemoryPool
     {
-        Task<MemPoolProto> AddMemPoolTransaction(MemPoolProto memPool);
+        Task<MemPoolProto> AddTransaction(MemPoolProto memPool);
         Task Ready(byte[] hash);
     }
 }

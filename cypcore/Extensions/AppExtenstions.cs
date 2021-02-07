@@ -19,7 +19,7 @@ using CYPCore.Models;
 using CYPCore.Services;
 using CYPCore.Serf;
 using CYPCore.Persistence;
-using CYPCore.Network.P2P;
+using CYPCore.Network;
 using CYPCore.Cryptography;
 using CYPCore.Ledger;
 
@@ -46,7 +46,7 @@ namespace CYPCore.Extensions
         /// <returns></returns>
         public static ContainerBuilder AddMempool(this ContainerBuilder builder)
         {
-            builder.RegisterType<Mempool>().As<IMempool>().InstancePerDependency();
+            builder.RegisterType<MemoryPool>().As<IMemoryPool>().InstancePerDependency();
             return builder;
         }
 
@@ -130,56 +130,6 @@ namespace CYPCore.Extensions
         /// </summary>
         /// <param name="builder"></param>
         /// <returns></returns>
-        public static ContainerBuilder AddMempoolSocketService(this ContainerBuilder builder)
-        {
-            builder.Register(c =>
-            {
-                var mempoolSocketService = new MempoolSocketService
-                (
-                    c.Resolve<IMempool>(),
-                    c.Resolve<ISerfClient>(),
-                    c.Resolve<ILogger<MempoolSocketService>>()
-                );
-
-                return mempoolSocketService;
-            })
-            .As<IStartable>()
-            .SingleInstance();
-
-            return builder;
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="builder"></param>
-        /// <returns></returns>
-        public static ContainerBuilder AddBlockHeaderSocketService(this ContainerBuilder builder)
-        {
-            builder.Register(c =>
-            {
-                var blockHeaderSocketService = new BlockHeaderSocketService
-                (
-                    c.Resolve<IUnitOfWork>(),
-                    c.Resolve<ISerfClient>(),
-                    c.Resolve<ISigning>(),
-                    c.Resolve<IValidator>(),
-                    c.Resolve<ILogger<BlockHeaderSocketService>>()
-                 );
-
-                return blockHeaderSocketService;
-            })
-            .As<IStartable>()
-            .SingleInstance();
-
-            return builder;
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="builder"></param>
-        /// <returns></returns>
         public static ContainerBuilder AddLocalNode(this ContainerBuilder builder)
         {
             builder.Register(c =>
@@ -212,15 +162,13 @@ namespace CYPCore.Extensions
             builder.Register(c =>
             {
                 var serfConfigurationOptions = new SerfConfigurationOptions();
-                var p2pConnectionOptions = new P2PConnectionOptions();
                 var apiConfigurationOptions = new ApiConfigurationOptions();
 
                 configurationRoot.Bind("Serf", serfConfigurationOptions);
-                configurationRoot.Bind("P2P", p2pConnectionOptions);
                 configurationRoot.Bind("Api", apiConfigurationOptions);
 
                 var logger = c.Resolve<ILogger<SerfClient>>();
-                var serfClient = new SerfClient(c.Resolve<ISigning>(), serfConfigurationOptions, p2pConnectionOptions, apiConfigurationOptions, logger);
+                var serfClient = new SerfClient(c.Resolve<ISigning>(), serfConfigurationOptions, apiConfigurationOptions, logger);
 
                 return serfClient;
             })
@@ -356,6 +304,39 @@ namespace CYPCore.Extensions
         public static ContainerBuilder AddSync(this ContainerBuilder builder)
         {
             builder.RegisterType<Sync>().As<ISync>().SingleInstance();
+            return builder;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="builder"></param>
+        /// <returns></returns>
+        public static ContainerBuilder AddMemoryPoolService(this ContainerBuilder builder)
+        {
+            builder.RegisterType<MemoryPoolService>().As<IMemoryPoolService>();
+            return builder;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="builder"></param>
+        /// <returns></returns>
+        public static ContainerBuilder AddMembershipService(this ContainerBuilder builder)
+        {
+            builder.RegisterType<MembershipService>().As<IMembershipService>();
+            return builder;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="builder"></param>
+        /// <returns></returns>
+        public static ContainerBuilder AddBlockService(this ContainerBuilder builder)
+        {
+            builder.RegisterType<BlockService>().As<IBlockService>();
             return builder;
         }
     }

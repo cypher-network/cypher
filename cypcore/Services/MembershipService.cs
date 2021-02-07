@@ -12,9 +12,9 @@ using CYPCore.Cryptography;
 using CYPCore.Serf;
 using CYPCore.Serf.Message;
 
-namespace CYPNode.Services
+namespace CYPCore.Services
 {
-    public class MemberService : IMemberService
+    public class MembershipService : IMembershipService
     {
         private readonly ISerfClient _serfClient;
         private readonly ISigning _signingProvider;
@@ -28,7 +28,7 @@ namespace CYPNode.Services
         /// <param name="serfClient"></param>
         /// <param name="signingProvider"></param>
         /// <param name="logger"></param>
-        public MemberService(ISerfClient serfClient, ISigning signingProvider, ILogger<MemberService> logger)
+        public MembershipService(ISerfClient serfClient, ISigning signingProvider, ILogger<MembershipService> logger)
         {
             _serfClient = serfClient;
             _signingProvider = signingProvider;
@@ -77,7 +77,7 @@ namespace CYPNode.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< MemberService.GetMembers >>>: {ex}");
+                _logger.LogError($"<<< MembershipService.GetMembers >>>: {ex}");
             }
 
             return members;
@@ -96,7 +96,7 @@ namespace CYPNode.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< MemberService.GetPublicKey >>>: {ex}");
+                _logger.LogError($"<<< MembershipService.GetPublicKey >>>: {ex}");
             }
 
             return publicKey;
@@ -120,10 +120,11 @@ namespace CYPNode.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< MemberService.GetCount >>>: {ex}");
+                _logger.LogError($"<<< MembershipService.GetCount >>>: {ex}");
             }
 
             return count;
         }
     }
 }
+

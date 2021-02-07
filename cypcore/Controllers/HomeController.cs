@@ -3,7 +3,7 @@
 
 using Microsoft.AspNetCore.Mvc;
 
-namespace CYPNode.Controllers
+namespace CYPCore.Controllers
 {
     public class HomeController : Controller
     {

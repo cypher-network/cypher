@@ -20,7 +20,7 @@ using CYPCore.Helper;
 
 namespace CYPCore.Ledger
 {
-    public class Mempool : IMempool
+    public class MemoryPool : IMemoryPool
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly ISerfClient _serfClient;
@@ -37,8 +37,8 @@ namespace CYPCore.Ledger
 
         private LastInterpretedMessage _lastInterpretedMessage;
 
-        public Mempool(IUnitOfWork unitOfWork, ISerfClient serfClient, IValidator validator,
-            ISigning signing, IStaging staging, ILogger<Mempool> logger)
+        public MemoryPool(IUnitOfWork unitOfWork, ISerfClient serfClient, IValidator validator,
+            ISigning signing, IStaging staging, ILogger<MemoryPool> logger)
         {
             _unitOfWork = unitOfWork;
             _serfClient = serfClient;
@@ -55,7 +55,7 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="memPool"></param>
         /// <returns></returns>
-        public async Task<MemPoolProto> AddMemPoolTransaction(MemPoolProto memPool)
+        public async Task<MemPoolProto> AddTransaction(MemPoolProto memPool)
         {
             Guard.Argument(memPool, nameof(memPool)).NotNull();
 
@@ -68,14 +68,14 @@ namespace CYPCore.Ledger
 
                 if (exists != null)
                 {
-                    _logger.LogError($"<<< MemPool.AddMemPoolTransaction >>>: Exists block {memPool.Block.Hash} for round {memPool.Block.Round} and node {memPool.Block.Node}");
+                    _logger.LogError($"<<< MemoryPool.AddMemPoolTransaction >>>: Exists block {memPool.Block.Hash} for round {memPool.Block.Round} and node {memPool.Block.Node}");
                     return null;
                 }
 
                 stored = await _unitOfWork.MemPoolRepository.PutAsync(memPool, memPool.ToIdentifier());
                 if (stored == null)
                 {
-                    _logger.LogError($"<<< MemPool.AddMemPoolTransaction >>>: Unable to save block {memPool.Block.Hash} for round {memPool.Block.Round} and node {memPool.Block.Node}");
+                    _logger.LogError($"<<< MemoryPool.AddMemPoolTransaction >>>: Unable to save block {memPool.Block.Hash} for round {memPool.Block.Round} and node {memPool.Block.Node}");
                     return null;
                 }
 
@@ -87,7 +87,7 @@ namespace CYPCore.Ledger
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< MemPool.AddMemPoolTransaction >>>: {ex}");
+                _logger.LogError($"<<< MemoryPool.AddTransaction >>>: {ex}");
             }
 
             return stored;
@@ -109,7 +109,7 @@ namespace CYPCore.Ledger
             {
                 var lastInterpreted = await LastInterpreted(hash);
 
-                Config = new Config(lastInterpreted, new ulong[_totalNodes], _serfClient.P2PConnectionOptions.ClientId, (ulong)_totalNodes);
+                Config = new Config(lastInterpreted, new ulong[_totalNodes], _serfClient.ClientId, (ulong)_totalNodes);
                 Graph = new Graph(Config);
 
                 Graph.BlockmaniaInterpreted += (sender, e) => BlockmaniaCallback(sender, e).SwallowException();
@@ -121,7 +121,7 @@ namespace CYPCore.Ledger
                 var self = await UpsertSelf(memPool);
                 if (self == null)
                 {
-                    _logger.LogError($"<<< MemPool.UpsertSelf >>>: " +
+                    _logger.LogError($"<<< MemoryPool.UpsertSelf >>>: " +
                         $"Unable to set own block Hash: {memPool.Block.Hash} Round: {memPool.Block.Round} from node {memPool.Block.Node}");
                     continue;
                 }
@@ -145,7 +145,7 @@ namespace CYPCore.Ledger
 
             if (!tcpSession.Ready)
             {
-                _logger.LogCritical($"<<< MemPool.ReadySession >>>: Serf client is not ready");
+                _logger.LogCritical($"<<< MemoryPool.ReadySession >>>: Serf client is not ready");
                 return;
             }
 
@@ -154,22 +154,22 @@ namespace CYPCore.Ledger
 
             if (!countResult.Success)
             {
-                _logger.LogWarning($"<<< MemPool.ReadySession >>>: {((SerfError)countResult.NonSuccessMessage).Error}");
+                _logger.LogWarning($"<<< MemoryPool.ReadySession >>>: {((SerfError)countResult.NonSuccessMessage).Error}");
             }
 
             _totalNodes = countResult.Value;
             if (_totalNodes < 4)
             {
-                _logger.LogWarning($"<<< MemPool.ReadySession >>>: Minimum number of nodes required (4). Total number of nodes ({_totalNodes})");
+                _logger.LogWarning($"<<< MemoryPool.ReadySession >>>: Minimum number of nodes required (4). Total number of nodes ({_totalNodes})");
             }
 
             if (_totalNodes == 0)
             {
-                _logger.LogWarning($"<<< MemPool.ReadySession >>>: Total number of nodes ({_totalNodes})");
+                _logger.LogWarning($"<<< MemoryPool.ReadySession >>>: Total number of nodes ({_totalNodes})");
 
                 _totalNodes = 4;
 
-                _logger.LogWarning($"<<< MemPool.ReadySession >>>: Setting default number of nodes ({_totalNodes})");
+                _logger.LogWarning($"<<< MemoryPool.ReadySession >>>: Setting default number of nodes ({_totalNodes})");
             }
         }
 
@@ -202,7 +202,7 @@ namespace CYPCore.Ledger
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< MemPoolProvider.SendToProcess >>>: {ex}");
+                _logger.LogError($"<<< MemoryPool.SendToProcess >>>: {ex}");
             }
 
             return true;
@@ -225,7 +225,7 @@ namespace CYPCore.Ledger
             }
             catch (Exception ex)
             {
-                _logger.LogWarning($"<<< MemPool.LastInterpreted >>>: {ex}");
+                _logger.LogWarning($"<<< MemoryPool.LastInterpreted >>>: {ex}");
             }
             finally
             {
@@ -254,14 +254,14 @@ namespace CYPCore.Ledger
                     var memPool = await _unitOfWork.MemPoolRepository.FirstOrDefaultAsync(x => new(x.Block.Hash.Equals(next.Hash) && x.Block.Node == next.Node && x.Block.Round == next.Round));
                     if (memPool == null)
                     {
-                        _logger.LogError($"<<< MemPool.BlockmaniaCallback >>>: Unable to find matching block - Hash: {next.Hash} Round: {next.Round} from node {next.Node}");
+                        _logger.LogError($"<<< MemoryPool.BlockmaniaCallback >>>: Unable to find matching block - Hash: {next.Hash} Round: {next.Round} from node {next.Node}");
                         continue;
                     }
 
                     var verified = await _validator.VerifyMemPoolSignatures(memPool);
                     if (verified == false)
                     {
-                        _logger.LogError($"<<< MemPool.BlockmaniaCallback >>>: Unable to verify node signatures - Hash: {next.Hash} Round: {next.Round} from node {next.Node}");
+                        _logger.LogError($"<<< MemoryPool.BlockmaniaCallback >>>: Unable to verify node signatures - Hash: {next.Hash} Round: {next.Round} from node {next.Node}");
                         continue;
                     }
 
@@ -280,20 +280,20 @@ namespace CYPCore.Ledger
                     var hasSeen = await _unitOfWork.InterpretedRepository.FirstOrDefaultAsync(x => new(x.Hash.Equals(interpreted.Hash)));
                     if (hasSeen != null)
                     {
-                        _logger.LogError($"<<< MemPool.BlockmaniaCallback >>>: Already seen interpreted block - Hash: {next.Hash} Round: {next.Round} from node {next.Node}");
+                        _logger.LogError($"<<< MemoryPool.BlockmaniaCallback >>>: Already seen interpreted block - Hash: {next.Hash} Round: {next.Round} from node {next.Node}");
                         continue;
                     }
 
                     var saved = await _unitOfWork.InterpretedRepository.PutAsync(interpreted, interpreted.ToIdentifier());
                     if (saved == null)
                     {
-                        _logger.LogError($"<<< InterpretBlockActor.Interpret >>>: Unable to save block for {interpreted.Node} and round {interpreted.Round}");
+                        _logger.LogError($"<<< MemoryPool.BlockmaniaCallback >>>: Unable to save block for {interpreted.Node} and round {interpreted.Round}");
                     }
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< MemPool.BlockmaniaCallback >>>: {ex}");
+                _logger.LogError($"<<< MemoryPool.BlockmaniaCallback >>>: {ex}");
             }
         }
 
@@ -311,8 +311,10 @@ namespace CYPCore.Ledger
             try
             {
                 ulong round = 0, node = 0;
+                bool copy = false;
 
-                var copy = MakeCopy(memPool);
+                copy |= memPool.Block.Node != _serfClient.ClientId;
+
                 if (!copy)
                 {
                     node = memPool.Block.Node;
@@ -324,11 +326,11 @@ namespace CYPCore.Ledger
                     try
                     {
                         round = await IncrementRound(memPool.Block.Hash.HexToByte());
-                        node = _serfClient.P2PConnectionOptions.ClientId;
+                        node = _serfClient.ClientId;
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError($"<<< MemPool.UpsertSelf ->  IncrementRound >>>: {ex}");
+                        _logger.LogError($"<<< MemoryPool.UpsertSelf ->  IncrementRound >>>: {ex}");
                     }
                 }
 
@@ -346,23 +348,10 @@ namespace CYPCore.Ledger
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< MemPool.UpsertSelf >>>: {ex}");
+                _logger.LogError($"<<< MemoryPool.UpsertSelf >>>: {ex}");
             }
 
             return stored;
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="memPool"></param>
-        /// <returns></returns>
-        private bool MakeCopy(MemPoolProto memPool)
-        {
-            bool copy = false;
-            copy |= memPool.Block.Node != _serfClient.P2PConnectionOptions.ClientId;
-
-            return copy;
         }
 
         /// <summary>
@@ -418,7 +407,7 @@ namespace CYPCore.Ledger
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< MemPool.IncrementRound >>>: {ex}");
+                _logger.LogError($"<<< MemoryPool.IncrementRound >>>: {ex}");
             }
 
             round += 1;
