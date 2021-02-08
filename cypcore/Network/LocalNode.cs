@@ -70,7 +70,7 @@ namespace CYPCore.Network
 
                         if (Uri.TryCreate($"{restEndpoint}", UriKind.Absolute, out Uri uri))
                         {
-                            if (!_peers.TryAdd(Helper.Util.HashToId(member.Tags["pubkey"]), new Peer { Host = uri.AbsolutePath }))
+                            if (!_peers.TryAdd(Helper.Util.HashToId(member.Tags["pubkey"]), new Peer { Host = uri.OriginalString }))
                             {
                                 _logger.LogError($"<<< LocalNode.Connect >>>: Failed adding or exists in remote nodes: {member.Name}");
                                 return;
@@ -121,7 +121,7 @@ namespace CYPCore.Network
         {
             try
             {
-                if (Uri.TryCreate($"{host}/{path}", UriKind.Absolute, out Uri uri))
+                if (Uri.TryCreate($"{host}{path}", UriKind.Absolute, out Uri uri))
                 {
                     if (topicType == TopicType.AddBlock)
                     {

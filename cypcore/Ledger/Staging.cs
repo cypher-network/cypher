@@ -86,7 +86,7 @@ namespace CYPCore.Ledger
                     return;
                 }
 
-                await _localNode.Broadcast(Helper.Util.SerializeProto(new List<MemPoolProto> { memPool }), TopicType.AddMemoryPool, "pool");
+                await _localNode.Broadcast(Helper.Util.SerializeProto(new List<MemPoolProto> { memPool }), TopicType.AddMemoryPool, "/pool");
 
                 var staging = await _unitOfWork.StagingRepository.FirstOrDefaultAsync(x => new(x.Hash.Equals(memPool.Block.Hash)));
                 if (staging != null)
