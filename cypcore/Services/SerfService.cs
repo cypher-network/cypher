@@ -77,8 +77,15 @@ namespace CYPCore.Services
             {
                 applicationLifetime.ApplicationStopping.Register(() =>
                 {
-                    var process = Process.GetProcessById(_serfClient.ProcessId);
-                    process?.Kill();
+                    try
+                    {
+                        var process = Process.GetProcessById(_serfClient.ProcessId);
+                        process?.Kill();
+                    }
+                    catch (Exception)
+                    {
+
+                    }
                 });
 
                 var pubKey = await _signing.GetPublicKey(_signing.DefaultSigningKeyName);
