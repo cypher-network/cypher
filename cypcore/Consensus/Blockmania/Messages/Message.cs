@@ -4,7 +4,7 @@
 using System;
 using System.Text;
 
-namespace CYPCore.Consensus.BlockMania.Messages
+namespace CYPCore.Consensus.Blockmania.Messages
 {
     public enum MessageKind
     {

@@ -8,10 +8,10 @@ using System.Threading.Tasks;
 using System.Threading.Channels;
 using System.Diagnostics;
 
-using CYPCore.Consensus.BlockMania.Messages;
-using CYPCore.Consensus.BlockMania.States;
+using CYPCore.Consensus.Blockmania.Messages;
+using CYPCore.Consensus.Blockmania.States;
 
-namespace CYPCore.Consensus.BlockMania
+namespace CYPCore.Consensus.Blockmania
 {
     using StateKV = Dictionary<StateData, object>;
 

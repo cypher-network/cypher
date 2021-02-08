@@ -3,7 +3,7 @@
 
 using System;
 
-namespace CYPCore.Consensus.BlockMania
+namespace CYPCore.Consensus.Blockmania
 {
     public class BitSet
     {

@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 
 using Dawn;
 
-using CYPCore.Consensus.BlockMania;
+using CYPCore.Consensus.Blockmania;
 using CYPCore.Extentions;
 using CYPCore.Messages;
 using CYPCore.Models;

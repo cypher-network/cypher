@@ -4,10 +4,10 @@
 using System;
 using System.Collections.Generic;
 
-using CYPCore.Consensus.BlockMania.Messages;
-using CYPCore.Consensus.BlockMania.States;
+using CYPCore.Consensus.Blockmania.Messages;
+using CYPCore.Consensus.Blockmania.States;
 
-namespace CYPCore.Consensus.BlockMania
+namespace CYPCore.Consensus.Blockmania
 {
     using StateKV = Dictionary<StateData, object>;
 

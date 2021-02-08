@@ -14,7 +14,7 @@ using Autofac.Extensions.DependencyInjection;
 using Autofac;
 
 using CYPNode.StartupExtensions;
-using CYPCore.Consensus.BlockMania;
+using CYPCore.Consensus.Blockmania;
 using CYPCore.Extensions;
 
 namespace CYPNode

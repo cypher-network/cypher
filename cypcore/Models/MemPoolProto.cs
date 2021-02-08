@@ -4,7 +4,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using CYPCore.Consensus.BlockMania;
+using CYPCore.Consensus.Blockmania;
 using Newtonsoft.Json;
 using ProtoBuf;
 using CYPCore.Extentions;

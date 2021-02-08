@@ -5,7 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace CYPCore.Consensus.BlockMania
+namespace CYPCore.Consensus.Blockmania
 {
     public class BlockID : IEquatable<BlockID>
     {

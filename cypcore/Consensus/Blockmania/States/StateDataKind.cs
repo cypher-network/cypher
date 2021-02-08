@@ -3,7 +3,7 @@
 
 using System;
 
-namespace CYPCore.Consensus.BlockMania.States
+namespace CYPCore.Consensus.Blockmania.States
 {
     public enum StateDataKind
     {
