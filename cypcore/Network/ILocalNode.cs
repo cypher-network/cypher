@@ -10,8 +10,8 @@ namespace CYPCore.Network
     public interface ILocalNode
     {
         Task BootstrapNodes();
-        Task Broadcast(byte[] data, TopicType topicType, string path);
-        Task Send(byte[] data, TopicType topicType, string host, string path);
+        Task Broadcast(byte[] data, TopicType topicType);
+        Task Send(byte[] data, TopicType topicType, string host);
         void Ready();
     }
 }

@@ -247,7 +247,7 @@ namespace CYPCore.Ledger
                 Signature = await _signing.Sign(_signing.DefaultSigningKeyName, Helper.Util.SHA384ManagedHash(data))
             };
 
-            await _localNode.Broadcast(Helper.Util.SerializeProto(payload), TopicType.AddBlock, "/header/block");
+            await _localNode.Broadcast(Helper.Util.SerializeProto(payload), TopicType.AddBlock);
 
             return true;
         }

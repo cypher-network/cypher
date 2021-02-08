@@ -103,10 +103,10 @@ namespace CYPCore.Network
         /// <param name="topicType"></param>
         /// <param name="path"></param>
         /// <returns></returns>
-        public async Task Broadcast(byte[] data, TopicType topicType, string path)
+        public async Task Broadcast(byte[] data, TopicType topicType)
         {
             var peers = _peers.Select(p => p).ToList();
-            await Task.Run(() => Parallel.ForEach(peers, async peer => await Send(data, topicType, peer.Value.Host, path)));
+            await Task.Run(() => Parallel.ForEach(peers, async peer => await Send(data, topicType, peer.Value.Host)));
         }
 
         /// <summary>
@@ -117,11 +117,11 @@ namespace CYPCore.Network
         /// <param name="host"></param>
         /// <param name="path"></param>
         /// <returns></returns>
-        public async Task Send(byte[] data, TopicType topicType, string host, string path)
+        public async Task Send(byte[] data, TopicType topicType, string host)
         {
             try
             {
-                if (Uri.TryCreate($"{host}{path}", UriKind.Absolute, out Uri uri))
+                if (Uri.TryCreate($"{host}", UriKind.Absolute, out Uri uri))
                 {
                     if (topicType == TopicType.AddBlock)
                     {
