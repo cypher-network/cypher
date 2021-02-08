@@ -240,7 +240,7 @@ namespace CYPCore.Services
         /// <returns></returns>
         private async Task<byte[]> Payload(TransactionProto tx, string message, bool isError)
         {
-            byte[] data = CYPCore.Helper.Util.SerializeProto(tx);
+            byte[] data = Helper.Util.SerializeProto(tx);
             var payload = new PayloadProto
             {
                 Error = isError,
@@ -265,7 +265,7 @@ namespace CYPCore.Services
             {
                 Block = new InterpretedProto
                 {
-                    Hash = tx.ToKeyImage().ByteToHex(),
+                    Hash = tx.ToHash().ByteToHex(),
                     Node = _serfClient.ClientId,
                     Round = 0,
                     Transaction = tx

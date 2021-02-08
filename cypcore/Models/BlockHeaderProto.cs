@@ -87,7 +87,7 @@ namespace CYPCore.Models
                 .Append(Version)
                 .Append(VrfSig);
 
-                hash = Helper.Util.SHA384ManagedHash(ts.ToArray());
+                hash = NBitcoin.Crypto.Hashes.DoubleSHA256(ts.ToArray()).ToBytes(false);
             }
 
             return hash;

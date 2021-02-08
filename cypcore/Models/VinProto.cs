@@ -2,7 +2,6 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using ProtoBuf;
-using CYPCore.Extentions;
 
 namespace CYPCore.Models
 {
@@ -18,7 +17,7 @@ namespace CYPCore.Models
         /// <returns></returns>
         public byte[] ToHash()
         {
-            return Helper.Util.SHA384ManagedHash(Stream());
+            return NBitcoin.Crypto.Hashes.DoubleSHA256(Stream()).ToBytes(false);
         }
 
         public byte[] Stream()
@@ -27,8 +26,8 @@ namespace CYPCore.Models
             using (var ts = new Helper.TangramStream())
             {
                 ts
-                .Append(Key.K_Image)
-                .Append(Key.K_Offsets);
+                 .Append(Key.K_Image)
+                 .Append(Key.K_Offsets);
 
                 stream = ts.ToArray();
             }

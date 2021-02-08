@@ -14,7 +14,7 @@ namespace CYPCore.Persistence
             var bytes = System.Text.Encoding.UTF8.GetBytes(key.tableType);
             byte[] b = bytes.ToArray().Concat(key.key).ToArray();
 
-            var hash256 = Helper.Util.SHA384ManagedHash(b);
+            var hash256 = NBitcoin.Crypto.Hashes.DoubleSHA256(b).ToBytes(false);
 
             long res = 0;
             foreach (byte bt in hash256)

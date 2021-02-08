@@ -201,27 +201,10 @@ namespace CYPCore.Models
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="data"></param>
         /// <returns></returns>
         public byte[] ToHash()
         {
-            return Helper.Util.SHA384ManagedHash(Stream());
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <returns></returns>
-        public byte[] ToKeyImage()
-        {
-            byte[] hash;
-            using (var ts = new Helper.TangramStream())
-            {
-                Vin.ForEach(x => ts.Append(x.Key.K_Image));
-                hash = Helper.Util.SHA384ManagedHash(ts.ToArray());
-            }
-
-            return hash;
+            return NBitcoin.Crypto.Hashes.DoubleSHA256(Stream()).ToBytes(false);
         }
 
         /// <summary>
@@ -234,8 +217,9 @@ namespace CYPCore.Models
             using (var ts = new Helper.TangramStream())
             {
                 ts
-                .Append(Mix)
-                .Append(Ver);
+                  .Append(TxnId)
+                  .Append(Mix)
+                  .Append(Ver);
 
                 foreach (var bp in Bp)
                 {
@@ -245,6 +229,7 @@ namespace CYPCore.Models
                 foreach (var vin in Vin)
                 {
                     ts.Append(vin.Key.K_Image);
+                    ts.Append(vin.Key.K_Offsets);
                 }
 
                 foreach (var vout in Vout)
