@@ -7,11 +7,13 @@ namespace CYPCore.Consensus.BlockMania.Messages
 {
     public class Prepare : IMessage
     {
-        public string Hash { get; }
-        public ulong Node { get; }
-        public ulong Round { get; }
-        public ulong Sender { get; }
-        public uint View { get; }
+        public string Hash { get; set; }
+        public ulong Node { get; set; }
+        public ulong Round { get; set; }
+        public ulong Sender { get; set; }
+        public uint View { get; set; }
+
+        public Prepare() { }
 
         public Prepare(string hash, ulong node, ulong round, ulong sender, uint view)
         {
@@ -34,7 +36,7 @@ namespace CYPCore.Consensus.BlockMania.Messages
 
         public PrePrepare Pre()
         {
-            return new(Hash, Node, Round, View);
+            return new PrePrepare(Hash, Node, Round, View);
         }
 
         public override string ToString()

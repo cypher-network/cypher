@@ -42,8 +42,8 @@ namespace CYPCore.Consensus.BlockMania
 
     public class BlockInfo
     {
-        public readonly ulong Max;
-        public readonly BlockGraph Data;
+        public ulong Max;
+        public BlockGraph Data;
 
         public BlockInfo(BlockGraph data, ulong max)
         {
@@ -68,10 +68,10 @@ namespace CYPCore.Consensus.BlockMania
 
     public class Config
     {
-        public readonly ulong LastInterpreted;
-        public readonly ulong[] Nodes;
-        public readonly ulong SelfID;
-        public readonly ulong TotalNodes;
+        public ulong LastInterpreted;
+        public ulong[] Nodes;
+        public ulong SelfID;
+        public ulong TotalNodes;
 
         public Config(ulong[] nodes, ulong id)
         {
@@ -103,16 +103,16 @@ namespace CYPCore.Consensus.BlockMania
 
         public List<BlockInfo> Blocks;
         public Func<Task<Interpreted>> action;
-        public readonly Dictionary<BlockID, ulong> Max;
-        public readonly int NodeCount;
-        public readonly ulong[] Nodes;
-        public readonly int Quorumf1;
-        public readonly int Quorum2f;
-        public readonly int Quorum2f1;
-        public readonly Dictionary<ulong, Dictionary<ulong, string>> Resolved;
+        public Dictionary<BlockID, ulong> Max;
+        public int NodeCount;
+        public ulong[] Nodes;
+        public int Quorumf1;
+        public int Quorum2f;
+        public int Quorum2f1;
+        public Dictionary<ulong, Dictionary<ulong, string>> Resolved;
         public ulong Round;
         public ulong Self;
-        public readonly Dictionary<BlockID, State> Statess;
+        public Dictionary<BlockID, State> Statess;
         public ulong TotalNodes;
         public List<Consensus> Consensus;
 
@@ -264,25 +264,25 @@ namespace CYPCore.Consensus.BlockMania
             return stat;
         }
 
-        private void Process(Entry entry)
+        private void Process(Entry ntry)
         {
-            Debug.WriteLine($"Interpreting block block.id={entry.Block}");
+            Debug.WriteLine($"Interpreting block block.id={ntry.Block}");
 
-            var state = FindOrCreateState(entry);
-            var node = entry.Block.Node;
-            var round = entry.Block.Round;
-            var hash = entry.Block.Hash;
+            var state = FindOrCreateState(ntry);
+            var node = ntry.Block.Node;
+            var round = ntry.Block.Round;
+            var hash = ntry.Block.Hash;
             var out_ = new List<IMessage>
             {
                 new PrePrepare(hash, node, round, 0)
             };
-            if (entry.Deps.Length > 0)
+            if (ntry.Deps.Length > 0)
             {
                 if (state.Delay == null)
                 {
                     state.Delay = new Dictionary<ulong, ulong>();
                 }
-                foreach (var dep in entry.Deps)
+                foreach (var dep in ntry.Deps)
                 {
                     state.Delay[dep.Node] = Util.Diff(round, dep.Round) * 10;
                 }
@@ -366,8 +366,8 @@ namespace CYPCore.Consensus.BlockMania
 
             var idx = out_.Count;
             var processed = new Dictionary<IMessage, bool>();
-            out_.AddRange(ProcessMessages(state, processed, node, node, entry.Block, out_.GetRange(0, idx)));
-            foreach (var dep in entry.Deps)
+            out_.AddRange(ProcessMessages(state, processed, node, node, ntry.Block, out_.GetRange(0, idx)));
+            foreach (var dep in ntry.Deps)
             {
                 Debug.WriteLine($"Processing block dep block.id={dep}");
 
@@ -376,10 +376,10 @@ namespace CYPCore.Consensus.BlockMania
                 {
                     output = Statess[dep].GetOutPut();
                 }
-                out_.AddRange(ProcessMessages(state, processed, dep.Node, node, entry.Block, output));
+                out_.AddRange(ProcessMessages(state, processed, dep.Node, node, ntry.Block, output));
             }
             state.Out = out_;
-            Statess[entry.Block] = state;
+            Statess[ntry.Block] = state;
         }
 
         private IMessage ProcessMessage(State s, ulong sender, ulong receiver, BlockID origin, IMessage msg)
@@ -465,7 +465,7 @@ namespace CYPCore.Consensus.BlockMania
                         return null;
                     }
                     // b = s.GetBitSet(NodeCount, m.Pre());
-                    b = s.GetBitSet((int)sender, m.Pre());
+                    b = s.GetBitSet((int)sender, m.Pre()); 
                     b.SetCommit(m.Sender);
 
                     Debug.WriteLine($"Commit count == {b.CommitCount()}");
@@ -563,21 +563,35 @@ namespace CYPCore.Consensus.BlockMania
 
         private List<IMessage> ProcessMessages(State s, Dictionary<IMessage, bool> processed, ulong sender, ulong receiver, BlockID origin, List<IMessage> msgs)
         {
-            var messagesOut = new List<IMessage>();
+            var out_ = new List<IMessage>();
             foreach (var msg in msgs)
             {
-                if (!processed.ContainsKey(msg) || !processed[msg])
+                if (processed.ContainsKey(msg) && processed[msg])
                 {
-                    var resp = ProcessMessage(s, sender, receiver, origin, msg);
-                    processed[msg] = true;
-                    if (resp != null)
-                    {
-                        messagesOut.Add(resp);
-                    }
+                    continue;
+                }
+                var resp = ProcessMessage(s, sender, receiver, origin, msg);
+                processed[msg] = true;
+                if (resp != null)
+                {
+                    out_.Add(resp);
                 }
             }
-
-            return messagesOut;
+            for (var i = 0; i < out_.Count; i++)
+            {
+                var msg = out_[i];
+                if (processed.ContainsKey(msg) && processed[msg])
+                {
+                    continue;
+                }
+                var resp = ProcessMessage(s, sender, receiver, origin, msg);
+                processed[msg] = true;
+                if (resp != null)
+                {
+                    out_.Add(resp);
+                }
+            }
+            return out_;
         }
 
         private async Task Run(ChannelReader<BlockGraph> reader)

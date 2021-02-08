@@ -7,14 +7,14 @@ namespace CYPCore.Consensus.BlockMania
 {
     public class BitSet
     {
-        public ulong[] Commits { get; init; }
-        public ulong[] Prepares { get; init; }
+        public ulong[] Commits { get; set; }
+        public ulong[] Prepares { get; set; }
 
         public BitSet() { }
 
         public BitSet(int size)
         {
-            const ulong words = 100000; //((ulong)size + 63) >> 6;
+            ulong words = 100000; //((ulong)size + 63) >> 6;
             Commits = new ulong[words];
             Prepares = new ulong[words];
         }

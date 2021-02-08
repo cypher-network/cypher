@@ -7,11 +7,13 @@ namespace CYPCore.Consensus.BlockMania.Messages
 {
     public class NewView : IMessage
     {
-        public string Hash { get; }
-        public ulong Node { get; }
-        public ulong Round { get; }
-        public ulong Sender { get; }
-        public uint View { get; }
+        public string Hash { get; set; }
+        public ulong Node { get; set; }
+        public ulong Round { get; set; }
+        public ulong Sender { get; set; }
+        public uint View { get; set; }
+
+        public NewView() { }
 
         public NewView(string hash, ulong node, ulong round, ulong sender, uint view)
         {

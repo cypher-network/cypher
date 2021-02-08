@@ -48,9 +48,9 @@ namespace CYPCore.Consensus.BlockMania.Messages
 
         public static string FmtHash(string v)
         {
-            if (v == string.Empty)
+            if (v == "")
             {
-                return string.Empty;
+                return "";
             }
 
             byte[] ba = Encoding.Default.GetBytes(v.Substring(6, 6));
