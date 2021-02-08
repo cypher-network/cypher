@@ -50,9 +50,7 @@ namespace CYPCore.Serf
                 {
                     CancellationTokenSource?.Dispose();
                     Header = default;
-                    Array.Clear(ResponseBuffer, 0, ResponseBuffer.Length);
                     ResponseBuffer = null;
-
                 }
                 catch (NullReferenceException)
                 {

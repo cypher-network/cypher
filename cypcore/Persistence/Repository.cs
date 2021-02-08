@@ -432,17 +432,10 @@ namespace CYPCore.Persistence
 
                 if (disposing)
                 {
-                    try
-                    {
-                        _iterator.Dispose();
-                    }
-                    catch (NullReferenceException)
-                    {
-
-                    }
+                    //TODO: Re-visit: removing try catch as there is a bug with the underlying call.
+                    _iterator = null;
                 }
 
-                _iterator = null;
                 _disposed = true;
             }
         }
