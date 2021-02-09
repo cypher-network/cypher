@@ -5,6 +5,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Net.Http;
 
 using Microsoft.Extensions.Logging;
 
@@ -135,9 +136,14 @@ namespace CYPCore.Network
                     }
                 }
             }
-            catch (Exception ex)
+            catch (HttpRequestException)
             {
-                _logger.LogError($"<<< LocalNode.Send >>>: {ex}");
+            }
+            catch (TaskCanceledException)
+            {
+            }
+            catch (Refit.ApiException)
+            {
             }
         }
     }
