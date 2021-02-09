@@ -103,10 +103,12 @@ namespace CYPCore.Network
         /// <param name="topicType"></param>
         /// <param name="path"></param>
         /// <returns></returns>
-        public async Task Broadcast(byte[] data, TopicType topicType)
+        public Task Broadcast(byte[] data, TopicType topicType)
         {
             var peers = _peers.Select(p => p).ToList();
-            await Task.Run(() => Parallel.ForEach(peers, async peer => await Send(data, topicType, peer.Value.Host)));
+            Task.Run(() => Parallel.ForEach(peers, async peer => await Send(data, topicType, peer.Value.Host)));
+
+            return Task.CompletedTask;
         }
 
         /// <summary>
@@ -125,11 +127,11 @@ namespace CYPCore.Network
                 {
                     if (topicType == TopicType.AddBlock)
                     {
-                        await new RestBlockService(uri).AddBlock(data);
+                        await new RestBlockService(uri).AddBlock(data).ConfigureAwait(false);
                     }
                     if (topicType == TopicType.AddMemoryPool)
                     {
-                        await new RestMemoryPoolService(uri).AddMemoryPool(data);
+                        await new RestMemoryPoolService(uri).AddMemoryPool(data).ConfigureAwait(false);
                     }
                 }
             }
