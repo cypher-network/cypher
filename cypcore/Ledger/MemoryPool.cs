@@ -79,10 +79,13 @@ namespace CYPCore.Ledger
                     return null;
                 }
 
-                await _queue.QueueTask(() =>
-                {
-                    return Ready(memPool.Block.Hash.HexToByte());
-                });
+                //await _queue.QueueTask(() =>
+                //{
+                //    return Ready(memPool.Block.Hash.HexToByte());
+                //});
+
+                //TODO: Could have side effects running in background thread
+                await Ready(memPool.Block.Hash.HexToByte());
 
             }
             catch (Exception ex)
