@@ -12,6 +12,7 @@ using Microsoft.Extensions.Logging;
 using CYPCore.Serf;
 using CYPCore.Models;
 using CYPCore.Services.Rest;
+using System.Collections.Generic;
 
 namespace CYPCore.Network
 {
@@ -104,12 +105,17 @@ namespace CYPCore.Network
         /// <param name="topicType"></param>
         /// <param name="path"></param>
         /// <returns></returns>
-        public Task Broadcast(byte[] data, TopicType topicType)
+        public async Task Broadcast(byte[] data, TopicType topicType)
         {
-            var peers = _peers.Select(p => p).ToList();
-            Task.Run(() => Parallel.ForEach(peers, async peer => await Send(data, topicType, peer.Value.Host)));
+            List<Task> tasks = new();
+            List<KeyValuePair<ulong, Peer>> peers = _peers.Select(p => p).ToList();
 
-            return Task.CompletedTask;
+            peers.ForEach(x =>
+            {
+                tasks.Add(Send(data, topicType, x.Value.Host));
+            });
+
+            await Task.WhenAll(tasks);
         }
 
         /// <summary>
@@ -128,11 +134,13 @@ namespace CYPCore.Network
                 {
                     if (topicType == TopicType.AddBlock)
                     {
-                        await new RestBlockService(uri).AddBlock(data).ConfigureAwait(false);
+                        RestBlockService restBlockService = new(uri);
+                        await restBlockService.AddBlock(data);
                     }
                     if (topicType == TopicType.AddMemoryPool)
                     {
-                        await new RestMemoryPoolService(uri).AddMemoryPool(data).ConfigureAwait(false);
+                        RestMemoryPoolService restMemoryPoolService = new(uri);
+                        await restMemoryPoolService.AddMemoryPool(data);
                     }
                 }
             }
