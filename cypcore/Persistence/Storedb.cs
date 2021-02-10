@@ -1,6 +1,6 @@
 ﻿using System;
 using System.IO;
-using System.Threading;
+using System.Linq;
 using System.Threading.Tasks;
 using FASTER.core;
 using Microsoft.Extensions.Hosting;
@@ -15,23 +15,19 @@ namespace CYPCore.Persistence
         public FasterKV<StoreKey, StoreValue> Database { get; }
         private readonly IDevice _log;
         private readonly IDevice _objLog;
-        private readonly DeviceLogCommitCheckpointManager _checkpointManager;
-        private readonly CancellationTokenSource _cts = new();
-        private readonly Thread _autoCheckPoint;
 
         /// <summary>
         /// 
         /// </summary>
         /// <param name="folder"></param>
         /// 
-        public Storedb(IHostApplicationLifetime applicationLifetime, string folder)
+        public Storedb(string folder)
         {
             var dataPath = Path.Combine(Path.GetDirectoryName(AppDomain.CurrentDomain.BaseDirectory), folder);
             var storehlogFolder = Path.Combine(dataPath, "Store-hlog.log");
             var storehlogObjFolder = Path.Combine(dataPath, "Store-hlog-obj.log");
 
             _checkpointPath = Path.Combine(dataPath, "checkpoints");
-            _checkpointManager = new DeviceLogCommitCheckpointManager(new LocalStorageNamedDeviceFactory(), new DefaultCheckpointNamingScheme(_checkpointPath));
 
             _log = Devices.CreateLogDevice(storehlogFolder, preallocateFile: false);
             _objLog = Devices.CreateLogDevice(storehlogObjFolder, preallocateFile: false);
@@ -43,10 +39,14 @@ namespace CYPCore.Persistence
                     {
                         LogDevice = _log,
                         ObjectLogDevice = _objLog,
+                        MutableFraction = 0.9,
+                        PageSizeBits = 25,
+                        SegmentSizeBits = 30,
+                        MemorySizeBits = 34
                     },
                     new CheckpointSettings
                     {
-                        CheckpointManager = _checkpointManager,
+                        CheckpointDir = _checkpointPath,
                         CheckPointType = CheckpointType.FoldOver
                     },
                     new SerializerSettings<StoreKey, StoreValue>
@@ -55,21 +55,6 @@ namespace CYPCore.Persistence
                         valueSerializer = () => new StoreValueSerializer()
                     }
                 );
-
-            _autoCheckPoint = new Thread(() => AutoCheckpointing(Database, _checkpointManager, _cts.Token));
-            _autoCheckPoint.Start();
-
-            applicationLifetime.ApplicationStopping.Register(() =>
-            {
-                try
-                {
-                    _cts.Cancel();
-                }
-                catch (Exception)
-                {
-
-                }
-            });
         }
 
         /// <summary>
@@ -78,10 +63,13 @@ namespace CYPCore.Persistence
         /// <returns></returns>
         public bool InitAndRecover()
         {
-            if (!Directory.Exists(_checkpointPath)) return true;
+            if (!Directory.Exists(_checkpointPath)) return false;
 
             Database.Recover();
-            return false;
+
+            Checkpoint().GetAwaiter().GetResult();
+
+            return true;
         }
 
         /// <summary>
@@ -93,33 +81,35 @@ namespace CYPCore.Persistence
             Database.TakeFullCheckpoint(out Guid token);
             await Database.CompleteCheckpointAsync();
 
-            return token;
-        }
+            var indexCheckpointDir = new DirectoryInfo($"{_checkpointPath}/cpr-checkpoints");
 
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="fasterKV"></param>
-        /// <param name="checkpointManager"></param>
-        /// <param name="cancellationToken"></param>
-        private static void AutoCheckpointing(FasterKV<StoreKey, StoreValue> fasterKV, DeviceLogCommitCheckpointManager checkpointManager, CancellationToken cancellationToken)
-        {
-            try
+            int counter = 0;
+            foreach (DirectoryInfo info in indexCheckpointDir.GetDirectories().OrderByDescending(f => f.LastWriteTime))
             {
-                while (true)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
+                if (info.Name == token.ToString())
+                    continue;
 
-                    Thread.Sleep(1200000);
+                if (++counter < 2)
+                    continue;
 
-                    checkpointManager.PurgeAll();
-                    _ = fasterKV.TakeFullCheckpointAsync(CheckpointType.FoldOver, cancellationToken).GetAwaiter().GetResult();
-                }
+                Directory.Delete(info.FullName, true);
             }
-            catch (TaskCanceledException)
-            { }
-            catch (Exception)
-            { }
+
+            var hlogCheckpointDir = new DirectoryInfo($"{_checkpointPath }/index-checkpoints");
+
+            counter = 0;
+            foreach (DirectoryInfo info in hlogCheckpointDir.GetDirectories().OrderByDescending(f => f.LastWriteTime))
+            {
+                if (info.Name == token.ToString())
+                    continue;
+
+                if (++counter < 2)
+                    continue;
+
+                Directory.Delete(info.FullName, true);
+            }
+
+            return token;
         }
 
         /// <summary>
@@ -131,7 +121,6 @@ namespace CYPCore.Persistence
 
             _log.Dispose();
             _objLog.Dispose();
-            _cts.Dispose();
         }
     }
 }

@@ -1,4 +1,4 @@
-﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
@@ -49,9 +49,18 @@ namespace CYPCore.Persistence
             {
                 using var session = _storedbContext.Store.Database.NewSession(new StoreFunctions());
 
-                var output = new StoreOutput();
-                var blockKey = new StoreKey { tableType = _tableType, key = key };
-                var readStatus = session.Read(ref blockKey, ref output);
+                StoreInput input = new();
+                StoreOutput output = new();
+                StoreContext context = new();
+                StoreKey blockKey = new() { tableType = _tableType, key = key };
+
+                Status readStatus = session.Read(ref blockKey, ref input, ref output, context, 1);
+
+                if (readStatus == Status.PENDING)
+                {
+                    session.CompletePending(true);
+                    context.FinalizeRead(ref readStatus, ref output);
+                }
 
                 if (readStatus == Status.OK)
                 {
@@ -80,16 +89,19 @@ namespace CYPCore.Persistence
             {
                 using var session = _storedbContext.Store.Database.NewSession(new StoreFunctions());
 
-                var blockKey = new StoreKey { tableType = _tableType, key = key };
-                var blockvalue = new StoreValue { value = Helper.Util.SerializeProto(entity) };
+                StoreKey upsertKey = new() { tableType = _tableType, key = key };
+                StoreValue upsertvalue = new() { value = Helper.Util.SerializeProto(entity) };
+                StoreContext context = new();
 
-                var addStatus = session.Upsert(ref blockKey, ref blockvalue);
+                var addStatus = session.Upsert(ref upsertKey, ref upsertvalue, context, 1);
                 if (addStatus == Status.OK)
                 {
                     entityPut = entity;
                 }
 
                 session.CompletePending(true);
+
+                _storedbContext.Store.Checkpoint().Wait();
             }
             catch (Exception ex)
             {
@@ -394,18 +406,19 @@ namespace CYPCore.Persistence
         protected class IterateAsyncWrapper : IDisposable
         {
             private bool _disposed = false;
-            private IFasterScanIterator<StoreKey, StoreValue> _iterator;
+            private readonly IStoredbContext _context;
             private string _tableType;
 
             public IterateAsyncWrapper(IStoredbContext context, string tableType)
             {
-                _iterator = context.Store.Database.Iterate();
+                _context = context;
                 _tableType = tableType;
             }
 
             public async IAsyncEnumerable<TEntity> Iterate()
             {
-                while (_iterator.GetNext(out RecordInfo recordInfo, out StoreKey storeKey, out StoreValue storeValue))
+                using var iter = _context.Store.Database.Log.Scan(_context.Store.Database.Log.BeginAddress, _context.Store.Database.Log.TailAddress, ScanBufferingMode.NoBuffering);
+                while (iter.GetNext(out _, out StoreKey storeKey, out StoreValue storeValue))
                 {
                     if (storeKey.tableType == _tableType)
                     {
@@ -429,8 +442,7 @@ namespace CYPCore.Persistence
 
                 if (disposing)
                 {
-                    //TODO: Re-visit: removing try catch as there is a bug with the underlying call.
-                    _iterator = null;
+
                 }
 
                 _disposed = true;

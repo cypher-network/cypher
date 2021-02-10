@@ -94,8 +94,7 @@ namespace CYPCore.Extensions
 
             builder.Register(c =>
             {
-                var lifetime = c.Resolve<IHostApplicationLifetime>();
-                var storedbContext = new StoredbContext(lifetime, dataFolder.Value);
+                var storedbContext = new StoredbContext(dataFolder.Value);
                 return storedbContext;
             })
             .As<IStoredbContext>()
@@ -105,7 +104,7 @@ namespace CYPCore.Extensions
         }
 
         /// <summary>
-        /// 
+        ///     
         /// </summary>
         /// <param name="builder"></param>
         /// <returns></returns>
