@@ -90,9 +90,6 @@ namespace CYPCore.Persistence
                 }
 
                 session.CompletePending(true);
-
-                ///TODO: Implement a better solution as this is incorrect.
-                _storedbContext.Store.Checkpoint().Wait();
             }
             catch (Exception ex)
             {

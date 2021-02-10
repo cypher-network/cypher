@@ -1,13 +1,15 @@
 ﻿
+using Microsoft.Extensions.Hosting;
+
 namespace CYPCore.Persistence
 {
     public class StoredbContext : IStoredbContext
     {
         public Storedb Store { get; }
 
-        public StoredbContext(string folder)
+        public StoredbContext(IHostApplicationLifetime applicationLifetime, string folder)
         {
-            Store = new Storedb(folder);
+            Store = new Storedb(applicationLifetime, folder);
             Store.InitAndRecover();
         }
     }
