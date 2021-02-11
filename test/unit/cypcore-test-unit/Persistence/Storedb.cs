@@ -37,8 +37,8 @@ namespace cypcore_test_unit
         public void Checkpoint_ReturnsValidToken()
         {
             _storedb = new Storedb(_path);
-            _storedb.Checkpoint().Wait();
-            var token = _storedb.Checkpoint().Result;
+            _storedb.Checkpoint();
+            var token = _storedb.Checkpoint();
             Assert.AreNotEqual(token, Guid.Empty);
         }
     }
