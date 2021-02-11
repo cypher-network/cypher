@@ -1,9 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Linq;
-using System.Threading.Tasks;
 using FASTER.core;
-using Microsoft.Extensions.Hosting;
 
 namespace CYPCore.Persistence
 {
@@ -67,7 +65,7 @@ namespace CYPCore.Persistence
 
             Database.Recover();
 
-            Checkpoint().GetAwaiter().GetResult();
+            Checkpoint();
 
             return true;
         }
@@ -76,38 +74,45 @@ namespace CYPCore.Persistence
         /// 
         /// </summary>
         /// <returns></returns>
-        public async Task<Guid> Checkpoint()
+        public Guid Checkpoint()
         {
-            Database.TakeFullCheckpoint(out Guid token);
-            await Database.CompleteCheckpointAsync();
+            Guid token = default;
 
-            var indexCheckpointDir = new DirectoryInfo($"{_checkpointPath}/cpr-checkpoints");
-
-            int counter = 0;
-            foreach (DirectoryInfo info in indexCheckpointDir.GetDirectories().OrderByDescending(f => f.LastWriteTime))
+            try
             {
-                if (info.Name == token.ToString())
-                    continue;
+                Database.TakeFullCheckpoint(out token);
+                Database.CompleteCheckpointAsync().GetAwaiter().GetResult();
 
-                if (++counter < 2)
-                    continue;
+                var indexCheckpointDir = new DirectoryInfo($"{_checkpointPath}/cpr-checkpoints");
 
-                Directory.Delete(info.FullName, true);
+                int counter = 0;
+                foreach (DirectoryInfo info in indexCheckpointDir.GetDirectories().OrderByDescending(f => f.LastWriteTime))
+                {
+                    if (info.Name == token.ToString())
+                        continue;
+
+                    if (++counter < 2)
+                        continue;
+
+                    Directory.Delete(info.FullName, true);
+                }
+
+                var hlogCheckpointDir = new DirectoryInfo($"{_checkpointPath }/index-checkpoints");
+
+                counter = 0;
+                foreach (DirectoryInfo info in hlogCheckpointDir.GetDirectories().OrderByDescending(f => f.LastWriteTime))
+                {
+                    if (info.Name == token.ToString())
+                        continue;
+
+                    if (++counter < 2)
+                        continue;
+
+                    Directory.Delete(info.FullName, true);
+                }
             }
-
-            var hlogCheckpointDir = new DirectoryInfo($"{_checkpointPath }/index-checkpoints");
-
-            counter = 0;
-            foreach (DirectoryInfo info in hlogCheckpointDir.GetDirectories().OrderByDescending(f => f.LastWriteTime))
-            {
-                if (info.Name == token.ToString())
-                    continue;
-
-                if (++counter < 2)
-                    continue;
-
-                Directory.Delete(info.FullName, true);
-            }
+            catch
+            { }
 
             return token;
         }

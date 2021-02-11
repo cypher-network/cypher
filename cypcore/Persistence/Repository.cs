@@ -101,7 +101,7 @@ namespace CYPCore.Persistence
 
                 session.CompletePending(true);
 
-                _storedbContext.Store.Checkpoint().Wait();
+                _storedbContext.Store.Checkpoint();
             }
             catch (Exception ex)
             {
