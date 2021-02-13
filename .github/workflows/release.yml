@@ -20,6 +20,13 @@ jobs:
       run:  |
         dotnet restore cypher.sln
         dotnet publish cypnode --output publish/cypnode --configuration Release
+
+        # Linux builds are self-contained, so that the dotnet runtime does not need to be installed separately
+        # TODO: Add single-file option when Secp256k1.ZKP excludes shared libs from the single file
+        dotnet publish cypnode --output publish/runtime/linux-x64/self-contained --self-contained --configuration Release --framework net5.0 --runtime linux-x64
+
+        # Windows builds are not self-contained, as installing the dotnet runtime is either not necessaray or easy
+        dotnet publish cypnode --output publish/runtime/win-x64 --configuration Release --framework net5.0 --runtime win-x64
     - name: Get the version
       id: get_version
       run: echo ::set-output name=VERSION::${GITHUB_REF#refs/tags/}
