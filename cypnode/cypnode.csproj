@@ -28,6 +28,15 @@
     <AssemblyName>CYPNode</AssemblyName>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(RunConfiguration)' == 'CYPNode' " />
+
+  <!-- Build-time defines to enable certain platform-specific parts of code dependent on the target platform -->
+  <PropertyGroup Condition="$([System.Text.RegularExpressions.Regex]::IsMatch('$(RuntimeIdentifier)', '^linux-'))">
+    <DefineConstants>BUILD_LINUX</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition="$([System.Text.RegularExpressions.Regex]::IsMatch('$(RuntimeIdentifier)', '^win-'))">
+    <DefineConstants>BUILD_WIN</DefineConstants>
+  </PropertyGroup>
+
   <ItemGroup>
     <Folder Include="StartupExtensions\" />
   </ItemGroup>
