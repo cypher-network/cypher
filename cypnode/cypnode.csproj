@@ -37,6 +37,11 @@
     <DefineConstants>BUILD_WIN</DefineConstants>
   </PropertyGroup>
 
+  <!-- Not disabling these implicit analyzers causes a build warning -->
+  <PropertyGroup>
+    <DisableImplicitAspNetCoreAnalyzers>true</DisableImplicitAspNetCoreAnalyzers>
+  </PropertyGroup>
+
   <ItemGroup>
     <Folder Include="StartupExtensions\" />
   </ItemGroup>
