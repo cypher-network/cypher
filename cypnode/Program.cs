@@ -88,8 +88,8 @@ namespace CYPNode
                         .UseSerilog();
                 })
 
-            // Use .NET Core system daemon support when applicable. This define can be set by setting the runtime
-            // identifier (dotnet --runtime) to "linux_x64", "win-x64", etc. See cypnode.csproj for details.
+                // Use .NET Core system daemon support when applicable. This define can be set by setting the runtime
+                // identifier (dotnet --runtime) to "linux_x64", "win-x64", etc. See cypnode.csproj for details.
 #if BUILD_LINUX
                 .UseSystemd();
 #elif BUILD_MACOS

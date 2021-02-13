@@ -360,7 +360,7 @@ namespace CYPCore.Ledger
                     var jObject = JObject.Parse(read);
                     var jToken = jObject.GetValue("protobuf");
                     var byteArray = Convert.FromBase64String(jToken.Value<string>());
- 
+
                     if (response.IsSuccessStatusCode)
                         transaction = Helper.Util.DeserializeProto<TransactionProto>(byteArray);
                     else

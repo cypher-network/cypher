@@ -23,7 +23,7 @@ using CYPCore.Serf.Message;
 
 namespace CYPCore.Serf
 {
-    class TransactionContext: IDisposable
+    class TransactionContext : IDisposable
     {
         public CancellationTokenSource CancellationTokenSource { get; set; }
         public ResponseHeader Header { get; set; }
@@ -525,7 +525,7 @@ namespace CYPCore.Serf
                         }
 
                         var read_buffer = new byte[8048];
-                        var size =  await tcpSession.TransportStream.ReadAsync(read_buffer.AsMemory(0, read_buffer.Length), _cancellationTokenSource.Token);
+                        var size = await tcpSession.TransportStream.ReadAsync(read_buffer.AsMemory(0, read_buffer.Length), _cancellationTokenSource.Token);
 
                         if (size <= 0)
                         {
