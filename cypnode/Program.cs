@@ -4,8 +4,6 @@
 using System;
 using System.IO;
 using System.Linq;
-using System.Reflection;
-using System.Runtime.InteropServices;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Hosting;
 
@@ -13,9 +11,7 @@ using Autofac.Extensions.DependencyInjection;
 using CYPCore.Helper;
 using Microsoft.Extensions.Configuration;
 using Serilog;
-using Serilog.Events;
 using CYPCore.Models;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace CYPNode
 {
