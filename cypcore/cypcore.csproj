@@ -28,7 +28,7 @@
     <PackageReference Include="Autofac.Extensions.DependencyInjection" Version="7.1.0" />
     <PackageReference Include="CliWrap" Version="3.3.0" />
     <PackageReference Include="Dawn.Guard" Version="1.12.0" />
-    <PackageReference Include="libsecp256k1Zkp.Net" Version="1.1.3" />
+    <PackageReference Include="libsecp256k1Zkp.Net" Version="1.1.4" />
     <PackageReference Include="libsignal-protocol-dotnet" Version="2.8.1" />
     <PackageReference Include="MessagePack" Version="1.9.11" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc" Version="2.2.0" />
