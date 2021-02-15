@@ -19,6 +19,7 @@ using Newtonsoft.Json.Linq;
 using ProtoBuf;
 
 using System.Net;
+using System.Runtime.CompilerServices;
 using CYPCore.Extentions;
 using System.Security.Cryptography;
 
@@ -418,5 +419,52 @@ namespace CYPCore.Helper
         {
             return new DateTimeOffset(GetAdjustedTime()).ToUnixTimeSeconds();
         }
+
+        public static class OperatingSystem
+        {
+            public static bool IsLinux() =>
+                RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
+
+            public static bool IsMacOS() =>
+                RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
+
+            public static bool IsWindows() =>
+                RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+        }
+
+        public static class ConfigurationFile
+        {
+            private const string AppSettingsFilename = "appsettings.json";
+
+            public static string Local() => Path.Combine(
+                Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location),
+                AppSettingsFilename);
+
+            private static string SystemDefaultLinux() => Path.Combine("/etc", "tangram", "cypher", AppSettingsFilename);
+            private static string SystemDefaultMacOS() => throw new Exception("No macOS system default implemented yet");
+            private static string SystemDefaultWindows() => Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+                AppSettingsFilename);
+            public static string SystemDefault()
+            {
+                if (OperatingSystem.IsLinux())
+                {
+                    return SystemDefaultLinux();
+                }
+                else if (OperatingSystem.IsMacOS())
+                {
+                    return SystemDefaultMacOS();
+                }
+                else if (OperatingSystem.IsWindows())
+                {
+                    return SystemDefaultWindows();
+                }
+                else
+                {
+                    throw new Exception("Unknown operating system");
+                }
+            }
+        }
+
     }
 }
