@@ -419,15 +419,15 @@ namespace CYPCore.Helper
         {
             return new DateTimeOffset(GetAdjustedTime()).ToUnixTimeSeconds();
         }
-        
+
         public static class OperatingSystem
         {
             public static bool IsLinux() =>
                 RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
-            
+
             public static bool IsMacOS() =>
                 RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
-            
+
             public static bool IsWindows() =>
                 RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
         }
@@ -439,7 +439,7 @@ namespace CYPCore.Helper
             public static string Local() => Path.Combine(
                 Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location),
                 AppSettingsFilename);
-            
+
             private static string SystemDefaultLinux() => Path.Combine("/etc", "tangram", "cypher", AppSettingsFilename);
             private static string SystemDefaultMacOS() => throw new Exception("No macOS system default implemented yet");
             private static string SystemDefaultWindows() => Path.Combine(

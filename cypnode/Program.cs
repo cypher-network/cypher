@@ -40,7 +40,7 @@ namespace CYPNode
                     configFile = Util.ConfigurationFile.SystemDefault();
                 }
             }
-            
+
             IConfigurationRoot configurationRoot = null;
             if (File.Exists(configFile))
             {
@@ -66,7 +66,7 @@ namespace CYPNode
                 .CreateLogger();
 
             Log.Information("Using application configuration from {@configFile}", configFile);
-            
+
             try
             {
                 Log.Information("Starting web host");
