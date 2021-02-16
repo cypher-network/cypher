@@ -2,7 +2,8 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
-
+using System.IO;
+using System.Linq;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Hosting;
 
@@ -10,9 +11,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 using Autofac.Extensions.DependencyInjection;
-
+using CYPCore.Helper;
+using Microsoft.Extensions.Configuration;
 using Serilog;
-
 using CYPCore.Models;
 
 
@@ -20,17 +21,6 @@ namespace CYPNode
 {
     public static class Program
     {
-        static IConfigurationRoot ConfigurationRoot
-        {
-            get
-            {
-                return new ConfigurationBuilder()
-                                .SetBasePath(AppDomain.CurrentDomain.BaseDirectory)
-                                .AddJsonFile("appsettings.json")
-                                .Build();
-            }
-        }
-
         /// <summary>
         ///
         /// </summary>
@@ -38,7 +28,32 @@ namespace CYPNode
         /// <returns></returns>
         public static int Main(string[] args)
         {
-            if (ConfigurationRoot.GetValue<bool>("Log:FirstChanceException"))
+            var configFile = args.SkipWhile(arg => !arg.Equals("--config")).Skip(1).FirstOrDefault();
+            if (string.IsNullOrEmpty(configFile))
+            {
+                // No config file set, check in current path (priority over system default)
+                configFile = Util.ConfigurationFile.Local();
+
+                // If no config file in current path, use system default
+                if (!File.Exists(configFile))
+                {
+                    configFile = Util.ConfigurationFile.SystemDefault();
+                }
+            }
+
+            IConfigurationRoot configurationRoot = null;
+            if (File.Exists(configFile))
+            {
+                configurationRoot = new ConfigurationBuilder()
+                    .AddJsonFile(configFile)
+                    .Build();
+            }
+            else
+            {
+                throw new FileNotFoundException($"Cannot find configuration file {@configFile}", configFile);
+            }
+
+            if (configurationRoot.GetValue<bool>("Log:FirstChanceException"))
             {
                 AppDomain.CurrentDomain.FirstChanceException += (sender, e) =>
                 {
@@ -47,13 +62,28 @@ namespace CYPNode
             }
 
             Log.Logger = new LoggerConfiguration()
-                .ReadFrom.Configuration(ConfigurationRoot, "Log")
+                .ReadFrom.Configuration(configurationRoot, "Log")
                 .CreateLogger();
+
+            Log.Information("Using application configuration from {@configFile}", configFile);
 
             try
             {
                 Log.Information("Starting web host");
-                var builder = CreateWebHostBuilder(args);
+                var builder = CreateWebHostBuilder(args, configurationRoot);
+
+                if (Util.OperatingSystem.IsLinux())
+                {
+                    builder.UseSystemd();
+                }
+                else if (Util.OperatingSystem.IsMacOS())
+                {
+                    // TODO
+                }
+                else if (Util.OperatingSystem.IsWindows())
+                {
+                    builder.UseWindowsService();
+                }
 
                 using IHost host = builder.Build();
 
@@ -78,19 +108,17 @@ namespace CYPNode
             return 0;
         }
 
-        private static IHostBuilder CreateWebHostBuilder(string[] args) =>
+        private static IHostBuilder CreateWebHostBuilder(string[] args, IConfigurationRoot configurationRoot) =>
             Host.CreateDefaultBuilder(args)
                 .UseServiceProviderFactory(new AutofacServiceProviderFactory())
                 .ConfigureWebHostDefaults(webBuilder =>
                 {
                     ApiConfigurationOptions apiConfigurationOptions = new();
-                    ConfigurationRoot.Bind("Api", apiConfigurationOptions);
+                    configurationRoot.Bind("Api", apiConfigurationOptions);
 
                     webBuilder.UseStartup<Startup>()
                         .UseUrls(apiConfigurationOptions.Listening)
                         .UseSerilog();
-                })
-                .UseSystemd()
-                .UseWindowsService();
+                });
     }
 }
