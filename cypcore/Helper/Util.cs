@@ -437,6 +437,7 @@ namespace CYPCore.Helper
             private static string SystemDefaultWindows() => Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
                 AppSettingsFilename);
+          
             public static string SystemDefault()
             {
                 var platform = GetOSPlatform();
