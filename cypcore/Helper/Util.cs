@@ -24,13 +24,6 @@ using System.Runtime.InteropServices;
 
 namespace CYPCore.Helper
 {
-    public enum OSPlatform
-    {
-        Linux,
-        OSX,
-        Windows,
-    }
-
     public static class Util
     {
         public const string hexUpper = "0123456789ABCDEF";
@@ -55,35 +48,22 @@ namespace CYPCore.Helper
 
         public static OSPlatform GetOSPlatform()
         {
-            string windir = Environment.GetEnvironmentVariable("windir");
-            OSPlatform osPlatform;
+            foreach (var platform in new[]
+            {
+                OSPlatform.Linux,
+                OSPlatform.FreeBSD,
+                OSPlatform.OSX,
+                OSPlatform.Windows
 
-            if (!string.IsNullOrEmpty(windir) && windir.Contains(@"\") && Directory.Exists(windir))
+            })
             {
-                osPlatform = OSPlatform.Windows;
-            }
-            else if (File.Exists(@"/proc/sys/kernel/ostype"))
-            {
-                string osType = File.ReadAllText(@"/proc/sys/kernel/ostype");
-                if (osType.StartsWith("Linux", StringComparison.OrdinalIgnoreCase))
+                if (RuntimeInformation.IsOSPlatform(platform))
                 {
-                    osPlatform = OSPlatform.Linux;
-                }
-                else
-                {
-                    throw new NotSupportedException(osType);
+                    return platform;
                 }
             }
-            else if (File.Exists(@"/System/Library/CoreServices/SystemVersion.plist"))
-            {
-                osPlatform = OSPlatform.OSX;
-            }
-            else
-            {
-                throw new NotSupportedException();
-            }
-
-            return osPlatform;
+            
+            throw new NotSupportedException();
         }
 
         public static string Pop(string value, string delimiter)
@@ -444,24 +424,12 @@ namespace CYPCore.Helper
             return new DateTimeOffset(GetAdjustedTime()).ToUnixTimeSeconds();
         }
 
-        public static class OperatingSystem
-        {
-            public static bool IsLinux() =>
-                RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
-
-            public static bool IsMacOS() =>
-                RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
-
-            public static bool IsWindows() =>
-                RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
-        }
-
         public static class ConfigurationFile
         {
             private const string AppSettingsFilename = "appsettings.json";
 
             public static string Local() => Path.Combine(
-                Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location),
+                Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? string.Empty,
                 AppSettingsFilename);
 
             private static string SystemDefaultLinux() => Path.Combine("/etc", "tangram", "cypher", AppSettingsFilename);
@@ -471,22 +439,22 @@ namespace CYPCore.Helper
                 AppSettingsFilename);
             public static string SystemDefault()
             {
-                if (OperatingSystem.IsLinux())
+                var platform = GetOSPlatform();
+                
+                if (platform == OSPlatform.Linux)
                 {
                     return SystemDefaultLinux();
                 }
-                else if (OperatingSystem.IsMacOS())
+                if (platform == OSPlatform.OSX)
                 {
                     return SystemDefaultMacOS();
                 }
-                else if (OperatingSystem.IsWindows())
+                if (platform == OSPlatform.Windows)
                 {
                     return SystemDefaultWindows();
                 }
-                else
-                {
-                    throw new Exception("Unknown operating system");
-                }
+                
+                throw new Exception("Unsupported operating system");
             }
         }
 
