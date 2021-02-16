@@ -3,27 +3,34 @@
 
 using System;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Collections.Generic;
 using System.Reflection;
 using System.IO;
-using System.Runtime.InteropServices;
 using System.Security;
 using System.Threading.Tasks;
 using System.Numerics;
+using System.Security.Cryptography;
 
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 using ProtoBuf;
 
-using System.Net;
 using CYPCore.Extentions;
-using System.Security.Cryptography;
+using System.Runtime.InteropServices;
 
 namespace CYPCore.Helper
 {
+    public enum OSPlatform
+    {
+        Linux,
+        OSX,
+        Windows,
+    }
+
     public static class Util
     {
         public const string hexUpper = "0123456789ABCDEF";
@@ -32,7 +39,7 @@ namespace CYPCore.Helper
 
         public static byte[] GetZeroBytes()
         {
-            byte[] bytes = new byte[0];
+            byte[] bytes = Array.Empty<byte>();
             if ((bytes[^1] & 0x80) != 0)
             {
                 Array.Resize(ref bytes, bytes.Length + 1);
@@ -48,15 +55,33 @@ namespace CYPCore.Helper
 
         public static OSPlatform GetOSPlatform()
         {
-            OSPlatform osPlatform = OSPlatform.Create("Other Platform");
-            bool isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
-            osPlatform = isWindows ? OSPlatform.Windows : osPlatform;
+            string windir = Environment.GetEnvironmentVariable("windir");
+            OSPlatform osPlatform;
 
-            bool isOSX = RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
-            osPlatform = isOSX ? OSPlatform.OSX : osPlatform;
-
-            bool isLinux = RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
-            osPlatform = isLinux ? OSPlatform.Linux : osPlatform;
+            if (!string.IsNullOrEmpty(windir) && windir.Contains(@"\") && Directory.Exists(windir))
+            {
+                osPlatform = OSPlatform.Windows;
+            }
+            else if (File.Exists(@"/proc/sys/kernel/ostype"))
+            {
+                string osType = File.ReadAllText(@"/proc/sys/kernel/ostype");
+                if (osType.StartsWith("Linux", StringComparison.OrdinalIgnoreCase))
+                {
+                    osPlatform = OSPlatform.Linux;
+                }
+                else
+                {
+                    throw new NotSupportedException(osType);
+                }
+            }
+            else if (File.Exists(@"/System/Library/CoreServices/SystemVersion.plist"))
+            {
+                osPlatform = OSPlatform.OSX;
+            }
+            else
+            {
+                throw new NotSupportedException();
+            }
 
             return osPlatform;
         }
@@ -72,7 +97,7 @@ namespace CYPCore.Helper
             if (s == null)
                 throw new NullReferenceException();
             if (s.Length == 0)
-                return new byte[0];
+                return Array.Empty<byte>();
             var result = new List<byte>();
             IntPtr ptr = SecureStringMarshal.SecureStringToGlobalAllocAnsi(s);
             try
