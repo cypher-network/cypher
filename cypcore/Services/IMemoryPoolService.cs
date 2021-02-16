@@ -11,7 +11,7 @@ namespace CYPCore.Services
     {
         Task<bool> AddMemoryPool(byte[] pool);
         Task AddMemoryPools(byte[] pools);
-        Task<byte[]> AddTransaction(TransactionProto tx);
+        Task<bool> AddTransaction(byte[] tx);
         Task<int> GetTransactionCount();
     }
 }

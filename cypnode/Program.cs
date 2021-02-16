@@ -2,16 +2,19 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
-using System.IO;
+
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Hosting;
 
-using Autofac.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
-using Serilog;
-using Serilog.Events;
-using CYPCore.Models;
 using Microsoft.Extensions.DependencyInjection;
+
+using Autofac.Extensions.DependencyInjection;
+
+using Serilog;
+
+using CYPCore.Models;
+
 
 namespace CYPNode
 {

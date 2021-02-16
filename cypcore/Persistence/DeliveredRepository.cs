@@ -11,23 +11,17 @@ namespace CYPCore.Persistence
 {
     public class DeliveredRepository : Repository<BlockHeaderProto>, IDeliveredRepository
     {
-        private const string TableDelivered = "Delivered";
-
-        private readonly IStoredbContext _storedbContext;
+        private readonly IStoredb _storedb;
         private readonly ILogger _logger;
         private readonly IPatriciaTrie _stateTrie;
 
-        public string Table => TableDelivered;
-
-        public DeliveredRepository(IStoredbContext storedbContext, ILogger logger)
-            : base(storedbContext, logger)
+        public DeliveredRepository(IStoredb storedb, ILogger logger)
+            : base(storedb, logger)
         {
-            _storedbContext = storedbContext;
+            _storedb = storedb;
             _logger = logger;
 
             _stateTrie = new PatriciaTrie();
-
-            SetTableType(TableDelivered);
 
             //InitTrie();
         }

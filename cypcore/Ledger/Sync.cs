@@ -157,8 +157,8 @@ namespace CYPCore.Ledger
                                         return;
                                     }
 
-                                    var saved = await _unitOfWork.DeliveredRepository.PutAsync(blockHeader, blockHeader.ToIdentifier());
-                                    if (saved == null)
+                                    int? saved = await _unitOfWork.DeliveredRepository.SaveOrUpdateAsync(blockHeader);
+                                    if (!saved.HasValue)
                                     {
                                         _logger.LogError($"<<< Sync.Synchronize >>>: Unable to save block header: {blockHeader.MrklRoot}");
                                     }

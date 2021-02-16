@@ -11,80 +11,19 @@ using Microsoft.Extensions.Logging;
 using Dawn;
 
 using CYPCore.Models;
-using CYPCore.Extentions;
 
 namespace CYPCore.Persistence
 {
     public class MemPoolRepository : Repository<MemPoolProto>, IMemPoolRepository
     {
-        private const string TableMemPool = "MemPool";
-
-        private readonly IStoredbContext _storedbContext;
+        private readonly IStoredb _storedb;
         private readonly ILogger _logger;
 
-        public string Table => TableMemPool;
-
-        public MemPoolRepository(IStoredbContext storedbContext, ILogger logger)
+        public MemPoolRepository(IStoredb storedbContext, ILogger logger)
             : base(storedbContext, logger)
         {
-            _storedbContext = storedbContext;
+            _storedb = storedbContext;
             _logger = logger;
-
-            SetTableType(TableMemPool);
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="node"></param>
-        /// <param name="round"></param>
-        /// <returns></returns>
-        public Task<MemPoolProto> PreviousOrDefaultAsync(ulong node, ulong round)
-        {
-            Guard.Argument(node, nameof(node)).NotNegative();
-            Guard.Argument(round, nameof(round)).NotNegative();
-
-            MemPoolProto block = default;
-
-            try
-            {
-                round -= 1;
-                block = FirstOrDefaultAsync(x => new(x.Block.Node == node && x.Block.Round == round)).Result;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"<<< BlockGraphRepository.PreviousOrDefaultAsync >>>: {ex}");
-            }
-
-            return Task.FromResult(block);
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="hash"></param>
-        /// <param name="node"></param>
-        /// <param name="round"></param>
-        /// <returns></returns>
-        public Task<MemPoolProto> PreviousOrDefaultAsync(byte[] hash, ulong node, ulong round)
-        {
-            Guard.Argument(hash, nameof(hash)).NotNull().MaxCount(48);
-            Guard.Argument(node, nameof(node)).NotNegative();
-            Guard.Argument(round, nameof(round)).NotNegative();
-
-            MemPoolProto block = default;
-
-            try
-            {
-                round -= 1;
-                block = FirstOrDefaultAsync(x => new(x.Block.Hash.Equals(hash) && x.Block.Node == node && x.Block.Round == round)).Result;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"<<< BlockGraphRepository.PreviousOrDefaultAsync >>>: {ex}");
-            }
-
-            return Task.FromResult(block);
         }
 
         /// <summary>
@@ -102,7 +41,7 @@ namespace CYPCore.Persistence
             {
                 foreach (var next in memPools)
                 {
-                    var hasNext = await WhereAsync(x => new(x.Block.Hash.Equals(next.Block.Hash)));
+                    var hasNext = await WhereAsync(x => x.Block.Hash.Equals(next.Block.Hash));
 
                     IEnumerable<(MemPoolProto nNext, MemPoolProto included)> enumerable()
                     {
@@ -130,7 +69,7 @@ namespace CYPCore.Persistence
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< BlockGraphRepository.MoreAsync >>>: {ex}");
+                _logger.LogError($"<<< MemPoolRepository.MoreAsync >>>: {ex}");
             }
 
             return moreBlocks;
@@ -151,39 +90,16 @@ namespace CYPCore.Persistence
             {
                 foreach (var next in memPools.Where(x => x.Block.Node == currentNode))
                 {
-                    next.Included = true;
-                    await PutAsync(next, next.ToIdentifier());
+                    next.Included = 1;
+                    await SaveOrUpdateAsync(next);
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< BlockGraphRepository.IncludeAllAsync >>>: {ex}");
+                _logger.LogError($"<<< MemPoolRepository.IncludeAllAsync >>>: {ex}");
             }
 
             return;
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="hash"></param>
-        /// <param name="node"></param>
-        /// <param name="round"></param>
-        /// <returns></returns>
-        public Task<MemPoolProto> Get(byte[] hash, ulong node, ulong round)
-        {
-            MemPoolProto memPool = default;
-
-            try
-            {
-                memPool = FirstOrDefaultAsync(x => new(x.Block.Hash.Equals(hash.ByteToHex()) && x.Block.Node == node && x.Block.Round == round)).Result;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"<<< BlockGraphRepository.Get >>>: {ex}");
-            }
-
-            return Task.FromResult(memPool);
         }
     }
 }

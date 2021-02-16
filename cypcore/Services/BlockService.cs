@@ -34,7 +34,7 @@ namespace CYPCore.Services
             _signingProvider = signingProvider;
             _validator = validator;
             _logger = logger;
-        }
+        }  
 
         /// <summary>
         /// 
@@ -56,7 +56,7 @@ namespace CYPCore.Services
             catch (Exception ex)
             {
                 _logger.LogError($"<<< BlockService.GetBlocks >>>: {ex}");
-            }
+            }           
 
             return blockHeaders;
         }
@@ -128,7 +128,7 @@ namespace CYPCore.Services
 
             try
             {
-                var blockHeaders = await _unitOfWork.DeliveredRepository.WhereAsync(x => new ValueTask<bool>(x.Transactions.Any(t => t.TxnId.Xor(txnId))));
+                var blockHeaders = await _unitOfWork.DeliveredRepository.WhereAsync(x => x.Transactions.Any(t => t.TxnId.Xor(txnId)));
                 var firstBlockHeader = blockHeaders.FirstOrDefault();
                 var found = firstBlockHeader?.Transactions.FirstOrDefault(x => x.TxnId.Xor(txnId));
                 if (found != null)
@@ -228,8 +228,8 @@ namespace CYPCore.Services
                 _logger.LogError($"<<< BlockService.Process >>: Unable to verifiy block header.");
             }
 
-            var saved = _unitOfWork.DeliveredRepository.PutAsync(blockHeader, blockHeader.ToIdentifier());
-            if (saved == null)
+            int? saved = await _unitOfWork.DeliveredRepository.SaveOrUpdateAsync(blockHeader);
+            if (!saved.HasValue)
             {
                 _logger.LogError($"<<< BlockService.Process >>>: Unable to save block header: {blockHeader.MrklRoot}");
                 return false;

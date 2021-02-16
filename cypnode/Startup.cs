@@ -1,6 +1,5 @@
 // CYPNode by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
-using System.Linq;
 
 using System;
 using Microsoft.AspNetCore.Builder;
@@ -63,8 +62,7 @@ namespace CYPNode
         {
             builder.AddSwimGossipClient(Configuration);
             builder.AddSerfProcessService(Configuration);
-            builder.AddStoredbContext(Configuration);
-            builder.AddUnitOfWork();
+            builder.AddUnitOfWork(Configuration);
             builder.AddMempool();
             builder.AddStaging();
             builder.AddSigning();
@@ -75,7 +73,6 @@ namespace CYPNode
             builder.AddPosMinting(Configuration);
             builder.AddSync();
             builder.AddLocalNode();
-            builder.AddDataKeysProtection();
         }
 
         /// <summary>

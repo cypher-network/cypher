@@ -8,33 +8,29 @@ namespace CYPCore.Persistence
 {
     public class UnitOfWork : IUnitOfWork
     {
-        public IStoredbContext StoredbContext { get; }
+        public IStoredb Storedb { get; }
         public IXmlRepository DataProtectionKeys { get; }
         public IDataProtectionPayloadRepository DataProtectionPayload { get; }
         public IInterpretedRepository InterpretedRepository { get; }
         public IMemPoolRepository MemPoolRepository { get; }
         public IStagingRepository StagingRepository { get; }
         public IDeliveredRepository DeliveredRepository { get; }
+        public ISeenBlockHeaderRepository SeenBlockHeaderRepository { get; }
 
         private readonly ILogger _logger;
 
-        public UnitOfWork(IStoredbContext storedbContext, ILogger<UnitOfWork> logger)
+        public UnitOfWork(string folderDb, ILogger<UnitOfWork> logger)
         {
-            StoredbContext = storedbContext;
+            Storedb = new Storedb(folderDb);
 
             _logger = logger;
 
-            DataProtectionKeys = new DataProtectionKeyRepository(storedbContext);
-            DataProtectionPayload = new DataProtectionPayloadRepository(storedbContext, logger);
-            DeliveredRepository = new DeliveredRepository(storedbContext, logger);
-            InterpretedRepository = new InterpretedRepository(storedbContext, logger);
-            MemPoolRepository = new MemPoolRepository(storedbContext, logger);
-            StagingRepository = new StagingRepository(storedbContext, logger);
-        }
-
-        public IGenericRepository<T> GenericRepositoryFactory<T>()
-        {
-            return new GenericRepository<T>(StoredbContext, _logger);
+            DataProtectionPayload = new DataProtectionPayloadRepository(Storedb, logger);
+            DeliveredRepository = new DeliveredRepository(Storedb, logger);
+            InterpretedRepository = new InterpretedRepository(Storedb, logger);
+            MemPoolRepository = new MemPoolRepository(Storedb, logger);
+            StagingRepository = new StagingRepository(Storedb, logger);
+            SeenBlockHeaderRepository = new SeenBlockHeaderRepository(Storedb, logger);
         }
     }
 }

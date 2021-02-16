@@ -83,34 +83,21 @@ namespace CYPCore.Extensions
         }
 
         /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="builder"></param>
-        /// <param name="configurationRoot"></param>
-        /// <returns></returns>
-        public static ContainerBuilder AddStoredbContext(this ContainerBuilder builder, IConfigurationRoot configurationRoot)
-        {
-            var dataFolder = configurationRoot.GetSection("DataFolder");
-
-            builder.Register(c =>
-            {
-                var storedbContext = new StoredbContext(dataFolder.Value);
-                return storedbContext;
-            })
-            .As<IStoredbContext>()
-            .SingleInstance();
-
-            return builder;
-        }
-
-        /// <summary>
         ///     
         /// </summary>
         /// <param name="builder"></param>
         /// <returns></returns>
-        public static ContainerBuilder AddUnitOfWork(this ContainerBuilder builder)
+        public static ContainerBuilder AddUnitOfWork(this ContainerBuilder builder, IConfigurationRoot configurationRoot)
         {
-            builder.RegisterType<UnitOfWork>().As<IUnitOfWork>().SingleInstance();
+            var dataFolder = configurationRoot.GetSection("DataFolder");
+            builder.Register(c =>
+            {
+                UnitOfWork unitOfWork = new(dataFolder.Value, c.Resolve<ILogger<UnitOfWork>>());
+                return unitOfWork;
+            })
+            .As<IUnitOfWork>()
+            .SingleInstance();
+
             return builder;
         }
 
@@ -205,12 +192,6 @@ namespace CYPCore.Extensions
         /// <returns></returns>
         public static IServiceCollection AddDataKeysProtection(this IServiceCollection services, IConfigurationRoot configurationRoot)
         {
-            services.AddSingleton<IDataProtectionKeyRepository, DataProtectionKeyRepository>(sp =>
-            {
-                var dataProtectionKeyRepository = new DataProtectionKeyRepository(sp.GetService<IStoredbContext>());
-                return dataProtectionKeyRepository;
-            });
-
             var dataProtecttion = configurationRoot.GetSection("DataProtectionPath");
 
             services
@@ -220,23 +201,6 @@ namespace CYPCore.Extensions
                 .SetDefaultKeyLifetime(TimeSpan.FromDays(3650));
 
             return services;
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="builder"></param>
-        /// <returns></returns>
-        public static ContainerBuilder AddDataKeysProtection(this ContainerBuilder builder)
-        {
-            builder.Register(c =>
-            {
-                var dataProtectionKeyRepository = new DataProtectionKeyRepository(c.Resolve<IStoredbContext>());
-                return dataProtectionKeyRepository;
-            })
-            .As<IDataProtectionKeyRepository>();
-
-            return builder;
         }
 
         /// <summary>

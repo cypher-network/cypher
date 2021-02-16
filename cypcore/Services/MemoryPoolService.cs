@@ -54,34 +54,34 @@ namespace CYPCore.Services
         /// </summary>
         /// <param name="tx"></param>
         /// <returns></returns>
-        public async Task<byte[]> AddTransaction(TransactionProto tx)
+        public async Task<bool> AddTransaction(byte[] tx)
         {
             Guard.Argument(tx, nameof(tx)).NotNull();
 
+            TransactionProto transaction = Helper.Util.DeserializeProto<TransactionProto>(tx);
+
             try
             {
-                bool valid = tx.Validate().Any();
+                bool valid = transaction.Validate().Any();
                 if (!valid)
                 {
-                    bool delivered = await DeliveredTxExist(tx);
+                    bool delivered = await DeliveredTxExist(transaction);
                     if (delivered)
                     {
-                        return await Payload(tx, "K_Image exists.", true);
+                        return false;
                     }
 
-                    bool mempool = await MempoolTxExist(tx);
+                    bool mempool = await MempoolTxExist(transaction);
                     if (mempool)
                     {
-                        return await Payload(tx, "Exists in mempool.", true);
+                        return false;
                     }
 
-                    var memPoolProto = await _mempool.AddTransaction(MempoolProtoFactory(tx));
+                    var memPoolProto = await _mempool.AddTransaction(MempoolProtoFactory(transaction));
                     if (memPoolProto == null)
                     {
-                        return await Payload(tx, "Unable to add txn mempool.", true);
+                        return false;
                     }
-
-                    return await Payload(memPoolProto.Block.Transaction, string.Empty, false);
                 }
             }
             catch (Exception ex)
@@ -89,7 +89,7 @@ namespace CYPCore.Services
                 _logger.LogError($"<<< TransactionService.AddTransaction >>>: {ex}");
             }
 
-            return await Payload(tx, "No message", true);
+            return true;
         }
 
         /// <summary>
@@ -179,8 +179,8 @@ namespace CYPCore.Services
                 return false;
             }
 
-            memPool.Included = false;
-            memPool.Replied = false;
+            memPool.Included = 0;
+            memPool.Replied = 0;
 
             var added = await _mempool.AddTransaction(memPool);
             if (added == null)
@@ -202,10 +202,10 @@ namespace CYPCore.Services
         /// <returns></returns>
         private async Task<bool> MempoolTxExist(TransactionProto tx)
         {
-            var memPool = await _unitOfWork.MemPoolRepository.FirstOrDefaultAsync(x => new(
+            var memPool = await _unitOfWork.MemPoolRepository.FirstOrDefaultAsync(x =>
                 x.Block.Hash.Equals(tx.ToHash().ByteToHex()) &&
                 x.Block.Transaction.Ver == tx.Ver &&
-                x.Block.Node == _serfClient.ClientId));
+                x.Block.Node == _serfClient.ClientId);
 
             return memPool != null;
         }
@@ -220,7 +220,7 @@ namespace CYPCore.Services
             foreach (var vin in tx.Vin)
             {
                 var exists = await _unitOfWork.DeliveredRepository
-                    .FirstOrDefaultAsync(x => new(x.Transactions.Any(t => t.Vin.First().Key.K_Image.Xor(vin.Key.K_Image))));
+                    .FirstOrDefaultAsync(x => x.Transactions.Any(t => t.Vin.First().Key.K_Image.Xor(vin.Key.K_Image)));
 
                 if (exists != null)
                 {
@@ -235,29 +235,6 @@ namespace CYPCore.Services
         /// 
         /// </summary>
         /// <param name="tx"></param>
-        /// <param name="message"></param>
-        /// <param name="isError"></param>
-        /// <returns></returns>
-        private async Task<byte[]> Payload(TransactionProto tx, string message, bool isError)
-        {
-            byte[] data = Helper.Util.SerializeProto(tx);
-            var payload = new PayloadProto
-            {
-                Error = isError,
-                Message = message,
-                Node = _serfClient.ClientId,
-                Data = data,
-                PublicKey = await _signingProvider.GetPublicKey(_signingProvider.DefaultSigningKeyName),
-                Signature = await _signingProvider.Sign(_signingProvider.DefaultSigningKeyName, Helper.Util.SHA384ManagedHash(data))
-            };
-
-            return Helper.Util.SerializeProto(payload);
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="tx"></param>
         /// <returns></returns>
         private MemPoolProto MempoolProtoFactory(TransactionProto tx)
         {
@@ -265,9 +242,10 @@ namespace CYPCore.Services
             {
                 Block = new InterpretedProto
                 {
+                    Id = 0,
                     Hash = tx.ToHash().ByteToHex(),
                     Node = _serfClient.ClientId,
-                    Round = 0,
+                    Round = 1,
                     Transaction = tx
                 },
                 Deps = new List<DepProto>()

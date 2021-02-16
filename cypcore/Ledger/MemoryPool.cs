@@ -59,12 +59,10 @@ namespace CYPCore.Ledger
         {
             Guard.Argument(memPool, nameof(memPool)).NotNull();
 
-            MemPoolProto stored = null;
-
             try
             {
                 var exists = await _unitOfWork.MemPoolRepository
-                    .FirstOrDefaultAsync(x => new(x.Block.Hash.Equals(memPool.Block.Hash) && x.Block.Node == memPool.Block.Node && x.Block.Round == memPool.Block.Round));
+                    .FirstOrDefaultAsync(x => x.Block.Hash.Equals(memPool.Block.Hash) && x.Block.Node == memPool.Block.Node && x.Block.Round == memPool.Block.Round);
 
                 if (exists != null)
                 {
@@ -72,28 +70,22 @@ namespace CYPCore.Ledger
                     return null;
                 }
 
-                stored = await _unitOfWork.MemPoolRepository.PutAsync(memPool, memPool.ToIdentifier());
-                if (stored == null)
+                int? stored = await _unitOfWork.MemPoolRepository.SaveOrUpdateAsync(memPool);
+                if (!stored.HasValue)
                 {
                     _logger.LogError($"<<< MemoryPool.AddMemPoolTransaction >>>: Unable to save block {memPool.Block.Hash} for round {memPool.Block.Round} and node {memPool.Block.Node}");
                     return null;
                 }
 
-                //await _queue.QueueTask(() =>
-                //{
-                //    return Ready(memPool.Block.Hash.HexToByte());
-                //});
-
-                //TODO: Could have side effects running in background thread
-                await Ready(memPool.Block.Hash.HexToByte());
-
+                await _queue.QueueTask(() => { return Ready(memPool.Block.Hash.HexToByte()); });
             }
             catch (Exception ex)
             {
+                memPool = null;
                 _logger.LogError($"<<< MemoryPool.AddTransaction >>>: {ex}");
             }
 
-            return stored;
+            return memPool;
         }
 
         /// <summary>
@@ -118,7 +110,7 @@ namespace CYPCore.Ledger
                 Graph.BlockmaniaInterpreted += (sender, e) => BlockmaniaCallback(sender, e).SwallowException();
             }
 
-            var memPools = await _unitOfWork.MemPoolRepository.WhereAsync(x => new ValueTask<bool>(x.Block.Hash == hash.ByteToHex() && !x.Included && !x.Replied));
+            var memPools = await _unitOfWork.MemPoolRepository.WhereAsync(x => x.Block.Hash.Equals(hash.ByteToHex()) && x.Included != 0 && x.Replied != 0);
             foreach (var memPool in memPools)
             {
                 var self = await UpsertSelf(memPool);
@@ -130,7 +122,7 @@ namespace CYPCore.Ledger
                 }
 
                 await _staging.Ready(hash);
-                await VerifiySignatures(self);
+                await VerifiyAndAddToGraph(self);
             }
         }
 
@@ -181,13 +173,13 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="memPool"></param>
         /// <returns></returns>
-        private async Task<bool> VerifiySignatures(MemPoolProto memPool)
+        private async Task<bool> VerifiyAndAddToGraph(MemPoolProto memPool)
         {
             Guard.Argument(memPool, nameof(memPool)).NotNull();
 
             try
             {
-                var staging = await _unitOfWork.StagingRepository.FirstOrDefaultAsync(x => new(x.Hash.Equals(memPool.Block.Hash) && x.Status == StagingState.Blockmainia));
+                var staging = await _unitOfWork.StagingRepository.FirstOrDefaultAsync(x => x.Hash.Equals(memPool.Block.Hash) && x.Status == StagingState.Blockmainia);
                 if (staging != null)
                 {
                     var verified = await _validator.VerifyMemPoolSignatures(memPool);
@@ -200,7 +192,7 @@ namespace CYPCore.Ledger
 
                     staging.Status = StagingState.Running;
 
-                    await _unitOfWork.StagingRepository.PutAsync(staging, staging.ToIdentifier());
+                    await _unitOfWork.StagingRepository.SaveOrUpdateAsync(staging);
                 }
             }
             catch (Exception ex)
@@ -220,11 +212,11 @@ namespace CYPCore.Ledger
         {
             Guard.Argument(hash, nameof(hash)).NotNull().MaxCount(48);
 
-            InterpretedProto blockID = null;
+            InterpretedProto interpreted = null;
 
             try
             {
-                blockID = await _unitOfWork.InterpretedRepository.LastOrDefaultAsync(x => new(x.Hash == hash.ByteToHex()));
+                interpreted = await _unitOfWork.InterpretedRepository.LastOrDefaultAsync(x => x.Hash.Equals(hash.ByteToHex()));
             }
             catch (Exception ex)
             {
@@ -232,10 +224,10 @@ namespace CYPCore.Ledger
             }
             finally
             {
-                _lastInterpretedMessage = blockID switch
+                _lastInterpretedMessage = interpreted switch
                 {
                     null => new LastInterpretedMessage(0, null),
-                    _ => new LastInterpretedMessage(blockID.Round, blockID),
+                    _ => new LastInterpretedMessage(interpreted.Round, interpreted),
                 };
             }
 
@@ -254,7 +246,7 @@ namespace CYPCore.Ledger
             {
                 foreach (var next in blockmaniaInterpreted.Blocks)
                 {
-                    var memPool = await _unitOfWork.MemPoolRepository.FirstOrDefaultAsync(x => new(x.Block.Hash.Equals(next.Hash) && x.Block.Node == next.Node && x.Block.Round == next.Round));
+                    var memPool = await _unitOfWork.MemPoolRepository.FirstOrDefaultAsync(x => x.Block.Hash.Equals(next.Hash) && x.Block.Node == next.Node && x.Block.Round == next.Round);
                     if (memPool == null)
                     {
                         _logger.LogError($"<<< MemoryPool.BlockmaniaCallback >>>: Unable to find matching block - Hash: {next.Hash} Round: {next.Round} from node {next.Node}");
@@ -270,6 +262,7 @@ namespace CYPCore.Ledger
 
                     var interpreted = new InterpretedProto
                     {
+                        Id = 0,
                         Hash = memPool.Block.Hash,
                         InterpretedType = InterpretedType.Pending,
                         Node = memPool.Block.Node,
@@ -280,15 +273,15 @@ namespace CYPCore.Ledger
                         Transaction = memPool.Block.Transaction
                     };
 
-                    var hasSeen = await _unitOfWork.InterpretedRepository.FirstOrDefaultAsync(x => new(x.Hash.Equals(interpreted.Hash)));
+                    var hasSeen = await _unitOfWork.InterpretedRepository.FirstOrDefaultAsync(x => x.Hash.Equals(interpreted.Hash));
                     if (hasSeen != null)
                     {
                         _logger.LogError($"<<< MemoryPool.BlockmaniaCallback >>>: Already seen interpreted block - Hash: {next.Hash} Round: {next.Round} from node {next.Node}");
                         continue;
                     }
 
-                    var saved = await _unitOfWork.InterpretedRepository.PutAsync(interpreted, interpreted.ToIdentifier());
-                    if (saved == null)
+                    var saved = await _unitOfWork.InterpretedRepository.SaveOrUpdateAsync(interpreted);
+                    if (!saved.HasValue)
                     {
                         _logger.LogError($"<<< MemoryPool.BlockmaniaCallback >>>: Unable to save block for {interpreted.Node} and round {interpreted.Round}");
                     }
@@ -313,31 +306,30 @@ namespace CYPCore.Ledger
 
             try
             {
-                ulong round = 0, node = 0;
-                bool copy = false;
+                ulong round = 0;
+
+                round = await IncrementRound(memPool.Block.Hash.HexToByte(), memPool.Block.Round);
+                if (round == 0)
+                {
+                    return null;
+                }
+
+                bool copy = false; ulong node = 0;
 
                 copy |= memPool.Block.Node != _serfClient.ClientId;
 
-                if (!copy)
+                if (copy)
+                {
+                    node = _serfClient.ClientId;
+                }
+                else
                 {
                     node = memPool.Block.Node;
                     round = memPool.Block.Round;
                 }
 
-                if (copy)
-                {
-                    try
-                    {
-                        round = await IncrementRound(memPool.Block.Hash.HexToByte());
-                        node = _serfClient.ClientId;
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError($"<<< MemoryPool.UpsertSelf ->  IncrementRound >>>: {ex}");
-                    }
-                }
-
-                var prev = await _unitOfWork.MemPoolRepository.PreviousOrDefaultAsync(memPool.Block.Hash.HexToByte(), node, round);
+                var prev = await _unitOfWork.MemPoolRepository
+                    .FirstOrDefaultAsync(x => x.Block.Hash.Equals(memPool.Block.Hash.HexToByte()) && x.Block.Node == node && x.Block.Round == round - 1);
                 if (prev != null)
                 {
                     memPool.Block.PreviousHash = prev.Block.Hash;
@@ -347,7 +339,14 @@ namespace CYPCore.Ledger
                 }
 
                 var signed = await Sign(node, round, memPool);
-                stored = await _unitOfWork.MemPoolRepository.PutAsync(signed, signed.ToIdentifier());
+                var saved = await _unitOfWork.MemPoolRepository.SaveOrUpdateAsync(signed);
+                if (!saved.HasValue)
+                {
+                    _logger.LogError($"<<< MemoryPool.UpsertSelf >>>: Unable to save block for {memPool.Block.Node} and round {memPool.Block.Round}");
+                    return null;
+                }
+
+                stored = signed;
             }
             catch (Exception ex)
             {
@@ -394,18 +393,26 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="hash"></param>
         /// <returns></returns>
-        private async Task<ulong> IncrementRound(byte[] hash)
+        private async Task<ulong> IncrementRound(byte[] hash, ulong round)
         {
             Guard.Argument(hash, nameof(hash)).NotNull().MaxCount(48);
 
-            ulong round = 0;
+            ulong currentRound = 1;
 
             try
             {
-                var blockIDs = await _unitOfWork.MemPoolRepository.WhereAsync(x => new ValueTask<bool>(x.Block.Hash.Equals(hash.ByteToHex())));
-                if (blockIDs.Any())
+                var memPoolProtos = await _unitOfWork.MemPoolRepository.WhereAsync(x => x.Block.Hash.Equals(hash.ByteToHex()));
+                if (memPoolProtos.Any())
                 {
-                    round = blockIDs.Last().Block.Round;
+                    ulong[] order = new ulong[] { memPoolProtos.Last().Block.Round, round };
+                    var isSequential = order.Zip(order.Skip(1), (a, b) => (a + 1) == b).All(x => x);
+
+                    currentRound = isSequential ? memPoolProtos.Last().Block.Round + 1 : 0;
+
+                    if (currentRound == 0 && memPoolProtos.Count == 1)
+                    {
+                        currentRound = 1;
+                    }
                 }
             }
             catch (Exception ex)
@@ -413,9 +420,7 @@ namespace CYPCore.Ledger
                 _logger.LogError($"<<< MemoryPool.IncrementRound >>>: {ex}");
             }
 
-            round += 1;
-
-            return round;
+            return currentRound;
         }
     }
 }

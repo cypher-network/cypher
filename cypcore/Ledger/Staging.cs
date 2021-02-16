@@ -50,7 +50,7 @@ namespace CYPCore.Ledger
             try
             {
                 var memPools = await _unitOfWork.MemPoolRepository.WhereAsync(x =>
-                    new ValueTask<bool>(x.Block.Hash.Equals(hash.ByteToHex()) && !string.IsNullOrEmpty(x.Block.PublicKey) && !string.IsNullOrEmpty(x.Block.Signature) && !x.Included));
+                    x.Block.Hash.Equals(hash.ByteToHex()) && !string.IsNullOrEmpty(x.Block.PublicKey) && !string.IsNullOrEmpty(x.Block.Signature) && x.Included != 0);
 
                 if (memPools.Any())
                 {
@@ -80,7 +80,7 @@ namespace CYPCore.Ledger
 
             try
             {
-                var memPool = await _unitOfWork.MemPoolRepository.LastOrDefaultAsync(x => new(x.Block.Hash.Equals(hash.ByteToHex())));
+                var memPool = await _unitOfWork.MemPoolRepository.LastOrDefaultAsync(x => x.Block.Hash.Equals(hash.ByteToHex()));
                 if (memPool == null)
                 {
                     return;
@@ -88,7 +88,7 @@ namespace CYPCore.Ledger
 
                 await _localNode.Broadcast(Helper.Util.SerializeProto(memPool), TopicType.AddMemoryPool);
 
-                var staging = await _unitOfWork.StagingRepository.FirstOrDefaultAsync(x => new(x.Hash.Equals(memPool.Block.Hash)));
+                var staging = await _unitOfWork.StagingRepository.FirstOrDefaultAsync(x => x.Hash.Equals(memPool.Block.Hash));
                 if (staging != null)
                 {
                     if (staging.Status != StagingState.Blockmainia
@@ -98,8 +98,8 @@ namespace CYPCore.Ledger
                         staging.Status = StagingState.Pending;
                     }
 
-                    var stored = await _unitOfWork.StagingRepository.PutAsync(staging, staging.ToIdentifier());
-                    if (stored == null)
+                    int? stored = await _unitOfWork.StagingRepository.SaveOrUpdateAsync(staging);
+                    if (!stored.HasValue)
                     {
                         _logger.LogWarning($"Unable to mark the staging state as Dialling");
                     }
@@ -154,10 +154,16 @@ namespace CYPCore.Ledger
 
                 ClearWaitingOn(stageProto);
 
-                var saved = await _unitOfWork.StagingRepository.PutAsync(stageProto, stageProto.ToIdentifier());
+                int? saved = await _unitOfWork.StagingRepository.SaveOrUpdateAsync(stageProto);
+                if (!saved.HasValue)
+                {
+                    stageProto = null;
+                    _logger.LogWarning($"Unable to save staging with hash: {stageProto.Hash}");
+                }
             }
             catch (Exception ex)
             {
+                stageProto = null;
                 _logger.LogError($"<<< StagingProvider.Add >>>: {ex}");
             }
 
@@ -211,7 +217,7 @@ namespace CYPCore.Ledger
 
             try
             {
-                staging = await _unitOfWork.StagingRepository.FirstOrDefaultAsync(x => new(x.Hash.Equals(next.Block.Hash)));
+                staging = await _unitOfWork.StagingRepository.FirstOrDefaultAsync(x => x.Hash.Equals(next.Block.Hash));
                 if (staging != null)
                 {
                     staging.Nodes = new List<ulong>();
@@ -228,11 +234,17 @@ namespace CYPCore.Ledger
 
                     staging.MemPoolProto = next;
 
-                    staging = await _unitOfWork.StagingRepository.PutAsync(staging, staging.ToIdentifier());
+                    int? saved = await _unitOfWork.StagingRepository.SaveOrUpdateAsync(staging);
+                    if (!saved.HasValue)
+                    {
+                        staging = null;
+                        _logger.LogWarning($"Unable to save staging with hash: {staging.Hash}");
+                    }
                 }
             }
             catch (Exception ex)
             {
+                staging = null;
                 _logger.LogError($"<<< StagingProvider.Existing >>>: {ex}");
             }
 
@@ -286,7 +298,7 @@ namespace CYPCore.Ledger
 
             foreach (var next in MemPoolProto.NextBlockGraph(blockHashLookup, _serfClient.ClientId))
             {
-                var staging = await _unitOfWork.StagingRepository.FirstOrDefaultAsync(x => new(x.Hash.Equals(next.Block.Hash)));
+                var staging = await _unitOfWork.StagingRepository.FirstOrDefaultAsync(x => x.Hash.Equals(next.Block.Hash));
                 if (staging != null)
                 {
                     if (staging.Status != StagingState.Blockmainia &&

@@ -33,11 +33,14 @@
     <PackageReference Include="MessagePack" Version="1.9.11" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc" Version="2.2.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Systemd" Version="5.0.1" />
-    <PackageReference Include="Microsoft.FASTER.Core" Version="1.8.1" />
     <PackageReference Include="NBitcoin" Version="5.0.73" />
     <PackageReference Include="protobuf-net" Version="3.0.73" />
     <PackageReference Include="Refit" Version="5.2.4" />
     <PackageReference Include="Stratis.Patricia" Version="1.0.7" />
+    <PackageReference Include="linqdb.netcore.embedded.64bit" Version="2.6.2" />
+    <PackageReference Include="RocksDbSharp" Version="6.2.2" />
+    <PackageReference Include="RocksDbNative" Version="6.2.2" />
+    <PackageReference Include="RockDb.Native" Version="6.12.1" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Consensus\" />

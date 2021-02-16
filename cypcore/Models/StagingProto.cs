@@ -10,7 +10,7 @@ namespace CYPCore.Models
     [ProtoContract]
     public class StagingProto
     {
-        public string Id { get; set; }
+        public int Id { get; set; }
 
         [ProtoMember(1)]
         public string Hash { get; set; }

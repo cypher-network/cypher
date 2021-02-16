@@ -352,7 +352,7 @@ namespace CYPCore.Ledger
                 return true;
             }
 
-            var prevBlock = await _unitOfWork.DeliveredRepository.FirstOrDefaultAsync(x => new(x.MrklRoot == blockHeader.PrevMrklRoot));
+            var prevBlock = await _unitOfWork.DeliveredRepository.FirstOrDefaultAsync(x => x.MrklRoot.Equals(blockHeader.PrevMrklRoot));
             if (prevBlock == null)
             {
                 _logger.LogCritical($"<<< Validator.VerifyBlockHeader >>>: Could not find previous block header");
@@ -579,7 +579,7 @@ namespace CYPCore.Ledger
                 foreach (var vin in transaction.Vin)
                 {
                     var blockHeaders = await _unitOfWork.DeliveredRepository
-                        .WhereAsync(x => new ValueTask<bool>(x.Transactions.Any(t => t.Vin.First().Key.K_Image.Xor(vin.Key.K_Image))));
+                        .WhereAsync(x => x.Transactions.Any(t => t.Vin.First().Key.K_Image.Xor(vin.Key.K_Image)));
 
                     if (blockHeaders.Count() > 1)
                     {
@@ -603,7 +603,7 @@ namespace CYPCore.Ledger
             foreach (var commit in transaction.Vin.Select(v => v.Key).SelectMany(k => k.K_Offsets.Split(33)))
             {
                 var blockHeaders = await _unitOfWork.DeliveredRepository
-                    .WhereAsync(x => new ValueTask<bool>(x.Transactions.Any(t => t.Vout.FirstOrDefault().C.Xor(commit))));
+                    .WhereAsync(x => x.Transactions.Any(t => t.Vout.FirstOrDefault().C.Xor(commit)));
 
                 if (!blockHeaders.Any())
                 {
@@ -687,7 +687,7 @@ namespace CYPCore.Ledger
         {
             try
             {
-                var blockHeaders = await _unitOfWork.DeliveredRepository.SelectAsync(x => new ValueTask<BlockHeaderProto>(x));
+                var blockHeaders = await _unitOfWork.DeliveredRepository.SelectAsync(x => x);
                 for (int i = 0; i < blockHeaders.Count; i++)
                 {
                     _runningDistributionTotal -= NetworkShare(blockHeaders.ElementAt(i).Solution);
@@ -813,14 +813,14 @@ namespace CYPCore.Ledger
                     return false;
                 }
 
-                blockHeader = await _unitOfWork.DeliveredRepository.FirstOrDefaultAsync(x => new(x.MrklRoot.Equals(xBlockHeader.PrevMrklRoot)));
+                blockHeader = await _unitOfWork.DeliveredRepository.FirstOrDefaultAsync(x => x.MrklRoot.Equals(xBlockHeader.PrevMrklRoot));
                 if (blockHeader == null)
                 {
                     return false;
                 }
 
-                var blockIndex = (await _unitOfWork.DeliveredRepository.TakeWhileAsync(x => new ValueTask<bool>(x.MrklRoot != blockHeader.PrevMrklRoot))).Count();
-                var blockHeaders = await _unitOfWork.DeliveredRepository.TakeLastAsync(blockIndex);
+                var blockIndex = (await _unitOfWork.DeliveredRepository.WhereAsync(x => x.MrklRoot != blockHeader.PrevMrklRoot)).Count;
+                var blockHeaders = await _unitOfWork.DeliveredRepository.SkipAsync(blockIndex);
 
                 if (blockHeaders.Any())
                 {

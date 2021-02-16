@@ -9,14 +9,12 @@ namespace CYPCore.Persistence
 {
     public class DataProtectionPayloadRepository : Repository<DataProtectionPayloadProto>, IDataProtectionPayloadRepository
     {
-        private const string TableDataProtectionPayload = "DataProtectionPayload";
+        public string Table => "DataProtectionPayload";
 
-        public string Table => TableDataProtectionPayload;
-
-        public DataProtectionPayloadRepository(IStoredbContext storedbContext, ILogger logger)
+        public DataProtectionPayloadRepository(IStoredb storedbContext, ILogger logger)
             : base(storedbContext, logger)
         {
-            SetTableType(TableDataProtectionPayload);
+
         }
     }
 }

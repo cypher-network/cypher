@@ -5,110 +5,23 @@ using System;
 using System.Linq;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using System.Linq.Expressions;
 
 using Microsoft.Extensions.Logging;
 
-using FASTER.core;
-
-
 namespace CYPCore.Persistence
 {
-    public class Repository<TEntity> : IRepository<TEntity>
+    public class Repository<TEntity> : IRepository<TEntity> where TEntity : new()
     {
-        private readonly IStoredbContext _storedbContext;
+        private readonly IStoredb _storedb;
         private readonly ILogger _logger;
 
-        private string _tableType;
+        public Repository() { }
 
-        public Repository(IStoredbContext storedbContext, ILogger logger)
+        public Repository(IStoredb storedb, ILogger logger)
         {
-            _storedbContext = storedbContext;
+            _storedb = storedb;
             _logger = logger;
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="table"></param>
-        public void SetTableType(string table)
-        {
-            _tableType = table;
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <param name="key"></param>
-        /// <returns></returns>
-        public Task<TEntity> GetAsync(byte[] key)
-        {
-            TEntity entity = default;
-
-            try
-            {
-                using var session = _storedbContext.Store.Database.NewSession(new StoreFunctions());
-
-                StoreInput input = new();
-                StoreOutput output = new();
-                StoreContext context = new();
-                StoreKey blockKey = new() { tableType = _tableType, key = key };
-
-                Status readStatus = session.Read(ref blockKey, ref input, ref output, context, 1);
-
-                if (readStatus == Status.PENDING)
-                {
-                    session.CompletePending(true);
-                    context.FinalizeRead(ref readStatus, ref output);
-                }
-
-                if (readStatus == Status.OK)
-                {
-                    entity = Helper.Util.DeserializeProto<TEntity>(output.value.value);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"<<< Repository.GetAsync >>>: {ex}");
-            }
-
-            return Task.FromResult(entity);
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="entity"></param>
-        /// <param name="key"></param>
-        /// <returns></returns>
-        public Task<TEntity> PutAsync(TEntity entity, byte[] key)
-        {
-            TEntity entityPut = default;
-
-            try
-            {
-                using var session = _storedbContext.Store.Database.NewSession(new StoreFunctions());
-
-                StoreKey upsertKey = new() { tableType = _tableType, key = key };
-                StoreValue upsertvalue = new() { value = Helper.Util.SerializeProto(entity) };
-                StoreContext context = new();
-
-                var addStatus = session.Upsert(ref upsertKey, ref upsertvalue, context, 1);
-                if (addStatus == Status.OK)
-                {
-                    entityPut = entity;
-                }
-
-                session.CompletePending(true);
-
-                _storedbContext.Store.Checkpoint();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"<<< StoredbContext.SaveOrUpdate >>>: {ex}");
-            }
-
-            return Task.FromResult(entityPut);
         }
 
         /// <summary>
@@ -121,13 +34,7 @@ namespace CYPCore.Persistence
 
             try
             {
-                using var iterateAsync = CreateIterateAsync();
-                ValueTask<int> total = iterateAsync.Iterate().CountAsync();
-
-                if (total.IsCompleted)
-                {
-                    count = total.Result;
-                }
+                count = _storedb.RockDb.Table<TEntity>().Count();
             }
             catch (Exception ex)
             {
@@ -142,21 +49,20 @@ namespace CYPCore.Persistence
         /// </summary>
         /// <param name="expression"></param>
         /// <returns></returns>
-        public ValueTask<List<TEntity>> WhereAsync(Func<TEntity, ValueTask<bool>> expression)
+        public Task<List<TEntity>> WhereAsync(Expression<Func<TEntity, bool>> expression)
         {
-            ValueTask<List<TEntity>> entities = default;
+            List<TEntity> entities = default;
 
             try
             {
-                using var iterateAsync = CreateIterateAsync();
-                entities = iterateAsync.Iterate().WhereAwait(expression).ToListAsync();
+                entities = _storedb.RockDb.Table<TEntity>().Where(expression).SelectEntity();
             }
             catch (Exception ex)
             {
                 _logger.LogError($"<<< Repository.WhereAsync >>>: {ex}");
             }
 
-            return entities;
+            return Task.FromResult(entities);
         }
 
         /// <summary>
@@ -169,13 +75,7 @@ namespace CYPCore.Persistence
 
             try
             {
-                using var iterateAsync = CreateIterateAsync();
-                ValueTask<TEntity> first = iterateAsync.Iterate().FirstOrDefaultAsync();
-
-                if (first.IsCompleted)
-                {
-                    entity = first.Result;
-                }
+                entity = _storedb.RockDb.Table<TEntity>().SelectEntity().FirstOrDefault();
             }
             catch (Exception ex)
             {
@@ -190,19 +90,13 @@ namespace CYPCore.Persistence
         /// </summary>
         /// <param name="expression"></param>
         /// <returns></returns>
-        public Task<TEntity> FirstOrDefaultAsync(Func<TEntity, ValueTask<bool>> expression)
+        public Task<TEntity> FirstOrDefaultAsync(Expression<Func<TEntity, bool>> expression)
         {
             TEntity entity = default;
 
             try
             {
-                using var iterateAsync = CreateIterateAsync();
-                ValueTask<TEntity> first = iterateAsync.Iterate().FirstOrDefaultAwaitAsync(expression);
-
-                if (first.IsCompleted)
-                {
-                    entity = first.Result;
-                }
+                entity = _storedb.RockDb.Table<TEntity>().Where(expression).SelectEntity().FirstOrDefault();
             }
             catch (Exception ex)
             {
@@ -217,19 +111,13 @@ namespace CYPCore.Persistence
         /// </summary>
         /// <param name="expression"></param>
         /// <returns></returns>
-        public Task<TEntity> LastOrDefaultAsync(Func<TEntity, ValueTask<bool>> expression)
+        public Task<TEntity> LastOrDefaultAsync(Expression<Func<TEntity, bool>> expression)
         {
             TEntity entity = default;
 
             try
             {
-                using var iterateAsync = CreateIterateAsync();
-                ValueTask<TEntity> last = iterateAsync.Iterate().LastOrDefaultAwaitAsync(expression);
-
-                if (last.IsCompleted)
-                {
-                    entity = last.Result;
-                }
+                entity = _storedb.RockDb.Table<TEntity>().Where(expression).SelectEntity().LastOrDefault();
             }
             catch (Exception ex)
             {
@@ -249,13 +137,7 @@ namespace CYPCore.Persistence
 
             try
             {
-                using var iterateAsync = CreateIterateAsync();
-                var last = iterateAsync.Iterate().LastOrDefaultAsync();
-
-                if (last.IsCompleted)
-                {
-                    entity = last.Result;
-                }
+                entity = _storedb.RockDb.Table<TEntity>().SelectEntity().LastOrDefault();
             }
             catch (Exception ex)
             {
@@ -268,50 +150,43 @@ namespace CYPCore.Persistence
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="storeKey"></param>
-        /// <returns></returns>
-        public Task<bool> DeleteAsync(StoreKey storeKey)
-        {
-            bool result = false;
-
-            try
-            {
-                using var session = _storedbContext.Store.Database.NewSession(new StoreFunctions());
-                var deleteStatus = session.Delete(ref storeKey);
-
-                if (deleteStatus != Status.OK)
-                    throw new Exception();
-
-                result = true;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"<<< Repository.DeleteAsync >>>: {ex}");
-            }
-
-            return Task.FromResult(result);
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
         /// <param name="take"></param>
         /// <returns></returns>
-        public ValueTask<List<TEntity>> TakeAsync(int take)
+        public Task<List<TEntity>> TakeAsync(int take)
         {
-            ValueTask<List<TEntity>> entities = default;
+            List<TEntity> entities = default;
 
             try
             {
-                using var iterateAsync = CreateIterateAsync();
-                entities = iterateAsync.Iterate().Take(take).ToListAsync();
+                entities = _storedb.RockDb.Table<TEntity>().SelectEntity().Take(take).ToList();
             }
             catch (Exception ex)
             {
                 _logger.LogError($"<<< Repository.TakeAsync >>>: {ex}");
             }
 
-            return entities;
+            return Task.FromResult(entities);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="skip"></param>
+        /// <returns></returns>
+        public Task<List<TEntity>> SkipAsync(int skip)
+        {
+            List<TEntity> entities = default;
+
+            try
+            {
+                entities = _storedb.RockDb.Table<TEntity>().SelectEntity().Skip(skip).ToList();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"<<< Repository.SkipAsync >>>: {ex}");
+            }
+
+            return Task.FromResult(entities);
         }
 
         /// <summary>
@@ -320,138 +195,85 @@ namespace CYPCore.Persistence
         /// <param name="skip"></param>
         /// <param name="take"></param>
         /// <returns></returns>
-        public ValueTask<List<TEntity>> RangeAsync(int skip, int take)
+        public Task<List<TEntity>> RangeAsync(int skip, int take)
         {
-            ValueTask<List<TEntity>> entities = default;
+            List<TEntity> entities = default;
 
             try
             {
-                using var iterateAsync = CreateIterateAsync();
-                entities = iterateAsync.Iterate().Skip(skip).Take(take).ToListAsync();
+
+                entities = _storedb.RockDb.Table<TEntity>().SelectEntity().Skip(skip).Take(take).ToList();
             }
             catch (Exception ex)
             {
                 _logger.LogError($"<<< Repository.RangeAsync >>>: {ex}");
             }
 
-            return entities;
+            return Task.FromResult(entities);
         }
 
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="n"></param>
-        /// <returns></returns>
-        public ValueTask<List<TEntity>> TakeLastAsync(int n)
-        {
-            ValueTask<List<TEntity>> entities = default;
-
-            try
-            {
-                using var iterateAsync = CreateIterateAsync();
-                entities = iterateAsync.Iterate().TakeLast(n).ToListAsync();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"<<< Repository.TakeLastAsync >>>: {ex}");
-            }
-
-            return entities;
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="expression"></param>
-        /// <returns></returns>
-        public ValueTask<List<TEntity>> TakeWhileAsync(Func<TEntity, ValueTask<bool>> expression)
-        {
-            ValueTask<List<TEntity>> entities = default;
-
-            try
-            {
-                using var iterateAsync = CreateIterateAsync();
-                entities = iterateAsync.Iterate().TakeWhileAwait(expression).ToListAsync();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"<<< Repository.TakeWhileAsync >>>: {ex}");
-            }
-
-            return entities;
-        }
 
         /// <summary>
         /// 
         /// </summary>
         /// <param name="selector"></param>
         /// <returns></returns>
-        public ValueTask<List<TEntity>> SelectAsync(Func<TEntity, ValueTask<TEntity>> selector)
+        public Task<List<TEntity>> SelectAsync(Expression<Func<TEntity, TEntity>> selector)
         {
-            ValueTask<List<TEntity>> entities = default;
+            List<TEntity> entities = default;
 
             try
             {
-                using var iterateAsync = CreateIterateAsync();
-                entities = iterateAsync.Iterate().SelectAwait(selector).ToListAsync();
+                entities = _storedb.RockDb.Table<TEntity>().Select(selector);
             }
             catch (Exception ex)
             {
                 _logger.LogError($"<<< Repository.SelectAsync >>>: {ex}");
             }
 
-            return entities;
+            return Task.FromResult(entities);
         }
 
-        protected class IterateAsyncWrapper : IDisposable
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="entity"></param>
+        /// <returns></returns>
+        public Task<int?> SaveOrUpdateAsync(TEntity entity)
         {
-            private bool _disposed = false;
-            private readonly IStoredbContext _context;
-            private string _tableType;
+            int? id = null;
 
-            public IterateAsyncWrapper(IStoredbContext context, string tableType)
+            try
             {
-                _context = context;
-                _tableType = tableType;
+                id = _storedb.RockDb.Table<TEntity>().Save(entity);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"<<< Repository.SaveOrUpdateAsync >>>: {ex}");
             }
 
-            public async IAsyncEnumerable<TEntity> Iterate()
-            {
-                using var iter = _context.Store.Database.Log.Scan(_context.Store.Database.Log.BeginAddress, _context.Store.Database.Log.TailAddress, ScanBufferingMode.NoBuffering);
-                while (iter.GetNext(out _, out StoreKey storeKey, out StoreValue storeValue))
-                {
-                    if (storeKey.tableType == _tableType)
-                    {
-                        yield return Helper.Util.DeserializeProto<TEntity>(storeValue.value);
-                    }
-                }
-            }
-
-            public void Dispose()
-            {
-                Dispose(true);
-                GC.SuppressFinalize(this);
-            }
-
-            protected virtual void Dispose(bool disposing)
-            {
-                if (_disposed)
-                {
-                    return;
-                }
-
-                if (disposing)
-                {
-
-                }
-
-                _disposed = true;
-            }
+            return Task.FromResult(id);
         }
 
-        protected IterateAsyncWrapper CreateIterateAsync()
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="id"></param>
+        /// <returns></returns>
+        public Task<bool> DeleteAsync(int id)
         {
-            return new(_storedbContext, _tableType);
+            bool deleted = false;
+            try
+            {
+                _storedb.RockDb.Table<TEntity>().Delete(new HashSet<int>() { id });
+                deleted = true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"<<< Repository.DeleteAsync >>>: {ex}");
+            }
+
+            return Task.FromResult(deleted);
         }
     }
 }

@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq.Expressions;
 using System.Threading.Tasks;
 
 namespace CYPCore.Persistence
@@ -11,18 +12,15 @@ namespace CYPCore.Persistence
     {
         Task<int> CountAsync();
         Task<TEntity> FirstOrDefaultAsync();
-        Task<TEntity> FirstOrDefaultAsync(Func<TEntity, ValueTask<bool>> expression);
-        Task<TEntity> GetAsync(byte[] key);
-        ValueTask<List<TEntity>> WhereAsync(Func<TEntity, ValueTask<bool>> expression);
-        Task<TEntity> LastOrDefaultAsync(Func<TEntity, ValueTask<bool>> expression);
+        Task<TEntity> FirstOrDefaultAsync(Expression<Func<TEntity, bool>> expression);
+        Task<List<TEntity>> WhereAsync(Expression<Func<TEntity, bool>> expression);
+        Task<TEntity> LastOrDefaultAsync(Expression<Func<TEntity, bool>> expression);
         Task<TEntity> LastOrDefaultAsync();
-        Task<bool> DeleteAsync(StoreKey storeKey);
-        void SetTableType(string table);
-        ValueTask<List<TEntity>> TakeAsync(int take);
-        ValueTask<List<TEntity>> TakeWhileAsync(Func<TEntity, ValueTask<bool>> expression);
-        ValueTask<List<TEntity>> TakeLastAsync(int n);
-        ValueTask<List<TEntity>> SelectAsync(Func<TEntity, ValueTask<TEntity>> selector);
-        Task<TEntity> PutAsync(TEntity entity, byte[] key);
-        ValueTask<List<TEntity>> RangeAsync(int skip, int take);
+        Task<bool> DeleteAsync(int id);
+        Task<List<TEntity>> SkipAsync(int skip);
+        Task<List<TEntity>> TakeAsync(int take);
+        Task<List<TEntity>> SelectAsync(Expression<Func<TEntity, TEntity>> selector);
+        Task<List<TEntity>> RangeAsync(int skip, int take);
+        Task<int?> SaveOrUpdateAsync(TEntity entity);
     }
 }

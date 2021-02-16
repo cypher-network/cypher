@@ -9,6 +9,8 @@ namespace CYPCore.Models
     [ProtoContract]
     public class DepProto
     {
+        public int Id { get; set; }
+
         [ProtoMember(1)]
         public InterpretedProto Block = new InterpretedProto();
         [ProtoMember(2)]

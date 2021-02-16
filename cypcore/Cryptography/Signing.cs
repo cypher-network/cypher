@@ -71,18 +71,19 @@ namespace CYPCore.Cryptography
             try
             {
                 _dataProtector = _dataProtectionProvider.CreateProtector(keyName);
-                _protectionPayloadProto = await _unitOfWork.DataProtectionPayload.FirstOrDefaultAsync(x => new(x.FriendlyName == keyName));
+                _protectionPayloadProto = await _unitOfWork.DataProtectionPayload.FirstOrDefaultAsync(x => x.FriendlyName == keyName);
 
                 if (_protectionPayloadProto == null)
                 {
                     _protectionPayloadProto = new DataProtectionPayloadProto
                     {
+                        Id = 0,
                         FriendlyName = keyName,
                         Payload = _dataProtector.Protect(JsonConvert.SerializeObject(GenerateKeyPair()))
                     };
 
-                    var stored = await _unitOfWork.DataProtectionPayload.PutAsync(_protectionPayloadProto, _protectionPayloadProto.FriendlyName.ToBytes());
-                    if (stored == null)
+                    var stored = await _unitOfWork.DataProtectionPayload.SaveOrUpdateAsync(_protectionPayloadProto);
+                    if (!stored.HasValue)
                     {
                         _logger.LogError($"<<< SigningProvider.GetOrUpsertKeyName >>>: Unable to save protection key payload for: {keyName}");
                         return null;

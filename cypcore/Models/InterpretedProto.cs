@@ -10,10 +10,12 @@ using CYPCore.Extentions;
 
 namespace CYPCore.Models
 {
-    [ProtoContract]
+
     public class InterpretedProto : IInterpretedProto
     {
         private const string hexUpper = "0123456789ABCDEF";
+
+        public int Id { get; set; }
 
         [ProtoMember(1)]
         public string Hash { get; set; }

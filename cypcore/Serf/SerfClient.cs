@@ -23,7 +23,7 @@ using CYPCore.Serf.Message;
 
 namespace CYPCore.Serf
 {
-    class TransactionContext: IDisposable
+    class TransactionContext : IDisposable
     {
         public CancellationTokenSource CancellationTokenSource { get; set; }
         public ResponseHeader Header { get; set; }
@@ -85,6 +85,8 @@ namespace CYPCore.Serf
         private readonly ISigning _signing;
         private readonly ILogger _logger;
 
+        private readonly ulong _clientId;
+
         public SerfClient(ISigning signing, SerfConfigurationOptions serfConfigurationOptions,
             ApiConfigurationOptions apiConfigurationOptions, ILogger<SerfClient> logger)
         {
@@ -95,12 +97,14 @@ namespace CYPCore.Serf
             ApiConfigurationOptions = apiConfigurationOptions;
 
             TcpSessions = new ConcurrentDictionary<Guid, TcpSession>();
+
+            _clientId = GetClientID().GetAwaiter().GetResult().Value;
         }
 
         /// <summary>
         /// 
         /// </summary>
-        public ulong ClientId => GetClientID().GetAwaiter().GetResult().Value;
+        public ulong ClientId => _clientId;
 
         /// <summary>
         /// 
@@ -525,7 +529,7 @@ namespace CYPCore.Serf
                         }
 
                         var read_buffer = new byte[8048];
-                        var size =  await tcpSession.TransportStream.ReadAsync(read_buffer.AsMemory(0, read_buffer.Length), _cancellationTokenSource.Token);
+                        var size = await tcpSession.TransportStream.ReadAsync(read_buffer.AsMemory(0, read_buffer.Length), _cancellationTokenSource.Token);
 
                         if (size <= 0)
                         {

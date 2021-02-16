@@ -14,10 +14,12 @@ namespace CYPCore.Models
     [ProtoContract]
     public class MemPoolProto : IEquatable<MemPoolProto>, IMemPoolProto
     {
+        public int  Id { get; set; }
+
         [ProtoMember(1)]
-        public bool Included { get; set; }
+        public int Included { get; set; }
         [ProtoMember(2)]
-        public bool Replied { get; set; }
+        public int Replied { get; set; }
         [ProtoMember(3)]
         public InterpretedProto Block { get; set; } = new InterpretedProto();
         [ProtoMember(4)]

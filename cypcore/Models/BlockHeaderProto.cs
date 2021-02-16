@@ -14,6 +14,8 @@ namespace CYPCore.Models
     [ProtoContract]
     public class BlockHeaderProto
     {
+        public int Id { get; set; }
+
         [ProtoMember(1)]
         public int Bits { get; set; }
         [ProtoMember(2)]
