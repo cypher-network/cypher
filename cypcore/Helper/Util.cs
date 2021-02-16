@@ -62,7 +62,7 @@ namespace CYPCore.Helper
                     return platform;
                 }
             }
-            
+
             throw new NotSupportedException();
         }
 
@@ -437,11 +437,11 @@ namespace CYPCore.Helper
             private static string SystemDefaultWindows() => Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
                 AppSettingsFilename);
-          
+
             public static string SystemDefault()
             {
                 var platform = GetOSPlatform();
-                
+
                 if (platform == OSPlatform.Linux)
                 {
                     return SystemDefaultLinux();
@@ -454,7 +454,7 @@ namespace CYPCore.Helper
                 {
                     return SystemDefaultWindows();
                 }
-                
+
                 throw new Exception("Unsupported operating system");
             }
         }

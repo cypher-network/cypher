@@ -34,7 +34,7 @@ namespace CYPCore.Services
             _signingProvider = signingProvider;
             _validator = validator;
             _logger = logger;
-        }  
+        }
 
         /// <summary>
         /// 
@@ -56,7 +56,7 @@ namespace CYPCore.Services
             catch (Exception ex)
             {
                 _logger.LogError($"<<< BlockService.GetBlocks >>>: {ex}");
-            }           
+            }
 
             return blockHeaders;
         }
