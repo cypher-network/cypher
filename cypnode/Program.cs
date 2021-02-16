@@ -4,6 +4,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Hosting;
 
@@ -72,15 +73,16 @@ namespace CYPNode
                 Log.Information("Starting web host");
                 var builder = CreateWebHostBuilder(args, configurationRoot);
 
-                if (Util.OperatingSystem.IsLinux())
+                var platform = Util.GetOSPlatform();
+                if (platform == OSPlatform.Linux)
                 {
                     builder.UseSystemd();
                 }
-                else if (Util.OperatingSystem.IsMacOS())
+                else if (platform == OSPlatform.OSX)
                 {
                     // TODO
                 }
-                else if (Util.OperatingSystem.IsWindows())
+                else if (platform == OSPlatform.Windows)
                 {
                     builder.UseWindowsService();
                 }

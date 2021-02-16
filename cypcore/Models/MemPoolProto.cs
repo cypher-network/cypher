@@ -14,7 +14,7 @@ namespace CYPCore.Models
     [ProtoContract]
     public class MemPoolProto : IEquatable<MemPoolProto>, IMemPoolProto
     {
-        public int  Id { get; set; }
+        public int Id { get; set; }
 
         [ProtoMember(1)]
         public int Included { get; set; }
