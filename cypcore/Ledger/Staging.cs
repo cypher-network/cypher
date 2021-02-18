@@ -5,11 +5,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-
 using Microsoft.Extensions.Logging;
-
 using Dawn;
-
 using CYPCore.Extentions;
 using CYPCore.Models;
 using CYPCore.Persistence;
@@ -50,7 +47,9 @@ namespace CYPCore.Ledger
             try
             {
                 var memPools = await _unitOfWork.MemPoolRepository.WhereAsync(x =>
-                    new ValueTask<bool>(x.Block.Hash.Equals(hash.ByteToHex()) && !string.IsNullOrEmpty(x.Block.PublicKey) && !string.IsNullOrEmpty(x.Block.Signature) && !x.Included));
+                    new ValueTask<bool>(x.Block.Hash.Equals(hash.ByteToHex()) &&
+                                        !string.IsNullOrEmpty(x.Block.PublicKey) &&
+                                        !string.IsNullOrEmpty(x.Block.Signature) && !x.Included));
 
                 if (memPools.Any())
                 {
@@ -83,11 +82,12 @@ namespace CYPCore.Ledger
         {
             Guard.Argument(hash, nameof(hash)).NotNull().MaxCount(32);
             MemPoolProto memPool;
-            
+
             try
             {
-                memPool = await _unitOfWork.MemPoolRepository.LastAsync(x => 
-                    new ValueTask<bool>(x.Block.Hash.Equals(hash.ByteToHex()) && x.Block.InterpretedType == InterpretedType.Pending && x.Included));
+                memPool = await _unitOfWork.MemPoolRepository.LastAsync(x =>
+                    new ValueTask<bool>(x.Block.Hash.Equals(hash.ByteToHex()) &&
+                                        x.Block.InterpretedType == InterpretedType.Pending && x.Included));
 
                 if (memPool != null)
                 {
@@ -102,14 +102,14 @@ namespace CYPCore.Ledger
                         {
                             staging.Status = StagingState.Pending;
                         }
-                        
+
                         var saved = await _unitOfWork.StagingRepository.PutAsync(staging.ToIdentifier(), staging);
                         if (!saved)
                         {
                             _logger.LogWarning($"Unable to mark the staging state as Dialling");
                             return;
                         }
-                        
+
                         await _localNode.Broadcast(Helper.Util.SerializeProto(memPool), TopicType.AddMemoryPool);
                     }
                 }
@@ -140,9 +140,11 @@ namespace CYPCore.Ledger
                     await _serfClient.Connect(tcpSession.SessionId);
                     var memberResult = await _serfClient.Members(tcpSession.SessionId);
 
-                    nodeCount = memberResult.Success ? memberResult.Value.Members.Count(x => x.Status.Equals("alive")) : 0;
+                    nodeCount = memberResult.Success
+                        ? memberResult.Value.Members.Count(x => x.Status.Equals("alive"))
+                        : 0;
                 }
-                
+
                 staging = new StagingProto
                 {
                     Epoch = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
@@ -196,7 +198,8 @@ namespace CYPCore.Ledger
             if (!membersResult.Success)
                 return;
 
-            stage.WaitingOn.AddRange(membersResult.Value.Members.Select(k => Helper.Util.HashToId(k.Tags["pubkey"])).ToArray());
+            stage.WaitingOn.AddRange(membersResult.Value.Members.Select(k => Helper.Util.HashToId(k.Tags["pubkey"]))
+                .ToArray());
         }
 
         /// <summary>
@@ -226,9 +229,9 @@ namespace CYPCore.Ledger
 
             try
             {
-                staging = await _unitOfWork.StagingRepository.LastAsync(x => 
+                staging = await _unitOfWork.StagingRepository.LastAsync(x =>
                     new ValueTask<bool>(x.Hash.Equals(next.Block.Hash)));
-                
+
                 if (staging != null)
                 {
                     staging.Nodes = new List<ulong>();
@@ -301,7 +304,7 @@ namespace CYPCore.Ledger
         private async Task AddOrUpdate(ILookup<string, MemPoolProto> blockHashLookup)
         {
             Guard.Argument(blockHashLookup, nameof(blockHashLookup)).NotNull();
-            
+
             foreach (var next in MemPoolProto.NextBlockGraph(blockHashLookup, _serfClient.ClientId))
             {
                 var staging = await _unitOfWork.StagingRepository.GetAsync(next.ToIdentifier());

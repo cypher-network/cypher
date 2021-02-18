@@ -14,16 +14,11 @@ namespace CYPCore.Models
     [ProtoContract]
     public class MemPoolProto : IEquatable<MemPoolProto>, IMemPoolProto
     {
-        [ProtoMember(1)]
-        public bool Included { get; set; }
-        [ProtoMember(2)]
-        public bool Replied { get; set; }
-        [ProtoMember(3)]
-        public InterpretedProto Block { get; set; } = new InterpretedProto();
-        [ProtoMember(4)]
-        public List<DepProto> Deps { get; set; } = new List<DepProto>();
-        [ProtoMember(5)]
-        public InterpretedProto Prev { get; set; } = new InterpretedProto();
+        [ProtoMember(1)] public bool Included { get; set; }
+        [ProtoMember(2)] public bool Replied { get; set; }
+        [ProtoMember(3)] public InterpretedProto Block { get; set; } = new InterpretedProto();
+        [ProtoMember(4)] public List<DepProto> Deps { get; set; } = new List<DepProto>();
+        [ProtoMember(5)] public InterpretedProto Prev { get; set; } = new InterpretedProto();
 
         /// <summary>
         /// 
@@ -56,16 +51,16 @@ namespace CYPCore.Models
                 if (dep.Prev == null)
                 {
                     blockGraph.Deps.Add(
-                      new Dep(
-                          new BlockID(dep.Block.Hash, dep.Block.Node, dep.Block.Round, dep.Block.Transaction), deps)
+                        new Dep(
+                            new BlockID(dep.Block.Hash, dep.Block.Node, dep.Block.Round, dep.Block.Transaction), deps)
                     );
                 }
                 else
                 {
                     blockGraph.Deps.Add(
-                      new Dep(
-                          new BlockID(dep.Block.Hash, dep.Block.Node, dep.Block.Round, dep.Block.Transaction), deps,
-                          new BlockID(dep.Prev.Hash, dep.Prev.Node, dep.Prev.Round, dep.Prev.Transaction))
+                        new Dep(
+                            new BlockID(dep.Block.Hash, dep.Block.Node, dep.Block.Round, dep.Block.Transaction), deps,
+                            new BlockID(dep.Prev.Hash, dep.Prev.Node, dep.Prev.Round, dep.Prev.Transaction))
                     );
                 }
             }
@@ -195,11 +190,12 @@ namespace CYPCore.Models
 
         public bool Equals(MemPoolProto other)
         {
-            return (Block.Hash, Block.Node, Block.Round, Deps.Count) == (other.Block.Hash, other.Block.Node, other.Block.Round, other.Deps.Count);
+            return (Block.Hash, Block.Node, Block.Round, Deps.Count) == (other.Block.Hash, other.Block.Node,
+                other.Block.Round, other.Deps.Count);
         }
 
         public override int GetHashCode() => base.GetHashCode();
-        
+
         /// <summary>
         /// 
         /// </summary>

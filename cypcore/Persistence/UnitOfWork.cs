@@ -9,7 +9,7 @@ namespace CYPCore.Persistence
     public class UnitOfWork : IUnitOfWork
     {
         public IStoreDb StoreDb { get; }
-        
+
         public IXmlRepository DataProtectionKeys { get; }
         public IDataProtectionRepository DataProtectionPayload { get; }
         public IInterpretedRepository InterpretedRepository { get; }

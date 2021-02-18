@@ -5,11 +5,8 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Collections.Generic;
-
 using Microsoft.Extensions.Logging;
-
 using Dawn;
-
 using CYPCore.Models;
 
 namespace CYPCore.Persistence
@@ -17,15 +14,15 @@ namespace CYPCore.Persistence
     public class MemPoolRepository : Repository<MemPoolProto>, IMemPoolRepository
     {
         private readonly ILogger _logger;
-        
+
         public MemPoolRepository(IStoreDb storeDb, ILogger logger)
             : base(storeDb, logger)
         {
             _logger = logger;
-            
+
             SetTableName(StoreDb.MemoryPoolTable.ToString());
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -41,7 +38,7 @@ namespace CYPCore.Persistence
             {
                 foreach (var next in memPools)
                 {
-                    var hasNext = await WhereAsync(x => 
+                    var hasNext = await WhereAsync(x =>
                         new ValueTask<bool>(x.Block.Hash.Equals(next.Block.Hash)));
 
                     IEnumerable<(MemPoolProto nNext, MemPoolProto included)> enumerable()
@@ -55,7 +52,7 @@ namespace CYPCore.Persistence
 
                             if (included is not null && included.Included)
                                 continue;
-                                    
+
                             if (included?.Block.Signature != null && included.Block.PublicKey != null)
                             {
                                 yield return (nNext, included);
@@ -79,7 +76,7 @@ namespace CYPCore.Persistence
 
             return moreBlocks;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>

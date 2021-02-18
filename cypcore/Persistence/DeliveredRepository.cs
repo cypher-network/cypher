@@ -2,11 +2,8 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
-
 using Microsoft.Extensions.Logging;
-
 using Stratis.Patricia;
-
 using CYPCore.Extentions;
 using CYPCore.Models;
 
@@ -25,7 +22,7 @@ namespace CYPCore.Persistence
             _logger = logger;
 
             _stateTrie = new PatriciaTrie();
-            
+
             SetTableName(StoreDb.DeliveredTable.ToString());
         }
 
@@ -41,7 +38,7 @@ namespace CYPCore.Persistence
         {
             _stateTrie.Flush();
         }
-        
+
         /// <summary>
         /// 
         /// </summary>

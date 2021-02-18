@@ -7,13 +7,10 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Net.Http;
-
 using Microsoft.Extensions.Logging;
-
 using CYPCore.Serf;
 using CYPCore.Models;
 using CYPCore.Persistence;
-using CYPCore.Serf.Message;
 using CYPCore.Services.Rest;
 
 namespace CYPCore.Ledger
@@ -37,8 +34,9 @@ namespace CYPCore.Ledger
             _validator = validator;
             _logger = logger;
 
-            _tcpSession = serfClient.TcpSessionsAddOrUpdate(new TcpSession(
-                serfClient.SerfConfigurationOptions.Listening).Connect(serfClient.SerfConfigurationOptions.RPC));
+            _tcpSession = serfClient.TcpSessionsAddOrUpdate(
+                new TcpSession(serfClient.SerfConfigurationOptions.Listening).Connect(serfClient
+                    .SerfConfigurationOptions.RPC));
         }
 
         /// <summary>
@@ -59,7 +57,7 @@ namespace CYPCore.Ledger
                     SyncRunning = false;
                     return;
                 }
-                
+
                 await _serfClient.Connect(tcpSession.SessionId);
                 var membersResult = await _serfClient.Members(tcpSession.SessionId);
 
@@ -71,27 +69,28 @@ namespace CYPCore.Ledger
 
                 var members = membersResult.Value.Members.ToList();
 
-                foreach (var member in members.Where(member => _serfClient.Name != member.Name && member.Status == "alive"))
+                foreach (var member in members.Where(member =>
+                    _serfClient.Name != member.Name && member.Status == "alive"))
                 {
                     member.Tags.TryGetValue("rest", out string restEndpoint);
 
-                    if (string.IsNullOrEmpty(restEndpoint))
-                        continue;
+                    if (string.IsNullOrEmpty(restEndpoint)) continue;
 
                     if (!Uri.TryCreate($"{restEndpoint}", UriKind.Absolute, out var uri)) continue;
-                    
+
                     try
                     {
                         var local = new BlockHeight() {Height = await _unitOfWork.DeliveredRepository.CountAsync()};
-                        
+
                         RestBlockService blockRestApi = new(uri);
                         var remote = await blockRestApi.GetHeight();
 
-                        _logger.LogInformation($"<<< Sync.Check >>>: Local node block height ({local.Height}). Network block height ({remote.Height}).");
+                        _logger.LogInformation(
+                            $"<<< Sync.Check >>>: Local node block height ({local.Height}). Network block height ({remote.Height}).");
 
                         if (local.Height < remote.Height)
                         {
-                            await Synchronize(uri, (int)local.Height);
+                            await Synchronize(uri, (int) local.Height);
                         }
                     }
                     catch (HttpRequestException)
@@ -136,7 +135,8 @@ namespace CYPCore.Ledger
 
                         if (blockHeaderStream.Protobufs.Any())
                         {
-                            var blockHeaders = Helper.Util.DeserializeListProto<BlockHeaderProto>(blockHeaderStream.Protobufs);
+                            var blockHeaders =
+                                Helper.Util.DeserializeListProto<BlockHeaderProto>(blockHeaderStream.Protobufs);
                             foreach (var blockHeader in blockHeaders)
                             {
                                 try
@@ -149,10 +149,12 @@ namespace CYPCore.Ledger
                                         return;
                                     }
 
-                                    var saved = await _unitOfWork.DeliveredRepository.PutAsync(blockHeader.ToIdentifier(), blockHeader);
+                                    var saved = await _unitOfWork.DeliveredRepository.PutAsync(
+                                        blockHeader.ToIdentifier(), blockHeader);
                                     if (!saved)
                                     {
-                                        _logger.LogError($"<<< Sync.Synchronize >>>: Unable to save block header: {blockHeader.MrklRoot}");
+                                        _logger.LogError(
+                                            $"<<< Sync.Synchronize >>>: Unable to save block header: {blockHeader.MrklRoot}");
                                     }
                                 }
                                 catch (Exception ex)
@@ -172,7 +174,9 @@ namespace CYPCore.Ledger
                 {
                     await Task.WhenAll(allTasks);
                 }
-                catch { }
+                catch
+                {
+                }
             }
             catch (Exception ex)
             {

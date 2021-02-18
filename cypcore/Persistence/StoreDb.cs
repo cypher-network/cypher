@@ -1,10 +1,8 @@
-﻿
-// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
 using System.IO;
-
 using RocksDbSharp;
 
 namespace CYPCore.Persistence
@@ -13,10 +11,10 @@ namespace CYPCore.Persistence
     {
         private readonly string _name;
         private readonly int _value;
-        
+
         private bool _disposedValue;
         public RocksDb Rocks { get; }
-        
+
         public static readonly StoreDb DeliveredTable = new(1, "DeliveredTable");
         public static readonly StoreDb MemoryPoolTable = new(2, "MemoryPoolTable");
         public static readonly StoreDb InterpretedTable = new(3, "InterpretedTable");
@@ -25,7 +23,7 @@ namespace CYPCore.Persistence
         public static readonly StoreDb DataProtectionTable = new(6, "DataProtectionTable");
         public static readonly StoreDb TransactionTable = new(7, "TransactionTable");
         public static readonly StoreDb KeyImageTable = new(8, "KeyImageTable");
-        
+
         private StoreDb(int value, string name)
         {
             _value = value;
@@ -38,8 +36,10 @@ namespace CYPCore.Persistence
         /// <param name="folder"></param>
         public StoreDb(string folder)
         {
-            var dataPath = 
-                Path.Combine(Path.GetDirectoryName(AppDomain.CurrentDomain.BaseDirectory) ?? throw new InvalidOperationException(), folder);
+            var dataPath =
+                Path.Combine(
+                    Path.GetDirectoryName(AppDomain.CurrentDomain.BaseDirectory) ??
+                    throw new InvalidOperationException(), folder);
 
             var blockBasedTableOptions = BlockBasedTableOptions();
             var options = DbOptions();
@@ -59,12 +59,13 @@ namespace CYPCore.Persistence
             Span<byte> dbKey = stackalloc byte[key.Length + table.Length];
             for (var i = 0; i < table.Length; i++)
             {
-                dbKey[i] = (byte)table[i];
+                dbKey[i] = (byte) table[i];
             }
+
             key.AsSpan().CopyTo(dbKey.Slice(table.Length));
             return dbKey.ToArray();
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -148,7 +149,7 @@ namespace CYPCore.Persistence
                 .SetCacheIndexAndFilterBlocks(true);
             return blockBasedTableOptions;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -160,6 +161,7 @@ namespace CYPCore.Persistence
             {
                 Rocks?.Dispose();
             }
+
             _disposedValue = true;
         }
 
@@ -179,7 +181,7 @@ namespace CYPCore.Persistence
         {
             return _value;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>

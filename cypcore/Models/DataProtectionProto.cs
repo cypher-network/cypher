@@ -2,7 +2,6 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using ProtoBuf;
-
 using CYPCore.Extentions;
 
 namespace CYPCore.Models
@@ -10,11 +9,9 @@ namespace CYPCore.Models
     [ProtoContract]
     public class DataProtectionProto
     {
-        [ProtoMember(1)]
-        public string FriendlyName { get; set; }
-        [ProtoMember(2)]
-        public string Payload { get; set; }
-        
+        [ProtoMember(1)] public string FriendlyName { get; set; }
+        [ProtoMember(2)] public string Payload { get; set; }
+
         public byte[] ToIdentifier()
         {
             return ToHash().ByteToHex().ToBytes();
@@ -35,12 +32,13 @@ namespace CYPCore.Models
         /// <returns></returns>
         public byte[] Stream()
         {
-            using  Helper.TangramStream ts = new();
+            using Helper.TangramStream ts = new();
             ts
                 .Append(FriendlyName)
                 .Append(Payload);
-            
-            return ts.ToArray();;
+
+            return ts.ToArray();
+            ;
         }
     }
 }

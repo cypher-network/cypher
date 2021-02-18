@@ -13,12 +13,9 @@ using System.Security;
 using System.Threading.Tasks;
 using System.Numerics;
 using System.Security.Cryptography;
-
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-
 using ProtoBuf;
-
 using CYPCore.Extentions;
 using System.Runtime.InteropServices;
 
@@ -54,7 +51,6 @@ namespace CYPCore.Helper
                 OSPlatform.FreeBSD,
                 OSPlatform.OSX,
                 OSPlatform.Windows
-
             })
             {
                 if (RuntimeInformation.IsOSPlatform(platform))
@@ -68,7 +64,7 @@ namespace CYPCore.Helper
 
         public static string Pop(string value, string delimiter)
         {
-            var stack = new Stack<string>(value.Split(new string[] { delimiter }, StringSplitOptions.None));
+            var stack = new Stack<string>(value.Split(new string[] {delimiter}, StringSplitOptions.None));
             return stack.Pop();
         }
 
@@ -95,6 +91,7 @@ namespace CYPCore.Helper
             {
                 Marshal.ZeroFreeGlobalAllocAnsi(ptr);
             }
+
             return result.ToArray();
         }
 
@@ -120,7 +117,7 @@ namespace CYPCore.Helper
 
             return content;
         }
-        
+
         public static BigInteger Mod(BigInteger a, BigInteger n)
         {
             var result = a % n;
@@ -128,6 +125,7 @@ namespace CYPCore.Helper
             {
                 result += n;
             }
+
             return result;
         }
 
@@ -167,8 +165,10 @@ namespace CYPCore.Helper
                 Serializer.Serialize(ms, data);
                 mArray = ms.ToArray();
             }
-            catch { }
-            
+            catch
+            {
+            }
+
             return mArray;
         }
 
@@ -181,7 +181,9 @@ namespace CYPCore.Helper
                 using var ms = new MemoryStream(data);
                 item = Serializer.Deserialize<T>(ms);
             }
-            catch { }
+            catch
+            {
+            }
 
             return item;
         }
@@ -195,12 +197,15 @@ namespace CYPCore.Helper
             {
                 using var ms = new MemoryStream(data);
 
-                while ((item = Serializer.DeserializeWithLengthPrefix<T>(ms, PrefixStyle.Base128, fieldNumber: 1)) != null)
+                while ((item = Serializer.DeserializeWithLengthPrefix<T>(ms, PrefixStyle.Base128, fieldNumber: 1)) !=
+                       null)
                 {
                     list.Add(item);
                 }
             }
-            catch { }
+            catch
+            {
+            }
 
             return list.AsEnumerable();
         }
@@ -231,6 +236,7 @@ namespace CYPCore.Helper
                 Buffer.BlockCopy(data, 0, ret, offset, data.Length);
                 offset += data.Length;
             }
+
             return ret;
         }
 
@@ -247,13 +253,13 @@ namespace CYPCore.Helper
                 for (int i = 6; i < 12; i++)
                 {
                     var c = hash[i];
-                    v.Append(new char[] { HexUpper[c >> 4], HexUpper[c & 0x0f] });
+                    v.Append(new char[] {HexUpper[c >> 4], HexUpper[c & 0x0f]});
                 }
 
                 var byteHex = SHA384ManagedHash(v.ToString().ToBytes());
 
-                id = (ulong)BitConverter.ToInt64(byteHex, 0);
-                id = (ulong)Convert.ToInt64(id.ToString().Substring(0, xBase));
+                id = (ulong) BitConverter.ToInt64(byteHex, 0);
+                id = (ulong) Convert.ToInt64(id.ToString().Substring(0, xBase));
             }
             catch (Exception)
             {
@@ -308,6 +314,7 @@ namespace CYPCore.Helper
             {
                 a %= n;
             }
+
             if (a.Sign == 1)
             {
                 a += n;
@@ -345,6 +352,7 @@ namespace CYPCore.Helper
                     if (Y.Equals(k))
                         count++;
                 }
+
                 return count;
             }
 
@@ -356,11 +364,13 @@ namespace CYPCore.Helper
                 if (!k.Contains(c1.ToString()))
                     k += c1;
             }
+
             foreach (char c in k)
             {
                 freq = Contain(input, c) / input.Length;
                 infoC += freq * logtwo(freq);
             }
+
             infoC /= -1;
 
             return infoC;
@@ -382,7 +392,10 @@ namespace CYPCore.Helper
                     }
                 }
             }
-            catch { }
+            catch
+            {
+            }
+
             return false;
         }
 
@@ -427,8 +440,12 @@ namespace CYPCore.Helper
                 Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? string.Empty,
                 AppSettingsFilename);
 
-            private static string SystemDefaultLinux() => Path.Combine("/etc", "tangram", "cypher", AppSettingsFilename);
-            private static string SystemDefaultMacOS() => throw new Exception("No macOS system default implemented yet");
+            private static string SystemDefaultLinux() =>
+                Path.Combine("/etc", "tangram", "cypher", AppSettingsFilename);
+
+            private static string SystemDefaultMacOS() =>
+                throw new Exception("No macOS system default implemented yet");
+
             private static string SystemDefaultWindows() => Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
                 AppSettingsFilename);
@@ -441,10 +458,12 @@ namespace CYPCore.Helper
                 {
                     return SystemDefaultLinux();
                 }
+
                 if (platform == OSPlatform.OSX)
                 {
                     return SystemDefaultMacOS();
                 }
+
                 if (platform == OSPlatform.Windows)
                 {
                     return SystemDefaultWindows();
@@ -453,6 +472,5 @@ namespace CYPCore.Helper
                 throw new Exception("Unsupported operating system");
             }
         }
-
     }
 }

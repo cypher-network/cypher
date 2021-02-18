@@ -5,17 +5,12 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-
 using Microsoft.Extensions.Logging;
-
 using Dawn;
-
 using Libsecp256k1Zkp.Net;
-
 using NBitcoin;
 using NBitcoin.Crypto;
 using BigInteger = NBitcoin.BouncyCastle.Math.BigInteger;
-
 using CYPCore.Extentions;
 using CYPCore.Models;
 using CYPCore.Persistence;
@@ -48,9 +43,16 @@ namespace CYPCore.Ledger
 
         public uint StakeTimestampMask => 0x0000000A;
         public byte[] BlockZeroMerkel => "c10ab10e789edccd02fbb02d9c58e962416729a795ebee19aa85bac15a9e320c".HexToByte();
-        public byte[] BlockZeroPreMerkel => "3030303030303030437970686572204e6574776f726b2076742e322e32303231".HexToByte();
-        public byte[] Seed => "6b341e59ba355e73b1a8488e75b617fe1caa120aa3b56584a217862840c4f7b5d70cefc0d2b36038d67a35b3cd406d54f8065c1371a17a44c1abb38eea8883b2".HexToByte();
-        public byte[] Security256 => "60464814417085833675395020742168312237934553084050601624605007846337253615407".ToBytes();
+
+        public byte[] BlockZeroPreMerkel =>
+            "3030303030303030437970686572204e6574776f726b2076742e322e32303231".HexToByte();
+
+        public byte[] Seed =>
+            "6b341e59ba355e73b1a8488e75b617fe1caa120aa3b56584a217862840c4f7b5d70cefc0d2b36038d67a35b3cd406d54f8065c1371a17a44c1abb38eea8883b2"
+                .HexToByte();
+
+        public byte[] Security256 =>
+            "60464814417085833675395020742168312237934553084050601624605007846337253615407".ToBytes();
 
         /// <summary>
         /// 
@@ -63,29 +65,35 @@ namespace CYPCore.Ledger
 
             try
             {
-                if (!_signingProvider.VerifySignature(memPool.Block.Signature.HexToByte(), memPool.Block.PublicKey.HexToByte(), memPool.Block.Transaction.ToHash()))
+                if (!_signingProvider.VerifySignature(memPool.Block.Signature.HexToByte(),
+                    memPool.Block.PublicKey.HexToByte(), memPool.Block.Transaction.ToHash()))
                 {
-                    _logger.LogError($"<<< Validator.VerifyMemPoolSignatures >>>: Unable to verify signature for block {memPool.Block.Round} from node {memPool.Block.Node}");
+                    _logger.LogError(
+                        $"<<< Validator.VerifyMemPoolSignatures >>>: Unable to verify signature for block {memPool.Block.Round} from node {memPool.Block.Node}");
                     return Task.FromResult(false);
                 }
 
                 if (memPool.Prev != null && memPool.Prev?.Round != 0)
                 {
-                    if (!_signingProvider.VerifySignature(memPool.Prev.Signature.HexToByte(), memPool.Prev.PublicKey.HexToByte(), memPool.Prev.Transaction.ToHash()))
+                    if (!_signingProvider.VerifySignature(memPool.Prev.Signature.HexToByte(),
+                        memPool.Prev.PublicKey.HexToByte(), memPool.Prev.Transaction.ToHash()))
                     {
-                        _logger.LogError($"<<< Validator.VerifyMemPoolSignatures >>>: Unable to verify signature for previous block on block {memPool.Block.Round} from node {memPool.Block.Node}");
+                        _logger.LogError(
+                            $"<<< Validator.VerifyMemPoolSignatures >>>: Unable to verify signature for previous block on block {memPool.Block.Round} from node {memPool.Block.Node}");
                         return Task.FromResult(false);
                     }
 
                     if (memPool.Prev.Node != memPool.Block.Node)
                     {
-                        _logger.LogError($"<<< Validator.VerifyMemPoolSignatures >>>: Previous block node does not match on block {memPool.Block.Round} from node {memPool.Block.Node}");
+                        _logger.LogError(
+                            $"<<< Validator.VerifyMemPoolSignatures >>>: Previous block node does not match on block {memPool.Block.Round} from node {memPool.Block.Node}");
                         return Task.FromResult(false);
                     }
 
                     if (memPool.Prev.Round + 1 != memPool.Block.Round)
                     {
-                        _logger.LogError($"<<< Validator.VerifyMemPoolSignatures >>>: Previous block round is invalid on block {memPool.Block.Round} from node {memPool.Block.Node}");
+                        _logger.LogError(
+                            $"<<< Validator.VerifyMemPoolSignatures >>>: Previous block round is invalid on block {memPool.Block.Round} from node {memPool.Block.Node}");
                         return Task.FromResult(false);
                     }
                 }
@@ -94,15 +102,18 @@ namespace CYPCore.Ledger
                 {
                     var dep = memPool.Deps[i];
 
-                    if (!_signingProvider.VerifySignature(dep.Block.Signature.HexToByte(), dep.Block.PublicKey.HexToByte(), dep.Block.Transaction.ToHash()))
+                    if (!_signingProvider.VerifySignature(dep.Block.Signature.HexToByte(),
+                        dep.Block.PublicKey.HexToByte(), dep.Block.Transaction.ToHash()))
                     {
-                        _logger.LogError($"<<< Validator.VerifyMemPoolSignatures >>>: Unable to verify signature for block reference {memPool.Block.Round} from node {memPool.Block.Node}");
+                        _logger.LogError(
+                            $"<<< Validator.VerifyMemPoolSignatures >>>: Unable to verify signature for block reference {memPool.Block.Round} from node {memPool.Block.Node}");
                         return Task.FromResult(false);
                     }
 
                     if (dep.Block.Node == memPool.Block.Node)
                     {
-                        _logger.LogError($"<<< Validator.VerifyMemPoolSignatures >>>: Block references includes a block from same node in block reference  {memPool.Block.Round} from node {memPool.Block.Node}");
+                        _logger.LogError(
+                            $"<<< Validator.VerifyMemPoolSignatures >>>: Block references includes a block from same node in block reference  {memPool.Block.Round} from node {memPool.Block.Node}");
                         return Task.FromResult(false);
                     }
                 }
@@ -175,8 +186,10 @@ namespace CYPCore.Ledger
                         var payment = transaction.Vout[i + 1].C;
                         var change = transaction.Vout[i + 2].C;
 
-                        var commitSumBalance = pedersen.CommitSum(new List<byte[]> { fee, payment, change }, new List<byte[]> { });
-                        if (!pedersen.VerifyCommitSum(new List<byte[]> { commitSumBalance }, new List<byte[]> { fee, payment, change }))
+                        var commitSumBalance = pedersen.CommitSum(new List<byte[]> {fee, payment, change},
+                            new List<byte[]> { });
+                        if (!pedersen.VerifyCommitSum(new List<byte[]> {commitSumBalance},
+                            new List<byte[]> {fee, payment, change}))
                         {
                             return false;
                         }
@@ -205,9 +218,11 @@ namespace CYPCore.Ledger
             {
                 using var pedersen = new Pedersen();
 
-                return pedersen.VerifyCommitSum(
-                    new List<byte[]> { poSCommitBlindSwitch.Balance.HexToByte() },
-                    new List<byte[]> { poSCommitBlindSwitch.Difficulty.HexToByte(), poSCommitBlindSwitch.Difference.HexToByte() });
+                return pedersen.VerifyCommitSum(new List<byte[]> {poSCommitBlindSwitch.Balance.HexToByte()},
+                    new List<byte[]>
+                    {
+                        poSCommitBlindSwitch.Difficulty.HexToByte(), poSCommitBlindSwitch.Difference.HexToByte()
+                    });
             }
             catch (Exception ex)
             {
@@ -280,14 +295,16 @@ namespace CYPCore.Ledger
         {
             Guard.Argument(blockHeader, nameof(blockHeader)).NotNull();
 
-            var verified = VerifySloth(blockHeader.Bits, blockHeader.VrfSig.HexToByte(), blockHeader.Nonce.ToBytes(), blockHeader.Sec.ToBytes());
+            var verified = VerifySloth(blockHeader.Bits, blockHeader.VrfSig.HexToByte(), blockHeader.Nonce.ToBytes(),
+                blockHeader.Sec.ToBytes());
             if (!verified)
             {
                 _logger.LogCritical($"<<< Validator.VerifyBlockHeader >>>: Could not verify the block header solth");
                 return false;
             }
 
-            if (blockHeader.MrklRoot.HexToByte().Xor(BlockZeroMerkel) && blockHeader.PrevMrklRoot.HexToByte().Xor(BlockZeroPreMerkel))
+            if (blockHeader.MrklRoot.HexToByte().Xor(BlockZeroMerkel) &&
+                blockHeader.PrevMrklRoot.HexToByte().Xor(BlockZeroPreMerkel))
             {
                 _runningDistributionTotal -= blockHeader.Transactions.First().Vout.First().A.DivWithNaT();
             }
@@ -295,7 +312,8 @@ namespace CYPCore.Ledger
             verified = VerifyCoinbaseTransaction(blockHeader.Transactions.First(), blockHeader.Solution);
             if (!verified)
             {
-                _logger.LogCritical($"<<< Validator.VerifyBlockHeader >>>: Could not verify the block header coinbase transaction");
+                _logger.LogCritical(
+                    $"<<< Validator.VerifyBlockHeader >>>: Could not verify the block header coinbase transaction");
                 return false;
             }
 
@@ -340,21 +358,23 @@ namespace CYPCore.Ledger
 
             _unitOfWork.DeliveredRepository.ResetTrie();
 
-            verified = VerifyLockTime(new LockTime(Utils.UnixTimeToDateTime(blockHeader.Locktime)), blockHeader.LocktimeScript);
+            verified = VerifyLockTime(new LockTime(Utils.UnixTimeToDateTime(blockHeader.Locktime)),
+                blockHeader.LocktimeScript);
             if (!verified)
             {
                 _logger.LogCritical($"<<< Validator.VerifyBlockHeader >>>: Could not verify the block header locktime");
                 return false;
             }
 
-            if (blockHeader.MrklRoot.HexToByte().Xor(BlockZeroMerkel) && blockHeader.PrevMrklRoot.HexToByte().Xor(BlockZeroPreMerkel))
+            if (blockHeader.MrklRoot.HexToByte().Xor(BlockZeroMerkel) &&
+                blockHeader.PrevMrklRoot.HexToByte().Xor(BlockZeroPreMerkel))
             {
                 return true;
             }
 
-            var prevBlock = await _unitOfWork.DeliveredRepository.FirstAsync(x => 
+            var prevBlock = await _unitOfWork.DeliveredRepository.FirstAsync(x =>
                 new ValueTask<bool>(x.MrklRoot.Equals(blockHeader.PrevMrklRoot)));
-            
+
             if (prevBlock == null)
             {
                 _logger.LogCritical($"<<< Validator.VerifyBlockHeader >>>: Could not find previous block header");
@@ -364,7 +384,8 @@ namespace CYPCore.Ledger
             verified = await VerifyTransactions(blockHeader.Transactions);
             if (!verified)
             {
-                _logger.LogCritical($"<<< Validator.VerifyBlockHeader >>>: Could not verify the block header transactions");
+                _logger.LogCritical(
+                    $"<<< Validator.VerifyBlockHeader >>>: Could not verify the block header transactions");
                 return false;
             }
 
@@ -442,8 +463,10 @@ namespace CYPCore.Ledger
             using var mlsag = new MLSAG();
             for (int i = 0; i < transaction.Vin.Length; i++)
             {
-                var m = PrepareMlsag(transaction.Rct[i].M, transaction.Vout, transaction.Vin[i].Key.K_Offsets, transaction.Mix, 2);
-                var verifyMLSAG = mlsag.Verify(transaction.Rct[i].I, transaction.Mix, 2, m, transaction.Vin[i].Key.K_Image, transaction.Rct[i].P, transaction.Rct[i].S);
+                var m = PrepareMlsag(transaction.Rct[i].M, transaction.Vout, transaction.Vin[i].Key.K_Offsets,
+                    transaction.Mix, 2);
+                var verifyMLSAG = mlsag.Verify(transaction.Rct[i].I, transaction.Mix, 2, m,
+                    transaction.Vin[i].Key.K_Image, transaction.Rct[i].P, transaction.Rct[i].S);
                 if (!verifyMLSAG)
                 {
                     _logger.LogCritical($"<<< Validator.VerifyTransaction >>>: Could not verify the MLSAG transaction");
@@ -482,7 +505,7 @@ namespace CYPCore.Ledger
 
             using var pedersen = new Pedersen();
 
-            var commitSum = pedersen.CommitSum(new List<byte[]> { vout.C }, new List<byte[]> { vout.C });
+            var commitSum = pedersen.CommitSum(new List<byte[]> {vout.C}, new List<byte[]> {vout.C});
             if (commitSum != null)
             {
                 return false;
@@ -498,7 +521,7 @@ namespace CYPCore.Ledger
         /// <returns></returns>
         public ulong Fee(int nByte)
         {
-            return ((double)0.000012 * nByte).ConvertToUInt64();
+            return ((double) 0.000012 * nByte).ConvertToUInt64();
         }
 
         /// <summary>
@@ -524,7 +547,7 @@ namespace CYPCore.Ledger
             }
 
             using var pedersen = new Pedersen();
-            var commitSum = pedersen.CommitSum(new List<byte[]> { vout.C }, new List<byte[]> { vout.C });
+            var commitSum = pedersen.CommitSum(new List<byte[]> {vout.C}, new List<byte[]> {vout.C});
             if (commitSum != null)
             {
                 return false;
@@ -553,10 +576,7 @@ namespace CYPCore.Ledger
             }
 
             var tx = NBitcoin.Network.Main.CreateTransaction();
-            tx.Outputs.Add(new TxOut()
-            {
-                ScriptPubKey = new Script(script)
-            });
+            tx.Outputs.Add(new TxOut() {ScriptPubKey = new Script(script)});
 
             var spending = NBitcoin.Network.Main.CreateTransaction();
             spending.LockTime = new LockTime(DateTimeOffset.Now);
@@ -580,7 +600,7 @@ namespace CYPCore.Ledger
             {
                 foreach (var vin in transaction.Vin)
                 {
-                    var blockHeaders = await _unitOfWork.DeliveredRepository.WhereAsync(x => 
+                    var blockHeaders = await _unitOfWork.DeliveredRepository.WhereAsync(x =>
                         new ValueTask<bool>(x.Transactions.Any(t => t.Vin.First().Key.K_Image.Xor(vin.Key.K_Image))));
 
                     if (blockHeaders.Count > 1)
@@ -604,7 +624,7 @@ namespace CYPCore.Ledger
 
             foreach (var commit in transaction.Vin.Select(v => v.Key).SelectMany(k => k.K_Offsets.Split(33)))
             {
-                var blockHeaders = await _unitOfWork.DeliveredRepository.WhereAsync(x => 
+                var blockHeaders = await _unitOfWork.DeliveredRepository.WhereAsync(x =>
                     new ValueTask<bool>(x.Transactions.Any(t => t.Vout.FirstOrDefault().C.Xor(commit))));
 
                 if (!blockHeaders.Any())
@@ -647,7 +667,8 @@ namespace CYPCore.Ledger
             {
                 var sloth = new Sloth();
 
-                var x = System.Numerics.BigInteger.Parse(vrfSig.ByteToHex(), System.Globalization.NumberStyles.AllowHexSpecifier);
+                var x = System.Numerics.BigInteger.Parse(vrfSig.ByteToHex(),
+                    System.Globalization.NumberStyles.AllowHexSpecifier);
                 var y = System.Numerics.BigInteger.Parse(nonce.ToStr());
                 var p256 = System.Numerics.BigInteger.Parse(security.ToStr());
 
@@ -689,9 +710,9 @@ namespace CYPCore.Ledger
         {
             try
             {
-                var blockHeaders = await _unitOfWork.DeliveredRepository.SelectAsync(x => 
+                var blockHeaders = await _unitOfWork.DeliveredRepository.SelectAsync(x =>
                     new ValueTask<BlockHeaderProto>(x));
-                
+
                 for (var i = 0; i < blockHeaders.Count; i++)
                 {
                     _runningDistributionTotal -= NetworkShare(blockHeaders.ElementAt(i).Solution);
@@ -737,7 +758,9 @@ namespace CYPCore.Ledger
 
             var previousRunningDistribution = runningDistributionTotal + previousNetworkShare;
             var r = (_distribution - previousRunningDistribution).FromExponential(11);
-            var percentage = r / (previousRunningDistribution * 100) == 0 ? 0.1 : r / (previousRunningDistribution * 100);
+            var percentage = r / (previousRunningDistribution * 100) == 0
+                ? 0.1
+                : r / (previousRunningDistribution * 100);
 
             percentage = percentage.FromExponential(11);
 
@@ -761,7 +784,7 @@ namespace CYPCore.Ledger
 
             diff = diff == 0 ? 1 : diff;
 
-            return (int)diff;
+            return (int) diff;
         }
 
         /// <summary>
@@ -795,7 +818,7 @@ namespace CYPCore.Ledger
                 itrr++;
             }
 
-            return (ulong)itrr;
+            return (ulong) itrr;
         }
 
         /// <summary>
@@ -817,23 +840,25 @@ namespace CYPCore.Ledger
                     return false;
                 }
 
-                blockHeader = await _unitOfWork.DeliveredRepository.FirstAsync(x => 
+                blockHeader = await _unitOfWork.DeliveredRepository.FirstAsync(x =>
                     new ValueTask<bool>(x.MrklRoot.Equals(xBlockHeader.PrevMrklRoot)));
-                
+
                 if (blockHeader == null)
                 {
                     return false;
                 }
 
-                var blockIndex = (await _unitOfWork.DeliveredRepository.WhereAsync(x => 
+                var blockIndex = (await _unitOfWork.DeliveredRepository.WhereAsync(x =>
                     new ValueTask<bool>(x.MrklRoot != blockHeader.PrevMrklRoot))).Count;
-                
+
                 var blockHeaders = await _unitOfWork.DeliveredRepository.SkipAsync(blockIndex);
 
                 if (blockHeaders.Any())
                 {
-                    var blockTime = blockHeaders.First().Locktime.FromUnixTimeSeconds() - blockHeaders.Last().Locktime.FromUnixTimeSeconds();
-                    var xBlockTime = xChain.First().Locktime.FromUnixTimeSeconds() - xChain.Last().Locktime.FromUnixTimeSeconds();
+                    var blockTime = blockHeaders.First().Locktime.FromUnixTimeSeconds() -
+                                    blockHeaders.Last().Locktime.FromUnixTimeSeconds();
+                    var xBlockTime = xChain.First().Locktime.FromUnixTimeSeconds() -
+                                     xChain.Last().Locktime.FromUnixTimeSeconds();
                     if (xBlockTime < blockTime)
                     {
                         return true;
@@ -885,7 +910,7 @@ namespace CYPCore.Ledger
             Guard.Argument(rows, nameof(rows)).NotZero().NotNegative();
 
             var pcmIn = new Span<byte[]>(new byte[cols * 1][]);
-            var pcmOut = new Span<byte[]>(new byte[3][] { vout[0].C, vout[1].C, vout[2].C });
+            var pcmOut = new Span<byte[]>(new byte[3][] {vout[0].C, vout[1].C, vout[2].C});
             var kOffsets = keyOffset.Split(33).Select(x => x).ToList();
 
             pcmIn[0] = kOffsets.ElementAt(0);
@@ -895,10 +920,9 @@ namespace CYPCore.Ledger
 
             var prepareMlsag = mlsag.Prepare(m, null, pcmOut.Length, pcmOut.Length, cols, rows, pcmIn, pcmOut, null);
             if (prepareMlsag) return m;
-            
+
             _logger.LogCritical($"<<< Validator.PrepareMLSAG >>>: Could not verify the MLSAG transaction");
             return null;
-
         }
     }
 }
