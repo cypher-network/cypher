@@ -14,12 +14,10 @@ namespace CYPCore.Models
     [ProtoContract]
     public class MemPoolProto : IEquatable<MemPoolProto>, IMemPoolProto
     {
-        public int Id { get; set; }
-
         [ProtoMember(1)]
-        public int Included { get; set; }
+        public bool Included { get; set; }
         [ProtoMember(2)]
-        public int Replied { get; set; }
+        public bool Replied { get; set; }
         [ProtoMember(3)]
         public InterpretedProto Block { get; set; } = new InterpretedProto();
         [ProtoMember(4)]
@@ -95,7 +93,7 @@ namespace CYPCore.Models
             if (lookup == null)
                 throw new ArgumentNullException(nameof(lookup));
 
-            if (node < 0)
+            if (node <= 0)
                 throw new ArgumentOutOfRangeException(nameof(node));
 
             for (int i = 0, lookupCount = lookup.Count; i < lookupCount; i++)
@@ -108,9 +106,13 @@ namespace CYPCore.Models
                 foreach (var next in sorted)
                 {
                     if (next.Block.Node.Equals(node))
+                    {
                         root = NewBlockGraph(next);
+                    }
                     else
+                    {
                         AddDependency(root, next);
+                    }
                 }
 
                 if (root == null)
@@ -153,7 +155,9 @@ namespace CYPCore.Models
             {
                 Block = next.Block,
                 Deps = next.Deps,
-                Prev = next.Prev
+                Prev = next.Prev,
+                Included = next.Included,
+                Replied = next.Replied
             };
         }
 
@@ -195,11 +199,11 @@ namespace CYPCore.Models
         }
 
         public override int GetHashCode() => base.GetHashCode();
-
+        
         /// <summary>
         /// 
         /// </summary>
-        /// <typeparam name="TAttach"></typeparam>
+        /// <typeparam name="T"></typeparam>
         /// <returns></returns>
         public T Cast<T>()
         {

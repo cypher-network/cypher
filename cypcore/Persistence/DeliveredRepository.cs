@@ -1,9 +1,12 @@
 ﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
+using System;
+
 using Microsoft.Extensions.Logging;
 
 using Stratis.Patricia;
+
 using CYPCore.Extentions;
 using CYPCore.Models;
 
@@ -11,44 +14,25 @@ namespace CYPCore.Persistence
 {
     public class DeliveredRepository : Repository<BlockHeaderProto>, IDeliveredRepository
     {
-        private readonly IStoredb _storedb;
+        private readonly IStoreDb _storeDb;
         private readonly ILogger _logger;
         private readonly IPatriciaTrie _stateTrie;
 
-        public DeliveredRepository(IStoredb storedb, ILogger logger)
-            : base(storedb, logger)
+        public DeliveredRepository(IStoreDb storeDb, ILogger logger)
+            : base(storeDb, logger)
         {
-            _storedb = storedb;
+            _storeDb = storeDb;
             _logger = logger;
 
             _stateTrie = new PatriciaTrie();
-
-            //InitTrie();
+            
+            SetTableName(StoreDb.DeliveredTable.ToString());
         }
 
         /// <summary>
         /// 
         /// </summary>
-        //private void InitTrie()
-        //{
-        //    try
-        //    {
-        //        var blockHeader = LastOrDefaultAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-        //        if (blockHeader == null)
-        //            return;
-
-        //        _stateTrie.SetRootHash(blockHeader.MrklRoot.FromHex());
-        //    }
-        //    catch (System.Exception ex)
-        //    {
-        //        _logger.LogError($"<<< DeliveredRepository.InitTrie >>>: {ex}");
-        //    }
-        //}
-
-        /// <summary>
-        /// 
-        /// </summary>
-        public byte[] MrklRoot => _stateTrie.GetRootHash();
+        public byte[] MerkleRoot => _stateTrie.GetRootHash();
 
         /// <summary>
         /// 
@@ -57,8 +41,7 @@ namespace CYPCore.Persistence
         {
             _stateTrie.Flush();
         }
-
-
+        
         /// <summary>
         /// 
         /// </summary>
@@ -71,7 +54,7 @@ namespace CYPCore.Persistence
                 _stateTrie.Put(blockHeader.ToHash(), blockHeader.ToHash());
                 _stateTrie.Flush();
 
-                blockHeader.MrklRoot = MrklRoot.ByteToHex();
+                blockHeader.MrklRoot = MerkleRoot.ByteToHex();
             }
             catch (System.Exception ex)
             {
@@ -87,7 +70,7 @@ namespace CYPCore.Persistence
         /// </summary>
         public void ResetTrie()
         {
-            _stateTrie.SetRootHash(new byte[0]);
+            _stateTrie.SetRootHash(Array.Empty<byte>());
         }
     }
 }

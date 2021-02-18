@@ -59,9 +59,7 @@ namespace CYPCore.Ledger
                     SyncRunning = false;
                     return;
                 }
-
-                List<Members> members = null;
-
+                
                 await _serfClient.Connect(tcpSession.SessionId);
                 var membersResult = await _serfClient.Members(tcpSession.SessionId);
 
@@ -71,45 +69,39 @@ namespace CYPCore.Ledger
                     return;
                 }
 
-                members = membersResult.Value.Members.ToList();
+                var members = membersResult.Value.Members.ToList();
 
-                foreach (var member in members)
+                foreach (var member in members.Where(member => _serfClient.Name != member.Name && member.Status == "alive"))
                 {
-                    if (_serfClient.Name == member.Name || member.Status != "alive")
-                        continue;
-
                     member.Tags.TryGetValue("rest", out string restEndpoint);
 
                     if (string.IsNullOrEmpty(restEndpoint))
                         continue;
 
-                    if (Uri.TryCreate($"{restEndpoint}", UriKind.Absolute, out Uri uri))
+                    if (!Uri.TryCreate($"{restEndpoint}", UriKind.Absolute, out var uri)) continue;
+                    
+                    try
                     {
-                        try
-                        {
-                            BlockHeight local = new(), remote;
+                        var local = new BlockHeight() {Height = await _unitOfWork.DeliveredRepository.CountAsync()};
+                        
+                        RestBlockService blockRestApi = new(uri);
+                        var remote = await blockRestApi.GetHeight();
 
-                            local.Height = await _unitOfWork.DeliveredRepository.CountAsync();
+                        _logger.LogInformation($"<<< Sync.Check >>>: Local node block height ({local.Height}). Network block height ({remote.Height}).");
 
-                            RestBlockService blockRestApi = new(uri);
-                            remote = await blockRestApi.GetHeight();
-
-                            _logger.LogInformation($"<<< Sync.Check >>>: Local node block height ({local.Height}). Network block height ({remote.Height}).");
-
-                            if (local.Height < remote.Height)
-                            {
-                                await Synchronize(uri, (int)local.Height);
-                            }
-                        }
-                        catch (HttpRequestException)
+                        if (local.Height < remote.Height)
                         {
+                            await Synchronize(uri, (int)local.Height);
                         }
-                        catch (TaskCanceledException)
-                        {
-                        }
-                        catch (Refit.ApiException)
-                        {
-                        }
+                    }
+                    catch (HttpRequestException)
+                    {
+                    }
+                    catch (TaskCanceledException)
+                    {
+                    }
+                    catch (Refit.ApiException)
+                    {
                     }
                 }
             }
@@ -157,8 +149,8 @@ namespace CYPCore.Ledger
                                         return;
                                     }
 
-                                    int? saved = await _unitOfWork.DeliveredRepository.SaveOrUpdateAsync(blockHeader);
-                                    if (!saved.HasValue)
+                                    var saved = await _unitOfWork.DeliveredRepository.PutAsync(blockHeader.ToIdentifier(), blockHeader);
+                                    if (!saved)
                                     {
                                         _logger.LogError($"<<< Sync.Synchronize >>>: Unable to save block header: {blockHeader.MrklRoot}");
                                     }

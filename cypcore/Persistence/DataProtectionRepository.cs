@@ -7,12 +7,12 @@ using CYPCore.Models;
 
 namespace CYPCore.Persistence
 {
-    public class StagingRepository : Repository<StagingProto>, IStagingRepository
+    public class DataProtectionRepository : Repository<DataProtectionProto>, IDataProtectionRepository
     {
-        public StagingRepository(IStoreDb storeDb, ILogger logger)
+        public DataProtectionRepository(IStoreDb storeDb, ILogger logger)
             : base(storeDb, logger)
         {
-            SetTableName(StoreDb.StagingTable.ToString());
+            SetTableName(StoreDb.DataProtectionTable.ToString());
         }
     }
 }

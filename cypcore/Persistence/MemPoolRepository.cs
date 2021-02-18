@@ -16,22 +16,22 @@ namespace CYPCore.Persistence
 {
     public class MemPoolRepository : Repository<MemPoolProto>, IMemPoolRepository
     {
-        private readonly IStoredb _storedb;
         private readonly ILogger _logger;
-
-        public MemPoolRepository(IStoredb storedbContext, ILogger logger)
-            : base(storedbContext, logger)
+        
+        public MemPoolRepository(IStoreDb storeDb, ILogger logger)
+            : base(storeDb, logger)
         {
-            _storedb = storedbContext;
             _logger = logger;
+            
+            SetTableName(StoreDb.MemoryPoolTable.ToString());
         }
-
+        
         /// <summary>
         /// 
         /// </summary>
         /// <param name="memPools"></param>
         /// <returns></returns>
-        public async Task<List<MemPoolProto>> MoreAsync(IEnumerable<MemPoolProto> memPools)
+        public async Task<List<MemPoolProto>> HasMoreAsync(MemPoolProto[] memPools)
         {
             Guard.Argument(memPools, nameof(memPools)).NotNull().NotEmpty();
 
@@ -41,7 +41,8 @@ namespace CYPCore.Persistence
             {
                 foreach (var next in memPools)
                 {
-                    var hasNext = await WhereAsync(x => x.Block.Hash.Equals(next.Block.Hash));
+                    var hasNext = await WhereAsync(x => 
+                        new ValueTask<bool>(x.Block.Hash.Equals(next.Block.Hash)));
 
                     IEnumerable<(MemPoolProto nNext, MemPoolProto included)> enumerable()
                     {
@@ -49,12 +50,16 @@ namespace CYPCore.Persistence
                         {
                             var included = moreBlocks
                                 .FirstOrDefault(x => x.Block.Hash.Equals(nNext.Block.Hash)
-                                    && !string.IsNullOrEmpty(x.Block.PublicKey)
-                                    && !string.IsNullOrEmpty(x.Block.Signature)
-                                    && x.Block.Node == nNext.Block.Node
-                                    && x.Block.Round == nNext.Block.Round);
+                                                     && x.Block.Node == nNext.Block.Node
+                                                     && x.Block.Round == nNext.Block.Round);
 
-                            yield return (nNext, included);
+                            if (included is not null && included.Included)
+                                continue;
+                                    
+                            if (included?.Block.Signature != null && included.Block.PublicKey != null)
+                            {
+                                yield return (nNext, included);
+                            }
                         }
                     }
 
@@ -67,21 +72,21 @@ namespace CYPCore.Persistence
                     }
                 }
             }
-            catch (Exception ex)
+            catch (Exception e)
             {
-                _logger.LogError($"<<< MemPoolRepository.MoreAsync >>>: {ex}");
+                _logger.LogError($"<<< MemPoolRepository.MoreAsync >>>: {e}");
             }
 
             return moreBlocks;
         }
-
+        
         /// <summary>
         /// 
         /// </summary>
         /// <param name="memPools"></param>
         /// <param name="currentNode"></param>
         /// <returns></returns>
-        public async Task IncludeAllAsync(IEnumerable<MemPoolProto> memPools, ulong currentNode)
+        public async Task IncludeAsync(MemPoolProto[] memPools, ulong currentNode)
         {
             Guard.Argument(memPools, nameof(memPools)).NotNull().NotEmpty();
             Guard.Argument(currentNode, nameof(currentNode)).NotNegative();
@@ -90,13 +95,13 @@ namespace CYPCore.Persistence
             {
                 foreach (var next in memPools.Where(x => x.Block.Node == currentNode))
                 {
-                    next.Included = 1;
-                    await SaveOrUpdateAsync(next);
+                    next.Included = true;
+                    await PutAsync(next.ToIdentifier(), next);
                 }
             }
-            catch (Exception ex)
+            catch (Exception e)
             {
-                _logger.LogError($"<<< MemPoolRepository.IncludeAllAsync >>>: {ex}");
+                _logger.LogError($"<<< BlockGraphRepository.IncludeAllAsync >>>: {e}");
             }
 
             return;

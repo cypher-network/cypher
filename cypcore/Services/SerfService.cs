@@ -97,7 +97,7 @@ namespace CYPCore.Services
                 _logger.LogInformation($"Serf assembly path: {serfPath}");
 
                 //  Chmod before attempting to execute serf on Linux and Mac
-                if (new[] { OSPlatform.Linux, OSPlatform.OSX }.Contains(Helper.Util.GetOSPlatform()))
+                if (new[] { OSPlatform.Linux, OSPlatform.OSX }.Contains(Helper.Util.GetOperatingSystemPlatform()))
                 {
                     _logger.LogInformation("Granting execute permission on serf assembly");
 
@@ -307,7 +307,7 @@ namespace CYPCore.Services
         private string GetFilePath()
         {
             var entryAssemblyPath = Helper.Util.EntryAssemblyPath();
-            var platform = Helper.Util.GetOSPlatform();
+            var platform = Helper.Util.GetOperatingSystemPlatform();
             string folder = platform.ToString().ToLowerInvariant();
 
             return Path.Combine(entryAssemblyPath, $"Serf/Terminal/{folder}/serf"); ;

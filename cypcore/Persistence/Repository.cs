@@ -2,43 +2,56 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
-using System.Linq;
 using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
-using System.Linq.Expressions;
 
 using Microsoft.Extensions.Logging;
 
+using CYPCore.Extentions;
+
 namespace CYPCore.Persistence
 {
-    public class Repository<TEntity> : IRepository<TEntity> where TEntity : new()
+    public class Repository<T> : IRepository<T>
     {
-        private readonly IStoredb _storedb;
+        private readonly IStoreDb _storeDb;
         private readonly ILogger _logger;
+        private readonly object _locker = new();
 
-        public Repository() { }
+        private string _tableName;
 
-        public Repository(IStoredb storedb, ILogger logger)
+        protected Repository(IStoreDb storeDb, ILogger logger)
         {
-            _storedb = storedb;
+            _storeDb = storeDb;
             _logger = logger;
         }
 
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <returns></returns>
-        public Task<int> CountAsync()
+        public Task<long> CountAsync()
         {
-            int count = 0;
+            long count = 0;
 
             try
             {
-                count = _storedb.RockDb.Table<TEntity>().Count();
+                lock (_locker)
+                {
+                    var cf = _storeDb.Rocks.GetColumnFamily(_tableName);
+                    var readOptions = new RocksDbSharp.ReadOptions();
+
+                    using var iterator = _storeDb.Rocks.NewIterator(cf, readOptions);
+
+                    for (iterator.Seek(_tableName.ToBytes()); iterator.Valid(); iterator.Next())
+                    {
+                        if (new string(iterator.Key().ToStr()).StartsWith(new string(_tableName)))
+                        {
+                            Interlocked.Increment(ref count);
+                        }
+                    }
+                }
             }
-            catch (Exception ex)
+            catch (Exception e)
             {
-                _logger.LogError($"<<< Repository.CountAsync >>>: {ex}");
+                _logger.LogError($"<<< Repository.CountAsync >>>: {e}");
             }
 
             return Task.FromResult(count);
@@ -47,42 +60,106 @@ namespace CYPCore.Persistence
         /// <summary>
         /// 
         /// </summary>
+        /// <param name="key"></param>
+        /// <returns></returns>
+        public Task<T> GetAsync(byte[] key)
+        {
+            T entry = default;
+
+            try
+            {
+                lock (_locker)
+                {
+                    var cf = _storeDb.Rocks.GetColumnFamily(_tableName);
+                    var value = _storeDb.Rocks.Get(StoreDb.Key(_tableName, key), cf);
+                    if (value != null)
+                    {
+                        entry = Helper.Util.DeserializeProto<T>(value);
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                _logger.LogError($"<<< Repository.GetAsync >>>: {e}");
+            }
+
+            return Task.FromResult(entry);
+        }
+        
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="key"></param>
+        /// <returns></returns>
+        public Task<bool> RemoveAsync(byte[] key)
+        {
+            var removed = false;
+
+            try
+            {
+                lock (_locker)
+                {
+                    var cf = _storeDb.Rocks.GetColumnFamily(_tableName);
+                    _storeDb.Rocks.Remove(StoreDb.Key(_tableName, key), cf);
+
+                    removed = true;
+                }
+            }
+            catch (Exception e)
+            {
+                _logger.LogError($"<<< Repository.GetAsync >>>: {e}");
+            }
+
+            return Task.FromResult(removed);
+        }
+        
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        public Task<T> FirstAsync()
+        {
+            T entry = default;
+
+            try
+            {
+                var first = Iterate().FirstOrDefaultAsync();
+                if (first.IsCompleted)
+                {
+                    entry = first.Result;
+                }
+            }
+            catch (Exception e)
+            {
+                _logger.LogError($"<<< Repository.FirstAsync >>>: {e}");
+            }
+
+            return Task.FromResult(entry);
+        }
+        
+        /// <summary>
+        /// 
+        /// </summary>
         /// <param name="expression"></param>
         /// <returns></returns>
-        public Task<List<TEntity>> WhereAsync(Expression<Func<TEntity, bool>> expression)
+        public Task<T> FirstAsync(Func<T, ValueTask<bool>> expression)
         {
-            List<TEntity> entities = default;
+            T entry = default;
 
             try
             {
-                entities = _storedb.RockDb.Table<TEntity>().Where(expression).SelectEntity();
+                var first = Iterate().FirstOrDefaultAwaitAsync(expression);
+                if (first.IsCompleted)
+                {
+                    entry = first.Result;
+                }
             }
-            catch (Exception ex)
+            catch (Exception e)
             {
-                _logger.LogError($"<<< Repository.WhereAsync >>>: {ex}");
+                _logger.LogError($"<<< Repository.FirstAsync(Func) >>>: {e}");
             }
 
-            return Task.FromResult(entities);
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <returns></returns>
-        public Task<TEntity> FirstOrDefaultAsync()
-        {
-            TEntity entity = default;
-
-            try
-            {
-                entity = _storedb.RockDb.Table<TEntity>().SelectEntity().FirstOrDefault();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"<<< Repository.FirstOrDefaultAsync >>>: {ex}");
-            }
-
-            return Task.FromResult(entity);
+            return Task.FromResult(entry);
         }
 
         /// <summary>
@@ -90,190 +167,250 @@ namespace CYPCore.Persistence
         /// </summary>
         /// <param name="expression"></param>
         /// <returns></returns>
-        public Task<TEntity> FirstOrDefaultAsync(Expression<Func<TEntity, bool>> expression)
+        public Task<T> LastAsync(Func<T, ValueTask<bool>> expression)
         {
-            TEntity entity = default;
+            T entry = default;
 
             try
             {
-                entity = _storedb.RockDb.Table<TEntity>().Where(expression).SelectEntity().FirstOrDefault();
+                var last = Iterate().LastOrDefaultAwaitAsync(expression);
+                if (last.IsCompleted)
+                {
+                    entry = last.Result;
+                }
             }
-            catch (Exception ex)
+            catch (Exception e)
             {
-                _logger.LogError($"<<< Repository.FirstOrDefaultAsync(Func) >>>: {ex}");
+                _logger.LogError($"<<< Repository.LastAsync >>>: {e}");
             }
 
-            return Task.FromResult(entity);
+            return Task.FromResult(entry);
+        }
+        
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="key"></param>
+        /// <param name="data"></param>
+        /// <returns></returns>
+        public Task<bool> PutAsync(byte[] key, T data)
+        {
+            var saved = false;
+
+            try
+            {
+                lock (_locker)
+                {
+                    var cf = _storeDb.Rocks.GetColumnFamily(_tableName);
+                    _storeDb.Rocks.Put(StoreDb.Key(_tableName, key), Helper.Util.SerializeProto(data), cf);
+                    saved = true;
+                }
+            }
+            catch (Exception e)
+            {
+                _logger.LogError($"<<< Repository.PutAsync >>>: {e}");
+            }
+
+            return Task.FromResult(saved);
         }
 
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="expression"></param>
-        /// <returns></returns>
-        public Task<TEntity> LastOrDefaultAsync(Expression<Func<TEntity, bool>> expression)
+        /// <param name="tableName"></param>
+        public void SetTableName(string tableName)
         {
-            TEntity entity = default;
-
-            try
+            lock (_locker)
             {
-                entity = _storedb.RockDb.Table<TEntity>().Where(expression).SelectEntity().LastOrDefault();
+                _tableName = tableName;
             }
-            catch (Exception ex)
-            {
-                _logger.LogError($"<<< Repository.LastOrDefaultAsync >>>: {ex}");
-            }
-
-            return Task.FromResult(entity);
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <returns></returns>
-        public Task<TEntity> LastOrDefaultAsync()
-        {
-            TEntity entity = default;
-
-            try
-            {
-                entity = _storedb.RockDb.Table<TEntity>().SelectEntity().LastOrDefault();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"<<< Repository.LastOrDefaultAsync >>>: {ex}");
-            }
-
-            return Task.FromResult(entity);
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="take"></param>
-        /// <returns></returns>
-        public Task<List<TEntity>> TakeAsync(int take)
-        {
-            List<TEntity> entities = default;
-
-            try
-            {
-                entities = _storedb.RockDb.Table<TEntity>().SelectEntity().Take(take).ToList();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"<<< Repository.TakeAsync >>>: {ex}");
-            }
-
-            return Task.FromResult(entities);
         }
 
         /// <summary>
         /// 
         /// </summary>
         /// <param name="skip"></param>
+        /// <param name="take"></param>
         /// <returns></returns>
-        public Task<List<TEntity>> SkipAsync(int skip)
+        public Task<HashSet<T>> RangeAsync(long skip, int take)
         {
-            List<TEntity> entities = default;
+            var entries = new HashSet<T>(take);
 
             try
             {
-                entities = _storedb.RockDb.Table<TEntity>().SelectEntity().Skip(skip).ToList();
+                lock (_locker)
+                {
+                    long iSkip = 0;
+                    var iTake = 0;
+                    
+                    var cf = _storeDb.Rocks.GetColumnFamily(_tableName);
+                    var readOptions = new RocksDbSharp.ReadOptions();
+
+                    using var iterator = _storeDb.Rocks.NewIterator(cf, readOptions);
+
+                    for (iterator.SeekToFirst(); iterator.Valid(); iterator.Next())
+                    {
+                        if (iSkip % skip == 0)
+                        {
+                            if (iTake % take == 0)
+                            {
+                                break;
+                            }
+                            
+                            entries.Add(Helper.Util.DeserializeProto<T>(iterator.Value()));
+                            iTake++;
+                            
+                            continue;
+                        }
+                        
+                        iSkip++;
+                    }
+                }
             }
-            catch (Exception ex)
+            catch (Exception e)
             {
-                _logger.LogError($"<<< Repository.SkipAsync >>>: {ex}");
+                _logger.LogError($"<<< Repository.RangeAsync >>>: {e}");
             }
 
-            return Task.FromResult(entities);
+            return Task.FromResult(entries);
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        public Task<T> LastAsync()
+        {
+            T entry = default;
+            
+            try
+            {
+                lock (_locker)
+                {
+                    var cf = _storeDb.Rocks.GetColumnFamily(_tableName);
+                    var readOptions = new RocksDbSharp.ReadOptions();
+
+                    using var iterator = _storeDb.Rocks.NewIterator(cf, readOptions);
+
+                    iterator.SeekToLast();
+                    if (iterator.Valid())
+                    {
+                        entry = Helper.Util.DeserializeProto<T>(iterator.Value());
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                _logger.LogError($"<<< Repository.RangeAsync >>>: {e}");
+            }
+
+            return Task.FromResult(entry);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="expression"></param>
+        /// <returns></returns>
+        public ValueTask<List<T>> WhereAsync(Func<T, ValueTask<bool>> expression)
+        {
+            ValueTask<List<T>> entries = default;
+
+            try
+            {
+                entries = Iterate().WhereAwait(expression).ToListAsync();
+            }
+            catch (Exception e)
+            {
+                _logger.LogError($"<<< Repository.WhereAsync >>>: {e}");
+            }
+
+            return entries;
+        }
+        
+        public ValueTask<List<T>> SelectAsync(Func<T, ValueTask<T>> selector)
+        {
+            ValueTask<List<T>> entries = default;
+
+            try
+            {
+                entries = Iterate().SelectAwait(selector).ToListAsync();
+            }
+            catch (Exception e)
+            {
+                _logger.LogError($"<<< Repository.SelectAsync >>>: {e}");
+            }
+
+            return entries;
+        }
+        
         /// <summary>
         /// 
         /// </summary>
         /// <param name="skip"></param>
         /// <param name="take"></param>
         /// <returns></returns>
-        public Task<List<TEntity>> RangeAsync(int skip, int take)
+        public ValueTask<List<T>> SkipAsync(int skip)
         {
-            List<TEntity> entities = default;
+            ValueTask<List<T>> entries = default;
 
             try
             {
-
-                entities = _storedb.RockDb.Table<TEntity>().SelectEntity().Skip(skip).Take(take).ToList();
+                entries = Iterate().Skip(skip).ToListAsync();
             }
-            catch (Exception ex)
+            catch (Exception e)
             {
-                _logger.LogError($"<<< Repository.RangeAsync >>>: {ex}");
+                _logger.LogError($"<<< Repository.SkipAsync >>>: {e}");
             }
 
-            return Task.FromResult(entities);
+            return entries;
         }
-
-
+        
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="selector"></param>
+        /// <param name="take"></param>
         /// <returns></returns>
-        public Task<List<TEntity>> SelectAsync(Expression<Func<TEntity, TEntity>> selector)
+        public ValueTask<List<T>> TakeAsync(int take)
         {
-            List<TEntity> entities = default;
+            ValueTask<List<T>> entries = default;
 
             try
             {
-                entities = _storedb.RockDb.Table<TEntity>().Select(selector);
+                entries = Iterate().Take(take).ToListAsync();
             }
-            catch (Exception ex)
+            catch (Exception e)
             {
-                _logger.LogError($"<<< Repository.SelectAsync >>>: {ex}");
+                _logger.LogError($"<<< Repository.TakeAsync >>>: {e}");
             }
 
-            return Task.FromResult(entities);
+            return entries;
         }
-
+        
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="entity"></param>
         /// <returns></returns>
-        public Task<int?> SaveOrUpdateAsync(TEntity entity)
+#pragma warning disable 1998
+        private async IAsyncEnumerable<T> Iterate()
+#pragma warning restore 1998
         {
-            int? id = null;
-
-            try
+            lock (_locker)
             {
-                id = _storedb.RockDb.Table<TEntity>().Save(entity);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"<<< Repository.SaveOrUpdateAsync >>>: {ex}");
-            }
+                var cf = _storeDb.Rocks.GetColumnFamily(_tableName);
+                var readOptions = new RocksDbSharp.ReadOptions();
 
-            return Task.FromResult(id);
-        }
+                using var iterator = _storeDb.Rocks.NewIterator(cf, readOptions);
 
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="id"></param>
-        /// <returns></returns>
-        public Task<bool> DeleteAsync(int id)
-        {
-            bool deleted = false;
-            try
-            {
-                _storedb.RockDb.Table<TEntity>().Delete(new HashSet<int>() { id });
-                deleted = true;
+                for (iterator.Seek(_tableName.ToBytes()); iterator.Valid(); iterator.Next())
+                {
+                    if (!new string(iterator.Key().ToStr()).StartsWith(new string(_tableName))) continue;
+                    if (iterator.Valid())
+                    {
+                        yield return Helper.Util.DeserializeProto<T>(iterator.Value());
+                    }
+                }
             }
-            catch (Exception ex)
-            {
-                _logger.LogError($"<<< Repository.DeleteAsync >>>: {ex}");
-            }
-
-            return Task.FromResult(deleted);
         }
     }
 }

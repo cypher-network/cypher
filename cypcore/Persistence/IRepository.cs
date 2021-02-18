@@ -8,19 +8,21 @@ using System.Threading.Tasks;
 
 namespace CYPCore.Persistence
 {
-    public interface IRepository<TEntity>
+    public interface IRepository<T>
     {
-        Task<int> CountAsync();
-        Task<TEntity> FirstOrDefaultAsync();
-        Task<TEntity> FirstOrDefaultAsync(Expression<Func<TEntity, bool>> expression);
-        Task<List<TEntity>> WhereAsync(Expression<Func<TEntity, bool>> expression);
-        Task<TEntity> LastOrDefaultAsync(Expression<Func<TEntity, bool>> expression);
-        Task<TEntity> LastOrDefaultAsync();
-        Task<bool> DeleteAsync(int id);
-        Task<List<TEntity>> SkipAsync(int skip);
-        Task<List<TEntity>> TakeAsync(int take);
-        Task<List<TEntity>> SelectAsync(Expression<Func<TEntity, TEntity>> selector);
-        Task<List<TEntity>> RangeAsync(int skip, int take);
-        Task<int?> SaveOrUpdateAsync(TEntity entity);
+        Task<long> CountAsync();
+        Task<T> GetAsync(byte[] key);
+        Task<T> FirstAsync(Func<T, ValueTask<bool>> expression);
+        void SetTableName(string tableName);
+        Task<bool> PutAsync(byte[] key, T data);
+        Task<HashSet<T>> RangeAsync(long skip, int take);
+        Task<T> LastAsync();
+        ValueTask<List<T>> WhereAsync(Func<T, ValueTask<bool>> expression);
+        Task<T> LastAsync(Func<T, ValueTask<bool>> expression);
+        Task<T> FirstAsync();
+        ValueTask<List<T>> SelectAsync(Func<T, ValueTask<T>> selector);
+        ValueTask<List<T>> SkipAsync(int skip);
+        ValueTask<List<T>> TakeAsync(int take);
+        Task<bool> RemoveAsync(byte[] key);
     }
 }

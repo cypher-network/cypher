@@ -213,51 +213,46 @@ namespace CYPCore.Models
         /// <returns></returns>
         public byte[] Stream()
         {
-            byte[] stream;
-            using (var ts = new Helper.TangramStream())
+            using var ts = new Helper.TangramStream();
+            ts
+                .Append(TxnId)
+                .Append(Mix)
+                .Append(Ver);
+
+            foreach (var bp in Bp)
             {
-                ts
-                  .Append(TxnId)
-                  .Append(Mix)
-                  .Append(Ver);
-
-                foreach (var bp in Bp)
-                {
-                    ts.Append(bp.Proof);
-                }
-
-                foreach (var vin in Vin)
-                {
-                    ts.Append(vin.Key.K_Image);
-                    ts.Append(vin.Key.K_Offsets);
-                }
-
-                foreach (var vout in Vout)
-                {
-                    ts
-                      .Append(vout.A)
-                      .Append(vout.C)
-                      .Append(vout.E)
-                      .Append(vout.L)
-                      .Append(vout.N)
-                      .Append(vout.P)
-                      .Append(vout.S ?? string.Empty)
-                      .Append(vout.T.ToString());
-                }
-
-                foreach (var rct in Rct)
-                {
-                    ts
-                      .Append(rct.I)
-                      .Append(rct.M)
-                      .Append(rct.P)
-                      .Append(rct.S);
-                }
-
-                stream = ts.ToArray();
+                ts.Append(bp.Proof);
             }
 
-            return stream;
+            foreach (var vin in Vin)
+            {
+                ts.Append(vin.Key.K_Image);
+                ts.Append(vin.Key.K_Offsets);
+            }
+
+            foreach (var vout in Vout)
+            {
+                ts
+                    .Append(vout.A)
+                    .Append(vout.C)
+                    .Append(vout.E)
+                    .Append(vout.L)
+                    .Append(vout.N)
+                    .Append(vout.P)
+                    .Append(vout.S ?? string.Empty)
+                    .Append(vout.T.ToString());
+            }
+
+            foreach (var rct in Rct)
+            {
+                ts
+                    .Append(rct.I)
+                    .Append(rct.M)
+                    .Append(rct.P)
+                    .Append(rct.S);
+            }
+            
+            return ts.ToArray();;
         }
 
         /// <summary>

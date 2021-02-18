@@ -8,9 +8,10 @@ namespace CYPCore.Persistence
 {
     public class UnitOfWork : IUnitOfWork
     {
-        public IStoredb Storedb { get; }
+        public IStoreDb StoreDb { get; }
+        
         public IXmlRepository DataProtectionKeys { get; }
-        public IDataProtectionPayloadRepository DataProtectionPayload { get; }
+        public IDataProtectionRepository DataProtectionPayload { get; }
         public IInterpretedRepository InterpretedRepository { get; }
         public IMemPoolRepository MemPoolRepository { get; }
         public IStagingRepository StagingRepository { get; }
@@ -21,16 +22,16 @@ namespace CYPCore.Persistence
 
         public UnitOfWork(string folderDb, ILogger<UnitOfWork> logger)
         {
-            Storedb = new Storedb(folderDb);
+            StoreDb = new StoreDb(folderDb);
 
             _logger = logger;
 
-            DataProtectionPayload = new DataProtectionPayloadRepository(Storedb, logger);
-            DeliveredRepository = new DeliveredRepository(Storedb, logger);
-            InterpretedRepository = new InterpretedRepository(Storedb, logger);
-            MemPoolRepository = new MemPoolRepository(Storedb, logger);
-            StagingRepository = new StagingRepository(Storedb, logger);
-            SeenBlockHeaderRepository = new SeenBlockHeaderRepository(Storedb, logger);
+            DataProtectionPayload = new DataProtectionRepository(StoreDb, logger);
+            DeliveredRepository = new DeliveredRepository(StoreDb, logger);
+            InterpretedRepository = new InterpretedRepository(StoreDb, logger);
+            MemPoolRepository = new MemPoolRepository(StoreDb, logger);
+            StagingRepository = new StagingRepository(StoreDb, logger);
+            SeenBlockHeaderRepository = new SeenBlockHeaderRepository(StoreDb, logger);
         }
     }
 }

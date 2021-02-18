@@ -7,16 +7,11 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Hosting;
-
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-
 using Autofac.Extensions.DependencyInjection;
-using CYPCore.Helper;
-using Microsoft.Extensions.Configuration;
 using Serilog;
 using CYPCore.Models;
-
+using CYPCore.Helper;
 
 namespace CYPNode
 {
@@ -73,7 +68,7 @@ namespace CYPNode
                 Log.Information("Starting web host");
                 var builder = CreateWebHostBuilder(args, configurationRoot);
 
-                var platform = Util.GetOSPlatform();
+                var platform = Util.GetOperatingSystemPlatform();
                 if (platform == OSPlatform.Linux)
                 {
                     builder.UseSystemd();

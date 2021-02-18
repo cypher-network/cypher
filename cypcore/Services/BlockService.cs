@@ -5,7 +5,6 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Collections.Generic;
-using System.Net.Http;
 
 using Microsoft.Extensions.Logging;
 
@@ -72,11 +71,11 @@ namespace CYPCore.Services
             try
             {
                 var count = await _unitOfWork.DeliveredRepository.CountAsync();
-                var last = await _unitOfWork.DeliveredRepository.LastOrDefaultAsync();
+                var last = await _unitOfWork.DeliveredRepository.LastAsync();
 
                 if (last != null)
                 {
-                    int height = (int)last.Height - count;
+                    var height = last.Height - count;
 
                     height = height > 0 ? 0 : height;
 
@@ -101,7 +100,7 @@ namespace CYPCore.Services
 
             try
             {
-                var last = await _unitOfWork.DeliveredRepository.LastOrDefaultAsync();
+                var last = await _unitOfWork.DeliveredRepository.LastAsync();
                 if (last != null)
                 {
                     height = last.Height + 1;
@@ -122,13 +121,13 @@ namespace CYPCore.Services
         /// <returns></returns>
         public async Task<byte[]> GetVout(byte[] txnId)
         {
-            Guard.Argument(txnId, nameof(txnId)).NotNull().MaxCount(48);
+            Guard.Argument(txnId, nameof(txnId)).NotNull().MaxCount(32);
 
             byte[] transaction = null;
 
             try
             {
-                var blockHeaders = await _unitOfWork.DeliveredRepository.WhereAsync(x => x.Transactions.Any(t => t.TxnId.Xor(txnId)));
+                var blockHeaders = await _unitOfWork.DeliveredRepository.WhereAsync(x => new ValueTask<bool>(x.Transactions.Any(t => t.TxnId.Xor(txnId))));
                 var firstBlockHeader = blockHeaders.FirstOrDefault();
                 var found = firstBlockHeader?.Transactions.FirstOrDefault(x => x.TxnId.Xor(txnId));
                 if (found != null)
@@ -182,7 +181,7 @@ namespace CYPCore.Services
         {
             try
             {
-                var payloadProtos = Helper.Util.DeserializeListProto<PayloadProto>(payloads);
+                var payloadProtos = Helper.Util.DeserializeListProto<PayloadProto>(payloads).ToList();
                 if (payloadProtos.Any())
                 {
                     foreach (var payload in payloadProtos)
@@ -228,14 +227,12 @@ namespace CYPCore.Services
                 _logger.LogError($"<<< BlockService.Process >>: Unable to verifiy block header.");
             }
 
-            int? saved = await _unitOfWork.DeliveredRepository.SaveOrUpdateAsync(blockHeader);
-            if (!saved.HasValue)
-            {
-                _logger.LogError($"<<< BlockService.Process >>>: Unable to save block header: {blockHeader.MrklRoot}");
-                return false;
-            }
-
-            return true;
+            var saved = await _unitOfWork.DeliveredRepository.PutAsync(blockHeader.ToIdentifier(), blockHeader);
+            if (saved) return true;
+            
+            _logger.LogError($"<<< BlockService.Process >>>: Unable to save block header: {blockHeader.MrklRoot}");
+            
+            return false;
         }
     }
 }

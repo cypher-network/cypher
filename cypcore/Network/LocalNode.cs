@@ -6,13 +6,15 @@ using System.Collections.Concurrent;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Net.Http;
+using System.Collections.Generic;
 
 using Microsoft.Extensions.Logging;
+
+using Dawn;
 
 using CYPCore.Serf;
 using CYPCore.Models;
 using CYPCore.Services.Rest;
-using System.Collections.Generic;
 
 namespace CYPCore.Network
 {
@@ -46,11 +48,11 @@ namespace CYPCore.Network
             try
             {
                 var tcpSession = _serfClient.GetTcpSession(_tcpSession.SessionId);
+                var membersResult = await _serfClient.Members(tcpSession.SessionId);
+                
                 if (tcpSession.Ready)
                 {
-                    var connectResult = _serfClient.Connect(tcpSession.SessionId);
-                    var membersResult = await _serfClient.Members(tcpSession.SessionId);
-
+                    _ = _serfClient.Connect(tcpSession.SessionId);
                     if (!membersResult.Success)
                     {
                         return;
@@ -103,12 +105,13 @@ namespace CYPCore.Network
         /// </summary>
         /// <param name="data"></param>
         /// <param name="topicType"></param>
-        /// <param name="path"></param>
         /// <returns></returns>
         public async Task Broadcast(byte[] data, TopicType topicType)
         {
+            Guard.Argument(data, nameof(data)).NotNull();
+            
             List<Task> tasks = new();
-            List<KeyValuePair<ulong, Peer>> peers = _peers.Select(p => p).ToList();
+            var peers = _peers.Select(p => p).ToList();
 
             peers.ForEach(x =>
             {
@@ -124,23 +127,30 @@ namespace CYPCore.Network
         /// <param name="data"></param>
         /// <param name="topicType"></param>
         /// <param name="host"></param>
-        /// <param name="path"></param>
         /// <returns></returns>
         public async Task Send(byte[] data, TopicType topicType, string host)
         {
+            Guard.Argument(data, nameof(data)).NotNull();
+            Guard.Argument(host, nameof(data)).NotNull().NotEmpty().NotWhiteSpace();
+            
             try
             {
-                if (Uri.TryCreate($"{host}", UriKind.Absolute, out Uri uri))
+                if (Uri.TryCreate($"{host}", UriKind.Absolute, out var uri))
                 {
-                    if (topicType == TopicType.AddBlock)
+                    switch (topicType)
                     {
-                        RestBlockService restBlockService = new(uri);
-                        await restBlockService.AddBlock(data);
-                    }
-                    if (topicType == TopicType.AddMemoryPool)
-                    {
-                        RestMemoryPoolService restMemoryPoolService = new(uri);
-                        await restMemoryPoolService.AddMemoryPool(data);
+                        case TopicType.AddBlock:
+                        {
+                            RestBlockService restBlockService = new(uri);
+                            await restBlockService.AddBlock(data);
+                            return;
+                        }
+                        case TopicType.AddMemoryPool:
+                        {
+                            RestMemoryPoolService restMemoryPoolService = new(uri);
+                            await restMemoryPoolService.AddMemoryPool(data);
+                            return;
+                        }
                     }
                 }
             }

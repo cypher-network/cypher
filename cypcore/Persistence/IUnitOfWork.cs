@@ -7,9 +7,9 @@ namespace CYPCore.Persistence
 {
     public interface IUnitOfWork
     {
-        IStoredb Storedb { get; }
+        IStoreDb StoreDb { get; }
         IXmlRepository DataProtectionKeys { get; }
-        IDataProtectionPayloadRepository DataProtectionPayload { get; }
+        IDataProtectionRepository DataProtectionPayload { get; }
         IInterpretedRepository InterpretedRepository { get; }
         IMemPoolRepository MemPoolRepository { get; }
         IStagingRepository StagingRepository { get; }

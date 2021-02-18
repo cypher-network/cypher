@@ -7,6 +7,5 @@ namespace CYPCore.Persistence
 {
     public interface IStagingRepository : IRepository<StagingProto>
     {
-
     }
 }

@@ -22,14 +22,12 @@ namespace CYPCore.Cryptography
 {
     public class Signing : ISigning
     {
-        private const string TableDataProtectionPayload = "DataProtectionPayload";
-
         private readonly IDataProtectionProvider _dataProtectionProvider;
         private readonly ILogger _logger;
         private readonly IUnitOfWork _unitOfWork;
 
         private IDataProtector _dataProtector;
-        private DataProtectionPayloadProto _protectionPayloadProto;
+        private DataProtectionProto _protectionProto;
 
         public string DefaultSigningKeyName => "DefaultSigning.Key";
 
@@ -46,10 +44,10 @@ namespace CYPCore.Cryptography
         /// <returns></returns>
         private KeyPair GetKeyPair()
         {
-            Guard.Argument(_protectionPayloadProto, nameof(_protectionPayloadProto)).NotNull();
-            Guard.Argument(_protectionPayloadProto.Payload, nameof(_protectionPayloadProto.Payload)).NotNull().NotWhiteSpace();
+            Guard.Argument(_protectionProto, nameof(_protectionProto)).NotNull();
+            Guard.Argument(_protectionProto.Payload, nameof(_protectionProto.Payload)).NotNull().NotWhiteSpace();
 
-            var unprotectedPayload = _dataProtector.Unprotect(_protectionPayloadProto.Payload);
+            var unprotectedPayload = _dataProtector.Unprotect(_protectionProto.Payload);
             var definition = new { PrivateKey = string.Empty, PublicKey = string.Empty };
             var message = JsonConvert.DeserializeAnonymousType(unprotectedPayload, definition);
 
@@ -71,19 +69,18 @@ namespace CYPCore.Cryptography
             try
             {
                 _dataProtector = _dataProtectionProvider.CreateProtector(keyName);
-                _protectionPayloadProto = await _unitOfWork.DataProtectionPayload.FirstOrDefaultAsync(x => x.FriendlyName == keyName);
+                _protectionProto = await _unitOfWork.DataProtectionPayload.GetAsync(keyName.ToBytes());
 
-                if (_protectionPayloadProto == null)
+                if (_protectionProto == null)
                 {
-                    _protectionPayloadProto = new DataProtectionPayloadProto
+                    _protectionProto = new DataProtectionProto
                     {
-                        Id = 0,
                         FriendlyName = keyName,
                         Payload = _dataProtector.Protect(JsonConvert.SerializeObject(GenerateKeyPair()))
                     };
 
-                    var stored = await _unitOfWork.DataProtectionPayload.SaveOrUpdateAsync(_protectionPayloadProto);
-                    if (!stored.HasValue)
+                    var saved = await _unitOfWork.DataProtectionPayload.PutAsync(keyName.ToBytes(), _protectionProto);
+                    if (!saved)
                     {
                         _logger.LogError($"<<< SigningProvider.GetOrUpsertKeyName >>>: Unable to save protection key payload for: {keyName}");
                         return null;
@@ -171,7 +168,7 @@ namespace CYPCore.Cryptography
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< SigningActor.VerifiySignature >>>: {ex}");
+                _logger.LogError($"<<< SigningActor.VerifySignature >>>: {ex}");
             }
 
             return verified;
@@ -198,7 +195,7 @@ namespace CYPCore.Cryptography
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< SigningActor.VerifiySignature(byte[] signature, byte[] publicKey, byte[] message) >>>: {ex}");
+                _logger.LogError($"<<< SigningActor.VerifySignature(byte[] signature, byte[] publicKey, byte[] message) >>>: {ex}");
             }
 
             return verified;

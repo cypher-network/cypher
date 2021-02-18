@@ -8,12 +8,12 @@ namespace cypcore_test_unit
     public class StoredbTests
     {
         private const string _path = "StoreDB";
-        private Storedb _storedb;
+        private StoreDb _storeDb;
 
         [SetUp]
         public void Setup()
         {
-            _storedb = null;
+            _storeDb = null;
         }
 
         [Test]
@@ -29,8 +29,8 @@ namespace cypcore_test_unit
         {
             const string invalidPath = null;
 
-            Assert.That(() => _storedb = new Storedb(invalidPath), Throws.Exception);
-            Assert.Null(_storedb);
+            Assert.That(() => _storeDb = new StoreDb(invalidPath), Throws.Exception);
+            Assert.Null(_storeDb);
         }
 
         [Test]

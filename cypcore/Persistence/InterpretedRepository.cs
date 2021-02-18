@@ -9,14 +9,10 @@ namespace CYPCore.Persistence
 {
     public class InterpretedRepository : Repository<InterpretedProto>, IInterpretedRepository
     {
-        private readonly IStoredb _storedb;
-        private readonly ILogger _logger;
-
-        public InterpretedRepository(IStoredb storedb, ILogger logger)
-            : base(storedb, logger)
+        public InterpretedRepository(IStoreDb storeDb, ILogger logger)
+            : base(storeDb, logger)
         {
-            _storedb = storedb;
-            _logger = logger;
+            SetTableName(StoreDb.InterpretedTable.ToString());
         }
     }
 }

@@ -6,27 +6,28 @@ namespace CYPCore.Helper
 {
     public class AsyncLock : IDisposable
     {
-        private SemaphoreSlim semaphoreSlim;
+        private readonly SemaphoreSlim _semaphoreSlim;
 
         public AsyncLock()
         {
-            semaphoreSlim = new SemaphoreSlim(1, 1);
+            _semaphoreSlim = new SemaphoreSlim(1, 1);
         }
 
         public AsyncLock(SemaphoreSlim semaphoreSlim)
         {
-            this.semaphoreSlim = semaphoreSlim;
+            this._semaphoreSlim = semaphoreSlim;
         }
 
         public async Task<AsyncLock> LockAsync()
         {
-            await semaphoreSlim.WaitAsync();
+            await _semaphoreSlim.WaitAsync();
             return this;
         }
 
         public void Dispose()
         {
-            semaphoreSlim.Release();
+            _semaphoreSlim.Release();
+            GC.SuppressFinalize(this);
         }
     }
 }

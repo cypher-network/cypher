@@ -8,7 +8,7 @@ namespace CYPCore.Persistence
     public interface IDeliveredRepository : IRepository<BlockHeaderProto>
     {
         BlockHeaderProto ToTrie(BlockHeaderProto blockHeader);
-        byte[] MrklRoot { get; }
+        byte[] MerkleRoot { get; }
         void ResetTrie();
 
     }

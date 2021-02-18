@@ -26,9 +26,9 @@ namespace CYPCore.Helper
 {
     public static class Util
     {
-        public const string hexUpper = "0123456789ABCDEF";
+        private const string HexUpper = "0123456789ABCDEF";
 
-        internal static Random _Random = new Random();
+        private static readonly Random Random = new Random();
 
         public static byte[] GetZeroBytes()
         {
@@ -43,10 +43,10 @@ namespace CYPCore.Helper
 
         public static string EntryAssemblyPath()
         {
-            return Path.GetDirectoryName(Assembly.GetEntryAssembly().Location);
+            return Path.GetDirectoryName(Assembly.GetEntryAssembly()?.Location);
         }
 
-        public static OSPlatform GetOSPlatform()
+        public static OSPlatform GetOperatingSystemPlatform()
         {
             foreach (var platform in new[]
             {
@@ -120,12 +120,7 @@ namespace CYPCore.Helper
 
             return content;
         }
-
-        [CLSCompliant(false)]
-#pragma warning disable CS3021 // Type or member does not need a CLSCompliant attribute because the assembly does not have a CLSCompliant attribute
-        public static InsecureString Insecure(this SecureString secureString) => new InsecureString(secureString);
-#pragma warning restore CS3021 // Type or member does not need a CLSCompliant attribute because the assembly does not have a CLSCompliant attribute
-
+        
         public static BigInteger Mod(BigInteger a, BigInteger n)
         {
             var result = a % n;
@@ -173,7 +168,7 @@ namespace CYPCore.Helper
                 mArray = ms.ToArray();
             }
             catch { }
-
+            
             return mArray;
         }
 
@@ -252,7 +247,7 @@ namespace CYPCore.Helper
                 for (int i = 6; i < 12; i++)
                 {
                     var c = hash[i];
-                    v.Append(new char[] { hexUpper[c >> 4], hexUpper[c & 0x0f] });
+                    v.Append(new char[] { HexUpper[c >> 4], HexUpper[c & 0x0f] });
                 }
 
                 var byteHex = SHA384ManagedHash(v.ToString().ToBytes());
@@ -294,7 +289,7 @@ namespace CYPCore.Helper
             int n = array.Length;
             for (int i = 0; i < n; i++)
             {
-                int r = i + _Random.Next(n - i);
+                int r = i + Random.Next(n - i);
                 T t = array[r];
                 array[r] = array[i];
                 array[i] = t;
@@ -440,7 +435,7 @@ namespace CYPCore.Helper
 
             public static string SystemDefault()
             {
-                var platform = GetOSPlatform();
+                var platform = GetOperatingSystemPlatform();
 
                 if (platform == OSPlatform.Linux)
                 {

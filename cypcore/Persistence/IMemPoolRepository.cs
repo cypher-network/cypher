@@ -10,7 +10,7 @@ namespace CYPCore.Persistence
 {
     public interface IMemPoolRepository : IRepository<MemPoolProto>
     {
-        Task<List<MemPoolProto>> MoreAsync(IEnumerable<MemPoolProto> memPools);
-        Task IncludeAllAsync(IEnumerable<MemPoolProto> memPools, ulong currentNode);
+        Task<List<MemPoolProto>> HasMoreAsync(MemPoolProto[] memPools);
+        Task IncludeAsync(MemPoolProto[] memPools, ulong currentNode);
     }
 }

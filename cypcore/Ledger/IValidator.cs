@@ -14,8 +14,8 @@ namespace CYPCore.Ledger
     {
         uint StakeTimestampMask { get; }
 
-        byte[] BlockZeroMR { get; }
-        byte[] BlockZeroPR { get; }
+        byte[] BlockZeroMerkel { get; }
+        byte[] BlockZeroPreMerkel { get; }
         byte[] Seed { get; }
         byte[] Security256 { get; }
 
@@ -33,7 +33,7 @@ namespace CYPCore.Ledger
         double NetworkShare(ulong solution);
         ulong Solution(byte[] vrfSig, byte[] kernel);
         long GetAdjustedTimeAsUnixTimestamp();
-        Task<bool> ForkRule(IEnumerable<BlockHeaderProto> xChain);
+        Task<bool> ForkRule(BlockHeaderProto[] xChain);
         bool VerifyLockTime(LockTime target, string script);
         bool VerifyCommitSum(TransactionProto transaction);
         bool VerifyTransactionFee(TransactionProto transaction);

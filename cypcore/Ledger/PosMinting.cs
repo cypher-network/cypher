@@ -23,6 +23,7 @@ using CYPCore.Models;
 using CYPCore.Persistence;
 using CYPCore.Serf;
 using CYPCore.Cryptography;
+using CYPCore.Helper;
 using CYPCore.Network;
 
 namespace CYPCore.Ledger
@@ -66,22 +67,21 @@ namespace CYPCore.Ledger
         /// <returns></returns>
         public async Task RunStakingBlockAsync()
         {
-            var lastBlockHeader = await _unitOfWork.DeliveredRepository.LastOrDefaultAsync();
+            var lastBlockHeader = await _unitOfWork.DeliveredRepository.LastAsync();
             if (lastBlockHeader == null)
             {
                 _logger.LogInformation($"<<< PosMinting.RunStakingBlockAsync >>>: There is no block header for processing");
                 return;
             }
 
-            long coinstakeTimestamp = _validator.GetAdjustedTimeAsUnixTimestamp();
+            var coinstakeTimestamp = _validator.GetAdjustedTimeAsUnixTimestamp();
             if (coinstakeTimestamp <= lastBlockHeader.Locktime)
             {
                 _logger.LogWarning($"<<< PosMinting.RunStakingBlockAsync >>>: Current coinstake time {coinstakeTimestamp} is not greater than last search timestamp {lastBlockHeader.Locktime}");
                 return;
             }
 
-            var transactions = await IncludeTransactions();
-
+            var transactions = (await IncludeTransactions()).ToList();
             if (transactions.Any() != true)
             {
                 _logger.LogWarning($"<<< PosMinting.RunStakingBlockAsync >>>: Cannot add zero transactions to the block header");
@@ -91,9 +91,9 @@ namespace CYPCore.Ledger
             await _validator.GetRunningDistribution();
 
             uint256 hash;
-            using (var ts = new Helper.TangramStream())
+            using (TangramStream ts = new())
             {
-                transactions.ForEach(x => ts.Append(x.Stream()));
+                transactions.ForEach(x => { ts.Append(x.Stream()); });
                 hash = NBitcoin.Crypto.Hashes.DoubleSHA256(ts.ToArray());
             }
 
@@ -106,14 +106,14 @@ namespace CYPCore.Ledger
 
             try
             {
-                var coinstakeTxn = await CreateCoinstakeTransaction(bits, reward);
-                if (coinstakeTxn == null)
+                var coinstakeTransaction = await CreateCoinstakeTransaction(bits, reward);
+                if (coinstakeTransaction == null)
                 {
-                    _logger.LogError($"<<< PosMinting.RunStakingBlockAsync >>>: Could not create coinstake transaction");
+                    _logger.LogError($"<<< PosMinting.RunStakingBlockAsync >>>: Could not create coin stake transaction");
                     return;
                 }
 
-                transactions = transactions.TryInsert(0, coinstakeTxn);
+                transactions.Insert(0, coinstakeTransaction);
             }
             catch (Exception ex)
             {
@@ -121,7 +121,7 @@ namespace CYPCore.Ledger
                 return;
             }
 
-            var lastSeenBlockHeader = await _unitOfWork.SeenBlockHeaderRepository.LastOrDefaultAsync();
+            var lastSeenBlockHeader = await _unitOfWork.SeenBlockHeaderRepository.LastAsync();
             var deliveredBlockHeader = await TryGetDeliveredBlockHeader(lastSeenBlockHeader);
             var blockHeader = CreateBlockHeader(transactions, signature, vrfSig, solution, bits, deliveredBlockHeader);
 
@@ -139,8 +139,8 @@ namespace CYPCore.Ledger
                 return;
             }
 
-            var savedBlockHeader = await _unitOfWork.DeliveredRepository.SaveOrUpdateAsync(blockHeader);
-            if (!savedBlockHeader.HasValue)
+            var savedBlockHeader = await _unitOfWork.DeliveredRepository.PutAsync(blockHeader.ToIdentifier(), blockHeader);
+            if (!savedBlockHeader)
             {
                 _logger.LogCritical($"<<< PosMinting.RunStakingBlockAsync >>>: Unable to save the block header");
                 return;
@@ -150,8 +150,8 @@ namespace CYPCore.Ledger
             if (published)
             {
                 lastSeenBlockHeader.Published = true;
-                var saved = await _unitOfWork.SeenBlockHeaderRepository.SaveOrUpdateAsync(lastSeenBlockHeader);
-                if (!saved.HasValue)
+                var saved = await _unitOfWork.SeenBlockHeaderRepository.PutAsync(lastSeenBlockHeader.ToIdentifier(), lastSeenBlockHeader);
+                if (!saved)
                 {
                     _logger.LogWarning($"<<< PosMinting.RunStakingBlockAsync >>>: Unable to update the last seen block header");
                 }
@@ -165,8 +165,8 @@ namespace CYPCore.Ledger
         private async Task<BlockHeaderProto> TryGetDeliveredBlockHeader(SeenBlockHeaderProto lastSeenBlockHeader)
         {
             var deliveredBlockHeader = lastSeenBlockHeader != null
-                ? await _unitOfWork.DeliveredRepository.FirstOrDefaultAsync(x => x.MrklRoot == lastSeenBlockHeader.MrklRoot)
-                : await _unitOfWork.DeliveredRepository.FirstOrDefaultAsync();
+                ? await _unitOfWork.DeliveredRepository.FirstAsync(x => new ValueTask<bool>(x.MrklRoot == lastSeenBlockHeader.MrklRoot))
+                : await _unitOfWork.DeliveredRepository.FirstAsync();
 
             return deliveredBlockHeader;
         }
@@ -255,16 +255,13 @@ namespace CYPCore.Ledger
         /// <returns></returns>
         private async Task<bool> SaveLastSeenBlockHeader(SeenBlockHeaderProto currentBlock, BlockHeaderProto blockHeader)
         {
-            if (currentBlock == null)
-            {
-                currentBlock = new SeenBlockHeaderProto();
-            }
+            currentBlock ??= new SeenBlockHeaderProto();
 
             currentBlock.MrklRoot = blockHeader.MrklRoot;
             currentBlock.PrevBlock = blockHeader.PrevMrklRoot;
 
-            var saved = await _unitOfWork.SeenBlockHeaderRepository.SaveOrUpdateAsync(currentBlock);
-            return saved != null;
+            var saved = await _unitOfWork.SeenBlockHeaderRepository.PutAsync(currentBlock.ToIdentifier(), currentBlock);
+            return saved;
         }
 
         /// <summary>
@@ -289,7 +286,7 @@ namespace CYPCore.Ledger
 
                     verifiedTransactions.Add(interpreted.Transaction);
 
-                    var deleted = await _unitOfWork.InterpretedRepository.DeleteAsync(interpreted.Id);
+                    var deleted = await _unitOfWork.InterpretedRepository.RemoveAsync(interpreted.ToIdentifier());
                     if (!deleted)
                     {
                         _logger.LogError($"<<< PosMinting.GetNextInterpretedTransactions >>>: Unable to delete interpreted for {interpreted.Node} and round {interpreted.Round}");
@@ -297,8 +294,8 @@ namespace CYPCore.Ledger
 
                     interpreted.InterpretedType = InterpretedType.Processed;
 
-                    var saved = await _unitOfWork.InterpretedRepository.SaveOrUpdateAsync(interpreted);
-                    if (!saved.HasValue)
+                    var saved = await _unitOfWork.InterpretedRepository.PutAsync(interpreted.ToIdentifier(), interpreted);
+                    if (!saved)
                     {
                         _logger.LogError($"<<< PosMinting.GetNextInterpretedTransactions >>>: Unable to save interpreted for {interpreted.Node} and round {interpreted.Round}");
                     }

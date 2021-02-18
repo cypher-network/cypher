@@ -3,7 +3,7 @@
 
 using System;
 using System.Collections.Generic;
-using System.Runtime.CompilerServices;
+using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Security;
 
@@ -20,18 +20,6 @@ namespace CYPCore.Extentions
         {
             foreach (T item in source)
                 action(item);
-        }
-
-        public static void ExecuteInConstrainedRegion(this Action action)
-        {
-            RuntimeHelpers.PrepareConstrainedRegions();
-            try
-            {
-            }
-            finally
-            {
-                action();
-            }
         }
 
         public static string ToUnSecureString(this SecureString secureString)
@@ -56,22 +44,15 @@ namespace CYPCore.Extentions
         {
             ulong amount;
 
-            try
-            {
-                var parts = value.ToString().Split(new char[] { '.', ',' });
-                var part1 = (ulong)Math.Truncate(value);
+            var parts = value.ToString(CultureInfo.CurrentCulture).Split(new char[] { '.', ',' });
+            var part1 = (ulong)Math.Truncate(value);
 
-                if (parts.Length == 1)
-                    amount = part1.MulWithNaT();
-                else
-                {
-                    var part2 = (ulong)((value - part1) * ulong.Parse("1".PadRight(parts[1].Length + 1, '0')) + 0.5);
-                    amount = part1.MulWithNaT() + ulong.Parse(part2.ToString());
-                }
-            }
-            catch (Exception ex)
+            if (parts.Length == 1)
+                amount = part1.MulWithNaT();
+            else
             {
-                throw ex;
+                var part2 = (ulong)((value - part1) * ulong.Parse("1".PadRight(parts[1].Length + 1, '0')) + 0.5);
+                amount = part1.MulWithNaT() + ulong.Parse(part2.ToString());
             }
 
             return amount;
