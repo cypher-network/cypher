@@ -9,8 +9,6 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Microsoft.Extensions.Logging;
-
 using Autofac;
 
 using CliWrap;
@@ -22,7 +20,6 @@ using CYPCore.Models;
 using CYPCore.Cryptography;
 using System.Runtime.InteropServices;
 using CYPCore.Extensions;
-using CYPCore.Helper;
 using Microsoft.Extensions.Hosting;
 
 namespace CYPCore.Services
