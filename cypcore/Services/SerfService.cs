@@ -119,7 +119,7 @@ namespace CYPCore.Services
                     .Add($"-node={_serfClient.Name}")
                     .Add($"-snapshot={_serfClient.SerfConfigurationOptions.SnapshotPath}")
                     .Add($"-rejoin={_serfClient.SerfConfigurationOptions.Rejoin}")
-                    .Add($"-broadcast-timeout={_serfClient.SerfConfigurationOptions.BroadcasTimeout}")
+                    .Add($"-broadcast-timeout={_serfClient.SerfConfigurationOptions.BroadcastTimeout}")
                     .Add($"-retry-max={_serfClient.SerfConfigurationOptions.RetryMax}")
                     .Add($"-log-level={_serfClient.SerfConfigurationOptions.Loglevel}")
                     .Add("-tag")
