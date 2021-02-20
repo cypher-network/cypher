@@ -4,9 +4,10 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-
+using CYPCore.Extensions;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
+
+using Serilog;
 
 using CYPCore.Ledger;
 
@@ -17,10 +18,10 @@ namespace CYPCore.Services
         private readonly ISync _sync;
         private readonly ILogger _logger;
 
-        public SyncBackgroundService(ISync sync, ILogger<SyncBackgroundService> logger)
+        public SyncBackgroundService(ISync sync, ILogger logger)
         {
             _sync = sync;
-            _logger = logger;
+            _logger = logger.ForContext("SourceContext", nameof(SyncBackgroundService));
         }
 
         /// <summary>
@@ -50,7 +51,7 @@ namespace CYPCore.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< SyncService >>>: {ex}");
+                _logger.Here().Error(ex, "Background sync service error");
             }
         }
     }
