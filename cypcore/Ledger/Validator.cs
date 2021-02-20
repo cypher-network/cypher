@@ -186,10 +186,10 @@ namespace CYPCore.Ledger
                         var payment = transaction.Vout[i + 1].C;
                         var change = transaction.Vout[i + 2].C;
 
-                        var commitSumBalance = pedersen.CommitSum(new List<byte[]> {fee, payment, change},
+                        var commitSumBalance = pedersen.CommitSum(new List<byte[]> { fee, payment, change },
                             new List<byte[]> { });
-                        if (!pedersen.VerifyCommitSum(new List<byte[]> {commitSumBalance},
-                            new List<byte[]> {fee, payment, change}))
+                        if (!pedersen.VerifyCommitSum(new List<byte[]> { commitSumBalance },
+                            new List<byte[]> { fee, payment, change }))
                         {
                             return false;
                         }
@@ -218,7 +218,7 @@ namespace CYPCore.Ledger
             {
                 using var pedersen = new Pedersen();
 
-                return pedersen.VerifyCommitSum(new List<byte[]> {poSCommitBlindSwitch.Balance.HexToByte()},
+                return pedersen.VerifyCommitSum(new List<byte[]> { poSCommitBlindSwitch.Balance.HexToByte() },
                     new List<byte[]>
                     {
                         poSCommitBlindSwitch.Difficulty.HexToByte(), poSCommitBlindSwitch.Difference.HexToByte()
@@ -505,7 +505,7 @@ namespace CYPCore.Ledger
 
             using var pedersen = new Pedersen();
 
-            var commitSum = pedersen.CommitSum(new List<byte[]> {vout.C}, new List<byte[]> {vout.C});
+            var commitSum = pedersen.CommitSum(new List<byte[]> { vout.C }, new List<byte[]> { vout.C });
             if (commitSum != null)
             {
                 return false;
@@ -521,7 +521,7 @@ namespace CYPCore.Ledger
         /// <returns></returns>
         public ulong Fee(int nByte)
         {
-            return ((double) 0.000012 * nByte).ConvertToUInt64();
+            return ((double)0.000012 * nByte).ConvertToUInt64();
         }
 
         /// <summary>
@@ -547,7 +547,7 @@ namespace CYPCore.Ledger
             }
 
             using var pedersen = new Pedersen();
-            var commitSum = pedersen.CommitSum(new List<byte[]> {vout.C}, new List<byte[]> {vout.C});
+            var commitSum = pedersen.CommitSum(new List<byte[]> { vout.C }, new List<byte[]> { vout.C });
             if (commitSum != null)
             {
                 return false;
@@ -576,7 +576,7 @@ namespace CYPCore.Ledger
             }
 
             var tx = NBitcoin.Network.Main.CreateTransaction();
-            tx.Outputs.Add(new TxOut() {ScriptPubKey = new Script(script)});
+            tx.Outputs.Add(new TxOut() { ScriptPubKey = new Script(script) });
 
             var spending = NBitcoin.Network.Main.CreateTransaction();
             spending.LockTime = new LockTime(DateTimeOffset.Now);
@@ -784,7 +784,7 @@ namespace CYPCore.Ledger
 
             diff = diff == 0 ? 1 : diff;
 
-            return (int) diff;
+            return (int)diff;
         }
 
         /// <summary>
@@ -818,7 +818,7 @@ namespace CYPCore.Ledger
                 itrr++;
             }
 
-            return (ulong) itrr;
+            return (ulong)itrr;
         }
 
         /// <summary>
@@ -910,7 +910,7 @@ namespace CYPCore.Ledger
             Guard.Argument(rows, nameof(rows)).NotZero().NotNegative();
 
             var pcmIn = new Span<byte[]>(new byte[cols * 1][]);
-            var pcmOut = new Span<byte[]>(new byte[3][] {vout[0].C, vout[1].C, vout[2].C});
+            var pcmOut = new Span<byte[]>(new byte[3][] { vout[0].C, vout[1].C, vout[2].C });
             var kOffsets = keyOffset.Split(33).Select(x => x).ToList();
 
             pcmIn[0] = kOffsets.ElementAt(0);

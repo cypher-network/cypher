@@ -85,7 +85,7 @@ namespace CYPCore.Persistence
 
             return Task.FromResult(entry);
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -112,7 +112,7 @@ namespace CYPCore.Persistence
 
             return Task.FromResult(removed);
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -136,7 +136,7 @@ namespace CYPCore.Persistence
 
             return Task.FromResult(entry);
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -186,7 +186,7 @@ namespace CYPCore.Persistence
 
             return Task.FromResult(entry);
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -242,7 +242,7 @@ namespace CYPCore.Persistence
                 {
                     long iSkip = 0;
                     var iTake = 0;
-                    
+
                     var cf = _storeDb.Rocks.GetColumnFamily(_tableName);
                     var readOptions = new RocksDbSharp.ReadOptions();
 
@@ -256,13 +256,13 @@ namespace CYPCore.Persistence
                             {
                                 break;
                             }
-                            
+
                             entries.Add(Helper.Util.DeserializeProto<T>(iterator.Value()));
                             iTake++;
-                            
+
                             continue;
                         }
-                        
+
                         iSkip++;
                     }
                 }
@@ -282,7 +282,7 @@ namespace CYPCore.Persistence
         public Task<T> LastAsync()
         {
             T entry = default;
-            
+
             try
             {
                 lock (_locker)
@@ -327,7 +327,7 @@ namespace CYPCore.Persistence
 
             return entries;
         }
-        
+
         public ValueTask<List<T>> SelectAsync(Func<T, ValueTask<T>> selector)
         {
             ValueTask<List<T>> entries = default;
@@ -343,7 +343,7 @@ namespace CYPCore.Persistence
 
             return entries;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -365,7 +365,7 @@ namespace CYPCore.Persistence
 
             return entries;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -386,7 +386,7 @@ namespace CYPCore.Persistence
 
             return entries;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>

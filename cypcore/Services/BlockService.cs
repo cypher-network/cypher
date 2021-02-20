@@ -229,9 +229,9 @@ namespace CYPCore.Services
 
             var saved = await _unitOfWork.DeliveredRepository.PutAsync(blockHeader.ToIdentifier(), blockHeader);
             if (saved) return true;
-            
+
             _logger.LogError($"<<< BlockService.Process >>>: Unable to save block header: {blockHeader.MrklRoot}");
-            
+
             return false;
         }
     }
