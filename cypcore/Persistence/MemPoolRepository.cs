@@ -100,8 +100,35 @@ namespace CYPCore.Persistence
             {
                 _logger.LogError($"<<< BlockGraphRepository.IncludeAllAsync >>>: {e}");
             }
+        }
+        
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="hash"></param>
+        /// <param name="node"></param>
+        /// <param name="round"></param>
+        /// <returns></returns>
+        public Task<MemPoolProto> PreviousAsync(byte[] hash, ulong node, ulong round)
+        {
+            Guard.Argument(hash, nameof(hash)).NotNull().MaxCount(48);
+            Guard.Argument(node, nameof(node)).NotNegative();
+            Guard.Argument(round, nameof(round)).NotNegative();
 
-            return;
+            MemPoolProto block = default;
+
+            try
+            {
+                round -= 1;
+                block = FirstAsync(x => 
+                    new ValueTask<bool>(x.Block.Hash.Equals(hash) && x.Block.Node == node && x.Block.Round == round)).Result;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"<<< BlockGraphRepository.PreviousOrDefaultAsync >>>: {ex}");
+            }
+
+            return Task.FromResult(block);
         }
     }
 }

@@ -12,5 +12,6 @@ namespace CYPCore.Persistence
     {
         Task<List<MemPoolProto>> HasMoreAsync(MemPoolProto[] memPools);
         Task IncludeAsync(MemPoolProto[] memPools, ulong currentNode);
+        Task<MemPoolProto> PreviousAsync(byte[] hash, ulong node, ulong round);
     }
 }
