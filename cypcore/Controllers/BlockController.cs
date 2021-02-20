@@ -3,10 +3,11 @@
 
 using System;
 using System.Threading.Tasks;
-
+using CYPCore.Extensions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
+
+using Serilog;
 
 using CYPCore.Services;
 using CYPCore.Extentions;
@@ -20,10 +21,10 @@ namespace CYPCore.Controllers
         private readonly IBlockService _blockService;
         private readonly ILogger _logger;
 
-        public BlockController(IBlockService blockService, ILogger<BlockController> logger)
+        public BlockController(IBlockService blockService, ILogger logger)
         {
             _blockService = blockService;
-            _logger = logger;
+            _logger = logger.ForContext("SourceContext", nameof(BlockController));
         }
 
         /// <summary>
@@ -70,7 +71,7 @@ namespace CYPCore.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< BlockController.GetSafeguardBlocks >>> {ex}");
+                _logger.Here().Error(ex, "Cannot get safeguard blocks");
             }
 
             return NotFound();
@@ -92,7 +93,7 @@ namespace CYPCore.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< BlockController.GetBlockHeight >>> {ex}");
+                _logger.Here().Error(ex, "Cannot get block height");
             }
 
             return NotFound();
@@ -116,7 +117,7 @@ namespace CYPCore.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< BlockController.GetRange >>> {ex}");
+                _logger.Here().Error(ex, "Cannot get range");
             }
 
             return NotFound();
@@ -139,7 +140,7 @@ namespace CYPCore.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< BlockController.GetVout >>> {ex}");
+                _logger.Here().Error(ex, "Cannot get Vout");
             }
 
             return NotFound();

@@ -3,8 +3,6 @@
 
 using System.Threading.Tasks;
 
-using CYPCore.Models;
-
 namespace CYPCore.Services
 {
     public interface IMemoryPoolService

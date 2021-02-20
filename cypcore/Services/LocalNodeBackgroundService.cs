@@ -4,9 +4,10 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
+
+using CYPCore.Extensions;
+using Serilog;
 
 using CYPCore.Network;
 
@@ -17,10 +18,10 @@ namespace CYPCore.Services
         private readonly ILocalNode _localNode;
         private readonly ILogger _logger;
 
-        public LocalNodeBackgroundService(ILocalNode localNode, ILogger<LocalNodeBackgroundService> logger)
+        public LocalNodeBackgroundService(ILocalNode localNode, ILogger logger)
         {
             _localNode = localNode;
-            _logger = logger;
+            _logger = logger.ForContext("SourceContext", nameof(LocalNodeBackgroundService));
         }
 
         /// <summary>
@@ -32,7 +33,7 @@ namespace CYPCore.Services
         {
             try
             {
-                _logger.LogInformation("<<< LocalNodeBackgroundService.ExecuteAsync >>>: Bootstrapping seed nodes...");
+                _logger.Here().Information("Bootstrapping seed nodes...");
 
                 while (true)
                 {
@@ -48,7 +49,7 @@ namespace CYPCore.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< LocalNodeBackgroundService.ExecuteAsync >>>: {ex}");
+                _logger.Here().Error(ex, "Error while bootstrapping nodes");
             }
         }
     }

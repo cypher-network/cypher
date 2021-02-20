@@ -9,9 +9,8 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Microsoft.Extensions.Logging;
-
 using Autofac;
+using Serilog;
 
 using CliWrap;
 using CliWrap.EventStream;
@@ -22,7 +21,6 @@ using CYPCore.Models;
 using CYPCore.Cryptography;
 using System.Runtime.InteropServices;
 using CYPCore.Extensions;
-using CYPCore.Helper;
 using Microsoft.Extensions.Hosting;
 
 namespace CYPCore.Services
@@ -31,10 +29,10 @@ namespace CYPCore.Services
     {
         private readonly ISerfClient _serfClient;
         private readonly ISigning _signing;
-        private readonly Serilog.ILogger _logger;
+        private readonly ILogger _logger;
         private readonly TcpSession _tcpSession;
 
-        public SerfService(ISerfClient serfClient, ISigning signing, Serilog.ILogger logger)
+        public SerfService(ISerfClient serfClient, ISigning signing, ILogger logger)
         {
             _serfClient = serfClient;
             _signing = signing;
@@ -96,7 +94,7 @@ namespace CYPCore.Services
 
                 var serfPath = GetFilePath();
 
-                _logger.Here().Information($"Serf assembly path: {serfPath}");
+                _logger.Here().Information("Serf assembly path: {@SerfPath}", serfPath);
 
                 //  Chmod before attempting to execute serf on Linux and Mac
                 if (new[] { OSPlatform.Linux, OSPlatform.OSX }.Contains(Helper.Util.GetOperatingSystemPlatform()))
@@ -135,7 +133,7 @@ namespace CYPCore.Services
                     switch (cmdEvent)
                     {
                         case StartedCommandEvent started:
-                            _logger.Here().Information($"Process started; ID: {started.ProcessId.ToString()}");
+                            _logger.Here().Information("Process started; ID: {@ID}", started.ProcessId);
                             _serfClient.ProcessId = started.ProcessId;
                             break;
                         case StandardOutputCommandEvent stdOut:
@@ -144,14 +142,14 @@ namespace CYPCore.Services
                                 _logger.Here().Information("Serf has started!");
                                 _serfClient.ProcessStarted = true;
                             }
-                            _logger.Here().Information($"Out> {stdOut.Text}");
+                            _logger.Here().Information("Out> {@StdOut}", stdOut.Text);
                             break;
                         case StandardErrorCommandEvent stdErr:
-                            _logger.Here().Error($"Err> {stdErr.Text}");
+                            _logger.Here().Error("Err> {@StdErr}", stdErr.Text);
                             _serfClient.ProcessError = stdErr.Text;
                             break;
                         case ExitedCommandEvent exited:
-                            _logger.Here().Information($"Process exited; Code: {exited.ExitCode.ToString()}");
+                            _logger.Here().Information("Process exited; Code: {@ExitCode}", exited.ExitCode);
                             applicationLifetime.StopApplication();
                             break;
                     }
@@ -294,7 +292,7 @@ namespace CYPCore.Services
                     return;
                 }
 
-                _logger.Here().Information($"Serf might still be trying to join the seed nodes. Number of nodes joined {joinResult.Value.Peers.ToString()}");
+                _logger.Here().Information("Serf might still be trying to join the seed nodes. Number of nodes joined: {@NumPeers}", joinResult.Value.Peers.ToString());
             }
             catch (Exception ex)
             {

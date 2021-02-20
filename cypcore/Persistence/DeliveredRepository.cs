@@ -2,8 +2,11 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
-using Microsoft.Extensions.Logging;
+
+using CYPCore.Extensions;
+using Serilog;
 using Stratis.Patricia;
+
 using CYPCore.Extentions;
 using CYPCore.Models;
 
@@ -56,7 +59,7 @@ namespace CYPCore.Persistence
             catch (System.Exception ex)
             {
                 blockHeader = null;
-                _logger.LogError($"<<< DeliveredRepository.AddToTrie >>>: {ex}");
+                _logger.Here().Error(ex, "Error while adding to trie");
             }
 
             return blockHeader;

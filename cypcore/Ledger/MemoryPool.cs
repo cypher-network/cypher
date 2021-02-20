@@ -4,8 +4,10 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
+
 using Dawn;
+using Serilog;
+
 using CYPCore.Consensus.Blockmania;
 using CYPCore.Extentions;
 using CYPCore.Messages;
@@ -13,6 +15,7 @@ using CYPCore.Models;
 using CYPCore.Persistence;
 using CYPCore.Serf;
 using CYPCore.Cryptography;
+using CYPCore.Extensions;
 using CYPCore.Helper;
 
 namespace CYPCore.Ledger
@@ -35,14 +38,14 @@ namespace CYPCore.Ledger
         private LastInterpretedMessage _lastInterpretedMessage;
 
         public MemoryPool(IUnitOfWork unitOfWork, ISerfClient serfClient, IValidator validator,
-            ISigning signing, IStaging staging, ILogger<MemoryPool> logger)
+            ISigning signing, IStaging staging, ILogger logger)
         {
             _unitOfWork = unitOfWork;
             _serfClient = serfClient;
             _validator = validator;
             _signing = signing;
             _staging = staging;
-            _logger = logger;
+            _logger = logger.ForContext("SourceContext", nameof(MemoryPool));
 
             _queue = new();
         }
@@ -64,16 +67,22 @@ namespace CYPCore.Ledger
 
                 if (exists != null)
                 {
-                    _logger.LogError(
-                        $"<<< MemoryPool.AddMemPoolTransaction >>>: Exists block {memPool.Block.Hash} for round {memPool.Block.Round} and node {memPool.Block.Node}");
+                    _logger.Here().Error("Exists block {@Hash} for round {@Round} and node {@Node}",
+                        memPool.Block.Hash,
+                        memPool.Block.Round,
+                        memPool.Block.Node);
+
                     return null;
                 }
 
                 var saved = await _unitOfWork.MemPoolRepository.PutAsync(memPool.ToIdentifier(), memPool);
                 if (!saved)
                 {
-                    _logger.LogError(
-                        $"<<< MemoryPool.AddMemPoolTransaction >>>: Unable to save block {memPool.Block.Hash} for round {memPool.Block.Round} and node {memPool.Block.Node}");
+                    _logger.Here().Error("Unable to save block {@Hash} for round {@Round} and node {@Node}",
+                        memPool.Block.Hash,
+                        memPool.Block.Round,
+                        memPool.Block.Node);
+
                     return null;
                 }
 
@@ -82,7 +91,7 @@ namespace CYPCore.Ledger
             catch (Exception ex)
             {
                 memPool = null;
-                _logger.LogError($"<<< MemoryPool.AddTransaction >>>: {ex}");
+                _logger.Here().Error(ex, "Cannot add transaction");
             }
 
             return memPool;
@@ -119,8 +128,11 @@ namespace CYPCore.Ledger
                 var self = await UpsertSelf(memPool);
                 if (self == null)
                 {
-                    _logger.LogError($"<<< MemoryPool.UpsertSelf >>>: " +
-                                     $"Unable to set own block Hash: {memPool.Block.Hash} Round: {memPool.Block.Round} from node {memPool.Block.Node}");
+                    _logger.Here().Error("Unable to set own block Hash: {@Hash} Round: {@Round} from node {@Node}",
+                        memPool.Block.Hash,
+                        memPool.Block.Round,
+                        memPool.Block.Node);
+
                     continue;
                 }
 
@@ -143,7 +155,7 @@ namespace CYPCore.Ledger
 
             if (!tcpSession.Ready)
             {
-                _logger.LogCritical($"<<< MemoryPool.ReadySession >>>: Serf client is not ready");
+                _logger.Here().Fatal("Serf client is not ready");
                 return;
             }
 
@@ -152,24 +164,22 @@ namespace CYPCore.Ledger
 
             if (!countResult.Success)
             {
-                _logger.LogWarning(
-                    $"<<< MemoryPool.ReadySession >>>: {((SerfError)countResult.NonSuccessMessage).Error}");
+                _logger.Here().Warning("{@Error}", ((SerfError)countResult.NonSuccessMessage).Error);
             }
 
             _totalNodes = countResult.Value;
             if (_totalNodes < 4)
             {
-                _logger.LogWarning(
-                    $"<<< MemoryPool.ReadySession >>>: Minimum number of nodes required (4). Total number of nodes ({_totalNodes})");
+                _logger.Here().Warning("Minimum number of nodes required: 4. Total number of nodes {@TotalNodes}", _totalNodes);
             }
 
             if (_totalNodes == 0)
             {
-                _logger.LogWarning($"<<< MemoryPool.ReadySession >>>: Total number of nodes ({_totalNodes})");
+                _logger.Here().Warning("Total number of nodes: {@TotalNodes}", _totalNodes);
 
                 _totalNodes = 4;
 
-                _logger.LogWarning($"<<< MemoryPool.ReadySession >>>: Setting default number of nodes ({_totalNodes})");
+                _logger.Here().Warning("Setting default number of nodes: {@TotalNodes}", _totalNodes);
             }
         }
 
@@ -202,14 +212,14 @@ namespace CYPCore.Ledger
                     var saved = await _unitOfWork.StagingRepository.PutAsync(staging.ToIdentifier(), staging);
                     if (!saved)
                     {
-                        _logger.LogWarning($"Unable to save staging with hash: {staging.Hash}");
+                        _logger.Here().Warning("Unable to save staging with hash: {@Hash}", staging.Hash);
                         staging = null;
                     }
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< MemoryPool.SendToProcess >>>: {ex}");
+                _logger.Here().Error(ex, "Cannot verify signature");
             }
 
             return true;
@@ -233,7 +243,7 @@ namespace CYPCore.Ledger
             }
             catch (Exception ex)
             {
-                _logger.LogWarning($"<<< MemoryPool.LastInterpreted >>>: {ex}");
+                _logger.Here().Warning(ex, "Cannot get element");
             }
             finally
             {
@@ -265,16 +275,22 @@ namespace CYPCore.Ledger
 
                     if (memPool == null)
                     {
-                        _logger.LogError(
-                            $"<<< MemoryPool.BlockmaniaCallback >>>: Unable to find matching block - Hash: {next.Hash} Round: {next.Round} from node {next.Node}");
+                        _logger.Here().Error("Unable to find matching block - Hash: {@Hash} Round: {@Round} from node {@Node}",
+                            next.Hash,
+                            next.Round,
+                            next.Node);
+
                         continue;
                     }
 
                     var verified = await _validator.VerifyMemPoolSignatures(memPool);
                     if (verified == false)
                     {
-                        _logger.LogError(
-                            $"<<< MemoryPool.BlockmaniaCallback >>>: Unable to verify node signatures - Hash: {next.Hash} Round: {next.Round} from node {next.Node}");
+                        _logger.Here().Error("Unable to verify node signatures - Hash: {@Hash} Round: {@Round} from node {@Node}",
+                            next.Hash,
+                            next.Round,
+                            next.Node);
+
                         continue;
                     }
 
@@ -295,8 +311,11 @@ namespace CYPCore.Ledger
 
                     if (hasSeen != null)
                     {
-                        _logger.LogError(
-                            $"<<< MemoryPool.BlockmaniaCallback >>>: Already seen interpreted block - Hash: {next.Hash} Round: {next.Round} from node {next.Node}");
+                        _logger.Here().Error("Already seen interpreted block - Hash: {@Hash} Round: {@Round} from node {@Node}",
+                            next.Hash,
+                            next.Round,
+                            next.Node);
+
                         continue;
                     }
 
@@ -304,14 +323,15 @@ namespace CYPCore.Ledger
                         interpreted);
                     if (!saved)
                     {
-                        _logger.LogError(
-                            $"<<< MemoryPool.BlockmaniaCallback >>>: Unable to save block for {interpreted.Node} and round {interpreted.Round}");
+                        _logger.Here().Error("Unable to save block for {@Node} and round {@Round}",
+                            interpreted.Node,
+                            interpreted.Round);
                     }
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< MemoryPool.BlockmaniaCallback >>>: {ex}");
+                _logger.Here().Error(ex, "Blockmania error");
             }
         }
 
@@ -358,8 +378,10 @@ namespace CYPCore.Ledger
                 var saved = await _unitOfWork.MemPoolRepository.PutAsync(signed.ToIdentifier(), signed);
                 if (!saved)
                 {
-                    _logger.LogError(
-                        $"<<< MemoryPool.UpsertSelf >>>: Unable to save block for {memPool.Block.Node} and round {memPool.Block.Round}");
+                    _logger.Here().Error("Unable to save block for {@Node} and round {@Round}",
+                        memPool.Block.Node,
+                        memPool.Block.Round);
+
                     return null;
                 }
 
@@ -367,7 +389,7 @@ namespace CYPCore.Ledger
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< MemoryPool.UpsertSelf >>>: {ex}");
+                _logger.Here().Error(ex, "Error while upserting");
             }
 
             return stored;
@@ -437,7 +459,7 @@ namespace CYPCore.Ledger
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< MemoryPool.IncrementRound >>>: {ex}");
+                _logger.Here().Error(ex, "Cannot increment round");
             }
 
             return currentRound;

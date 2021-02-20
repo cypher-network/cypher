@@ -4,15 +4,12 @@
 using System;
 using System.Threading.Tasks;
 using System.Security.Cryptography;
-
-using Microsoft.AspNetCore.DataProtection;
-using Microsoft.Extensions.Logging;
-
-using libsignal.ecc;
-
-using Newtonsoft.Json;
-
+using CYPCore.Extensions;
 using Dawn;
+using Microsoft.AspNetCore.DataProtection;
+using libsignal.ecc;
+using Newtonsoft.Json;
+using Serilog;
 
 using CYPCore.Models;
 using CYPCore.Extentions;
@@ -31,11 +28,11 @@ namespace CYPCore.Cryptography
 
         public string DefaultSigningKeyName => "DefaultSigning.Key";
 
-        public Signing(IDataProtectionProvider dataProtectionProvider, IUnitOfWork unitOfWork, ILogger<Signing> logger)
+        public Signing(IDataProtectionProvider dataProtectionProvider, IUnitOfWork unitOfWork, ILogger logger)
         {
             _dataProtectionProvider = dataProtectionProvider;
             _unitOfWork = unitOfWork;
-            _logger = logger;
+            _logger = logger.ForContext("SourceContext", nameof(Signing));
         }
 
         /// <summary>
@@ -82,7 +79,7 @@ namespace CYPCore.Cryptography
                     var saved = await _unitOfWork.DataProtectionPayload.PutAsync(keyName.ToBytes(), _protectionProto);
                     if (!saved)
                     {
-                        _logger.LogError($"<<< SigningProvider.GetOrUpsertKeyName >>>: Unable to save protection key payload for: {keyName}");
+                        _logger.Here().Error("Unable to save protection key payload for: {@KeyName}", keyName);
                         return null;
                     }
                 }
@@ -91,11 +88,11 @@ namespace CYPCore.Cryptography
             }
             catch (CryptographicException ex)
             {
-                _logger.LogCritical($"<<< SigningProvider.GetOrUpsertKeyName >>>: {ex}");
+                _logger.Here().Fatal(ex, "Cannot get keypair");
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< SigningProvider.GetOrUpsertKeyName >>>: {ex}");
+                _logger.Here().Error(ex, "Cannot get keypair");
             }
 
             return kp;
@@ -142,7 +139,7 @@ namespace CYPCore.Cryptography
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< SigningActor.Sign >>>: {ex}");
+                _logger.Here().Error(ex, "Cannot sign");
             }
 
             return signature;
@@ -168,7 +165,7 @@ namespace CYPCore.Cryptography
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< SigningActor.VerifySignature >>>: {ex}");
+                _logger.Here().Error(ex, "Cannot verify signature");
             }
 
             return verified;
@@ -195,7 +192,7 @@ namespace CYPCore.Cryptography
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< SigningActor.VerifySignature(byte[] signature, byte[] publicKey, byte[] message) >>>: {ex}");
+                _logger.Here().Error(ex, "Cannot verify signature");
             }
 
             return verified;
