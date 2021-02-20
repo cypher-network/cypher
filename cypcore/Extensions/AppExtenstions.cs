@@ -55,12 +55,12 @@ namespace CYPCore.Extensions
         /// </summary>
         /// <param name="builder"></param>
         /// <returns></returns>
-        public static ContainerBuilder AddPosMinting(this ContainerBuilder builder, IConfigurationRoot configurationRoot)
+        public static ContainerBuilder AddPosMinting(this ContainerBuilder builder, IConfiguration configuration)
         {
             builder.Register(c =>
             {
                 var stakingConfigurationOptions = new StakingConfigurationOptions();
-                configurationRoot.Bind("Staking", stakingConfigurationOptions);
+                configuration.Bind("Staking", stakingConfigurationOptions);
 
                 var posMintingProvider = new PosMinting(
                     c.Resolve<ISerfClient>(),
@@ -87,9 +87,9 @@ namespace CYPCore.Extensions
         /// </summary>
         /// <param name="builder"></param>
         /// <returns></returns>
-        public static ContainerBuilder AddUnitOfWork(this ContainerBuilder builder, IConfigurationRoot configurationRoot)
+        public static ContainerBuilder AddUnitOfWork(this ContainerBuilder builder, IConfiguration configuration)
         {
-            var dataFolder = configurationRoot.GetSection("DataFolder");
+            var dataFolder = configuration.GetSection("DataFolder");
             builder.Register(c =>
             {
                 UnitOfWork unitOfWork = new(dataFolder.Value, c.Resolve<ILogger<UnitOfWork>>());
@@ -142,17 +142,17 @@ namespace CYPCore.Extensions
         /// 
         /// </summary>
         /// <param name="builder"></param>
-        /// <param name="configurationRoot"></param>
+        /// <param name="configuration"></param>
         /// <returns></returns>
-        public static ContainerBuilder AddSwimGossipClient(this ContainerBuilder builder, IConfigurationRoot configurationRoot)
+        public static ContainerBuilder AddSwimGossipClient(this ContainerBuilder builder, IConfiguration configuration)
         {
             builder.Register(c =>
             {
                 var serfConfigurationOptions = new SerfConfigurationOptions();
                 var apiConfigurationOptions = new ApiConfigurationOptions();
 
-                configurationRoot.Bind("Serf", serfConfigurationOptions);
-                configurationRoot.Bind("Api", apiConfigurationOptions);
+                configuration.Bind("Serf", serfConfigurationOptions);
+                configuration.Bind("Api", apiConfigurationOptions);
 
                 var logger = c.Resolve<ILogger<SerfClient>>();
                 var serfClient = new SerfClient(c.Resolve<ISigning>(), serfConfigurationOptions, apiConfigurationOptions, logger);
@@ -171,7 +171,7 @@ namespace CYPCore.Extensions
         /// <param name="builder"></param>
         /// <param name="configurationRoot"></param>
         /// <returns></returns>
-        public static ContainerBuilder AddValidator(this ContainerBuilder builder, IConfigurationRoot configurationRoot)
+        public static ContainerBuilder AddValidator(this ContainerBuilder builder)
         {
             builder.Register(c =>
             {
@@ -190,9 +190,9 @@ namespace CYPCore.Extensions
         /// <param name="services"></param>
         /// <param name="configurationRoot"></param>
         /// <returns></returns>
-        public static IServiceCollection AddDataKeysProtection(this IServiceCollection services, IConfigurationRoot configurationRoot)
+        public static IServiceCollection AddDataKeysProtection(this IServiceCollection services, IConfiguration configuration)
         {
-            var dataProtecttion = configurationRoot.GetSection("DataProtectionPath");
+            var dataProtecttion = configuration.GetSection("DataProtectionPath");
 
             services
                 .AddDataProtection()
@@ -209,7 +209,7 @@ namespace CYPCore.Extensions
         /// <param name="builder"></param>
         /// <param name="configurationRoot"></param>
         /// <returns></returns>
-        public static ContainerBuilder AddSerfProcessService(this ContainerBuilder builder, IConfigurationRoot configurationRoot)
+        public static ContainerBuilder AddSerfProcessService(this ContainerBuilder builder, IConfiguration configuration)
         {
             builder.Register(c =>
             {
@@ -238,7 +238,7 @@ namespace CYPCore.Extensions
 
                 if (connectResult.Success)
                 {
-                    var seedNodesSection = configurationRoot.GetSection("SeedNodes").GetChildren().ToList();
+                    var seedNodesSection = configuration.GetSection("SeedNodes").GetChildren().ToList();
                     if (seedNodesSection.Any())
                     {
                         var seedNodes = new SeedNode(seedNodesSection.Select(x => x.Value));
