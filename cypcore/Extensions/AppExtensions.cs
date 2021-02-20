@@ -25,9 +25,8 @@ using CYPCore.Ledger;
 
 namespace CYPCore.Extensions
 {
-    public static class AppExtenstions
+    public static class AppExtensions
     {
-
         /// <summary>
         /// 
         /// </summary>
@@ -44,16 +43,17 @@ namespace CYPCore.Extensions
         /// </summary>
         /// <param name="builder"></param>
         /// <returns></returns>
-        public static ContainerBuilder AddMempool(this ContainerBuilder builder)
+        public static ContainerBuilder AddMemoryPool(this ContainerBuilder builder)
         {
             builder.RegisterType<MemoryPool>().As<IMemoryPool>().InstancePerDependency();
             return builder;
         }
-
+        
         /// <summary>
         /// 
         /// </summary>
         /// <param name="builder"></param>
+        /// <param name="configurationRoot"></param>
         /// <returns></returns>
         public static ContainerBuilder AddPosMinting(this ContainerBuilder builder, IConfigurationRoot configurationRoot)
         {
@@ -86,6 +86,7 @@ namespace CYPCore.Extensions
         ///     
         /// </summary>
         /// <param name="builder"></param>
+        /// <param name="configurationRoot"></param>
         /// <returns></returns>
         public static ContainerBuilder AddUnitOfWork(this ContainerBuilder builder, IConfigurationRoot configurationRoot)
         {
@@ -131,8 +132,7 @@ namespace CYPCore.Extensions
             })
             .As<ILocalNode>()
             .SingleInstance();
-
-            builder.RegisterType<LocalNodeBackgroundService>().As<IHostedService>().SingleInstance();
+            
             builder.RegisterType<SyncBackgroundService>().As<IHostedService>().SingleInstance();
 
             return builder;
@@ -192,12 +192,12 @@ namespace CYPCore.Extensions
         /// <returns></returns>
         public static IServiceCollection AddDataKeysProtection(this IServiceCollection services, IConfigurationRoot configurationRoot)
         {
-            var dataProtecttion = configurationRoot.GetSection("DataProtectionPath");
+            var dataProtection = configurationRoot.GetSection("DataProtectionPath");
 
             services
                 .AddDataProtection()
-                .PersistKeysToFileSystem(new DirectoryInfo(dataProtecttion.Value))
-                .SetApplicationName("tangram")
+                .PersistKeysToFileSystem(new DirectoryInfo(dataProtection.Value))
+                .SetApplicationName("cypher")
                 .SetDefaultKeyLifetime(TimeSpan.FromDays(3650));
 
             return services;

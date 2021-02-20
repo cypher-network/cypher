@@ -63,7 +63,7 @@ namespace CYPNode
             builder.AddSwimGossipClient(Configuration);
             builder.AddSerfProcessService(Configuration);
             builder.AddUnitOfWork(Configuration);
-            builder.AddMempool();
+            builder.AddMemoryPool();
             builder.AddStaging();
             builder.AddSigning();
             builder.AddValidator(Configuration);

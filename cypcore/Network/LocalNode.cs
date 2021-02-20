@@ -17,7 +17,6 @@ namespace CYPCore.Network
 {
     public class LocalNode : ILocalNode
     {
-        private readonly ConcurrentDictionary<ulong, Peer> _peers;
         private readonly ISerfClient _serfClient;
         private readonly ILogger _logger;
         private TcpSession _tcpSession;
@@ -26,7 +25,6 @@ namespace CYPCore.Network
         {
             _serfClient = serfClient;
             _logger = logger;
-            _peers = new ConcurrentDictionary<ulong, Peer>();
         }
 
         public void Ready()
@@ -35,75 +33,7 @@ namespace CYPCore.Network
                 new TcpSession(_serfClient.SerfConfigurationOptions.Listening)
                     .Connect(_serfClient.SerfConfigurationOptions.RPC));
         }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <returns></returns>
-        public async Task BootstrapNodes()
-        {
-            try
-            {
-                var tcpSession = _serfClient.GetTcpSession(_tcpSession.SessionId);
-                var membersResult = await _serfClient.Members(tcpSession.SessionId);
-
-                if (tcpSession.Ready)
-                {
-                    _ = _serfClient.Connect(tcpSession.SessionId);
-                    if (!membersResult.Success)
-                    {
-                        return;
-                    }
-
-                    foreach (var member in membersResult.Value.Members
-                        .Where(member =>
-                            !_peers.TryGetValue(Helper.Util.HashToId(member.Tags["pubkey"]), out Peer peer))
-                        .Select(member => member))
-                    {
-                        if (_serfClient.Name == member.Name)
-                            continue;
-
-                        if (member.Status != "alive")
-                            continue;
-
-                        member.Tags.TryGetValue("rest", out string restEndpoint);
-
-                        if (string.IsNullOrEmpty(restEndpoint))
-                            continue;
-
-                        if (Uri.TryCreate($"{restEndpoint}", UriKind.Absolute, out Uri uri))
-                        {
-                            if (!_peers.TryAdd(Helper.Util.HashToId(member.Tags["pubkey"]),
-                                new Peer {Host = uri.OriginalString}))
-                            {
-                                _logger.LogError(
-                                    $"<<< LocalNode.Connect >>>: Failed adding or exists in remote nodes: {member.Name}");
-                                return;
-                            }
-                        }
-                    }
-
-                    foreach (var node in _peers
-                        .Where(node =>
-                            !membersResult.Value.Members.ToDictionary(x => Helper.Util.HashToId(x.Tags["pubkey"]))
-                                .TryGetValue(node.Key, out Serf.Message.Members members1)).Select(x => x))
-                    {
-                        if (!_peers.TryRemove(node.Key, out Peer peer))
-                        {
-                            _logger.LogError($"<<< LocalNode.BootstrapClients >>>: Failed removing {node.Key}");
-                        }
-                    }
-                }
-            }
-            catch (ArgumentException)
-            {
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"<<< LocalNode.BootstrapClients >>>: {ex}");
-            }
-        }
-
+        
         /// <summary>
         /// 
         /// </summary>
@@ -113,13 +43,62 @@ namespace CYPCore.Network
         public async Task Broadcast(byte[] data, TopicType topicType)
         {
             Guard.Argument(data, nameof(data)).NotNull();
+            
+            try
+            {
+                var tasks = new  List<Task>();
 
-            List<Task> tasks = new();
-            var peers = _peers.Select(p => p).ToList();
+                var peers = await GetPeers();
+                if (peers == null) return;
+                
+                var broadcastPeers = peers.Select(p => p).ToList();
+                broadcastPeers.ForEach(x => { tasks.Add(Send(data, topicType, x.Value.Host)); });
 
-            peers.ForEach(x => { tasks.Add(Send(data, topicType, x.Value.Host)); });
+                await Task.WhenAll(tasks);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    $"<<< LocalNode.Broadcast >>>: {ex}");
+            }
+        }
 
-            await Task.WhenAll(tasks);
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        public async Task<Dictionary<ulong, Peer>> GetPeers()
+        {
+            var peers = new Dictionary<ulong, Peer>();
+            
+            var tcpSession = _serfClient.GetTcpSession(_tcpSession.SessionId);
+            _ = _serfClient.Connect(tcpSession.SessionId);
+                
+            if (!tcpSession.Ready)
+            {
+                _logger.LogError(
+                    $"<<< LocalNode.GetPeers >>>: Serf client failed to connect");
+                return null;
+            }
+                
+            var membersResult = await _serfClient.Members(tcpSession.SessionId);
+            var members = membersResult.Value.Members.ToList();
+                
+            foreach (var member in members.Where(member =>
+                _serfClient.Name != member.Name && member.Status == "alive"))
+            {
+                member.Tags.TryGetValue("rest", out var restEndpoint);
+
+                if (string.IsNullOrEmpty(restEndpoint)) continue;
+                if (!Uri.TryCreate($"{restEndpoint}", UriKind.Absolute, out var uri)) continue;
+                if (peers.TryAdd(Helper.Util.HashToId(member.Tags["pubkey"]), new Peer {Host = uri.OriginalString})) continue;
+                    
+                _logger.LogError(
+                    $"<<< LocalNode.GetPeers >>>: Failed adding remote nodes: {member.Name}");
+                return null;
+            }
+
+            return peers;
         }
 
         /// <summary>
