@@ -5,8 +5,11 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Collections.Generic;
-using Microsoft.Extensions.Logging;
+
 using Dawn;
+using Serilog;
+
+using CYPCore.Extensions;
 using CYPCore.Models;
 
 namespace CYPCore.Persistence
@@ -69,9 +72,9 @@ namespace CYPCore.Persistence
                     }
                 }
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
-                _logger.LogError($"<<< MemPoolRepository.MoreAsync >>>: {e}");
+                _logger.Here().Error(ex, "Error while iterating mempool");
             }
 
             return moreBlocks;
@@ -96,9 +99,9 @@ namespace CYPCore.Persistence
                     await PutAsync(next.ToIdentifier(), next);
                 }
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
-                _logger.LogError($"<<< BlockGraphRepository.IncludeAllAsync >>>: {e}");
+                _logger.Here().Error(ex, "Error while addind to mempool");
             }
 
             return;

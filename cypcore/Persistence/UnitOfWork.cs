@@ -2,7 +2,8 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using Microsoft.AspNetCore.DataProtection.Repositories;
-using Microsoft.Extensions.Logging;
+
+using Serilog;
 
 namespace CYPCore.Persistence
 {
@@ -20,7 +21,7 @@ namespace CYPCore.Persistence
 
         private readonly ILogger _logger;
 
-        public UnitOfWork(string folderDb, ILogger<UnitOfWork> logger)
+        public UnitOfWork(string folderDb, ILogger logger)
         {
             StoreDb = new StoreDb(folderDb);
 

@@ -1,6 +1,4 @@
-﻿using System;
-
-using CYPCore.Models;
+﻿using CYPCore.Models;
 
 namespace CYPCore.Persistence
 {

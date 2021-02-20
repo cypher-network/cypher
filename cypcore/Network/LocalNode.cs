@@ -25,7 +25,7 @@ namespace CYPCore.Network
         private readonly ILogger _logger;
         private TcpSession _tcpSession;
 
-        public LocalNode(ISerfClient serfClient, ILogger<LocalNode> logger)
+        public LocalNode(ISerfClient serfClient, ILogger logger)
         {
             _serfClient = serfClient;
             _logger = logger.ForContext("SourceContext", nameof(LocalNode));
