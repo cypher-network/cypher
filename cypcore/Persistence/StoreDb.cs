@@ -117,6 +117,12 @@ namespace CYPCore.Persistence
                         .SetMemtableHugePageSize(2 * 1024 * 1024)
                         .SetPrefixExtractor(SliceTransform.CreateFixedPrefix((ulong) 8))
                         .SetBlockBasedTableFactory(blockBasedTableOptions)
+                },
+                {
+                    InterpretedTable.ToString(), new ColumnFamilyOptions()
+                        .SetMemtableHugePageSize(2 * 1024 * 1024)
+                        .SetPrefixExtractor(SliceTransform.CreateFixedPrefix((ulong) 8))
+                        .SetBlockBasedTableFactory(blockBasedTableOptions)
                 }
             };
             return columnFamilies;
