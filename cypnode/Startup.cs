@@ -49,11 +49,12 @@ namespace CYPNode
         }
 
         /// <summary>
-        /// TODO: Check deletion. This method is currently unused.
+        /// 
         /// </summary>
         /// <param name="builder"></param>
         public void ConfigureContainer(ContainerBuilder builder)
         {
+            builder.AddSerilog();
             builder.AddSwimGossipClient(Configuration);
             builder.AddSerfProcessService(Configuration);
             builder.AddUnitOfWork(Configuration);
@@ -70,7 +71,7 @@ namespace CYPNode
         }
 
         /// <summary>
-        /// TODO: Check deletion. This method is currently unused.
+        /// 
         /// </summary>
         /// <param name="app"></param>
         /// <param name="lifetime"></param>

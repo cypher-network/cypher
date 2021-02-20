@@ -14,7 +14,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Configuration;
 
 using Autofac;
-
+using AutofacSerilogIntegration;
 using CYPCore.Models;
 using CYPCore.Services;
 using CYPCore.Serf;
@@ -27,6 +27,16 @@ namespace CYPCore.Extensions
 {
     public static class AppExtenstions
     {
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="builder"></param>
+        /// <returns></returns>
+        public static ContainerBuilder AddSerilog(this ContainerBuilder builder)
+        {
+            builder.RegisterLogger();
+            return builder;
+        }
 
         /// <summary>
         /// 
@@ -218,7 +228,7 @@ namespace CYPCore.Extensions
                 var signing = c.Resolve<ISigning>();
                 var lifetime = c.Resolve<IHostApplicationLifetime>();
                 var serfClient = c.Resolve<ISerfClient>();
-                var logger = c.Resolve<ILogger<SerfService>>();
+                var logger = c.Resolve<Serilog.ILogger>();
 
                 var serfService = new SerfService(serfClient, signing, logger);
 
@@ -249,7 +259,7 @@ namespace CYPCore.Extensions
                 }
                 else
                 {
-                    logger.LogCritical($"<<< GraphProvider.InitializeBlocks >>>: {((SerfError)connectResult.NonSuccessMessage).Error}");
+                    logger.Here().Error($"<<< GraphProvider.InitializeBlocks >>>: {((SerfError)connectResult.NonSuccessMessage).Error}");
                 }
 
                 return serfService;
