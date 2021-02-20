@@ -24,7 +24,7 @@ namespace CYPCore.Ledger
         bool VerifyCoinbaseTransaction(TransactionProto transaction, ulong solution);
         bool VerifySolution(byte[] vrfBytes, byte[] kernel, ulong solution);
         Task<bool> VerifyBlockHeader(BlockHeaderProto blockHeader);
-        Task<bool> VerifyBlockHeaders(IEnumerable<BlockHeaderProto> blockHeaders);
+        Task<bool> VerifyBlockHeaders(BlockHeaderProto[] blockHeaders);
         Task<bool> VerifyTransaction(TransactionProto transaction);
         Task<bool> VerifyTransactions(HashSet<TransactionProto> transactions);
         bool VerifySloth(int bits, byte[] vrfSig, byte[] nonce, byte[] security);
@@ -38,7 +38,7 @@ namespace CYPCore.Ledger
         bool VerifyCommitSum(TransactionProto transaction);
         bool VerifyTransactionFee(TransactionProto transaction);
         Task<bool> VerifyKimage(TransactionProto transaction);
-        Task<bool> VerifyVoutCommits(TransactionProto transaction);
+        Task<bool> VerifyVOutCommits(TransactionProto transaction);
         Task<double> GetRunningDistribution();
         ulong Fee(int nByte);
         bool VerifyNetworkShare(ulong solution, double previousNetworkShare, ref double runningDistributionTotal);

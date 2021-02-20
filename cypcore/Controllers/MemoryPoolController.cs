@@ -2,14 +2,14 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
+using System.Linq;
 using System.Threading.Tasks;
-
+using CYPCore.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 
 using CYPCore.Services;
-using CYPCore.Models;
 
 namespace CYPCore.Controllers
 {
@@ -36,8 +36,10 @@ namespace CYPCore.Controllers
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> AddMemoryPool([FromBody] byte[] pool)
         {
-            var added = await _memoryPoolService.AddMemoryPool(pool);
-            return new ObjectResult(new { code = added == true ? StatusCodes.Status200OK : StatusCodes.Status500InternalServerError });
+            var payload = Helper.Util.DeserializeProto<MemPoolProto>(pool);
+            var added = await _memoryPoolService.AddMemoryPool(payload);
+            
+            return new ObjectResult(new { code = added ? StatusCodes.Status200OK : StatusCodes.Status500InternalServerError });
         }
 
         /// <summary>
@@ -48,9 +50,11 @@ namespace CYPCore.Controllers
         [HttpPost("pools", Name = "AddMemoryPools")]
         [ProducesResponseType(typeof(int), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> AddMemoryPools([FromBody] byte[] pool)
+        public async Task<IActionResult> AddMemoryPools([FromBody] byte[] pools)
         {
-            await _memoryPoolService.AddMemoryPools(pool);
+            var payloads = Helper.Util.DeserializeListProto<MemPoolProto>(pools).ToArray();
+            await _memoryPoolService.AddMemoryPools(payloads);
+            
             return new OkResult();
         }
 
@@ -66,8 +70,10 @@ namespace CYPCore.Controllers
         {
             try
             {
-                var added = await _memoryPoolService.AddTransaction(tx);
-                return new ObjectResult(new { code = added == true ? StatusCodes.Status200OK : StatusCodes.Status500InternalServerError });
+                var payload = Helper.Util.DeserializeProto<TransactionProto>(tx);
+                var added = await _memoryPoolService.AddTransaction(payload);
+                
+                return new ObjectResult(new { code = added ? StatusCodes.Status200OK : StatusCodes.Status500InternalServerError });
             }
             catch (Exception ex)
             {

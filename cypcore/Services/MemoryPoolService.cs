@@ -48,29 +48,28 @@ namespace CYPCore.Services
         /// </summary>
         /// <param name="tx"></param>
         /// <returns></returns>
-        public async Task<bool> AddTransaction(byte[] tx)
+        public async Task<bool> AddTransaction(TransactionProto tx)
         {
             Guard.Argument(tx, nameof(tx)).NotNull();
 
             try
             {
-                var transaction = Helper.Util.DeserializeProto<TransactionProto>(tx);
-                var valid = transaction.Validate().Any();
+                var valid = tx.Validate().Any();
                 if (!valid)
                 {
-                    var delivered = await DeliveredTxExist(transaction);
+                    var delivered = await TransactionDeliveredExist(tx);
                     if (delivered)
                     {
                         return false;
                     }
 
-                    var memory = await TransactionMemoryPoolExist(transaction);
+                    var memory = await TransactionMemoryPoolExist(tx);
                     if (memory)
                     {
                         return false;
                     }
 
-                    var memPoolProto = await _memoryPool.AddTransaction(MemoryPoolProtoFactory(transaction));
+                    var memPoolProto = await _memoryPool.AddTransaction(MemoryPoolProtoFactory(tx));
                     if (memPoolProto == null)
                     {
                         return false;
@@ -110,11 +109,10 @@ namespace CYPCore.Services
         /// </summary>
         /// <param name="pools"></param>
         /// <returns></returns>
-        public async Task AddMemoryPools(byte[] pools)
+        public async Task AddMemoryPools(MemPoolProto[] memPools)
         {
             try
             {
-                var memPools = Helper.Util.DeserializeListProto<MemPoolProto>(pools).ToList();
                 if (memPools.Any())
                 {
                     foreach (var memPool in memPools)
@@ -122,6 +120,8 @@ namespace CYPCore.Services
                         var processed = await Process(memPool);
                         if (!processed)
                         {
+                            _logger.LogError(
+                                $"<<< MemoryPoolService.AddMemoryPools >>>: Could not process memory pool with hash:  {memPool.Block.Hash}");
                         }
                     }
                 }
@@ -135,18 +135,19 @@ namespace CYPCore.Services
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="pool"></param>
+        /// <param name="memPool"></param>
         /// <returns></returns>
-        public async Task<bool> AddMemoryPool(byte[] pool)
+        public async Task<bool> AddMemoryPool(MemPoolProto memPool)
         {
-            bool processed = false;
+            var processed = false;
 
             try
             {
-                var payload = Helper.Util.DeserializeProto<MemPoolProto>(pool);
-                if (payload != null)
+                processed = await Process(memPool);
+                if (!processed)
                 {
-                    processed = await Process(payload);
+                    _logger.LogError(
+                        $"<<< MemoryPoolService.AddMemoryPool >>>: Could not process memory pool with hash:  {memPool.Block.Hash}");
                 }
             }
             catch (Exception ex)
@@ -166,21 +167,16 @@ namespace CYPCore.Services
         {
             Guard.Argument(memPool, nameof(memPool)).NotNull();
 
-            if (_serfClient.ClientId == memPool.Block.Node)
-            {
-                return false;
-            }
+            if (_serfClient.ClientId == memPool.Block.Node) return false;
 
             memPool.Included = false;
             memPool.Replied = false;
 
             var added = await _memoryPool.AddTransaction(memPool);
             if (added != null) return true;
-
             _logger.LogError($"<<< MemoryPoolService.Process >>>: " +
                              $"Memory pool hash: {memPool.Block.Hash} was not added " +
                              $"for node {memPool.Block.Node} and round {memPool.Block.Round}");
-
             return false;
         }
 
@@ -192,8 +188,8 @@ namespace CYPCore.Services
         private async Task<bool> TransactionMemoryPoolExist(TransactionProto tx)
         {
             var memPool = await _unitOfWork.MemPoolRepository.FirstAsync(x =>
-                new ValueTask<bool>(x.Block.Hash.Equals(tx.ToHash().ByteToHex()) && x.Block.Transaction.Ver == tx.Ver &&
-                                    x.Block.Node == _serfClient.ClientId));
+                new ValueTask<bool>(
+                    x.Block.Hash.Equals(tx.ToHash().ByteToHex()) && x.Block.Node == _serfClient.ClientId));
 
             return memPool != null;
         }
@@ -203,7 +199,7 @@ namespace CYPCore.Services
         /// </summary>
         /// <param name="tx"></param>
         /// <returns></returns>
-        private async Task<bool> DeliveredTxExist(TransactionProto tx)
+        private async Task<bool> TransactionDeliveredExist(TransactionProto tx)
         {
             foreach (var vin in tx.Vin)
             {

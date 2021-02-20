@@ -30,7 +30,7 @@ namespace CYPCore.Ledger
 {
     public class PosMinting : IPosMinting
     {
-        private const string _keyName = "PosMintingProvider.Key";
+        private const string KeyName = "PosMintingProvider.Key";
 
         private readonly ISerfClient _serfClient;
         private readonly IUnitOfWork _unitOfWork;
@@ -53,7 +53,7 @@ namespace CYPCore.Ledger
             _stakingConfigurationOptions = stakingConfigurationOptions;
             _logger = logger;
 
-            _keyPair = _signing.GetOrUpsertKeyName(_keyName).ConfigureAwait(false).GetAwaiter().GetResult();
+            _keyPair = _signing.GetOrUpsertKeyName(KeyName).ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
         /// <summary>
@@ -96,13 +96,13 @@ namespace CYPCore.Ledger
                 transactions.ForEach(x => { ts.Append(x.Stream()); });
                 hash = NBitcoin.Crypto.Hashes.DoubleSHA256(ts.ToArray());
             }
-
-            byte[] signature = _signing.CalculateVrfSignature(Curve.decodePrivatePoint(_keyPair.PrivateKey), hash.ToBytes(false));
-            byte[] vrfSig = _signing.VerifyVrfSignature(Curve.decodePoint(_keyPair.PublicKey, 0), hash.ToBytes(false), signature);
-            ulong solution = _validator.Solution(vrfSig, hash.ToBytes(false));
-            double networkShare = _validator.NetworkShare(solution);
-            ulong reward = _validator.Reward(solution);
-            int bits = _validator.Difficulty(solution, networkShare);
+            
+            var signature = _signing.CalculateVrfSignature(Curve.decodePrivatePoint(_keyPair.PrivateKey), hash.ToBytes(false));
+            var vrfSig = _signing.VerifyVrfSignature(Curve.decodePoint(_keyPair.PublicKey, 0), hash.ToBytes(false), signature);
+            var solution = _validator.Solution(vrfSig, hash.ToBytes(false));
+            var networkShare = _validator.NetworkShare(solution);
+            var reward = _validator.Reward(solution);
+            var bits = _validator.Difficulty(solution, networkShare);
 
             try
             {
@@ -123,7 +123,7 @@ namespace CYPCore.Ledger
 
             var lastSeenBlockHeader = await _unitOfWork.SeenBlockHeaderRepository.LastAsync();
             var deliveredBlockHeader = await TryGetDeliveredBlockHeader(lastSeenBlockHeader);
-            var blockHeader = CreateBlockHeader(transactions, signature, vrfSig, solution, bits, deliveredBlockHeader);
+            var blockHeader = CreateBlockHeader(transactions.ToArray(), signature, vrfSig, solution, bits, deliveredBlockHeader);
 
             blockHeader = _unitOfWork.DeliveredRepository.ToTrie(blockHeader);
             if (blockHeader == null)
@@ -170,19 +170,18 @@ namespace CYPCore.Ledger
 
             return deliveredBlockHeader;
         }
-
+        
         /// <summary>
         /// 
         /// </summary>
         /// <param name="transactions"></param>
-        /// <param name="proof"></param>
+        /// <param name="signature"></param>
         /// <param name="vrfBytes"></param>
         /// <param name="solution"></param>
         /// <param name="bits"></param>
-        /// <param name="nonce"></param>
         /// <param name="deliveredBlockHeader"></param>
         /// <returns></returns>
-        private BlockHeaderProto CreateBlockHeader(IEnumerable<TransactionProto> transactions, byte[] signature, byte[] vrfBytes, ulong solution, int bits, BlockHeaderProto deliveredBlockHeader)
+        private BlockHeaderProto CreateBlockHeader(TransactionProto[] transactions, byte[] signature, byte[] vrfBytes, ulong solution, int bits, BlockHeaderProto deliveredBlockHeader)
         {
             Guard.Argument(transactions, nameof(transactions)).NotNull();
             Guard.Argument(signature, nameof(signature)).NotNull().MaxCount(96);
@@ -231,7 +230,7 @@ namespace CYPCore.Ledger
         /// <returns></returns>
         private async Task<bool> PublishBlockHeader(BlockHeaderProto blockHeader)
         {
-            var data = Helper.Util.SerializeProto(blockHeader);
+            var data = Util.SerializeProto(blockHeader);
             var payload = new PayloadProto
             {
                 Error = false,
@@ -239,10 +238,10 @@ namespace CYPCore.Ledger
                 Node = _serfClient.ClientId,
                 Data = data,
                 PublicKey = await _signing.GetPublicKey(_signing.DefaultSigningKeyName),
-                Signature = await _signing.Sign(_signing.DefaultSigningKeyName, Helper.Util.SHA384ManagedHash(data))
+                Signature = await _signing.Sign(_signing.DefaultSigningKeyName, Util.SHA384ManagedHash(data))
             };
 
-            await _localNode.Broadcast(Helper.Util.SerializeProto(payload), TopicType.AddBlock);
+            await _localNode.Broadcast(Util.SerializeProto(payload), TopicType.AddBlock);
 
             return true;
         }
@@ -341,7 +340,7 @@ namespace CYPCore.Ledger
                         SessionType = SessionType.Coinstake
                     };
 
-                    var proto = Helper.Util.SerializeProto(sendPayment);
+                    var proto = Util.SerializeProto(sendPayment);
 
                     var byteArrayContent = new ByteArrayContent(proto);
                     byteArrayContent.Headers.ContentType = new MediaTypeHeaderValue("application/x-protobuf");
@@ -351,10 +350,10 @@ namespace CYPCore.Ledger
                     var read = response.Content.ReadAsStringAsync().Result;
                     var jObject = JObject.Parse(read);
                     var jToken = jObject.GetValue("protobuf");
-                    var byteArray = Convert.FromBase64String(jToken.Value<string>());
+                    var byteArray = Convert.FromBase64String((jToken ?? throw new InvalidOperationException()).Value<string>());
 
                     if (response.IsSuccessStatusCode)
-                        transaction = Helper.Util.DeserializeProto<TransactionProto>(byteArray);
+                        transaction = Util.DeserializeProto<TransactionProto>(byteArray);
                     else
                     {
                         var content = await response.Content.ReadAsStringAsync();

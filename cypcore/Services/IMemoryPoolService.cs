@@ -9,9 +9,9 @@ namespace CYPCore.Services
 {
     public interface IMemoryPoolService
     {
-        Task<bool> AddMemoryPool(byte[] pool);
-        Task AddMemoryPools(byte[] pools);
-        Task<bool> AddTransaction(byte[] tx);
+        Task<bool> AddMemoryPool(MemPoolProto memPool);
+        Task AddMemoryPools(MemPoolProto[] pools);
+        Task<bool> AddTransaction(TransactionProto tx);
         Task<long> GetTransactionCount();
     }
 }
