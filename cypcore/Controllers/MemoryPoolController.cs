@@ -3,13 +3,13 @@
 
 using System;
 using System.Threading.Tasks;
-
+using CYPCore.Extensions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
+
+using Serilog;
 
 using CYPCore.Services;
-using CYPCore.Models;
 
 namespace CYPCore.Controllers
 {
@@ -20,10 +20,10 @@ namespace CYPCore.Controllers
         private readonly IMemoryPoolService _memoryPoolService;
         private readonly ILogger _logger;
 
-        public MemoryPoolController(IMemoryPoolService memoryPoolService, ILogger<MemoryPoolController> logger)
+        public MemoryPoolController(IMemoryPoolService memoryPoolService, ILogger logger)
         {
             _memoryPoolService = memoryPoolService;
-            _logger = logger;
+            _logger = logger.ForContext("SourceContext", nameof(MemoryPoolController));
         }
 
         /// <summary>
@@ -71,7 +71,7 @@ namespace CYPCore.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< AddTransaction - Controller >>> {ex}");
+                _logger.Here().Error(ex, "Cannot add transaction");
             }
 
             return new StatusCodeResult(StatusCodes.Status500InternalServerError);
@@ -93,7 +93,7 @@ namespace CYPCore.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< MemoryPoolController.GetTransactionCount >>>: {ex}");
+                _logger.Here().Error(ex, "Cannot get transaction count");
             }
 
             return new StatusCodeResult(StatusCodes.Status500InternalServerError);
