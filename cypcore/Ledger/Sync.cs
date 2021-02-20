@@ -10,6 +10,7 @@ using System.Net.Http;
 using Microsoft.Extensions.Logging;
 using CYPCore.Serf;
 using CYPCore.Models;
+using CYPCore.Network;
 using CYPCore.Persistence;
 using CYPCore.Services.Rest;
 
@@ -22,21 +23,16 @@ namespace CYPCore.Ledger
         private const int BatchSize = 20;
 
         private readonly IUnitOfWork _unitOfWork;
-        private readonly ISerfClient _serfClient;
         private readonly IValidator _validator;
+        private readonly ILocalNode _localNode;
         private readonly ILogger _logger;
-        private readonly TcpSession _tcpSession;
 
-        public Sync(IUnitOfWork unitOfWork, ISerfClient serfClient, IValidator validator, ILogger<Sync> logger)
+        public Sync(IUnitOfWork unitOfWork, IValidator validator, ILocalNode localNode, ILogger<Sync> logger)
         {
             _unitOfWork = unitOfWork;
-            _serfClient = serfClient;
             _validator = validator;
+            _localNode = localNode;
             _logger = logger;
-
-            _tcpSession = serfClient.TcpSessionsAddOrUpdate(
-                new TcpSession(serfClient.SerfConfigurationOptions.Listening).Connect(serfClient
-                    .SerfConfigurationOptions.RPC));
         }
 
         /// <summary>
@@ -51,37 +47,14 @@ namespace CYPCore.Ledger
             {
                 _logger.LogInformation("<<< Sync.Check >>>: Checking block height.");
 
-                var tcpSession = _serfClient.GetTcpSession(_tcpSession.SessionId);
-                if (!tcpSession.Ready)
+                var peers = await _localNode.GetPeers();
+                foreach (var peer in peers)
                 {
-                    SyncRunning = false;
-                    return;
-                }
-
-                await _serfClient.Connect(tcpSession.SessionId);
-                var membersResult = await _serfClient.Members(tcpSession.SessionId);
-
-                if (!membersResult.Success)
-                {
-                    _logger.LogCritical("<<< Sync.Check >>>: Failed to get membership.");
-                    return;
-                }
-
-                var members = membersResult.Value.Members.ToList();
-
-                foreach (var member in members.Where(member =>
-                    _serfClient.Name != member.Name && member.Status == "alive"))
-                {
-                    member.Tags.TryGetValue("rest", out string restEndpoint);
-
-                    if (string.IsNullOrEmpty(restEndpoint)) continue;
-
-                    if (!Uri.TryCreate($"{restEndpoint}", UriKind.Absolute, out var uri)) continue;
-
                     try
                     {
-                        var local = new BlockHeight() {Height = await _unitOfWork.DeliveredRepository.CountAsync()};
-
+                        var local = new BlockHeight {Height = await _unitOfWork.DeliveredRepository.CountAsync()};
+                        var uri = new Uri(peer.Value.Host);
+                        
                         RestBlockService blockRestApi = new(uri);
                         var remote = await blockRestApi.GetHeight();
 
@@ -90,7 +63,7 @@ namespace CYPCore.Ledger
 
                         if (local.Height < remote.Height)
                         {
-                            await Synchronize(uri, (int) local.Height);
+                            await Synchronize(uri, local.Height, remote.Height / peers.Count);
                         }
                     }
                     catch (HttpRequestException)
@@ -116,67 +89,65 @@ namespace CYPCore.Ledger
         /// 
         /// </summary>
         /// <returns></returns>
-        public async Task Synchronize(Uri uri, int skip)
+        public async Task Synchronize(Uri uri, long skip, long take)
         {
             var throttler = new SemaphoreSlim(int.MaxValue);
-
+            await throttler.WaitAsync();
+            
             try
             {
-                var allTasks = new List<Task>();
+                var tasks = new List<Task>();
+                var numberOfBatches = (int)Math.Ceiling((double)take / BatchSize);
 
-                await throttler.WaitAsync();
-
-                allTasks.Add(Task.Run(async () =>
+                for (var i = 0; i < numberOfBatches; i++)
                 {
-                    try
+                    tasks.Add(Task.Run(async () =>
                     {
-                        var blockRestApi = new RestBlockService(uri);
-                        ProtobufStream blockHeaderStream = await blockRestApi.GetBlockHeaders(skip, BatchSize);
-
-                        if (blockHeaderStream.Protobufs.Any())
+                        try
                         {
-                            var blockHeaders =
-                                Helper.Util.DeserializeListProto<BlockHeaderProto>(blockHeaderStream.Protobufs);
-                            foreach (var blockHeader in blockHeaders)
+                            var blockRestApi = new RestBlockService(uri);
+                            var blockHeaderStream = await blockRestApi.GetBlockHeaders((int)(i * skip), BatchSize);
+
+                            if (blockHeaderStream.Protobufs.Any())
                             {
-                                try
-                                {
-                                    await _validator.GetRunningDistribution();
+                                var blockHeaders =
+                                    Helper.Util.DeserializeListProto<BlockHeaderProto>(blockHeaderStream.Protobufs);
 
-                                    bool verified = await _validator.VerifyBlockHeader(blockHeader);
-                                    if (!verified)
-                                    {
-                                        return;
-                                    }
-
-                                    var saved = await _unitOfWork.DeliveredRepository.PutAsync(
-                                        blockHeader.ToIdentifier(), blockHeader);
-                                    if (!saved)
-                                    {
-                                        _logger.LogError(
-                                            $"<<< Sync.Synchronize >>>: Unable to save block header: {blockHeader.MrklRoot}");
-                                    }
-                                }
-                                catch (Exception ex)
+                                foreach (var blockHeader in blockHeaders)
                                 {
-                                    _logger.LogCritical($"<<< Sync.Synchronize >>>: {ex.Message}");
+                                    try
+                                    {
+                                        await _validator.GetRunningDistribution();
+
+                                        var verified = await _validator.VerifyBlockHeader(blockHeader);
+                                        if (!verified)
+                                        {
+                                            return;
+                                        }
+
+                                        var saved = await _unitOfWork.DeliveredRepository.PutAsync(
+                                            blockHeader.ToIdentifier(), blockHeader);
+                                        if (!saved)
+                                        {
+                                            _logger.LogError(
+                                                $"<<< Sync.Synchronize >>>: Unable to save block header: {blockHeader.MrklRoot}");
+                                        }
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        _logger.LogCritical($"<<< Sync.Synchronize >>>: {ex.Message}");
+                                    }
                                 }
                             }
                         }
-                    }
-                    finally
-                    {
-                        throttler.Release();
-                    }
-                }));
-
-                try
-                {
-                    await Task.WhenAll(allTasks);
+                        finally
+                        {
+                            throttler.Release();
+                        }
+                    }));
                 }
-                catch
-                {
-                }
+                
+                await Task.WhenAll(tasks);
             }
             catch (Exception ex)
             {

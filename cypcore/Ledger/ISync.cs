@@ -11,6 +11,6 @@ namespace CYPCore.Ledger
         bool SyncRunning { get; }
 
         Task Check();
-        Task Synchronize(Uri uri, int skip);
+        Task Synchronize(Uri uri, long skip, long take);
     }
 }
