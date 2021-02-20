@@ -9,12 +9,12 @@ using System.Linq;
 
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Configuration;
 
 using Autofac;
 using AutofacSerilogIntegration;
+
 using CYPCore.Models;
 using CYPCore.Services;
 using CYPCore.Serf;
@@ -102,7 +102,7 @@ namespace CYPCore.Extensions
             var dataFolder = configuration.GetSection("DataFolder");
             builder.Register(c =>
             {
-                UnitOfWork unitOfWork = new(dataFolder.Value, c.Resolve<ILogger<UnitOfWork>>());
+                UnitOfWork unitOfWork = new(dataFolder.Value, c.Resolve<Serilog.ILogger>());
                 return unitOfWork;
             })
             .As<IUnitOfWork>()
@@ -134,7 +134,7 @@ namespace CYPCore.Extensions
                 var localNode = new LocalNode
                 (
                      c.Resolve<ISerfClient>(),
-                     c.Resolve<ILogger<LocalNode>>()
+                     c.Resolve<Serilog.ILogger>()
                  );
 
                 return localNode;
@@ -164,7 +164,7 @@ namespace CYPCore.Extensions
                 configuration.Bind("Serf", serfConfigurationOptions);
                 configuration.Bind("Api", apiConfigurationOptions);
 
-                var logger = c.Resolve<ILogger<SerfClient>>();
+                var logger = c.Resolve<Serilog.ILogger>();
                 var serfClient = new SerfClient(c.Resolve<ISigning>(), serfConfigurationOptions, apiConfigurationOptions, logger);
 
                 return serfClient;
@@ -259,7 +259,7 @@ namespace CYPCore.Extensions
                 }
                 else
                 {
-                    logger.Here().Error($"<<< GraphProvider.InitializeBlocks >>>: {((SerfError)connectResult.NonSuccessMessage).Error}");
+                    logger.Here().Error("{@Error}", ((SerfError)connectResult.NonSuccessMessage).Error);
                 }
 
                 return serfService;

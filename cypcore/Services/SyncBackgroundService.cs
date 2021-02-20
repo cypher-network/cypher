@@ -4,11 +4,11 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using CYPCore.Extensions;
 using Microsoft.Extensions.Hosting;
 
 using Serilog;
 
+using CYPCore.Extensions;
 using CYPCore.Ledger;
 
 namespace CYPCore.Services

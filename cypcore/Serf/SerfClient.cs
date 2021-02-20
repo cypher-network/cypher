@@ -9,12 +9,13 @@ using System.Net.NetworkInformation;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Win32.SafeHandles;
 
 using MessagePack;
+using Serilog;
 
-using Microsoft.Extensions.Logging;
-using Microsoft.Win32.SafeHandles;
 using CYPCore.Cryptography;
+using CYPCore.Extensions;
 using CYPCore.Extentions;
 using CYPCore.Helper;
 using CYPCore.Messages;
@@ -88,7 +89,7 @@ namespace CYPCore.Serf
         private readonly ulong _clientId;
 
         public SerfClient(ISigning signing, SerfConfigurationOptions serfConfigurationOptions,
-            ApiConfigurationOptions apiConfigurationOptions, ILogger<SerfClient> logger)
+            ApiConfigurationOptions apiConfigurationOptions, ILogger logger)
         {
             _signing = signing;
             _logger = logger;
@@ -128,7 +129,7 @@ namespace CYPCore.Serf
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< SerfClient.GetClientID >>>: {ex}");
+                _logger.Here().Error(ex, "Cannot get client ID");
                 return TaskResult<ulong>.CreateFailure(new SerfError { Error = ex.Message });
             }
 
@@ -160,7 +161,7 @@ namespace CYPCore.Serf
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< SerfClient.MemberCount >>>: {ex}");
+                _logger.Here().Error(ex, "Cannot get members count");
                 return TaskResult<int>.CreateFailure(new SerfError { Error = ex.Message });
             }
 
@@ -192,7 +193,7 @@ namespace CYPCore.Serf
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< SerfClient.Connect >>>: {ex}");
+                _logger.Here().Error(ex, "Cannot establish connection");
                 return TaskResult<SerfError>.CreateFailure(new SerfError { Error = ex.Message });
             }
 

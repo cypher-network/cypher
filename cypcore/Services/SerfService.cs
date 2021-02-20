@@ -10,6 +10,7 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using Autofac;
+using Serilog;
 
 using CliWrap;
 using CliWrap.EventStream;
@@ -28,10 +29,10 @@ namespace CYPCore.Services
     {
         private readonly ISerfClient _serfClient;
         private readonly ISigning _signing;
-        private readonly Serilog.ILogger _logger;
+        private readonly ILogger _logger;
         private readonly TcpSession _tcpSession;
 
-        public SerfService(ISerfClient serfClient, ISigning signing, Serilog.ILogger logger)
+        public SerfService(ISerfClient serfClient, ISigning signing, ILogger logger)
         {
             _serfClient = serfClient;
             _signing = signing;
