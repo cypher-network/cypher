@@ -42,7 +42,7 @@ namespace CYPCore.Models
             {
                 results.Add(new ValidationResult("Argument is null", new[] { "TxnId" }));
             }
-            if (TxnId.Length != 32)
+            if (TxnId != null && TxnId.Length != 32)
             {
                 results.Add(new ValidationResult("Range exeption", new[] { "TxnId" }));
             }
@@ -77,112 +77,136 @@ namespace CYPCore.Models
                 {
                     results.Add(new ValidationResult("Argument is null", new[] { "Bp.Proof" }));
                 }
-                if (bp.Proof.Length != 675)
+                if (bp.Proof != null && bp.Proof.Length != 675)
                 {
                     results.Add(new ValidationResult("Range exeption", new[] { "Bp.Proof" }));
                 }
             }
 
-            foreach (var vi in Vin)
-            {
-                if (vi.Key.K_Image == null)
+            if (Vin != null)
+                foreach (var vi in Vin)
                 {
-                    results.Add(new ValidationResult("Argument is null", new[] { "Vin.Key.K_Image" }));
-                }
-                if (vi.Key.K_Image.Length != 33)
-                {
-                    results.Add(new ValidationResult("Range exeption", new[] { "Vin.Key.K_Image" }));
-                }
-                if (vi.Key.K_Offsets == null)
-                {
-                    results.Add(new ValidationResult("Argument is null", new[] { "Vin.Key.K_Offsets" }));
-                }
-                if (vi.Key.K_Offsets.Length != 1452)
-                {
-                    results.Add(new ValidationResult("Range exeption", new[] { "Vin.Key.K_Offsets" }));
-                }
-            }
-
-            foreach (var vo in Vout)
-            {
-                if (vo.C == null)
-                {
-                    results.Add(new ValidationResult("Argument is null", new[] { "Vout.C" }));
-                }
-                if (vo.C.Length != 33)
-                {
-                    results.Add(new ValidationResult("Range exeption", new[] { "Vout.C" }));
-                }
-                if (vo.E == null)
-                {
-                    results.Add(new ValidationResult("Argument is null", new[] { "Vout.E" }));
-                }
-                if (vo.E.Length != 33)
-                {
-                    results.Add(new ValidationResult("Range exeption", new[] { "Vout.E" }));
-                }
-                if (vo.N == null)
-                {
-                    results.Add(new ValidationResult("Argument is null", new[] { "Vout.N" }));
-                }
-                if (vo.N.Length > 241)
-                {
-                    results.Add(new ValidationResult("Range exeption", new[] { "Vout.N" }));
-                }
-                if (vo.P == null)
-                {
-                    results.Add(new ValidationResult("Argument is null", new[] { "Vout.P" }));
-                }
-                if (vo.P.Length != 33)
-                {
-                    results.Add(new ValidationResult("Range exeption", new[] { "Vout.P" }));
-                }
-                if (!string.IsNullOrEmpty(vo.S))
-                {
-                    if (vo.S.Length != 16)
+                    if (vi.Key.K_Image == null)
                     {
-                        results.Add(new ValidationResult("Range exeption", new[] { "Vout.S" }));
+                        results.Add(new ValidationResult("Argument is null", new[] {"Vin.Key.K_Image"}));
+                    }
+
+                    if (vi.Key.K_Image != null && vi.Key.K_Image.Length != 33)
+                    {
+                        results.Add(new ValidationResult("Range exeption", new[] {"Vin.Key.K_Image"}));
+                    }
+
+                    if (vi.Key.K_Offsets == null)
+                    {
+                        results.Add(new ValidationResult("Argument is null", new[] {"Vin.Key.K_Offsets"}));
+                    }
+
+                    if (vi.Key.K_Offsets != null && vi.Key.K_Offsets.Length != 1452)
+                    {
+                        results.Add(new ValidationResult("Range exeption", new[] {"Vin.Key.K_Offsets"}));
                     }
                 }
-                if (vo.T != CoinType.Coin && vo.T != CoinType.Coinbase && vo.T != CoinType.Coinstake && vo.T != CoinType.fee)
-                {
-                    results.Add(new ValidationResult("Argument exeption", new[] { "Vout.T" }));
-                }
-            }
 
+            if (Vout != null)
+                foreach (var vo in Vout)
+                {
+                    if (vo.C == null)
+                    {
+                        results.Add(new ValidationResult("Argument is null", new[] {"Vout.C"}));
+                    }
+
+                    if (vo.C.Length != 33)
+                    {
+                        results.Add(new ValidationResult("Range exeption", new[] {"Vout.C"}));
+                    }
+
+                    if (vo.E == null)
+                    {
+                        results.Add(new ValidationResult("Argument is null", new[] {"Vout.E"}));
+                    }
+
+                    if (vo.E.Length != 33)
+                    {
+                        results.Add(new ValidationResult("Range exeption", new[] {"Vout.E"}));
+                    }
+
+                    if (vo.N == null)
+                    {
+                        results.Add(new ValidationResult("Argument is null", new[] {"Vout.N"}));
+                    }
+
+                    if (vo.N.Length > 241)
+                    {
+                        results.Add(new ValidationResult("Range exeption", new[] {"Vout.N"}));
+                    }
+
+                    if (vo.P == null)
+                    {
+                        results.Add(new ValidationResult("Argument is null", new[] {"Vout.P"}));
+                    }
+
+                    if (vo.P.Length != 33)
+                    {
+                        results.Add(new ValidationResult("Range exeption", new[] {"Vout.P"}));
+                    }
+
+                    if (!string.IsNullOrEmpty(vo.S))
+                    {
+                        if (vo.S.Length != 16)
+                        {
+                            results.Add(new ValidationResult("Range exeption", new[] {"Vout.S"}));
+                        }
+                    }
+
+                    if (vo.T != CoinType.Coin && vo.T != CoinType.Coinbase && vo.T != CoinType.Coinstake &&
+                        vo.T != CoinType.fee)
+                    {
+                        results.Add(new ValidationResult("Argument exeption", new[] {"Vout.T"}));
+                    }
+                }
+
+            if (Rct == null) return results;
+            
             foreach (var rct in Rct)
             {
                 if (rct.I == null)
                 {
-                    results.Add(new ValidationResult("Argument is null", new[] { "Rct.I" }));
+                    results.Add(new ValidationResult("Argument is null", new[] {"Rct.I"}));
                 }
-                if (rct.I.Length != 32)
+
+                if (rct.I != null && rct.I.Length != 32)
                 {
-                    results.Add(new ValidationResult("Range exeption", new[] { "Rct.I" }));
+                    results.Add(new ValidationResult("Range exeption", new[] {"Rct.I"}));
                 }
+
                 if (rct.M == null)
                 {
-                    results.Add(new ValidationResult("Argument is null", new[] { "Rct.M" }));
+                    results.Add(new ValidationResult("Argument is null", new[] {"Rct.M"}));
                 }
-                if (rct.M.Length != 1452)
+
+                if (rct.M != null && rct.M.Length != 1452)
                 {
-                    results.Add(new ValidationResult("Range exeption", new[] { "Rct.M" }));
+                    results.Add(new ValidationResult("Range exeption", new[] {"Rct.M"}));
                 }
+
                 if (rct.P == null)
                 {
-                    results.Add(new ValidationResult("Argument is null", new[] { "Rct.P" }));
+                    results.Add(new ValidationResult("Argument is null", new[] {"Rct.P"}));
                 }
-                if (rct.P.Length != 32)
+
+                if (rct.P != null && rct.P.Length != 32)
                 {
-                    results.Add(new ValidationResult("Range exeption", new[] { "Rct.P" }));
+                    results.Add(new ValidationResult("Range exeption", new[] {"Rct.P"}));
                 }
+
                 if (rct.S == null)
                 {
-                    results.Add(new ValidationResult("Argument is null", new[] { "Rct.S" }));
+                    results.Add(new ValidationResult("Argument is null", new[] {"Rct.S"}));
                 }
-                if (rct.S.Length != 1408)
+
+                if (rct.S != null && rct.S.Length != 1408)
                 {
-                    results.Add(new ValidationResult("Range exeption", new[] { "Rct.S" }));
+                    results.Add(new ValidationResult("Range exeption", new[] {"Rct.S"}));
                 }
             }
 
