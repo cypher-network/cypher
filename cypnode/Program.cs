@@ -3,7 +3,6 @@
 
 using System;
 using System.IO;
-using System.Linq;
 using System.Runtime.InteropServices;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Hosting;
@@ -24,32 +23,25 @@ namespace CYPNode
         /// <returns></returns>
         public static int Main(string[] args)
         {
-            var configFile = args.SkipWhile(arg => !arg.Equals("--config")).Skip(1).FirstOrDefault();
-            if (string.IsNullOrEmpty(configFile))
-            {
-                // No config file set, check in current path (priority over system default)
-                configFile = Util.ConfigurationFile.Local();
+            var config = new ConfigurationBuilder()
+                .SetBasePath(Directory.GetCurrentDirectory())
+                .AddJsonFile("appsettings.json", optional: false)
+                .AddCommandLine(args)
+                .Build();
 
-                // If no config file in current path, use system default
-                if (!File.Exists(configFile))
-                {
-                    configFile = Util.ConfigurationFile.SystemDefault();
-                }
-            }
-
-            IConfigurationRoot configurationRoot = null;
-            if (File.Exists(configFile))
+            const string logSectionName = "Log";
+            if (config.GetSection(logSectionName) != null)
             {
-                configurationRoot = new ConfigurationBuilder()
-                    .AddJsonFile(configFile)
-                    .Build();
+                Log.Logger = new LoggerConfiguration()
+                    .ReadFrom.Configuration(config, logSectionName)
+                    .CreateLogger();
             }
             else
             {
-                throw new FileNotFoundException($"Cannot find configuration file {@configFile}", configFile);
+                throw new Exception(string.Format($"No \"{@logSectionName}\" section found in appsettings.json", logSectionName));
             }
 
-            if (configurationRoot.GetValue<bool>("Log:FirstChanceException"))
+            if (config.GetValue<bool>("Log:FirstChanceException"))
             {
                 AppDomain.CurrentDomain.FirstChanceException += (sender, e) =>
                 {
@@ -57,16 +49,10 @@ namespace CYPNode
                 };
             }
 
-            Log.Logger = new LoggerConfiguration()
-                .ReadFrom.Configuration(configurationRoot, "Log")
-                .CreateLogger();
-
-            Log.Information("Using application configuration from {@configFile}", configFile);
-
             try
             {
                 Log.Information("Starting web host");
-                var builder = CreateWebHostBuilder(args, configurationRoot);
+                var builder = CreateWebHostBuilder(args, config);
 
                 var platform = Util.GetOperatingSystemPlatform();
                 if (platform == OSPlatform.Linux)
@@ -82,7 +68,7 @@ namespace CYPNode
                     builder.UseWindowsService();
                 }
 
-                using IHost host = builder.Build();
+                using var host = builder.Build();
 
                 host.Run();
                 host.WaitForShutdown();

@@ -59,7 +59,7 @@ namespace CYPCore.Persistence
             Span<byte> dbKey = stackalloc byte[key.Length + table.Length];
             for (var i = 0; i < table.Length; i++)
             {
-                dbKey[i] = (byte) table[i];
+                dbKey[i] = (byte)table[i];
             }
 
             key.AsSpan().CopyTo(dbKey.Slice(table.Length));

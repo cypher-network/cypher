@@ -24,18 +24,12 @@ namespace CYPNode
         ///
         /// </summary>
         /// <param name="env"></param>
-        public Startup(IWebHostEnvironment env)
+        public Startup(IWebHostEnvironment env, IConfiguration configuration)
         {
-            var builder = new ConfigurationBuilder()
-                .SetBasePath(AppDomain.CurrentDomain.BaseDirectory)
-                .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
-                .AddJsonFile($"appsettings.{env.EnvironmentName}.json", optional: true)
-                .AddEnvironmentVariables();
-
-            Configuration = builder.Build();
+            Configuration = configuration;
         }
 
-        public IConfigurationRoot Configuration { get; private set; }
+        public IConfiguration Configuration { get; private set; }
         public ILifetimeScope AutofacContainer { get; private set; }
 
         /// <summary>
@@ -55,18 +49,19 @@ namespace CYPNode
         }
 
         /// <summary>
-        /// TODO: Check deletion. This method is currently unused.
+        /// 
         /// </summary>
         /// <param name="builder"></param>
         public void ConfigureContainer(ContainerBuilder builder)
         {
+            builder.AddSerilog();
             builder.AddSwimGossipClient(Configuration);
             builder.AddSerfProcessService(Configuration);
             builder.AddUnitOfWork(Configuration);
             builder.AddMempool();
             builder.AddStaging();
             builder.AddSigning();
-            builder.AddValidator(Configuration);
+            builder.AddValidator();
             builder.AddBlockService();
             builder.AddMemoryPoolService();
             builder.AddMembershipService();
@@ -76,7 +71,7 @@ namespace CYPNode
         }
 
         /// <summary>
-        /// TODO: Check deletion. This method is currently unused.
+        /// 
         /// </summary>
         /// <param name="app"></param>
         /// <param name="lifetime"></param>

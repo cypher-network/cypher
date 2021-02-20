@@ -80,7 +80,7 @@ namespace CYPCore.Ledger
 
                     try
                     {
-                        var local = new BlockHeight() {Height = await _unitOfWork.DeliveredRepository.CountAsync()};
+                        var local = new BlockHeight() { Height = await _unitOfWork.DeliveredRepository.CountAsync() };
 
                         RestBlockService blockRestApi = new(uri);
                         var remote = await blockRestApi.GetHeight();
@@ -90,7 +90,7 @@ namespace CYPCore.Ledger
 
                         if (local.Height < remote.Height)
                         {
-                            await Synchronize(uri, (int) local.Height);
+                            await Synchronize(uri, (int)local.Height);
                         }
                     }
                     catch (HttpRequestException)

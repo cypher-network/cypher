@@ -105,7 +105,7 @@ namespace CYPCore.Ledger
                 var lastInterpreted = await LastInterpreted(hash);
 
                 _config = new Config(lastInterpreted, new ulong[_totalNodes], _serfClient.ClientId,
-                    (ulong) _totalNodes);
+                    (ulong)_totalNodes);
                 _graph = new Graph(_config);
 
                 _graph.BlockmaniaInterpreted += (sender, e) => BlockmaniaCallback(sender, e).SwallowException();
@@ -153,7 +153,7 @@ namespace CYPCore.Ledger
             if (!countResult.Success)
             {
                 _logger.LogWarning(
-                    $"<<< MemoryPool.ReadySession >>>: {((SerfError) countResult.NonSuccessMessage).Error}");
+                    $"<<< MemoryPool.ReadySession >>>: {((SerfError)countResult.NonSuccessMessage).Error}");
             }
 
             _totalNodes = countResult.Value;
@@ -424,7 +424,7 @@ namespace CYPCore.Ledger
 
                 if (memPoolProtos.Any())
                 {
-                    ulong[] order = new ulong[] {memPoolProtos.Last().Block.Round, round};
+                    ulong[] order = new ulong[] { memPoolProtos.Last().Block.Round, round };
                     var isSequential = order.Zip(order.Skip(1), (a, b) => a + 1 == b).All(x => x);
 
                     currentRound = isSequential ? memPoolProtos.Last().Block.Round + 1 : 0;
