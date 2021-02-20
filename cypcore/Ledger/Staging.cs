@@ -5,8 +5,10 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
+using CYPCore.Extensions;
 using Dawn;
+using Serilog;
+
 using CYPCore.Extentions;
 using CYPCore.Models;
 using CYPCore.Persistence;
@@ -24,12 +26,12 @@ namespace CYPCore.Ledger
         private readonly TcpSession _tcpSession;
 
         public Staging(IUnitOfWork unitOfWork, ISerfClient serfClient,
-            ILocalNode localNode, ILogger<Staging> logger)
+            ILocalNode localNode, ILogger logger)
         {
             _unitOfWork = unitOfWork;
             _serfClient = serfClient;
             _localNode = localNode;
-            _logger = logger;
+            _logger = logger.ForContext("SourceContext", nameof(Staging));
 
             _tcpSession = serfClient.TcpSessionsAddOrUpdate(new TcpSession(
                 serfClient.SerfConfigurationOptions.Listening).Connect(serfClient.SerfConfigurationOptions.RPC));
@@ -69,7 +71,7 @@ namespace CYPCore.Ledger
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< Staging.Ready >>>: {ex}");
+                _logger.Here().Error(ex, "Staging error");
             }
         }
 
@@ -106,7 +108,7 @@ namespace CYPCore.Ledger
                         var saved = await _unitOfWork.StagingRepository.PutAsync(staging.ToIdentifier(), staging);
                         if (!saved)
                         {
-                            _logger.LogWarning($"Unable to mark the staging state as Dialling");
+                            _logger.Here().Warning($"Unable to mark the staging state as Dialling");
                             return;
                         }
 
@@ -116,7 +118,7 @@ namespace CYPCore.Ledger
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< Staging.Publish >>>: {ex}");
+                _logger.Here().Error(ex, "Publishing error");
             }
         }
 
@@ -168,14 +170,16 @@ namespace CYPCore.Ledger
                 var saved = await _unitOfWork.StagingRepository.PutAsync(staging.ToIdentifier(), staging);
                 if (!saved)
                 {
-                    _logger.LogWarning($"Unable to save staging with hash: {staging.Hash}");
+                    _logger.Here().Warning("Unable to save staging with hash: {@Hash}",
+                        staging.Hash);
+
                     staging = null;
                 }
             }
             catch (Exception ex)
             {
                 staging = null;
-                _logger.LogError($"<<< Staging.Add >>>: {ex}");
+                _logger.Here().Error(ex, "Cannot add to staging");
             }
 
             return staging;
@@ -251,14 +255,16 @@ namespace CYPCore.Ledger
                     var saved = await _unitOfWork.StagingRepository.PutAsync(staging.ToIdentifier(), staging);
                     if (!saved)
                     {
-                        _logger.LogWarning($"Unable to save staging with hash: {staging.Hash}");
+                        _logger.Here().Warning("Unable to save staging with hash: {@Hash}",
+                            staging.Hash);
+
                         staging = null;
                     }
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< Staging.Existing >>>: {ex}");
+                _logger.Here().Error(ex, "Cannot add to staging");
                 staging = null;
             }
 

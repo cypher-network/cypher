@@ -7,7 +7,9 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Net.Http;
-using Microsoft.Extensions.Logging;
+using CYPCore.Extensions;
+using Serilog;
+
 using CYPCore.Serf;
 using CYPCore.Models;
 using CYPCore.Persistence;
@@ -27,12 +29,12 @@ namespace CYPCore.Ledger
         private readonly ILogger _logger;
         private readonly TcpSession _tcpSession;
 
-        public Sync(IUnitOfWork unitOfWork, ISerfClient serfClient, IValidator validator, ILogger<Sync> logger)
+        public Sync(IUnitOfWork unitOfWork, ISerfClient serfClient, IValidator validator, ILogger logger)
         {
             _unitOfWork = unitOfWork;
             _serfClient = serfClient;
             _validator = validator;
-            _logger = logger;
+            _logger = logger.ForContext("SourceContext", nameof(Sync));
 
             _tcpSession = serfClient.TcpSessionsAddOrUpdate(
                 new TcpSession(serfClient.SerfConfigurationOptions.Listening).Connect(serfClient
@@ -49,7 +51,7 @@ namespace CYPCore.Ledger
 
             try
             {
-                _logger.LogInformation("<<< Sync.Check >>>: Checking block height.");
+                _logger.Here().Information("Checking block height");
 
                 var tcpSession = _serfClient.GetTcpSession(_tcpSession.SessionId);
                 if (!tcpSession.Ready)
@@ -63,7 +65,7 @@ namespace CYPCore.Ledger
 
                 if (!membersResult.Success)
                 {
-                    _logger.LogCritical("<<< Sync.Check >>>: Failed to get membership.");
+                    _logger.Here().Fatal("Failed to get membership");
                     return;
                 }
 
@@ -85,8 +87,9 @@ namespace CYPCore.Ledger
                         RestBlockService blockRestApi = new(uri);
                         var remote = await blockRestApi.GetHeight();
 
-                        _logger.LogInformation(
-                            $"<<< Sync.Check >>>: Local node block height ({local.Height}). Network block height ({remote.Height}).");
+                        _logger.Here().Information("Local node block height ({@LocalHeight}). Network block height ({NetworkHeight})",
+                            local.Height,
+                            remote.Height);
 
                         if (local.Height < remote.Height)
                         {
@@ -106,7 +109,7 @@ namespace CYPCore.Ledger
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< Sync.Check >>>: {ex}");
+                _logger.Here().Error(ex, "Error while checking");
             }
 
             SyncRunning = false;
@@ -153,13 +156,13 @@ namespace CYPCore.Ledger
                                         blockHeader.ToIdentifier(), blockHeader);
                                     if (!saved)
                                     {
-                                        _logger.LogError(
-                                            $"<<< Sync.Synchronize >>>: Unable to save block header: {blockHeader.MrklRoot}");
+                                        _logger.Here().Error("Unable to save block header: {@MerkleRoot}",
+                                            blockHeader.MrklRoot);
                                     }
                                 }
                                 catch (Exception ex)
                                 {
-                                    _logger.LogCritical($"<<< Sync.Synchronize >>>: {ex.Message}");
+                                    _logger.Here().Fatal(ex, "Cannot synchronize");
                                 }
                             }
                         }
@@ -180,7 +183,7 @@ namespace CYPCore.Ledger
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< Sync.Synchronize >>>: Failed to synchronize node: {ex}");
+                _logger.Here().Error(ex, "Failed to synchronize node");
             }
             finally
             {

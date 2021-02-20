@@ -79,7 +79,7 @@ namespace CYPCore.Extensions
                     c.Resolve<IValidator>(),
                     c.Resolve<ILocalNode>(),
                     stakingConfigurationOptions,
-                    c.Resolve<ILogger<PosMinting>>());
+                    c.Resolve<Serilog.ILogger>());
 
                 return posMintingProvider;
             })
@@ -185,7 +185,7 @@ namespace CYPCore.Extensions
         {
             builder.Register(c =>
             {
-                Validator validator = new Validator(c.Resolve<IUnitOfWork>(), c.Resolve<ISigning>(), c.Resolve<ILogger<Validator>>());
+                Validator validator = new Validator(c.Resolve<IUnitOfWork>(), c.Resolve<ISigning>(), c.Resolve<Serilog.ILogger>());
                 return validator;
             })
             .As<IValidator>()
