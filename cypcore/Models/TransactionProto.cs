@@ -275,8 +275,8 @@ namespace CYPCore.Models
                     .Append(rct.P)
                     .Append(rct.S);
             }
-            
-            return ts.ToArray();;
+
+            return ts.ToArray(); ;
         }
 
         /// <summary>

@@ -7,8 +7,11 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Net.Http;
 using System.Collections.Generic;
-using Microsoft.Extensions.Logging;
+
 using Dawn;
+using Serilog;
+
+using CYPCore.Extensions;
 using CYPCore.Serf;
 using CYPCore.Models;
 using CYPCore.Services.Rest;
@@ -21,10 +24,10 @@ namespace CYPCore.Network
         private readonly ILogger _logger;
         private TcpSession _tcpSession;
 
-        public LocalNode(ISerfClient serfClient, ILogger<LocalNode> logger)
+        public LocalNode(ISerfClient serfClient, ILogger logger)
         {
             _serfClient = serfClient;
-            _logger = logger;
+            _logger = logger.ForContext("SourceContext", nameof(LocalNode));
         }
 
         public void Ready()
@@ -58,8 +61,7 @@ namespace CYPCore.Network
             }
             catch (Exception ex)
             {
-                _logger.LogError(
-                    $"<<< LocalNode.Broadcast >>>: {ex}");
+                _logger.Here().Error(ex, "Error while bootstrapping clients");
             }
         }
 
@@ -120,17 +122,17 @@ namespace CYPCore.Network
                     switch (topicType)
                     {
                         case TopicType.AddBlock:
-                        {
-                            RestBlockService restBlockService = new(uri);
-                            await restBlockService.AddBlock(data);
-                            return;
-                        }
+                            {
+                                RestBlockService restBlockService = new(uri);
+                                await restBlockService.AddBlock(data);
+                                return;
+                            }
                         case TopicType.AddMemoryPool:
-                        {
-                            RestMemoryPoolService restMemoryPoolService = new(uri);
-                            await restMemoryPoolService.AddMemoryPool(data);
-                            return;
-                        }
+                            {
+                                RestMemoryPoolService restMemoryPoolService = new(uri);
+                                await restMemoryPoolService.AddMemoryPool(data);
+                                return;
+                            }
                     }
                 }
             }

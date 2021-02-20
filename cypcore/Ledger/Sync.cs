@@ -7,7 +7,9 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Net.Http;
-using Microsoft.Extensions.Logging;
+using CYPCore.Extensions;
+using Serilog;
+
 using CYPCore.Serf;
 using CYPCore.Models;
 using CYPCore.Network;
@@ -32,7 +34,7 @@ namespace CYPCore.Ledger
             _unitOfWork = unitOfWork;
             _validator = validator;
             _localNode = localNode;
-            _logger = logger;
+            _logger = logger.ForContext("SourceContext", nameof(Sync));
         }
 
         /// <summary>
@@ -45,7 +47,7 @@ namespace CYPCore.Ledger
 
             try
             {
-                _logger.LogInformation("<<< Sync.Check >>>: Checking block height.");
+                _logger.Here().Information("Checking block height");
 
                 var peers = await _localNode.GetPeers();
                 foreach (var peer in peers)
@@ -58,8 +60,9 @@ namespace CYPCore.Ledger
                         RestBlockService blockRestApi = new(uri);
                         var remote = await blockRestApi.GetHeight();
 
-                        _logger.LogInformation(
-                            $"<<< Sync.Check >>>: Local node block height ({local.Height}). Network block height ({remote.Height}).");
+                        _logger.Here().Information("Local node block height ({@LocalHeight}). Network block height ({NetworkHeight})",
+                            local.Height,
+                            remote.Height);
 
                         if (local.Height < remote.Height)
                         {
@@ -79,7 +82,7 @@ namespace CYPCore.Ledger
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< Sync.Check >>>: {ex}");
+                _logger.Here().Error(ex, "Error while checking");
             }
 
             SyncRunning = false;
@@ -135,7 +138,8 @@ namespace CYPCore.Ledger
                                     }
                                     catch (Exception ex)
                                     {
-                                        _logger.LogCritical($"<<< Sync.Synchronize >>>: {ex.Message}");
+                                        _logger.Here().Error("Unable to save block header: {@MerkleRoot}",
+                                            blockHeader.MrklRoot);
                                     }
                                 }
                             }
@@ -151,7 +155,7 @@ namespace CYPCore.Ledger
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< Sync.Synchronize >>>: Failed to synchronize node: {ex}");
+                _logger.Here().Error(ex, "Failed to synchronize node");
             }
             finally
             {

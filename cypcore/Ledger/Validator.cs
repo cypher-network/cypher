@@ -35,11 +35,11 @@ namespace CYPCore.Ledger
         private double _distribution;
         private double _runningDistributionTotal;
 
-        public Validator(IUnitOfWork unitOfWork, ISigning signingProvider, ILogger<Validator> logger)
+        public Validator(IUnitOfWork unitOfWork, ISigning signingProvider, ILogger logger)
         {
             _unitOfWork = unitOfWork;
             _signingProvider = signingProvider;
-            _logger = logger;
+            _logger = logger.ForContext("SourceContext", nameof(Validator));
 
             SetInitialRunningDistribution(Distribution);
         }
@@ -70,8 +70,10 @@ namespace CYPCore.Ledger
                 if (!_signingProvider.VerifySignature(memPool.Block.Signature.HexToByte(),
                     memPool.Block.PublicKey.HexToByte(), memPool.Block.Transaction.ToHash()))
                 {
-                    _logger.LogError(
-                        $"<<< Validator.VerifyMemPoolSignatures >>>: Unable to verify signature for block {memPool.Block.Round} from node {memPool.Block.Node}");
+                    _logger.Here().Error("Unable to verify signature for block {@Round} from node {@Node}",
+                        memPool.Block.Round,
+                        memPool.Block.Node);
+
                     return Task.FromResult(false);
                 }
 
@@ -80,22 +82,28 @@ namespace CYPCore.Ledger
                     if (!_signingProvider.VerifySignature(memPool.Prev.Signature.HexToByte(),
                         memPool.Prev.PublicKey.HexToByte(), memPool.Prev.Transaction.ToHash()))
                     {
-                        _logger.LogError(
-                            $"<<< Validator.VerifyMemPoolSignatures >>>: Unable to verify signature for previous block on block {memPool.Block.Round} from node {memPool.Block.Node}");
+                        _logger.Here().Error("Unable to verify signature for previous block on block {@Round} from node {@Node}",
+                            memPool.Block.Round,
+                            memPool.Block.Node);
+
                         return Task.FromResult(false);
                     }
 
                     if (memPool.Prev.Node != memPool.Block.Node)
                     {
-                        _logger.LogError(
-                            $"<<< Validator.VerifyMemPoolSignatures >>>: Previous block node does not match on block {memPool.Block.Round} from node {memPool.Block.Node}");
+                        _logger.Here().Error("Previous block node does not match on block {@Round} from node {@Node}",
+                            memPool.Block.Round,
+                            memPool.Block.Node);
+
                         return Task.FromResult(false);
                     }
 
                     if (memPool.Prev.Round + 1 != memPool.Block.Round)
                     {
-                        _logger.LogError(
-                            $"<<< Validator.VerifyMemPoolSignatures >>>: Previous block round is invalid on block {memPool.Block.Round} from node {memPool.Block.Node}");
+                        _logger.Here().Error("Previous block round is invalid on block {@Round} from node {@Node}",
+                            memPool.Block.Round,
+                            memPool.Block.Node);
+
                         return Task.FromResult(false);
                     }
                 }
@@ -105,21 +113,26 @@ namespace CYPCore.Ledger
                     if (!_signingProvider.VerifySignature(dep.Block.Signature.HexToByte(),
                         dep.Block.PublicKey.HexToByte(), dep.Block.Transaction.ToHash()))
                     {
-                        _logger.LogError(
-                            $"<<< Validator.VerifyMemPoolSignatures >>>: Unable to verify signature for block reference {memPool.Block.Round} from node {memPool.Block.Node}");
+                        _logger.Here().Error("Unable to verify signature for block reference {@Round} from node {@Node}",
+                            memPool.Block.Round,
+                            memPool.Block.Node);
+
                         return Task.FromResult(false);
                     }
 
-                    if (dep.Block.Node != memPool.Block.Node) continue;
-                    _logger.LogError(
-                        $"<<< Validator.VerifyMemPoolSignatures >>>: Block references includes a block from same node in block reference  {memPool.Block.Round} from node {memPool.Block.Node}");
-                    
-                    return Task.FromResult(false);
+                    if (dep.Block.Node == memPool.Block.Node)
+                    {
+                        _logger.Here().Error("Block references includes a block from same node in block reference {@Round} from node {@Node}",
+                            memPool.Block.Round,
+                            memPool.Block.Node);
+
+                        return Task.FromResult(false);
+                    }
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< Validator.VerifyMemPoolSignatures >>>: {ex}");
+                _logger.Here().Error(ex, "Cannot verify mempool signatures");
                 return Task.FromResult(false);
             }
 
@@ -152,7 +165,7 @@ namespace CYPCore.Ledger
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< Validator.VerifyBulletProof >>>: {ex}");
+                _logger.Here().Error(ex, "Cannot verify bulletproof");
                 return false;
             }
 
@@ -190,7 +203,7 @@ namespace CYPCore.Ledger
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< Validator.VerifyCommitSum >>>: {ex}");
+                _logger.Here().Error(ex, "Cannot verify commit sum");
                 return false;
             }
 
@@ -209,7 +222,7 @@ namespace CYPCore.Ledger
             {
                 using var pedersen = new Pedersen();
 
-                return pedersen.VerifyCommitSum(new List<byte[]> {poSCommitBlindSwitch.Balance.HexToByte()},
+                return pedersen.VerifyCommitSum(new List<byte[]> { poSCommitBlindSwitch.Balance.HexToByte() },
                     new List<byte[]>
                     {
                         poSCommitBlindSwitch.Difficulty.HexToByte(), poSCommitBlindSwitch.Difference.HexToByte()
@@ -217,7 +230,7 @@ namespace CYPCore.Ledger
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< Validator.VerifyCommitBlindSwitch >>>: {ex}");
+                _logger.Here().Error(ex, "Cannot verify blind switch");
                 return false;
             }
         }
@@ -248,7 +261,7 @@ namespace CYPCore.Ledger
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< Validator.VerifySolution >>>: {ex}");
+                _logger.Here().Error(ex, "Cannot verify solution");
             }
 
             return isSolution;
@@ -267,7 +280,7 @@ namespace CYPCore.Ledger
                 var verified = await VerifyBlockHeader(blockHeader);
                 if (!verified)
                 {
-                    _logger.LogCritical("<<< Validator.VerifyBlockHeaders >>>: Could not verify block header");
+                    _logger.Here().Fatal("Could not verify block header");
                     return false;
                 }
             }
@@ -287,7 +300,7 @@ namespace CYPCore.Ledger
                 blockHeader.Sec.ToBytes());
             if (!verified)
             {
-                _logger.LogCritical("<<< Validator.VerifyBlockHeader >>>: Could not verify the block header solth");
+                _logger.Here().Fatal("Could not verify the block header sloth");
                 return false;
             }
 
@@ -298,8 +311,7 @@ namespace CYPCore.Ledger
             verified = VerifyCoinbaseTransaction(blockHeader.Transactions.First(), blockHeader.Solution);
             if (!verified)
             {
-                _logger.LogCritical(
-                    "<<< Validator.VerifyBlockHeader >>>: Could not verify the block header coinbase transaction");
+                _logger.Here().Fatal("Could not verify the block header coinbase transaction");
                 return false;
             }
 
@@ -313,14 +325,14 @@ namespace CYPCore.Ledger
             var solution = VerifySolution(blockHeader.VrfSig.HexToByte(), hash.ToBytes(false), blockHeader.Solution);
             if (!solution)
             {
-                _logger.LogCritical("<<< Validator.VerifyBlockHeader >>>: Could not verify the block header solution");
+                _logger.Here().Fatal("Could not verify the block header solution");
                 return false;
             }
 
             var bits = Difficulty(blockHeader.Solution, blockHeader.Transactions.First().Vout.First().A.DivWithNaT());
             if (blockHeader.Bits != bits)
             {
-                _logger.LogCritical("<<< Validator.VerifyBlockHeader >>>: Could not verify the block header bits");
+                _logger.Here().Fatal("Could not verify the block header bits");
                 return false;
             }
 
@@ -330,7 +342,7 @@ namespace CYPCore.Ledger
             var tempBlockHeader = _unitOfWork.DeliveredRepository.ToTrie(blockHeader);
             if (tempBlockHeader == null)
             {
-                _logger.LogCritical("<<< Validator.VerifyBlockHeader >>>: Could not add the block header to merkel");
+                _logger.Here().Fatal("Could not add the block header to merkel");
                 return false;
             }
 
@@ -338,7 +350,7 @@ namespace CYPCore.Ledger
 
             if (blockHeader.MrklRoot != _unitOfWork.DeliveredRepository.MerkleRoot.ByteToHex())
             {
-                _logger.LogCritical("<<< Validator.VerifyBlockHeader >>>: Could not verify the block header merkel");
+                _logger.Here().Fatal("Could not verify the block header merkel");
                 return false;
             }
 
@@ -348,7 +360,7 @@ namespace CYPCore.Ledger
                 blockHeader.LocktimeScript);
             if (!verified)
             {
-                _logger.LogCritical("<<< Validator.VerifyBlockHeader >>>: Could not verify the block header locktime");
+                _logger.Here().Fatal("Could not verify the block header lock time");
                 return false;
             }
 
@@ -361,15 +373,14 @@ namespace CYPCore.Ledger
 
             if (prevBlock == null)
             {
-                _logger.LogCritical("<<< Validator.VerifyBlockHeader >>>: Could not find previous block header");
+                _logger.Here().Fatal("Could not find previous block header");
                 return false;
             }
 
             verified = await VerifyTransactions(blockHeader.Transactions);
             if (!verified)
             {
-                _logger.LogCritical(
-                    "<<< Validator.VerifyBlockHeader >>>: Could not verify the block header transactions");
+                _logger.Here().Fatal("Could not verify block header transactions");
                 return false;
             }
 
@@ -389,14 +400,14 @@ namespace CYPCore.Ledger
                 var verified = await VerifyTransaction(tx);
                 if (!verified)
                 {
-                    _logger.LogCritical("<<< Validator.VerifyTransactions >>>: Could not verify the transaction");
+                    _logger.Here().Fatal("Could not verify transaction");
                     return false;
                 }
 
                 verified = VerifyTransactionFee(tx);
                 if (!verified)
                 {
-                    _logger.LogCritical("<<< Validator.VerifyTransactions >>>: Could not verify the transaction fee");
+                    _logger.Here().Fatal("Could not verify transaction fee");
                     return false;
                 }
             }
@@ -436,10 +447,10 @@ namespace CYPCore.Ledger
                 
                 var verifyMlsag = mlsag.Verify(transaction.Rct[i].I, transaction.Mix, 2, m,
                     transaction.Vin[i].Key.K_Image, transaction.Rct[i].P, transaction.Rct[i].S);
+                    _logger.Here().Fatal("Could not verify the MLSAG transaction");
 
                 if (verifyMlsag) continue;
                 
-                _logger.LogCritical("<<< Validator.VerifyTransaction >>>: Could not verify the MLSAG transaction");
                 
                 return false;
             }
@@ -605,7 +616,7 @@ namespace CYPCore.Ledger
             }
             catch (Exception ex)
             {
-                _logger.LogCritical($"<<< Validator.VerifySloth >>>: {ex.Message}");
+                _logger.Here().Fatal(ex, "Could not verify sloth");
             }
 
             return verified;
@@ -640,7 +651,7 @@ namespace CYPCore.Ledger
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< Validator.GetRunningDistribution >>>: {ex}");
+                _logger.Here().Error(ex, "Cannot get running distribution");
             }
 
             return _runningDistributionTotal;
@@ -701,7 +712,7 @@ namespace CYPCore.Ledger
 
             diff = diff == 0 ? 1 : diff;
 
-            return (int) diff;
+            return (int)diff;
         }
         
         /// <summary>
@@ -732,7 +743,7 @@ namespace CYPCore.Ledger
                 itrr++;
             }
 
-            return (ulong) itrr;
+            return (ulong)itrr;
         }
 
         /// <summary>
@@ -771,7 +782,7 @@ namespace CYPCore.Ledger
             }
             catch (Exception ex)
             {
-                _logger.LogCritical($"<<< Validator.ForkRule >>>: {ex}");
+                _logger.Here().Fatal(ex, "Error while processing fork rule");
             }
 
             return false;
@@ -811,7 +822,7 @@ namespace CYPCore.Ledger
             Guard.Argument(rows, nameof(rows)).NotZero().NotNegative();
 
             var pcmIn = new Span<byte[]>(new byte[cols * 1][]);
-            var pcmOut = new Span<byte[]>(new byte[3][] {vout[0].C, vout[1].C, vout[2].C});
+            var pcmOut = new Span<byte[]>(new byte[3][] { vout[0].C, vout[1].C, vout[2].C });
             var kOffsets = keyOffset.Split(33).Select(x => x).ToList();
 
             pcmIn[0] = kOffsets.ElementAt(0);
@@ -822,7 +833,7 @@ namespace CYPCore.Ledger
             var prepareMlsag = mlsag.Prepare(m, null, pcmOut.Length, pcmOut.Length, cols, rows, pcmIn, pcmOut, null);
             if (prepareMlsag) return m;
 
-            _logger.LogCritical("<<< Validator.PrepareMlsag >>>: Could not verify the MLSAG transaction");
+            _logger.Here().Fatal("Could not verify the MLSAG transaction");
             return null;
         }
     }

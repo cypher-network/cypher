@@ -7,7 +7,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Microsoft.Extensions.Logging;
+using CYPCore.Extensions;
+using Serilog;
 
 using CYPCore.Extentions;
 
@@ -24,7 +25,7 @@ namespace CYPCore.Persistence
         protected Repository(IStoreDb storeDb, ILogger logger)
         {
             _storeDb = storeDb;
-            _logger = logger;
+            _logger = logger.ForContext("SourceContext", nameof(Repository<T>));
         }
 
         public Task<long> CountAsync()
@@ -49,9 +50,9 @@ namespace CYPCore.Persistence
                     }
                 }
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
-                _logger.LogError($"<<< Repository.CountAsync >>>: {e}");
+                _logger.Here().Error(ex, "Error while reading database");
             }
 
             return Task.FromResult(count);
@@ -78,14 +79,14 @@ namespace CYPCore.Persistence
                     }
                 }
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
-                _logger.LogError($"<<< Repository.GetAsync >>>: {e}");
+                _logger.Here().Error(ex, "Error while reading database");
             }
 
             return Task.FromResult(entry);
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -105,14 +106,14 @@ namespace CYPCore.Persistence
                     removed = true;
                 }
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
-                _logger.LogError($"<<< Repository.GetAsync >>>: {e}");
+                _logger.Here().Error(ex, "Error while removing from database");
             }
 
             return Task.FromResult(removed);
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -129,14 +130,14 @@ namespace CYPCore.Persistence
                     entry = first.Result;
                 }
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
-                _logger.LogError($"<<< Repository.FirstAsync >>>: {e}");
+                _logger.Here().Error(ex, "Error while reading database");
             }
 
             return Task.FromResult(entry);
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -154,9 +155,9 @@ namespace CYPCore.Persistence
                     entry = first.Result;
                 }
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
-                _logger.LogError($"<<< Repository.FirstAsync(Func) >>>: {e}");
+                _logger.Here().Error(ex, "Error while reading database");
             }
 
             return Task.FromResult(entry);
@@ -179,14 +180,14 @@ namespace CYPCore.Persistence
                     entry = last.Result;
                 }
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
-                _logger.LogError($"<<< Repository.LastAsync >>>: {e}");
+                _logger.Here().Error(ex, "Error while reading database");
             }
 
             return Task.FromResult(entry);
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -206,9 +207,9 @@ namespace CYPCore.Persistence
                     saved = true;
                 }
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
-                _logger.LogError($"<<< Repository.PutAsync >>>: {e}");
+                _logger.Here().Error(ex, "Error while storing in database");
             }
 
             return Task.FromResult(saved);
@@ -242,7 +243,7 @@ namespace CYPCore.Persistence
                 {
                     long iSkip = 0;
                     var iTake = 0;
-                    
+
                     var cf = _storeDb.Rocks.GetColumnFamily(_tableName);
                     var readOptions = new RocksDbSharp.ReadOptions();
 
@@ -256,20 +257,20 @@ namespace CYPCore.Persistence
                             {
                                 break;
                             }
-                            
+
                             entries.Add(Helper.Util.DeserializeProto<T>(iterator.Value()));
                             iTake++;
-                            
+
                             continue;
                         }
-                        
+
                         iSkip++;
                     }
                 }
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
-                _logger.LogError($"<<< Repository.RangeAsync >>>: {e}");
+                _logger.Here().Error(ex, "Error while reading database");
             }
 
             return Task.FromResult(entries);
@@ -282,7 +283,7 @@ namespace CYPCore.Persistence
         public Task<T> LastAsync()
         {
             T entry = default;
-            
+
             try
             {
                 lock (_locker)
@@ -299,9 +300,9 @@ namespace CYPCore.Persistence
                     }
                 }
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
-                _logger.LogError($"<<< Repository.RangeAsync >>>: {e}");
+                _logger.Here().Error(ex, "Error while reading database");
             }
 
             return Task.FromResult(entry);
@@ -320,14 +321,14 @@ namespace CYPCore.Persistence
             {
                 entries = Iterate().WhereAwait(expression).ToListAsync();
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
-                _logger.LogError($"<<< Repository.WhereAsync >>>: {e}");
+                _logger.Here().Error(ex, "Error while reading database");
             }
 
             return entries;
         }
-        
+
         public ValueTask<List<T>> SelectAsync(Func<T, ValueTask<T>> selector)
         {
             ValueTask<List<T>> entries = default;
@@ -336,14 +337,14 @@ namespace CYPCore.Persistence
             {
                 entries = Iterate().SelectAwait(selector).ToListAsync();
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
-                _logger.LogError($"<<< Repository.SelectAsync >>>: {e}");
+                _logger.Here().Error(ex, "Error while reading database");
             }
 
             return entries;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -358,14 +359,14 @@ namespace CYPCore.Persistence
             {
                 entries = Iterate().Skip(skip).ToListAsync();
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
-                _logger.LogError($"<<< Repository.SkipAsync >>>: {e}");
+                _logger.Here().Error(ex, "Error while reading database");
             }
 
             return entries;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -379,14 +380,14 @@ namespace CYPCore.Persistence
             {
                 entries = Iterate().Take(take).ToListAsync();
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
-                _logger.LogError($"<<< Repository.TakeAsync >>>: {e}");
+                _logger.Error(ex, "Error while reading database");
             }
 
             return entries;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>

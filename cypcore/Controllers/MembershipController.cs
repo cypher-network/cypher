@@ -5,7 +5,8 @@ using System.Threading.Tasks;
 
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
+
+using Serilog;
 
 using CYPCore.Services;
 
@@ -18,10 +19,10 @@ namespace CYPCore.Controllers
         private readonly IMembershipService _membershipService;
         private readonly ILogger _logger;
 
-        public MembershipController(IMembershipService membershipService, ILogger<MembershipController> logger)
+        public MembershipController(IMembershipService membershipService, ILogger logger)
         {
             _membershipService = membershipService;
-            _logger = logger;
+            _logger = logger.ForContext("SourceContext", nameof(MembershipController));
         }
 
         /// <summary>

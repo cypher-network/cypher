@@ -6,22 +6,22 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 
+using CYPCore.Extensions;
 using Serilog;
 
-using CYPCore.Extensions;
-using CYPCore.Ledger;
+using CYPCore.Network;
 
 namespace CYPCore.Services
 {
-    public class SyncBackgroundService : BackgroundService
+    public class LocalNodeBackgroundService : BackgroundService
     {
-        private readonly ISync _sync;
+        private readonly ILocalNode _localNode;
         private readonly ILogger _logger;
 
-        public SyncBackgroundService(ISync sync, ILogger logger)
+        public LocalNodeBackgroundService(ILocalNode localNode, ILogger logger)
         {
-            _sync = sync;
-            _logger = logger.ForContext("SourceContext", nameof(SyncBackgroundService));
+            _localNode = localNode;
+            _logger = logger.ForContext("SourceContext", nameof(LocalNodeBackgroundService));
         }
 
         /// <summary>
@@ -33,25 +33,23 @@ namespace CYPCore.Services
         {
             try
             {
+                _logger.Here().Information("Bootstrapping seed nodes...");
+
                 while (true)
                 {
                     stoppingToken.ThrowIfCancellationRequested();
 
-                    await _sync.Check();
-
-                    await Task.Delay(600000, stoppingToken);
-
-                    while (_sync.SyncRunning)
-                    {
-                        stoppingToken.ThrowIfCancellationRequested();
-
-                        await Task.Delay(6000, stoppingToken);
-                    }
+                    await _localNode.BootstrapNodes();
+                    await Task.Delay(3000, stoppingToken);
                 }
+            }
+            catch (TaskCanceledException)
+            {
+
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, "Background sync service error");
+                _logger.Here().Error(ex, "Error while bootstrapping nodes");
             }
         }
     }

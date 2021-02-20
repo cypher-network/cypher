@@ -64,7 +64,7 @@ namespace CYPCore.Helper
 
         public static string Pop(string value, string delimiter)
         {
-            var stack = new Stack<string>(value.Split(new string[] {delimiter}, StringSplitOptions.None));
+            var stack = new Stack<string>(value.Split(new string[] { delimiter }, StringSplitOptions.None));
             return stack.Pop();
         }
 
@@ -253,13 +253,13 @@ namespace CYPCore.Helper
                 for (int i = 6; i < 12; i++)
                 {
                     var c = hash[i];
-                    v.Append(new char[] {HexUpper[c >> 4], HexUpper[c & 0x0f]});
+                    v.Append(new char[] { HexUpper[c >> 4], HexUpper[c & 0x0f] });
                 }
 
                 var byteHex = SHA384ManagedHash(v.ToString().ToBytes());
 
-                id = (ulong) BitConverter.ToInt64(byteHex, 0);
-                id = (ulong) Convert.ToInt64(id.ToString().Substring(0, xBase));
+                id = (ulong)BitConverter.ToInt64(byteHex, 0);
+                id = (ulong)Convert.ToInt64(id.ToString().Substring(0, xBase));
             }
             catch (Exception)
             {

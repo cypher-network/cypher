@@ -6,15 +6,15 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 
-using Microsoft.Extensions.Logging;
-
 using Dawn;
+using Serilog;
 
 using CYPCore.Cryptography;
+using CYPCore.Extensions;
+using CYPCore.Extentions;
 using CYPCore.Persistence;
 using CYPCore.Models;
 using CYPCore.Ledger;
-using CYPCore.Extentions;
 
 namespace CYPCore.Services
 {
@@ -27,12 +27,12 @@ namespace CYPCore.Services
 
         public BlockService() { }
 
-        public BlockService(IUnitOfWork unitOfWork, ISigning signingProvider, IValidator validator, ILogger<BlockService> logger)
+        public BlockService(IUnitOfWork unitOfWork, ISigning signingProvider, IValidator validator, ILogger logger)
         {
             _unitOfWork = unitOfWork;
             _signingProvider = signingProvider;
             _validator = validator;
-            _logger = logger;
+            _logger = logger.ForContext("SourceContext", nameof(BlockService));
         }
 
         /// <summary>
@@ -54,7 +54,7 @@ namespace CYPCore.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< BlockService.GetBlocks >>>: {ex}");
+                _logger.Here().Error(ex, "Cannot get block headers");
             }
 
             return blockHeaders;
@@ -84,7 +84,7 @@ namespace CYPCore.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< BlockService.GetSafeguardBlocks >>>: {ex}");
+                _logger.Here().Error(ex, "Cannot get safeguard blocks");
             }
 
             return blockHeaders;
@@ -108,7 +108,7 @@ namespace CYPCore.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< BlockService.GetBlockHeight >>>: {ex}");
+                _logger.Here().Error(ex, "Cannot get block height");
             }
 
             return height;
@@ -137,7 +137,7 @@ namespace CYPCore.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< BlockService.GetVout >>>: {ex}");
+                _logger.Here().Error(ex, "Cannot get Vout");
             }
 
             return transaction;
@@ -160,13 +160,13 @@ namespace CYPCore.Services
                     processed = await Process(payloadProto);
                     if (!processed)
                     {
-                        _logger.LogError($"<<< BlockService.AddBlock >>>: Unable to process the block header");
+                        _logger.Here().Error("Unable to process the block header");
                     }
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< BlockService.AddBlock >>> {ex}");
+                _logger.Here().Error(ex, "Cannot add block");
             }
 
             return processed;
@@ -189,7 +189,7 @@ namespace CYPCore.Services
                         var processed = await Process(payload);
                         if (!processed)
                         {
-                            _logger.LogError($"<<< BlockService.AddBlocks >>>: Unable to process the block header");
+                            _logger.Here().Error("Unable to process the block header");
                             break;
                         }
                     }
@@ -197,7 +197,7 @@ namespace CYPCore.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< BlockService.AddBlocks >>> {ex}");
+                _logger.Here().Error(ex, "Cannot add block");
             }
         }
 
@@ -213,7 +213,7 @@ namespace CYPCore.Services
             var verified = _signingProvider.VerifySignature(payload.Signature, payload.PublicKey, Helper.Util.SHA384ManagedHash(payload.Data));
             if (!verified)
             {
-                _logger.LogError($"<<< BlockService.Process >>: Unable to verifiy signature.");
+                _logger.Here().Error("Unable to verify signature");
                 return false;
             }
 
@@ -224,14 +224,14 @@ namespace CYPCore.Services
             verified = await _validator.VerifyBlockHeader(blockHeader);
             if (!verified)
             {
-                _logger.LogError($"<<< BlockService.Process >>: Unable to verifiy block header.");
+                _logger.Here().Error("Unable to verify block header");
             }
 
             var saved = await _unitOfWork.DeliveredRepository.PutAsync(blockHeader.ToIdentifier(), blockHeader);
             if (saved) return true;
-            
-            _logger.LogError($"<<< BlockService.Process >>>: Unable to save block header: {blockHeader.MrklRoot}");
-            
+
+            _logger.Here().Error("Unable to save block header: {@MerkleRoot}", blockHeader.MrklRoot);
+
             return false;
         }
     }

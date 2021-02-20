@@ -8,21 +8,18 @@ using System.Threading.Tasks;
 using System.Net.Http;
 using System.Net.Http.Headers;
 
-using Microsoft.Extensions.Logging;
-
-using libsignal.ecc;
-
-using Newtonsoft.Json.Linq;
-
-using NBitcoin;
-
 using Dawn;
+using libsignal.ecc;
+using NBitcoin;
+using Newtonsoft.Json.Linq;
+using Serilog;
 
 using CYPCore.Extentions;
 using CYPCore.Models;
 using CYPCore.Persistence;
 using CYPCore.Serf;
 using CYPCore.Cryptography;
+using CYPCore.Extensions;
 using CYPCore.Helper;
 using CYPCore.Network;
 
@@ -43,7 +40,7 @@ namespace CYPCore.Ledger
 
         public PosMinting(ISerfClient serfClient, IUnitOfWork unitOfWork,
             ISigning signing, IValidator validator, ILocalNode localNode,
-            StakingConfigurationOptions stakingConfigurationOptions, ILogger<PosMinting> logger)
+            StakingConfigurationOptions stakingConfigurationOptions, ILogger logger)
         {
             _serfClient = serfClient;
             _unitOfWork = unitOfWork;
@@ -51,7 +48,7 @@ namespace CYPCore.Ledger
             _validator = validator;
             _localNode = localNode;
             _stakingConfigurationOptions = stakingConfigurationOptions;
-            _logger = logger;
+            _logger = logger.ForContext("SourceContext", nameof(PosMinting));
 
             _keyPair = _signing.GetOrUpsertKeyName(KeyName).ConfigureAwait(false).GetAwaiter().GetResult();
         }
@@ -70,21 +67,24 @@ namespace CYPCore.Ledger
             var lastBlockHeader = await _unitOfWork.DeliveredRepository.LastAsync();
             if (lastBlockHeader == null)
             {
-                _logger.LogInformation($"<<< PosMinting.RunStakingBlockAsync >>>: There is no block header for processing");
+                _logger.Here().Information("There is no block header for processing");
                 return;
             }
 
             var coinstakeTimestamp = _validator.GetAdjustedTimeAsUnixTimestamp();
             if (coinstakeTimestamp <= lastBlockHeader.Locktime)
             {
-                _logger.LogWarning($"<<< PosMinting.RunStakingBlockAsync >>>: Current coinstake time {coinstakeTimestamp} is not greater than last search timestamp {lastBlockHeader.Locktime}");
+                _logger.Here().Warning("Current coinstake time {@Timestamp} is not greater than last search timestamp {@Locktime}",
+                    coinstakeTimestamp,
+                    lastBlockHeader.Locktime);
+
                 return;
             }
 
             var transactions = (await IncludeTransactions()).ToList();
             if (transactions.Any() != true)
             {
-                _logger.LogWarning($"<<< PosMinting.RunStakingBlockAsync >>>: Cannot add zero transactions to the block header");
+                _logger.Here().Warning("Cannot add zero transactions to the block header");
                 return;
             }
 
@@ -109,7 +109,7 @@ namespace CYPCore.Ledger
                 var coinstakeTransaction = await CreateCoinstakeTransaction(bits, reward);
                 if (coinstakeTransaction == null)
                 {
-                    _logger.LogError($"<<< PosMinting.RunStakingBlockAsync >>>: Could not create coin stake transaction");
+                    _logger.Here().Error("Could not create coin stake transaction");
                     return;
                 }
 
@@ -117,7 +117,7 @@ namespace CYPCore.Ledger
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< PosMinting.RunStakingBlockAsync >>>: Failed to insert the coinstake transaction: {ex.Message}");
+                _logger.Error(ex, "Failed to insert the coinstake transaction");
                 return;
             }
 
@@ -128,21 +128,21 @@ namespace CYPCore.Ledger
             blockHeader = _unitOfWork.DeliveredRepository.ToTrie(blockHeader);
             if (blockHeader == null)
             {
-                _logger.LogCritical($"<<< PosMinting.RunStakingBlockAsync >>>: Unable to add the block header to merkel");
+                _logger.Here().Fatal("Unable to add the block header to merkel");
                 return;
             }
 
             var savedLastSeen = await SaveLastSeenBlockHeader(lastSeenBlockHeader, blockHeader);
             if (!savedLastSeen)
             {
-                _logger.LogCritical($"<<< PosMinting.RunStakingBlockAsync >>>: Unable to save the Last seen block header");
+                _logger.Here().Fatal("Unable to save the Last seen block header");
                 return;
             }
 
             var savedBlockHeader = await _unitOfWork.DeliveredRepository.PutAsync(blockHeader.ToIdentifier(), blockHeader);
             if (!savedBlockHeader)
             {
-                _logger.LogCritical($"<<< PosMinting.RunStakingBlockAsync >>>: Unable to save the block header");
+                _logger.Here().Fatal("Unable to save the block header");
                 return;
             }
 
@@ -153,7 +153,7 @@ namespace CYPCore.Ledger
                 var saved = await _unitOfWork.SeenBlockHeaderRepository.PutAsync(lastSeenBlockHeader.ToIdentifier(), lastSeenBlockHeader);
                 if (!saved)
                 {
-                    _logger.LogWarning($"<<< PosMinting.RunStakingBlockAsync >>>: Unable to update the last seen block header");
+                    _logger.Here().Warning("Unable to update the last seen block header");
                 }
             }
         }
@@ -288,7 +288,9 @@ namespace CYPCore.Ledger
                     var deleted = await _unitOfWork.InterpretedRepository.RemoveAsync(interpreted.ToIdentifier());
                     if (!deleted)
                     {
-                        _logger.LogError($"<<< PosMinting.GetNextInterpretedTransactions >>>: Unable to delete interpreted for {interpreted.Node} and round {interpreted.Round}");
+                        _logger.Here().Error("Unable to delete interpreted for {@Node} and round {@Round}",
+                            interpreted.Node,
+                            interpreted.Round);
                     }
 
                     interpreted.InterpretedType = InterpretedType.Processed;
@@ -296,13 +298,15 @@ namespace CYPCore.Ledger
                     var saved = await _unitOfWork.InterpretedRepository.PutAsync(interpreted.ToIdentifier(), interpreted);
                     if (!saved)
                     {
-                        _logger.LogError($"<<< PosMinting.GetNextInterpretedTransactions >>>: Unable to save interpreted for {interpreted.Node} and round {interpreted.Round}");
+                        _logger.Here().Error("Unable to save interpreted for {@Node} and round {@Round}",
+                            interpreted.Node,
+                            interpreted.Round);
                     }
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogWarning($"<<< PosMinting.GetNextInterpretedTransactions >>>: {ex}");
+                _logger.Here().Warning(ex, "Cannot include transaction");
             }
 
             return verifiedTransactions;
@@ -357,13 +361,16 @@ namespace CYPCore.Ledger
                     else
                     {
                         var content = await response.Content.ReadAsStringAsync();
-                        _logger.LogError($"<<< PosMinting.CreateCoinstakeTransaction >>>: {content}\n StatusCode: {(int)response.StatusCode}");
+                        _logger.Here().Error("{@Content}\n StatusCode: {@StatusCode}",
+                            content,
+                            (int)response.StatusCode);
+
                         throw new Exception(content);
                     }
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError($"<<< PosMinting.CreateCoinstakeTransaction >>> Message: {ex.Message}\n Stack: {ex.StackTrace}");
+                    _logger.Here().Error(ex, "Cannot create coinstake transaction");
                 }
             }
 
