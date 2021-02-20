@@ -7,8 +7,11 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Net.Http;
 using System.Collections.Generic;
-using Microsoft.Extensions.Logging;
+
 using Dawn;
+using Serilog;
+
+using CYPCore.Extensions;
 using CYPCore.Serf;
 using CYPCore.Models;
 using CYPCore.Services.Rest;
@@ -25,7 +28,7 @@ namespace CYPCore.Network
         public LocalNode(ISerfClient serfClient, ILogger<LocalNode> logger)
         {
             _serfClient = serfClient;
-            _logger = logger;
+            _logger = logger.ForContext("SourceContext", nameof(LocalNode));
             _peers = new ConcurrentDictionary<ulong, Peer>();
         }
 
@@ -76,8 +79,9 @@ namespace CYPCore.Network
                             if (!_peers.TryAdd(Helper.Util.HashToId(member.Tags["pubkey"]),
                                 new Peer { Host = uri.OriginalString }))
                             {
-                                _logger.LogError(
-                                    $"<<< LocalNode.Connect >>>: Failed adding or exists in remote nodes: {member.Name}");
+                                _logger.Here().Error("Failed adding or exists in remote nodes: {@Node}",
+                                    member.Name);
+
                                 return;
                             }
                         }
@@ -90,7 +94,9 @@ namespace CYPCore.Network
                     {
                         if (!_peers.TryRemove(node.Key, out Peer peer))
                         {
-                            _logger.LogError($"<<< LocalNode.BootstrapClients >>>: Failed removing {node.Key}");
+                            _logger.Here().Error("Failed removing {@Node}",
+                                node.Key);
+
                         }
                     }
                 }
@@ -100,7 +106,7 @@ namespace CYPCore.Network
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< LocalNode.BootstrapClients >>>: {ex}");
+                _logger.Here().Error(ex, "Error while bootstrapping clients");
             }
         }
 
