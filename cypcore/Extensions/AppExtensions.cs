@@ -254,8 +254,6 @@ namespace CYPCore.Extensions
                         var seedNodes = new SeedNode(seedNodesSection.Select(x => x.Value));
                         serfService.JoinSeedNodes(seedNodes).ConfigureAwait(false).GetAwaiter();
                     }
-
-                    localNode.Ready();
                 }
                 else
                 {
