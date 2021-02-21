@@ -101,7 +101,7 @@ namespace CYPCore.Persistence
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, "Error while addind to mempool");
+                _logger.Here().Error(ex, "Error while adding to memory pool");
             }
         }
         
@@ -128,7 +128,7 @@ namespace CYPCore.Persistence
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< BlockGraphRepository.PreviousOrDefaultAsync >>>: {ex}");
+                _logger.Here().Error(ex, "Unable to find previous");
             }
 
             return Task.FromResult(block);

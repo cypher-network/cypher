@@ -21,9 +21,10 @@ namespace CYPNode
     public class Startup
     {
         /// <summary>
-        ///
+        /// 
         /// </summary>
         /// <param name="env"></param>
+        /// <param name="configuration"></param>
         public Startup(IWebHostEnvironment env, IConfiguration configuration)
         {
             Configuration = configuration;

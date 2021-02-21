@@ -36,9 +36,8 @@ namespace CYPCore.Ledger
 
         private LastInterpretedMessage _lastInterpretedMessage;
 
-        public MemoryPool(IUnitOfWork unitOfWork, ISerfClient serfClient, 
-            IValidator validator, ISigning signing, IStaging staging, 
-            ILocalNode localNode, ILogger<MemoryPool> logger)
+        public MemoryPool(IUnitOfWork unitOfWork, ISerfClient serfClient, IValidator validator, 
+            ISigning signing, IStaging staging, ILocalNode localNode, ILogger logger)
         {
             _unitOfWork = unitOfWork;
             _serfClient = serfClient;
@@ -70,8 +69,11 @@ namespace CYPCore.Ledger
                     var saved = await _unitOfWork.MemPoolRepository.PutAsync(memPool.ToIdentifier(), memPool);
                     if (!saved)
                     {
-                        _logger.LogError(
-                            $"<<< MemoryPool.AddMemPoolTransaction >>>: Unable to save block {memPool.Block.Hash} for round {memPool.Block.Round} and node {memPool.Block.Node}");
+                        _logger.Here().Error("Unable to save block {@Hash} for round {@Round} and node {@Node}",
+                            memPool.Block.Hash,
+                            memPool.Block.Round,
+                            memPool.Block.Node);
+                        
                         return null;
                     }
 
@@ -110,15 +112,14 @@ namespace CYPCore.Ledger
             
             if (totalNodes < 4)
             {
-                _logger.LogWarning(
-                    $"<<< MemoryPool.ReadySession >>>: Minimum number of nodes required (4). Total number of nodes ({totalNodes})");
+                _logger.Here().Warning("Minimum number of nodes required: 4. Total number of nodes {@TotalNodes}", totalNodes);
             }
 
             if (totalNodes == 0)
             {
-                _logger.LogWarning($"<<< MemoryPool.ReadySession >>>: Total number of nodes ({totalNodes})");
+                _logger.Here().Warning("Total number of nodes: {@TotalNodes}", totalNodes);
                 totalNodes = 4;
-                _logger.LogWarning($"<<< MemoryPool.ReadySession >>>: Setting default number of nodes ({totalNodes})");
+                _logger.Here().Warning("Setting default number of nodes: {@TotalNodes}", totalNodes);
             }
             
             await _signing.GetOrUpsertKeyName(_signing.DefaultSigningKeyName);
@@ -245,8 +246,11 @@ namespace CYPCore.Ledger
 
                     if (hasSeen != null)
                     {
-                        _logger.LogError(
-                            $"<<< MemoryPool.BlockmaniaCallback >>>: Already seen interpreted block - Hash: {next.Hash} Round: {next.Round} from node {next.Node}");
+                        _logger.Here().Error("Unable to find matching block - Hash: {@Hash} Round: {@Round} from node {@Node}",
+                            next.Hash,
+                            next.Round,
+                            next.Node);
+                        
                         continue;
                     }
                     

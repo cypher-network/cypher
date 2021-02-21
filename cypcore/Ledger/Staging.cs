@@ -68,7 +68,7 @@ namespace CYPCore.Ledger
                     var added = await AddOrUpdate(blockHashLookup);
                     if (!added)
                     {
-                        _logger.LogError($"<<< Staging.Ready >>>: Unable to publish hash: {hash.ByteToHex()}");
+                        _logger.Here().Warning("Unable to publish hash: {@Hash}");
                         return;
                     }
                     
@@ -183,7 +183,6 @@ namespace CYPCore.Ledger
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< Staging.Add >>>: {ex}");
                 staging = null;
                 _logger.Here().Error(ex, "Cannot add to staging");
             }
@@ -334,7 +333,7 @@ namespace CYPCore.Ledger
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< Staging.AddOrUpdate >>>: {ex}");
+                _logger.Here().Error(ex, "Cannot add to staging");
             }
 
             return staging != null;

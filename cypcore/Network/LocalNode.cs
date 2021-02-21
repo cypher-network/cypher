@@ -78,8 +78,7 @@ namespace CYPCore.Network
                 
             if (!tcpSession.Ready)
             {
-                _logger.LogError(
-                    $"<<< LocalNode.GetPeers >>>: Serf client failed to connect");
+                _logger.Here().Error("Serf client failed to connect");
                 return null;
             }
                 
@@ -95,8 +94,9 @@ namespace CYPCore.Network
                 if (!Uri.TryCreate($"{restEndpoint}", UriKind.Absolute, out var uri)) continue;
                 if (peers.TryAdd(Helper.Util.HashToId(member.Tags["pubkey"]), new Peer {Host = uri.OriginalString})) continue;
                     
-                _logger.LogError(
-                    $"<<< LocalNode.GetPeers >>>: Failed adding remote nodes: {member.Name}");
+                _logger.Here().Error("Failed adding or exists in remote nodes: {@Node}",
+                    member.Name);
+                
                 return null;
             }
 

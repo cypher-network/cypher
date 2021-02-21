@@ -4,6 +4,7 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using CYPCore.Extensions;
 using CYPCore.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -46,7 +47,7 @@ namespace CYPCore.Controllers
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="pool"></param>
+        /// <param name="pools"></param>
         /// <returns></returns>
         [HttpPost("pools", Name = "AddMemoryPools")]
         [ProducesResponseType(typeof(int), StatusCodes.Status200OK)]

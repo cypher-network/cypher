@@ -15,7 +15,7 @@ using CYPCore.Models;
 using CYPCore.Persistence;
 using Dawn;
 using Libsecp256k1Zkp.Net;
-using Microsoft.Extensions.Logging;
+using Serilog;
 using NBitcoin;
 using NBitcoin.BouncyCastle.Math;
 using NBitcoin.Crypto;
@@ -132,7 +132,7 @@ namespace CYPCore.Ledger
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, "Cannot verify mempool signatures");
+                _logger.Here().Error(ex, "Cannot verify memory pool signatures");
                 return Task.FromResult(false);
             }
 
@@ -156,10 +156,9 @@ namespace CYPCore.Ledger
                     using var secp256K1 = new Secp256k1();
                     using var bulletProof = new BulletProof();
 
-                    for (var i = 0; i < transaction.Bp.Length; i++)
+                    if (transaction.Bp.Select((t, i) => bulletProof.Verify(transaction.Vout[i + 2].C, t.Proof, null)).Any(verified => !verified))
                     {
-                        var verified = bulletProof.Verify(transaction.Vout[i + 2].C, transaction.Bp[i].Proof, null);
-                        if (!verified) return false;
+                        return false;
                     }
                 }
             }
@@ -278,11 +277,11 @@ namespace CYPCore.Ledger
             foreach (var blockHeader in blockHeaders)
             {
                 var verified = await VerifyBlockHeader(blockHeader);
-                if (!verified)
-                {
-                    _logger.Here().Fatal("Could not verify block header");
-                    return false;
-                }
+                if (verified) continue;
+                
+                _logger.Here().Fatal("Could not verify block header");
+                
+                return false;
             }
 
             return true;
@@ -378,13 +377,11 @@ namespace CYPCore.Ledger
             }
 
             verified = await VerifyTransactions(blockHeader.Transactions);
-            if (!verified)
-            {
-                _logger.Here().Fatal("Could not verify block header transactions");
-                return false;
-            }
+            if (verified) return true;
+            
+            _logger.Here().Fatal("Could not verify block header transactions");
+            return false;
 
-            return true;
         }
 
         /// <summary>
@@ -405,11 +402,10 @@ namespace CYPCore.Ledger
                 }
 
                 verified = VerifyTransactionFee(tx);
-                if (!verified)
-                {
-                    _logger.Here().Fatal("Could not verify transaction fee");
-                    return false;
-                }
+                if (verified) continue;
+                
+                _logger.Here().Fatal("Could not verify transaction fee");
+                return false;
             }
 
             return true;
@@ -447,10 +443,9 @@ namespace CYPCore.Ledger
                 
                 var verifyMlsag = mlsag.Verify(transaction.Rct[i].I, transaction.Mix, 2, m,
                     transaction.Vin[i].Key.K_Image, transaction.Rct[i].P, transaction.Rct[i].S);
-                    _logger.Here().Fatal("Could not verify the MLSAG transaction");
-
                 if (verifyMlsag) continue;
                 
+                _logger.Here().Fatal("Could not verify the MLSAG transaction");
                 
                 return false;
             }
@@ -507,9 +502,8 @@ namespace CYPCore.Ledger
 
             using var pedersen = new Pedersen();
             var commitSum = pedersen.CommitSum(new List<byte[]> {vout.C}, new List<byte[]> {vout.C});
-            if (commitSum != null) return false;
-
-            return true;
+            
+            return commitSum == null;
         }
 
         /// <summary>

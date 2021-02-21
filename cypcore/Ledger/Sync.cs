@@ -10,7 +10,6 @@ using System.Net.Http;
 using CYPCore.Extensions;
 using Serilog;
 
-using CYPCore.Serf;
 using CYPCore.Models;
 using CYPCore.Network;
 using CYPCore.Persistence;
@@ -29,7 +28,7 @@ namespace CYPCore.Ledger
         private readonly ILocalNode _localNode;
         private readonly ILogger _logger;
 
-        public Sync(IUnitOfWork unitOfWork, IValidator validator, ILocalNode localNode, ILogger<Sync> logger)
+        public Sync(IUnitOfWork unitOfWork, IValidator validator, ILocalNode localNode, ILogger logger)
         {
             _unitOfWork = unitOfWork;
             _validator = validator;
@@ -132,8 +131,8 @@ namespace CYPCore.Ledger
                                             blockHeader.ToIdentifier(), blockHeader);
                                         if (!saved)
                                         {
-                                            _logger.LogError(
-                                                $"<<< Sync.Synchronize >>>: Unable to save block header: {blockHeader.MrklRoot}");
+                                            _logger.Here().Error("Unable to save block header: {@MerkleRoot}",
+                                                blockHeader.MrklRoot);
                                         }
                                     }
                                     catch (Exception ex)
