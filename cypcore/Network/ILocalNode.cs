@@ -12,7 +12,6 @@ namespace CYPCore.Network
     {
         Task Broadcast(byte[] data, TopicType topicType);
         Task Send(byte[] data, TopicType topicType, string host);
-        void Ready();
         Task<Dictionary<ulong, Peer>> GetPeers();
     }
 }

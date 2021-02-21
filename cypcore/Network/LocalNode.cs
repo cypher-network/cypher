@@ -22,21 +22,18 @@ namespace CYPCore.Network
     {
         private readonly ISerfClient _serfClient;
         private readonly ILogger _logger;
-        private TcpSession _tcpSession;
+        private readonly TcpSession _tcpSession;
 
         public LocalNode(ISerfClient serfClient, ILogger logger)
         {
             _serfClient = serfClient;
             _logger = logger.ForContext("SourceContext", nameof(LocalNode));
-        }
-
-        public void Ready()
-        {
+            
             _tcpSession = _serfClient.TcpSessionsAddOrUpdate(
                 new TcpSession(_serfClient.SerfConfigurationOptions.Listening)
                     .Connect(_serfClient.SerfConfigurationOptions.RPC));
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
