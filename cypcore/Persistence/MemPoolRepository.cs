@@ -21,7 +21,7 @@ namespace CYPCore.Persistence
         public MemPoolRepository(IStoreDb storeDb, ILogger logger)
             : base(storeDb, logger)
         {
-            _logger = logger;
+            _logger = logger.ForContext("SourceContext", nameof(MemPoolRepository));
 
             SetTableName(StoreDb.MemoryPoolTable.ToString());
         }
@@ -104,7 +104,7 @@ namespace CYPCore.Persistence
                 _logger.Here().Error(ex, "Error while adding to memory pool");
             }
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -123,7 +123,7 @@ namespace CYPCore.Persistence
             try
             {
                 round -= 1;
-                block = FirstAsync(x => 
+                block = FirstAsync(x =>
                     new ValueTask<bool>(x.Block.Hash.Equals(hash) && x.Block.Node == node && x.Block.Round == round)).Result;
             }
             catch (Exception ex)

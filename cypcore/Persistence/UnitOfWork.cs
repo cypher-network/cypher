@@ -25,7 +25,7 @@ namespace CYPCore.Persistence
         {
             StoreDb = new StoreDb(folderDb);
 
-            _logger = logger;
+            _logger = logger.ForContext("SourceContext", nameof(UnitOfWork));
 
             DataProtectionPayload = new DataProtectionRepository(StoreDb, logger);
             DeliveredRepository = new DeliveredRepository(StoreDb, logger);

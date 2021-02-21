@@ -30,13 +30,13 @@ namespace CYPCore.Ledger
         private readonly ILocalNode _localNode;
         private readonly ILogger _logger;
         private readonly BackgroundQueue _queue;
-        
+
         private Graph _graph;
         private Config _config;
 
         private LastInterpretedMessage _lastInterpretedMessage;
 
-        public MemoryPool(IUnitOfWork unitOfWork, ISerfClient serfClient, IValidator validator, 
+        public MemoryPool(IUnitOfWork unitOfWork, ISerfClient serfClient, IValidator validator,
             ISigning signing, IStaging staging, ILocalNode localNode, ILogger logger)
         {
             _unitOfWork = unitOfWork;
@@ -73,7 +73,7 @@ namespace CYPCore.Ledger
                             memPool.Block.Hash,
                             memPool.Block.Round,
                             memPool.Block.Node);
-                        
+
                         return null;
                     }
 
@@ -109,7 +109,7 @@ namespace CYPCore.Ledger
 
             var peers = await _localNode.GetPeers();
             var totalNodes = peers.Count;
-            
+
             if (totalNodes < 4)
             {
                 _logger.Here().Warning("Minimum number of nodes required: 4. Total number of nodes {@TotalNodes}", totalNodes);
@@ -121,15 +121,15 @@ namespace CYPCore.Ledger
                 totalNodes = 4;
                 _logger.Here().Warning("Setting default number of nodes: {@TotalNodes}", totalNodes);
             }
-            
+
             await _signing.GetOrUpsertKeyName(_signing.DefaultSigningKeyName);
 
             if (_graph == null)
             {
                 var lastInterpreted = await LastInterpreted(hash);
 
-                _config = new Config(lastInterpreted, new ulong[totalNodes], _serfClient.ClientId, (ulong) totalNodes);
-                
+                _config = new Config(lastInterpreted, new ulong[totalNodes], _serfClient.ClientId, (ulong)totalNodes);
+
                 _graph = new Graph(_config);
                 _graph.BlockmaniaInterpreted += (sender, e) => BlockmaniaCallback(sender, e).SwallowException();
             }
@@ -250,10 +250,10 @@ namespace CYPCore.Ledger
                             next.Hash,
                             next.Round,
                             next.Node);
-                        
+
                         continue;
                     }
-                    
+
                     var memPool = await _unitOfWork.MemPoolRepository.FirstAsync(x =>
                         new ValueTask<bool>(x.Block.Hash.Equals(next.Hash) && x.Block.Node == next.Node &&
                                             x.Block.Round == next.Round));
@@ -289,7 +289,7 @@ namespace CYPCore.Ledger
                         Signature = memPool.Block.Signature,
                         Transaction = memPool.Block.Transaction
                     };
-                    
+
                     var saved = await _unitOfWork.InterpretedRepository.PutAsync(interpreted.ToIdentifier(), interpreted);
                     if (!saved)
                     {
@@ -322,7 +322,7 @@ namespace CYPCore.Ledger
                 copy |= memPool.Block.Node != _serfClient.ClientId;
 
                 ulong round = 0, node = 0;
-                
+
                 switch (copy)
                 {
                     case false:
@@ -338,7 +338,7 @@ namespace CYPCore.Ledger
                         node = _serfClient.ClientId;
                         break;
                 }
-                
+
                 var prev = await _unitOfWork.MemPoolRepository.PreviousAsync(memPool.Block.Hash.HexToByte(), node, round);
                 if (prev != null)
                 {
@@ -358,7 +358,7 @@ namespace CYPCore.Ledger
 
                     return null;
                 }
-                
+
                 stored = signed;
             }
             catch (Exception ex)

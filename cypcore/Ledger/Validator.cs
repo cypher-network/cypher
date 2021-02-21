@@ -192,10 +192,10 @@ namespace CYPCore.Ledger
                         var payment = transaction.Vout[i + 1].C;
                         var change = transaction.Vout[i + 2].C;
 
-                        var commitSumBalance = pedersen.CommitSum(new List<byte[]> {fee, payment, change},
+                        var commitSumBalance = pedersen.CommitSum(new List<byte[]> { fee, payment, change },
                             new List<byte[]>());
-                        if (!pedersen.VerifyCommitSum(new List<byte[]> {commitSumBalance},
-                            new List<byte[]> {fee, payment, change}))
+                        if (!pedersen.VerifyCommitSum(new List<byte[]> { commitSumBalance },
+                            new List<byte[]> { fee, payment, change }))
                             return false;
                     }
                 }
@@ -278,9 +278,9 @@ namespace CYPCore.Ledger
             {
                 var verified = await VerifyBlockHeader(blockHeader);
                 if (verified) continue;
-                
+
                 _logger.Here().Fatal("Could not verify block header");
-                
+
                 return false;
             }
 
@@ -378,7 +378,7 @@ namespace CYPCore.Ledger
 
             verified = await VerifyTransactions(blockHeader.Transactions);
             if (verified) return true;
-            
+
             _logger.Here().Fatal("Could not verify block header transactions");
             return false;
 
@@ -403,14 +403,14 @@ namespace CYPCore.Ledger
 
                 verified = VerifyTransactionFee(tx);
                 if (verified) continue;
-                
+
                 _logger.Here().Fatal("Could not verify transaction fee");
                 return false;
             }
 
             return true;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -440,13 +440,13 @@ namespace CYPCore.Ledger
             {
                 var m = PrepareMlsag(transaction.Rct[i].M, transaction.Vout, transaction.Vin[i].Key.K_Offsets,
                     transaction.Mix, 2);
-                
+
                 var verifyMlsag = mlsag.Verify(transaction.Rct[i].I, transaction.Mix, 2, m,
                     transaction.Vin[i].Key.K_Image, transaction.Rct[i].P, transaction.Rct[i].S);
                 if (verifyMlsag) continue;
-                
+
                 _logger.Here().Fatal("Could not verify the MLSAG transaction");
-                
+
                 return false;
             }
 
@@ -470,7 +470,7 @@ namespace CYPCore.Ledger
 
             using var pedersen = new Pedersen();
 
-            var commitSum = pedersen.CommitSum(new List<byte[]> {vout.C}, new List<byte[]> {vout.C});
+            var commitSum = pedersen.CommitSum(new List<byte[]> { vout.C }, new List<byte[]> { vout.C });
             return commitSum == null;
         }
 
@@ -482,7 +482,7 @@ namespace CYPCore.Ledger
         {
             return (0.000012 * nByte).ConvertToUInt64();
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -501,8 +501,8 @@ namespace CYPCore.Ledger
             if (!verified) return false;
 
             using var pedersen = new Pedersen();
-            var commitSum = pedersen.CommitSum(new List<byte[]> {vout.C}, new List<byte[]> {vout.C});
-            
+            var commitSum = pedersen.CommitSum(new List<byte[]> { vout.C }, new List<byte[]> { vout.C });
+
             return commitSum == null;
         }
 
@@ -522,7 +522,7 @@ namespace CYPCore.Ledger
             if (!sc1.ToString().Equals(sc2.ToString())) return false;
 
             var tx = NBitcoin.Network.Main.CreateTransaction();
-            tx.Outputs.Add(new TxOut {ScriptPubKey = new Script(script)});
+            tx.Outputs.Add(new TxOut { ScriptPubKey = new Script(script) });
 
             var spending = NBitcoin.Network.Main.CreateTransaction();
             spending.LockTime = new LockTime(DateTimeOffset.Now);
@@ -577,7 +577,7 @@ namespace CYPCore.Ledger
 
             return true;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -708,7 +708,7 @@ namespace CYPCore.Ledger
 
             return (int)diff;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>

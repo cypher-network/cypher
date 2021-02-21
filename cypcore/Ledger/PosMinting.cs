@@ -96,7 +96,7 @@ namespace CYPCore.Ledger
                 transactions.ForEach(x => { ts.Append(x.Stream()); });
                 hash = NBitcoin.Crypto.Hashes.DoubleSHA256(ts.ToArray());
             }
-            
+
             var signature = _signing.CalculateVrfSignature(Curve.decodePrivatePoint(_keyPair.PrivateKey), hash.ToBytes(false));
             var vrfSig = _signing.VerifyVrfSignature(Curve.decodePoint(_keyPair.PublicKey, 0), hash.ToBytes(false), signature);
             var solution = _validator.Solution(vrfSig, hash.ToBytes(false));
@@ -170,7 +170,7 @@ namespace CYPCore.Ledger
 
             return deliveredBlockHeader;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>

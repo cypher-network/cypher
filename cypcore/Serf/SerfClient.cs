@@ -92,7 +92,7 @@ namespace CYPCore.Serf
             ApiConfigurationOptions apiConfigurationOptions, ILogger logger)
         {
             _signing = signing;
-            _logger = logger;
+            _logger = logger.ForContext("SourceContext", nameof(SerfClient));
 
             SerfConfigurationOptions = serfConfigurationOptions;
             ApiConfigurationOptions = apiConfigurationOptions;

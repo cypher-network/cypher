@@ -6,9 +6,10 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 
-using Microsoft.Extensions.Logging;
+using Serilog;
 
 using CYPCore.Cryptography;
+using CYPCore.Extensions;
 using CYPCore.Serf;
 using CYPCore.Serf.Message;
 
@@ -28,11 +29,11 @@ namespace CYPCore.Services
         /// <param name="serfClient"></param>
         /// <param name="signingProvider"></param>
         /// <param name="logger"></param>
-        public MembershipService(ISerfClient serfClient, ISigning signingProvider, ILogger<MembershipService> logger)
+        public MembershipService(ISerfClient serfClient, ISigning signingProvider, ILogger logger)
         {
             _serfClient = serfClient;
             _signingProvider = signingProvider;
-            _logger = logger;
+            _logger = logger.ForContext("SourceContext", nameof(MembershipService));
 
             Ready();
         }
@@ -62,7 +63,7 @@ namespace CYPCore.Services
                     var connectResult = _serfClient.Connect(tcpSession.SessionId);
                     if (!connectResult.Result.Success)
                     {
-                        _logger.LogError($"Error connecting to {tcpSession.SessionId.ToString()}");
+                        _logger.Here().Error("Error connecting to {@SessionID}", tcpSession.SessionId);
                         return null;
                     }
 
@@ -77,7 +78,7 @@ namespace CYPCore.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< MembershipService.GetMembers >>>: {ex}");
+                _logger.Here().Error(ex, "Cannot get members");
             }
 
             return members;
@@ -96,7 +97,7 @@ namespace CYPCore.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< MembershipService.GetPublicKey >>>: {ex}");
+                _logger.Here().Error(ex, "Cannot get public key");
             }
 
             return publicKey;
@@ -120,7 +121,7 @@ namespace CYPCore.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< MembershipService.GetCount >>>: {ex}");
+                _logger.Here().Error(ex, "Cannot get member count");
             }
 
             return count;

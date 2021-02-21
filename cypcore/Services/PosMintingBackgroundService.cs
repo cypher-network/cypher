@@ -4,8 +4,11 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using CYPCore.Extensions;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
+
+using Serilog;
+
 using CYPCore.Ledger;
 
 namespace CYPCore.Services
@@ -17,12 +20,11 @@ namespace CYPCore.Services
         private bool _applicationRunning = true;
         private readonly ILogger _logger;
 
-        public PosMintingBackgroundService(IPosMinting posMinting, IHostApplicationLifetime applicationLifetime,
-            ILogger<PosMintingBackgroundService> logger)
+        public PosMintingBackgroundService(IPosMinting posMinting, IHostApplicationLifetime applicationLifetime, ILogger logger)
         {
             _posMinting = posMinting;
             _applicationLifetime = applicationLifetime;
-            _logger = logger;
+            _logger = logger.ForContext("SourceContext", nameof(PosMintingBackgroundService));
 
             _applicationLifetime.ApplicationStopping.Register(OnApplicationStopping);
         }
@@ -32,7 +34,7 @@ namespace CYPCore.Services
         /// </summary>
         private void OnApplicationStopping()
         {
-            _logger.LogInformation("<<< PosMintingBackgroundService.OnApplicationStopping >>>");
+            _logger.Here().Information("Application stopping");
             _applicationRunning = false;
         }
 
@@ -68,7 +70,7 @@ namespace CYPCore.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< PosMintingBackgroundService.ExecuteAsync >>>: {ex}");
+                _logger.Here().Error(ex, "Error in minting process");
             }
         }
     }

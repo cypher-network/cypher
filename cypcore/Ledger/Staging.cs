@@ -63,7 +63,7 @@ namespace CYPCore.Ledger
                         0 => memPools.ToLookup(i => i.Block.Hash),
                         _ => blockHashLookup
                     };
-                    
+
                     await _unitOfWork.MemPoolRepository.IncludeAsync(memPools.ToArray(), _serfClient.ClientId);
                     var added = await AddOrUpdate(blockHashLookup);
                     if (!added)
@@ -71,7 +71,7 @@ namespace CYPCore.Ledger
                         _logger.Here().Warning("Unable to publish hash: {@Hash}");
                         return;
                     }
-                    
+
                     await Publish(hash);
                 }
             }
@@ -203,7 +203,7 @@ namespace CYPCore.Ledger
             var membersResult = await _serfClient.Members(tcpSession.SessionId);
 
             stage.WaitingOn = new List<ulong>();
-            
+
             if (membersResult.Success)
             {
                 stage.WaitingOn
@@ -294,9 +294,9 @@ namespace CYPCore.Ledger
                     return StagingState.Blockmainia;
                 }
             }
-            
+
             if (!staging.WaitingOn.Any()) return staging.Status;
-            
+
             var waitingOn = staging.WaitingOn?.Except(next.Deps.Select(x => x.Block.Node));
             return waitingOn.Any() != true ? StagingState.Blockmainia : staging.Status;
         }
@@ -311,7 +311,7 @@ namespace CYPCore.Ledger
             Guard.Argument(blockHashLookup, nameof(blockHashLookup)).NotNull();
 
             StagingProto staging = null;
-            
+
             try
             {
                 foreach (var next in MemPoolProto.NextBlockGraph(blockHashLookup, _serfClient.ClientId))
@@ -323,11 +323,11 @@ namespace CYPCore.Ledger
                             staging.Status != StagingState.Running &&
                             staging.Status != StagingState.Delivered)
                         {
-                            staging =  await Existing(next);
+                            staging = await Existing(next);
                         }
                         continue;
                     }
-                    
+
                     staging = await Add(next);
                 }
             }

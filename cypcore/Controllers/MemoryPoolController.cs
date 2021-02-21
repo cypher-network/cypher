@@ -40,7 +40,7 @@ namespace CYPCore.Controllers
         {
             var payload = Helper.Util.DeserializeProto<MemPoolProto>(pool);
             var added = await _memoryPoolService.AddMemoryPool(payload);
-            
+
             return new ObjectResult(new { code = added ? StatusCodes.Status200OK : StatusCodes.Status500InternalServerError });
         }
 
@@ -56,7 +56,7 @@ namespace CYPCore.Controllers
         {
             var payloads = Helper.Util.DeserializeListProto<MemPoolProto>(pools).ToArray();
             await _memoryPoolService.AddMemoryPools(payloads);
-            
+
             return new OkResult();
         }
 
@@ -74,7 +74,7 @@ namespace CYPCore.Controllers
             {
                 var payload = Helper.Util.DeserializeProto<TransactionProto>(tx);
                 var added = await _memoryPoolService.AddTransaction(payload);
-                
+
                 return new ObjectResult(new { code = added ? StatusCodes.Status200OK : StatusCodes.Status500InternalServerError });
             }
             catch (Exception ex)

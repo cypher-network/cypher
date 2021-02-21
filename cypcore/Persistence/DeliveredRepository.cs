@@ -22,7 +22,7 @@ namespace CYPCore.Persistence
             : base(storeDb, logger)
         {
             _storeDb = storeDb;
-            _logger = logger;
+            _logger = logger.ForContext("SourceContext", nameof(DeliveredRepository));
 
             _stateTrie = new PatriciaTrie();
 

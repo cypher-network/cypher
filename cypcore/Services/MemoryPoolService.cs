@@ -5,8 +5,11 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Collections.Generic;
-using Microsoft.Extensions.Logging;
+
+using CYPCore.Extensions;
 using Dawn;
+using Serilog;
+
 using CYPCore.Ledger;
 using CYPCore.Persistence;
 using CYPCore.Models;
@@ -34,13 +37,12 @@ namespace CYPCore.Services
         /// <param name="memoryPool"></param>
         /// <param name="serfClient"></param>
         /// <param name="logger"></param>
-        public MemoryPoolService(IUnitOfWork unitOfWork, IMemoryPool memoryPool,
-            ISerfClient serfClient, ILogger<MemoryPoolService> logger)
+        public MemoryPoolService(IUnitOfWork unitOfWork, IMemoryPool memoryPool, ISerfClient serfClient, ILogger logger)
         {
             _unitOfWork = unitOfWork;
             _memoryPool = memoryPool;
             _serfClient = serfClient;
-            _logger = logger;
+            _logger = logger.ForContext("SourceContext", nameof(MemoryPoolService));
         }
 
         /// <summary>
@@ -78,7 +80,7 @@ namespace CYPCore.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< TransactionService.AddTransaction >>>: {ex}");
+                _logger.Here().Error(ex, "Cannot add transaction");
             }
 
             return true;
@@ -98,7 +100,7 @@ namespace CYPCore.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< MemoryPoolService.GetTransactionCount >>>: {ex}");
+                _logger.Here().Error(ex, "Cannot get transaction count");
             }
 
             return count;
@@ -120,15 +122,14 @@ namespace CYPCore.Services
                         var processed = await Process(memPool);
                         if (!processed)
                         {
-                            _logger.LogError(
-                                $"<<< MemoryPoolService.AddMemoryPools >>>: Could not process memory pool with hash:  {memPool.Block.Hash}");
+                            _logger.Here().Error("Could not process memory pool with hash {@Hash}", memPool.Block.Hash);
                         }
                     }
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< MemoryPoolService.AddMemoryPools >>>: {ex}");
+                _logger.Here().Error(ex, "Error while adding memory pools");
             }
         }
 
@@ -146,13 +147,12 @@ namespace CYPCore.Services
                 processed = await Process(memPool);
                 if (!processed)
                 {
-                    _logger.LogError(
-                        $"<<< MemoryPoolService.AddMemoryPool >>>: Could not process memory pool with hash:  {memPool.Block.Hash}");
+                    _logger.Here().Error("Could not process memory pool with hash {@Hash}", memPool.Block.Hash);
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< MemoryPoolService.AddMemoryPool >>>: {ex}");
+                _logger.Here().Error(ex, "Cannot add to memory pool");
             }
 
             return processed;
@@ -174,9 +174,11 @@ namespace CYPCore.Services
 
             var added = await _memoryPool.AddTransaction(memPool);
             if (added != null) return true;
-            _logger.LogError($"<<< MemoryPoolService.Process >>>: " +
-                             $"Memory pool hash: {memPool.Block.Hash} was not added " +
-                             $"for node {memPool.Block.Node} and round {memPool.Block.Round}");
+            _logger.Here().Error("Memory pool hash: {@Hash} was not added for node {@Node} and round {@Round}",
+                memPool.Block.Hash,
+                memPool.Block.Node,
+                memPool.Block.Round);
+
             return false;
         }
 

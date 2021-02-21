@@ -53,9 +53,9 @@ namespace CYPCore.Ledger
                 {
                     try
                     {
-                        var local = new BlockHeight {Height = await _unitOfWork.DeliveredRepository.CountAsync()};
+                        var local = new BlockHeight { Height = await _unitOfWork.DeliveredRepository.CountAsync() };
                         var uri = new Uri(peer.Value.Host);
-                        
+
                         RestBlockService blockRestApi = new(uri);
                         var remote = await blockRestApi.GetHeight();
 
@@ -95,7 +95,7 @@ namespace CYPCore.Ledger
         {
             var throttler = new SemaphoreSlim(int.MaxValue);
             await throttler.WaitAsync();
-            
+
             try
             {
                 var tasks = new List<Task>();
@@ -137,7 +137,7 @@ namespace CYPCore.Ledger
                                     }
                                     catch (Exception ex)
                                     {
-                                        _logger.Here().Error("Unable to save block header: {@MerkleRoot}",
+                                        _logger.Here().Error(ex, "Unable to save block header: {@MerkleRoot}",
                                             blockHeader.MrklRoot);
                                     }
                                 }
@@ -149,7 +149,7 @@ namespace CYPCore.Ledger
                         }
                     }));
                 }
-                
+
                 await Task.WhenAll(tasks);
             }
             catch (Exception ex)

@@ -103,7 +103,7 @@ namespace CYPCore.Extensions
             var dataFolder = configuration.GetSection("DataFolder");
             builder.Register(c =>
             {
-                UnitOfWork unitOfWork = new(dataFolder.Value,  c.Resolve<Serilog.ILogger>());
+                UnitOfWork unitOfWork = new(dataFolder.Value, c.Resolve<Serilog.ILogger>());
                 return unitOfWork;
             })
             .As<IUnitOfWork>()
@@ -144,7 +144,7 @@ namespace CYPCore.Extensions
             .SingleInstance();
 
             builder.RegisterType<SyncBackgroundService>().As<IHostedService>().SingleInstance();
-            
+
             return builder;
         }
 
@@ -249,7 +249,7 @@ namespace CYPCore.Extensions
                 {
                     var seedNodesSection = configuration.GetSection("SeedNodes").GetChildren().ToList();
                     if (!seedNodesSection.Any()) return serfService;
-                    
+
                     var seedNodes = new SeedNode(seedNodesSection.Select(x => x.Value));
                     serfService.JoinSeedNodes(seedNodes).ConfigureAwait(false).GetAwaiter();
                 }
@@ -259,7 +259,7 @@ namespace CYPCore.Extensions
                 }
 
                 localNode.Ready();
-                
+
                 return serfService;
             })
             .As<IStartable>()

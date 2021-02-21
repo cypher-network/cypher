@@ -36,7 +36,7 @@ namespace CYPCore.Network
                 new TcpSession(_serfClient.SerfConfigurationOptions.Listening)
                     .Connect(_serfClient.SerfConfigurationOptions.RPC));
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -46,14 +46,14 @@ namespace CYPCore.Network
         public async Task Broadcast(byte[] data, TopicType topicType)
         {
             Guard.Argument(data, nameof(data)).NotNull();
-            
+
             try
             {
-                var tasks = new  List<Task>();
+                var tasks = new List<Task>();
 
                 var peers = await GetPeers();
                 if (peers == null) return;
-                
+
                 var broadcastPeers = peers.Select(p => p).ToList();
                 broadcastPeers.ForEach(x => { tasks.Add(Send(data, topicType, x.Value.Host)); });
 
@@ -72,19 +72,19 @@ namespace CYPCore.Network
         public async Task<Dictionary<ulong, Peer>> GetPeers()
         {
             var peers = new Dictionary<ulong, Peer>();
-            
+
             var tcpSession = _serfClient.GetTcpSession(_tcpSession.SessionId);
             _ = _serfClient.Connect(tcpSession.SessionId);
-                
+
             if (!tcpSession.Ready)
             {
                 _logger.Here().Error("Serf client failed to connect");
                 return null;
             }
-                
+
             var membersResult = await _serfClient.Members(tcpSession.SessionId);
             var members = membersResult.Value.Members.ToList();
-                
+
             foreach (var member in members.Where(member =>
                 _serfClient.Name != member.Name && member.Status == "alive"))
             {
@@ -92,11 +92,11 @@ namespace CYPCore.Network
 
                 if (string.IsNullOrEmpty(restEndpoint)) continue;
                 if (!Uri.TryCreate($"{restEndpoint}", UriKind.Absolute, out var uri)) continue;
-                if (peers.TryAdd(Helper.Util.HashToId(member.Tags["pubkey"]), new Peer {Host = uri.OriginalString})) continue;
-                    
+                if (peers.TryAdd(Helper.Util.HashToId(member.Tags["pubkey"]), new Peer { Host = uri.OriginalString })) continue;
+
                 _logger.Here().Error("Failed adding or exists in remote nodes: {@Node}",
                     member.Name);
-                
+
                 return null;
             }
 
