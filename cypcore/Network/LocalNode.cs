@@ -15,6 +15,7 @@ using CYPCore.Extensions;
 using CYPCore.Serf;
 using CYPCore.Models;
 using CYPCore.Services.Rest;
+using NBitcoin;
 
 namespace CYPCore.Network
 {
@@ -73,6 +74,11 @@ namespace CYPCore.Network
         {
             var peers = new Dictionary<ulong, Peer>();
 
+            if (_tcpSession == null)
+            {
+                Ready();
+            }
+            
             var tcpSession = _serfClient.GetTcpSession(_tcpSession.SessionId);
             _ = _serfClient.Connect(tcpSession.SessionId);
 
