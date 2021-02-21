@@ -142,9 +142,9 @@ namespace CYPCore.Extensions
             })
             .As<ILocalNode>()
             .SingleInstance();
-            
-            builder.RegisterType<SyncBackgroundService>().As<IHostedService>().SingleInstance();
 
+            builder.RegisterType<SyncBackgroundService>().As<IHostedService>().SingleInstance();
+            
             return builder;
         }
 
@@ -245,21 +245,21 @@ namespace CYPCore.Extensions
                     (serfClient.SerfConfigurationOptions.Listening).Connect(serfClient.SerfConfigurationOptions.RPC));
 
                 var connectResult = serfClient.Connect(tcpSession.SessionId).ConfigureAwait(false).GetAwaiter().GetResult();
-
                 if (connectResult.Success)
                 {
                     var seedNodesSection = configuration.GetSection("SeedNodes").GetChildren().ToList();
-                    if (seedNodesSection.Any())
-                    {
-                        var seedNodes = new SeedNode(seedNodesSection.Select(x => x.Value));
-                        serfService.JoinSeedNodes(seedNodes).ConfigureAwait(false).GetAwaiter();
-                    }
+                    if (!seedNodesSection.Any()) return serfService;
+                    
+                    var seedNodes = new SeedNode(seedNodesSection.Select(x => x.Value));
+                    serfService.JoinSeedNodes(seedNodes).ConfigureAwait(false).GetAwaiter();
                 }
                 else
                 {
                     logger.Here().Error("{@Error}", ((SerfError)connectResult.NonSuccessMessage).Error);
                 }
 
+                localNode.Ready();
+                
                 return serfService;
             })
             .As<IStartable>()
