@@ -32,7 +32,7 @@ namespace CYPCore.Models
     {
         public static StagingProto CreateInstance()
         {
-            return new StagingProto();
+            return new();
         }
 
         public int Id { get; set; }
@@ -42,9 +42,9 @@ namespace CYPCore.Models
         [ProtoMember(2)]
         public ulong Node { get; set; }
         [ProtoMember(3)]
-        public List<ulong> Nodes { get; set; }
+        public List<ulong> Nodes { get; set; } = new();
         [ProtoMember(4)]
-        public List<ulong> WaitingOn { get; set; }
+        public List<ulong> WaitingOn { get; set; } = new();
         [ProtoMember(5)]
         public int TotalNodes { get; set; }
         [ProtoMember(6)]
