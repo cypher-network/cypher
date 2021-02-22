@@ -18,6 +18,14 @@ using CYPCore.Serf;
 
 namespace CYPCore.Services
 {
+    public interface IMemoryPoolService
+    {
+        Task<bool> AddMemoryPool(MemPoolProto memPool);
+        Task AddMemoryPools(MemPoolProto[] pools);
+        Task<bool> AddTransaction(TransactionProto tx);
+        Task<long> GetTransactionCount();
+    }
+    
     /// <summary>
     /// 
     /// </summary>
@@ -59,20 +67,9 @@ namespace CYPCore.Services
                 var valid = tx.Validate().Any();
                 if (!valid)
                 {
-                    var delivered = await TransactionDeliveredExist(tx);
-                    if (delivered)
-                    {
-                        return false;
-                    }
-
-                    var memory = await TransactionMemoryPoolExist(tx);
-                    if (memory)
-                    {
-                        return false;
-                    }
-
-                    var memPoolProto = await _memoryPool.AddTransaction(MemoryPoolProtoFactory(tx));
-                    if (memPoolProto == null)
+                    var memPool = MemoryPoolProtoFactory(tx);
+                    var added = await _memoryPool.AddTransaction(memPool);
+                    if (added == null)
                     {
                         return false;
                     }
@@ -187,55 +184,16 @@ namespace CYPCore.Services
         /// </summary>
         /// <param name="tx"></param>
         /// <returns></returns>
-        private async Task<bool> TransactionMemoryPoolExist(TransactionProto tx)
-        {
-            var memPool = await _unitOfWork.MemPoolRepository.FirstAsync(x =>
-                new ValueTask<bool>(
-                    x.Block.Hash.Equals(tx.ToHash().ByteToHex()) && x.Block.Node == _serfClient.ClientId));
-
-            return memPool != null;
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="tx"></param>
-        /// <returns></returns>
-        private async Task<bool> TransactionDeliveredExist(TransactionProto tx)
-        {
-            foreach (var vin in tx.Vin)
-            {
-                var exists = await _unitOfWork.DeliveredRepository
-                    .FirstAsync(x =>
-                        new ValueTask<bool>(x.Transactions.Any(t => t.Vin.First().Key.K_Image.Xor(vin.Key.K_Image))));
-
-                if (exists != null)
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="tx"></param>
-        /// <returns></returns>
         private MemPoolProto MemoryPoolProtoFactory(TransactionProto tx)
         {
-            return new()
-            {
-                Block = new InterpretedProto
-                {
-                    Hash = tx.ToHash().ByteToHex(),
-                    Node = _serfClient.ClientId,
-                    Round = 1,
-                    Transaction = tx
-                },
-                Deps = new List<DepProto>()
-            };
+            var proto = MemPoolProto.CreateInstance();
+            proto.Block = InterpretedProto.CreateInstance();
+            proto.Block.Hash = tx.ToHash().ByteToHex();
+            proto.Block.Node = _serfClient.ClientId;
+            proto.Block.Round = 1;
+            proto.Block.Transaction = tx;
+            proto.Deps = new List<DepProto>();
+            return proto;
         }
     }
 }

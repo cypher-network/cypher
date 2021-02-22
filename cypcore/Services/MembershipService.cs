@@ -15,6 +15,20 @@ using CYPCore.Serf.Message;
 
 namespace CYPCore.Services
 {
+    /// <summary>
+    /// 
+    /// </summary>
+    public interface IMembershipService
+    {
+        Task<int> GetCount();
+        Task<IEnumerable<Members>> GetMembers();
+        Task<byte[]> GetPublicKey();
+        void Ready();
+    }
+    
+    /// <summary>
+    /// 
+    /// </summary>
     public class MembershipService : IMembershipService
     {
         private readonly ISerfClient _serfClient;

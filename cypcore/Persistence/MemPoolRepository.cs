@@ -110,7 +110,7 @@ namespace CYPCore.Persistence
         /// </summary>
         /// <param name="hash"></param>
         /// <param name="node"></param>
-        /// <param name="round"></param>
+        /// <param name="round"></param>s
         /// <returns></returns>
         public Task<MemPoolProto> PreviousAsync(byte[] hash, ulong node, ulong round)
         {

@@ -21,48 +21,48 @@ using CYPCore.Helper;
 using CYPCore.Messages;
 using CYPCore.Models;
 using CYPCore.Serf.Message;
+using static System.GC;
 
 namespace CYPCore.Serf
 {
-    class TransactionContext : IDisposable
+    /// <summary>
+    /// 
+    /// </summary>
+    public interface ISerfClient
     {
-        public CancellationTokenSource CancellationTokenSource { get; set; }
-        public ResponseHeader Header { get; set; }
-        public byte[] ResponseBuffer { get; set; }
+        ulong ClientId { get; }
+        string ProcessError { get; set; }
+        bool ProcessStarted { get; set; }
+        int ProcessId { get; set; }
 
-        private bool _disposed;
+        string Name { get; set; }
 
-        public void Dispose()
-        {
-            Dispose(true);
-            GC.SuppressFinalize(this);
-        }
+        SerfConfigurationOptions SerfConfigurationOptions { get; }
 
-        protected virtual void Dispose(bool disposing)
-        {
-            if (_disposed)
-            {
-                return;
-            }
+        ApiConfigurationOptions ApiConfigurationOptions { get; }
 
-            if (disposing)
-            {
-                try
-                {
-                    CancellationTokenSource?.Dispose();
-                    Header = default;
-                    ResponseBuffer = null;
-                }
-                catch (NullReferenceException)
-                {
+        Task<TaskResult<int>> MembersCount(Guid tcpSessionId);
 
-                }
-            }
-
-            _disposed = true;
-        }
+        Task<SerfError> Authenticate(string secret, Guid tcpSessionId);
+        void Dispose();
+        Task<SerfError> Handshake(Guid tcpSessionId);
+        Task<(KeyActionResponse response, SerfError error)> InstallKey(string key, Guid tcpSessionId);
+        Task<TaskResult<JoinMessage>> Join(IEnumerable<string> members, Guid tcpSessionId, bool replay = false);
+        Task<SerfError> Leave(Guid tcpSessionId);
+        Task<(KeyListResponse response, SerfError error)> ListKeys(Guid tcpSessionId);
+        Task<TaskResult<MemberMessage>> Members(Guid tcpSessionId);
+        Task<(KeyActionResponse response, SerfError error)> RemoveKey(string key, Guid tcpSessionId);
+        Task<TaskResult<SerfError>> Connect(Guid tcpSessionId);
+        Task<(KeyActionResponse response, SerfError error)> UseKey(string key, Guid tcpSessionId);
+        TcpSession TcpSessionsAddOrUpdate(TcpSession tcpSession);
+        TcpSession GetTcpSession(Guid sessionId);
+        bool RemoveTcpSession(Guid tcpSessionId);
+        Task<TaskResult<ulong>> GetClientId();
     }
-
+    
+    /// <summary>
+    /// 
+    /// </summary>
     public class SerfClient : ISerfClient, IDisposable
     {
         public string ProcessError { get; set; }
@@ -74,7 +74,7 @@ namespace CYPCore.Serf
         public ApiConfigurationOptions ApiConfigurationOptions { get; private set; }
 
         private bool _disposed = false;
-        private SafeHandle _safeHandle = new SafeFileHandle(IntPtr.Zero, true);
+        private readonly SafeHandle _safeHandle = new SafeFileHandle(IntPtr.Zero, true);
         private CancellationTokenSource _cancellationTokenSource;
         private Task _responseReaderTask;
 
@@ -85,8 +85,6 @@ namespace CYPCore.Serf
 
         private readonly ISigning _signing;
         private readonly ILogger _logger;
-
-        private readonly ulong _clientId;
 
         public SerfClient(ISigning signing, SerfConfigurationOptions serfConfigurationOptions,
             ApiConfigurationOptions apiConfigurationOptions, ILogger logger)
@@ -99,13 +97,13 @@ namespace CYPCore.Serf
 
             TcpSessions = new ConcurrentDictionary<Guid, TcpSession>();
 
-            _clientId = GetClientID().GetAwaiter().GetResult().Value;
+            ClientId = GetClientId().GetAwaiter().GetResult().Value;
         }
 
         /// <summary>
         /// 
         /// </summary>
-        public ulong ClientId => _clientId;
+        public ulong ClientId { get; }
 
         /// <summary>
         /// 
@@ -118,7 +116,7 @@ namespace CYPCore.Serf
         /// 
         /// </summary>
         /// <returns></returns>
-        public async Task<TaskResult<ulong>> GetClientID()
+        public async Task<TaskResult<ulong>> GetClientId()
         {
             ulong clientId;
 
@@ -515,7 +513,7 @@ namespace CYPCore.Serf
             try
             {
                 var tcpSession = GetTcpSession(tcpSessionId);
-                using (_cancellationTokenSource.Token.Register(() => tcpSession.TransportStream.Close()))
+                await using (_cancellationTokenSource.Token.Register(() => tcpSession.TransportStream.Close()))
                 {
                     while (!token.IsCancellationRequested)
                     {
@@ -529,8 +527,8 @@ namespace CYPCore.Serf
                             return;
                         }
 
-                        var read_buffer = new byte[8048];
-                        var size = await tcpSession.TransportStream.ReadAsync(read_buffer.AsMemory(0, read_buffer.Length), _cancellationTokenSource.Token);
+                        var readBuffer = new byte[8048];
+                        var size = await tcpSession.TransportStream.ReadAsync(readBuffer.AsMemory(0, readBuffer.Length), _cancellationTokenSource.Token);
 
                         if (size <= 0)
                         {
@@ -544,17 +542,17 @@ namespace CYPCore.Serf
 
                         var resolver = MessagePack.Resolvers.StandardResolver.Instance;
                         var formatter = resolver.GetFormatterWithVerify<ResponseHeader>();
-                        int readSize = 0;
 
                         try
                         {
-                            var responseHeader = formatter.Deserialize(read_buffer, 0, resolver, out readSize);
+                            int readSize;
+                            var responseHeader = formatter.Deserialize(readBuffer, 0, resolver, out readSize);
 
                             if (_handlers.ContainsKey(responseHeader.Seq))
                             {
                                 var transaction = _handlers[responseHeader.Seq];
                                 transaction.Header = responseHeader;
-                                transaction.ResponseBuffer = read_buffer.Skip(readSize).Take(size - readSize).ToArray();
+                                transaction.ResponseBuffer = readBuffer.Skip(readSize).Take(size - readSize).ToArray();
                                 transaction.CancellationTokenSource.Cancel();
 
                                 if (transaction.Header.Error == "Handshake required")
@@ -616,17 +614,13 @@ namespace CYPCore.Serf
                     _responseReaderTask?.Wait();
 
                     // Suppress finalization.
-                    GC.SuppressFinalize(this);
+                    SuppressFinalize(this);
                 }
                 catch (TaskCanceledException)
                 {
                 }
                 catch (AggregateException)
                 {
-                }
-                catch
-                {
-                    throw;
                 }
                 finally
                 {

@@ -25,6 +25,18 @@ using CYPCore.Network;
 
 namespace CYPCore.Ledger
 {
+    /// <summary>
+    /// 
+    /// </summary>
+    public interface IPosMinting
+    {
+        StakingConfigurationOptions StakingConfigurationOptions { get; }
+        Task RunStakingBlockAsync();
+    }
+    
+    /// <summary>
+    /// 
+    /// </summary>
     public class PosMinting : IPosMinting
     {
         private const string KeyName = "PosMintingProvider.Key";

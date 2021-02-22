@@ -18,24 +18,30 @@ using CYPCore.Network;
 
 namespace CYPCore.Ledger
 {
+    /// <summary>
+    /// 
+    /// </summary>
+    public interface IStaging
+    {
+        Task Ready(byte[] hash);
+    }
+    
+    /// <summary>
+    /// 
+    /// </summary>
     public class Staging : IStaging
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly ISerfClient _serfClient;
         private readonly ILocalNode _localNode;
         private readonly ILogger _logger;
-        private readonly TcpSession _tcpSession;
 
-        public Staging(IUnitOfWork unitOfWork, ISerfClient serfClient,
-            ILocalNode localNode, ILogger logger)
+        public Staging(IUnitOfWork unitOfWork, ISerfClient serfClient, ILocalNode localNode, ILogger logger)
         {
             _unitOfWork = unitOfWork;
             _serfClient = serfClient;
             _localNode = localNode;
             _logger = logger.ForContext("SourceContext", nameof(Staging));
-
-            _tcpSession = serfClient.TcpSessionsAddOrUpdate(new TcpSession(
-                serfClient.SerfConfigurationOptions.Listening).Connect(serfClient.SerfConfigurationOptions.RPC));
         }
 
         /// <summary>
@@ -137,32 +143,21 @@ namespace CYPCore.Ledger
             Guard.Argument(next, nameof(next)).NotNull();
 
             StagingProto staging;
-            var nodeCount = 0;
 
             try
             {
-                var tcpSession = _serfClient.GetTcpSession(_tcpSession.SessionId);
-                if (tcpSession.Ready)
-                {
-                    await _serfClient.Connect(tcpSession.SessionId);
-                    var memberResult = await _serfClient.Members(tcpSession.SessionId);
-
-                    nodeCount = memberResult.Success
-                        ? memberResult.Value.Members.Count(x => x.Status.Equals("alive"))
-                        : 0;
-                }
-
-                staging = new StagingProto
-                {
-                    Epoch = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
-                    Hash = next.Block.Hash,
-                    MemPoolProto = next,
-                    ExpectedTotalNodes = 4,
-                    Node = _serfClient.ClientId,
-                    TotalNodes = nodeCount,
-                    Status = StagingState.Started,
-                    Nodes = new List<ulong>()
-                };
+                var peers = await _localNode.GetPeers();
+                var nodeCount = peers.Count;
+                
+                staging = StagingProto.CreateInstance();
+                staging.Epoch = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                staging.Hash = next.Block.Hash;
+                staging.MemPoolProto = next;
+                staging.ExpectedTotalNodes = 4;
+                staging.Node = _serfClient.ClientId;
+                staging.TotalNodes = nodeCount;
+                staging.Status = StagingState.Started;
+                staging.Nodes = new List<ulong>();
 
                 staging.Nodes.AddRange(next.Deps?.Select(n => n.Block.Node) ?? Array.Empty<ulong>());
 
@@ -199,17 +194,8 @@ namespace CYPCore.Ledger
         {
             Guard.Argument(stage, nameof(stage)).NotNull();
 
-            var tcpSession = _serfClient.GetTcpSession(_tcpSession.SessionId);
-            var membersResult = await _serfClient.Members(tcpSession.SessionId);
-
-            stage.WaitingOn = new List<ulong>();
-
-            if (membersResult.Success)
-            {
-                stage.WaitingOn
-                    .AddRange(membersResult.Value.Members.Select(k => Util.HashToId(k.Tags["pubkey"]))
-                        .ToArray());
-            }
+            var peers = await _localNode.GetPeers();
+            stage.WaitingOn.AddRange(peers.Select(k => k.Value.ClientId));
         }
 
         /// <summary>
@@ -234,7 +220,6 @@ namespace CYPCore.Ledger
         private async Task<StagingProto> Existing(MemPoolProto next)
         {
             Guard.Argument(next, nameof(next)).NotNull();
-
             StagingProto staging;
 
             try
@@ -309,7 +294,6 @@ namespace CYPCore.Ledger
         private async Task<bool> AddOrUpdate(ILookup<string, MemPoolProto> blockHashLookup)
         {
             Guard.Argument(blockHashLookup, nameof(blockHashLookup)).NotNull();
-
             StagingProto staging = null;
 
             try

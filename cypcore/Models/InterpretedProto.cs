@@ -10,10 +10,28 @@ using CYPCore.Extentions;
 
 namespace CYPCore.Models
 {
+    public interface IInterpretedProto
+    {
+        string Hash { get; set; }
+        ulong Node { get; set; }
+        ulong Round { get; set; }
+        TransactionProto Transaction { get; set; }
+        string PublicKey { get; set; }
+        string Signature { get; set; }
+        string PreviousHash { get; set; }
 
+        string ToString();
+        byte[] ToHash();
+    }
+    
     [ProtoContract]
     public class InterpretedProto : IInterpretedProto
     {
+        public static InterpretedProto CreateInstance()
+        {
+            return new InterpretedProto();
+        }
+
         private const string hexUpper = "0123456789ABCDEF";
 
         [ProtoMember(1)]

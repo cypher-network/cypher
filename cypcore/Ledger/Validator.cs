@@ -23,6 +23,46 @@ using Util = CYPCore.Helper.Util;
 
 namespace CYPCore.Ledger
 {
+    /// <summary>
+    /// 
+    /// </summary>
+    public interface IValidator
+    {
+        uint StakeTimestampMask { get; }
+
+        byte[] BlockZeroMerkel { get; }
+        byte[] BlockZeroPreMerkel { get; }
+        byte[] Seed { get; }
+        byte[] Security256 { get; }
+
+        Task<bool> VerifyMemPoolSignatures(MemPoolProto memPool);
+        bool VerifyBulletProof(TransactionProto transaction);
+        bool VerifyCoinbaseTransaction(TransactionProto transaction, ulong solution);
+        bool VerifySolution(byte[] vrfBytes, byte[] kernel, ulong solution);
+        Task<bool> VerifyBlockHeader(BlockHeaderProto blockHeader);
+        Task<bool> VerifyBlockHeaders(BlockHeaderProto[] blockHeaders);
+        Task<bool> VerifyTransaction(TransactionProto transaction);
+        Task<bool> VerifyTransactions(HashSet<TransactionProto> transactions);
+        bool VerifySloth(int bits, byte[] vrfSig, byte[] nonce, byte[] security);
+        int Difficulty(ulong solution, double networkShare);
+        ulong Reward(ulong solution);
+        double NetworkShare(ulong solution);
+        ulong Solution(byte[] vrfSig, byte[] kernel);
+        long GetAdjustedTimeAsUnixTimestamp();
+        Task<bool> ForkRule(BlockHeaderProto[] xChain);
+        bool VerifyLockTime(LockTime target, string script);
+        bool VerifyCommitSum(TransactionProto transaction);
+        bool VerifyTransactionFee(TransactionProto transaction);
+        Task<bool> VerifyKimage(TransactionProto transaction);
+        Task<bool> VerifyVOutCommits(TransactionProto transaction);
+        Task<double> GetRunningDistribution();
+        ulong Fee(int nByte);
+        bool VerifyNetworkShare(ulong solution, double previousNetworkShare, ref double runningDistributionTotal);
+    }
+    
+    /// <summary>
+    /// 
+    /// </summary>
     public class Validator : IValidator
     {
         private const double Distribution = 29858560.875;
@@ -47,8 +87,7 @@ namespace CYPCore.Ledger
         public uint StakeTimestampMask => 0x0000000A;
         public byte[] BlockZeroMerkel => "c10ab10e789edccd02fbb02d9c58e962416729a795ebee19aa85bac15a9e320c".HexToByte();
 
-        public byte[] BlockZeroPreMerkel =>
-            "3030303030303030437970686572204e6574776f726b2076742e322e32303231".HexToByte();
+        public byte[] BlockZeroPreMerkel => "3030303030303030437970686572204e6574776f726b2076742e322e32303231".HexToByte();
 
         public byte[] Seed =>
             "6b341e59ba355e73b1a8488e75b617fe1caa120aa3b56584a217862840c4f7b5d70cefc0d2b36038d67a35b3cd406d54f8065c1371a17a44c1abb38eea8883b2"

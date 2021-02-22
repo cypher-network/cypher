@@ -17,6 +17,20 @@ using CYPCore.Services.Rest;
 
 namespace CYPCore.Ledger
 {
+    /// <summary>
+    /// 
+    /// </summary>
+    public interface ISync
+    {
+        bool SyncRunning { get; }
+
+        Task Check();
+        Task Synchronize(Uri uri, long skip, long take);
+    }
+    
+    /// <summary>
+    /// 
+    /// </summary>
     public class Sync : ISync
     {
         public bool SyncRunning { get; private set; }

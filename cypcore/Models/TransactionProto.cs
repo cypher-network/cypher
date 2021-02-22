@@ -12,9 +12,56 @@ using CYPCore.Extentions;
 
 namespace CYPCore.Models
 {
-    [ProtoContract]
-    public class TransactionProto
+    public interface ITransactionProto
     {
+        byte[] TxnId { get; set; }
+        BpProto[] Bp { get; set; }
+        int Ver { get; set; }
+        int Mix { get; set; }
+        VinProto[] Vin { get; set; }
+        VoutProto[] Vout { get; set; }
+        RCTProto[] Rct { get; set; }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        IEnumerable<ValidationResult> Validate();
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        byte[] ToIdentifier();
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        byte[] ToHash();
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        byte[] Stream();
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <returns></returns>
+        T Cast<T>();
+    }
+    
+    [ProtoContract]
+    public class TransactionProto : ITransactionProto
+    {
+        public static TransactionProto CreateInstance()
+        {
+            return new TransactionProto();
+        }
+
         [ProtoMember(1)]
         public byte[] TxnId { get; set; }
         [ProtoMember(2)]

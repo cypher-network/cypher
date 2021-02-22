@@ -11,14 +11,32 @@ using CYPCore.Extentions;
 
 namespace CYPCore.Models
 {
+    public interface IMemPoolProto
+    {
+        InterpretedProto Block { get; set; }
+        List<DepProto> Deps { get; set; }
+        InterpretedProto Prev { get; set; }
+
+        bool Equals(object obj);
+        bool Equals(MemPoolProto other);
+        int GetHashCode();
+        BlockGraph ToMemPool();
+        byte[] ToIdentifier();
+    }
+    
     [ProtoContract]
     public class MemPoolProto : IEquatable<MemPoolProto>, IMemPoolProto
     {
+        public static MemPoolProto CreateInstance()
+        {
+            return new MemPoolProto();
+        }
+
         [ProtoMember(1)] public bool Included { get; set; }
         [ProtoMember(2)] public bool Replied { get; set; }
-        [ProtoMember(3)] public InterpretedProto Block { get; set; } = new InterpretedProto();
+        [ProtoMember(3)] public InterpretedProto Block { get; set; } = InterpretedProto.CreateInstance();
         [ProtoMember(4)] public List<DepProto> Deps { get; set; } = new List<DepProto>();
-        [ProtoMember(5)] public InterpretedProto Prev { get; set; } = new InterpretedProto();
+        [ProtoMember(5)] public InterpretedProto Prev { get; set; } = InterpretedProto.CreateInstance();
 
         /// <summary>
         /// 
@@ -146,14 +164,13 @@ namespace CYPCore.Models
             if (next == null)
                 throw new ArgumentNullException(nameof(next));
 
-            return new MemPoolProto
-            {
-                Block = next.Block,
-                Deps = next.Deps,
-                Prev = next.Prev,
-                Included = next.Included,
-                Replied = next.Replied
-            };
+            var graph = CreateInstance();
+            graph.Block = next.Block;
+            graph.Deps = next.Deps;
+            graph.Prev = next.Prev;
+            graph.Included = next.Included;
+            graph.Replied = next.Replied;
+            return graph;
         }
 
         /// <summary>

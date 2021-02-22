@@ -11,6 +11,24 @@ using CYPCore.Models;
 
 namespace CYPCore.Services.Rest
 {
+    /// <summary>
+    /// 
+    /// </summary>
+    public interface IRestBlockService
+    {
+        [Get("/header/height")]
+        Task<BlockHeight> GetHeight();
+
+        [Get("/header/blocks/{skip}/{take}")]
+        Task<ProtobufStream> GetBlockHeaders(int skip, int take);
+
+        [Post("/header/block")]
+        Task<WebResponse> AddBlock(byte[] payload);
+    }
+    
+    /// <summary>
+    /// 
+    /// </summary>
     public class RestBlockService
     {
         private readonly HttpClient _httpClient;

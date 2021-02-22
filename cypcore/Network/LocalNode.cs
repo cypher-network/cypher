@@ -19,6 +19,20 @@ using NBitcoin;
 
 namespace CYPCore.Network
 {
+    /// <summary>
+    /// 
+    /// </summary>
+    public interface ILocalNode
+    {
+        Task Broadcast(byte[] data, TopicType topicType);
+        Task Send(byte[] data, TopicType topicType, string host);
+        Task<Dictionary<ulong, Peer>> GetPeers();
+        void Ready();
+    }
+    
+    /// <summary>
+    /// 
+    /// </summary>
     public class LocalNode : ILocalNode
     {
         private readonly ISerfClient _serfClient;
@@ -98,7 +112,15 @@ namespace CYPCore.Network
 
                 if (string.IsNullOrEmpty(restEndpoint)) continue;
                 if (!Uri.TryCreate($"{restEndpoint}", UriKind.Absolute, out var uri)) continue;
-                if (peers.TryAdd(Helper.Util.HashToId(member.Tags["pubkey"]), new Peer { Host = uri.OriginalString })) continue;
+
+                var peer = new Peer
+                {
+                    Host = uri.OriginalString, 
+                    ClientId = Helper.Util.HashToId(member.Tags["pubkey"]), 
+                    PublicKey = member.Tags["pubkey"]
+                };
+                
+                if (peers.TryAdd(peer.ClientId, peer)) continue;
 
                 _logger.Here().Error("Failed adding or exists in remote nodes: {@Node}",
                     member.Name);

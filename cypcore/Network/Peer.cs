@@ -6,5 +6,8 @@ namespace CYPCore.Network
     public class Peer
     {
         public string Host { get; set; }
+        public string PublicKey { get; set; }
+        public ulong ClientId { get; set; }
+        public string NodeName { get; set; }  
     }
 }

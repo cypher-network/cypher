@@ -11,6 +11,18 @@ using CYPCore.Models;
 
 namespace CYPCore.Services.Rest
 {
+    /// <summary>
+    /// 
+    /// </summary>
+    public interface IRestMemoryPoolService
+    {
+        [Post("/pool")]
+        Task<WebResponse> AddMemoryPool(byte[] pool);
+    }
+    
+    /// <summary>
+    /// 
+    /// </summary>
     public class RestMemoryPoolService
     {
         private readonly HttpClient _httpClient;

@@ -18,6 +18,22 @@ using CYPCore.Ledger;
 
 namespace CYPCore.Services
 {
+    /// <summary>
+    /// 
+    /// </summary>
+    public interface IBlockService
+    {
+        Task<bool> AddBlock(byte[] payload);
+        Task AddBlocks(byte[] payloads);
+        Task<byte[]> GetVout(byte[] txnId);
+        Task<IEnumerable<BlockHeaderProto>> GetBlockHeaders(int skip, int take);
+        Task<IEnumerable<BlockHeaderProto>> GetSafeguardBlocks();
+        Task<long> GetHeight();
+    }
+    
+    /// <summary>
+    /// 
+    /// </summary>
     public class BlockService : IBlockService
     {
         private readonly IUnitOfWork _unitOfWork;

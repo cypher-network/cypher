@@ -7,9 +7,34 @@ using CYPCore.Extentions;
 
 namespace CYPCore.Models
 {
-    [ProtoContract]
-    public class StagingProto
+    public interface IStagingProto
     {
+        int Id { get; set; }
+        string Hash { get; set; }
+        ulong Node { get; set; }
+        List<ulong> Nodes { get; set; }
+        List<ulong> WaitingOn { get; set; }
+        int TotalNodes { get; set; }
+        int ExpectedTotalNodes { get; set; }
+        StagingState Status { get; set; }
+        MemPoolProto MemPoolProto { get; set; }
+        long Epoch { get; set; }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        byte[] ToIdentifier();
+    }
+
+    [ProtoContract]
+    public class StagingProto : IStagingProto
+    {
+        public static StagingProto CreateInstance()
+        {
+            return new StagingProto();
+        }
+
         public int Id { get; set; }
 
         [ProtoMember(1)]

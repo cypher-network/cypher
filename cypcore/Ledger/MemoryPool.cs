@@ -2,6 +2,7 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 
 using Dawn;
@@ -20,6 +21,18 @@ using CYPCore.Network;
 
 namespace CYPCore.Ledger
 {
+    /// <summary>
+    /// 
+    /// </summary>
+    public interface IMemoryPool
+    {
+        Task<MemPoolProto> AddTransaction(MemPoolProto memPool);
+        Task Ready(byte[] hash);
+    }
+    
+    /// <summary>
+    /// 
+    /// </summary>
     public class MemoryPool : IMemoryPool
     {
         private readonly IUnitOfWork _unitOfWork;
@@ -61,10 +74,10 @@ namespace CYPCore.Ledger
 
             try
             {
-                var exists = await _unitOfWork.MemPoolRepository.FirstAsync(x =>
-                    new ValueTask<bool>(x.Block.Hash.Equals(memPool.Block.Hash) && x.Block.Node == memPool.Block.Node &&
-                                        x.Block.Round == memPool.Block.Round));
-                if (exists == null)
+                var memExists = await TransactionMemoryPoolExist(memPool);
+                var delivered = await TransactionDeliveredExist(memPool.Block.Transaction);
+                
+                if (!memExists && !delivered)
                 {
                     var saved = await _unitOfWork.MemPoolRepository.PutAsync(memPool.ToIdentifier(), memPool);
                     if (!saved)
@@ -278,17 +291,15 @@ namespace CYPCore.Ledger
                         continue;
                     }
 
-                    var interpreted = new InterpretedProto
-                    {
-                        Hash = memPool.Block.Hash,
-                        InterpretedType = InterpretedType.Pending,
-                        Node = memPool.Block.Node,
-                        PreviousHash = memPool.Block.PreviousHash,
-                        PublicKey = memPool.Block.PublicKey,
-                        Round = memPool.Block.Round,
-                        Signature = memPool.Block.Signature,
-                        Transaction = memPool.Block.Transaction
-                    };
+                    var interpreted = InterpretedProto.CreateInstance();
+                    interpreted.Hash = memPool.Block.Hash;
+                    interpreted.InterpretedType = InterpretedType.Pending;
+                    interpreted.Node = memPool.Block.Node;
+                    interpreted.PreviousHash = memPool.Block.PreviousHash;
+                    interpreted.PublicKey = memPool.Block.PublicKey;
+                    interpreted.Round = memPool.Block.Round;
+                    interpreted.Signature = memPool.Block.Signature;
+                    interpreted.Transaction = memPool.Block.Transaction;
 
                     var saved = await _unitOfWork.InterpretedRepository.PutAsync(interpreted.ToIdentifier(), interpreted);
                     if (!saved)
@@ -385,18 +396,14 @@ namespace CYPCore.Ledger
             var signature = await _signing.Sign(_signing.DefaultSigningKeyName, memPool.Block.Transaction.ToHash());
             var pubKey = await _signing.GetPublicKey(_signing.DefaultSigningKeyName);
 
-            var signed = new MemPoolProto
-            {
-                Block = new InterpretedProto
-                {
-                    Hash = memPool.Block.Hash,
-                    Node = node,
-                    Round = round,
-                    Transaction = memPool.Block.Transaction,
-                    PublicKey = pubKey.ByteToHex(),
-                    Signature = signature.ByteToHex()
-                }
-            };
+            var signed = MemPoolProto.CreateInstance();
+            signed.Block = InterpretedProto.CreateInstance();
+            signed.Block.Hash = memPool.Block.Hash;
+            signed.Block.Node = node;
+            signed.Block.Round = round;
+            signed.Block.Transaction = memPool.Block.Transaction;
+            signed.Block.PublicKey = pubKey.ByteToHex();
+            signed.Block.Signature = signature.ByteToHex();
 
             return signed;
         }
@@ -432,6 +439,41 @@ namespace CYPCore.Ledger
             }
 
             return round;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="memPool"></param>
+        /// <returns></returns>
+        private async Task<bool> TransactionMemoryPoolExist(IMemPoolProto memPool)
+        {
+            var exist = await _unitOfWork.MemPoolRepository.FirstAsync(x =>
+                new ValueTask<bool>(x.Block.Hash.Equals(memPool.Block.Hash) && x.Block.Node == memPool.Block.Node &&
+                                    x.Block.Round == memPool.Block.Round));
+            return exist != null;
+        }
+        
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="tx"></param>
+        /// <returns></returns>
+        private async Task<bool> TransactionDeliveredExist(ITransactionProto tx)
+        {
+            foreach (var vin in tx.Vin)
+            {
+                var exists = await _unitOfWork.DeliveredRepository
+                    .FirstAsync(x =>
+                        new ValueTask<bool>(x.Transactions.Any(t => t.Vin.First().Key.K_Image.Xor(vin.Key.K_Image))));
+
+                if (exists != null)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }

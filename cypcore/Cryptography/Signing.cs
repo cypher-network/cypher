@@ -17,6 +17,24 @@ using CYPCore.Persistence;
 
 namespace CYPCore.Cryptography
 {
+    /// <summary>
+    /// 
+    /// </summary>
+    public interface ISigning
+    {
+        string DefaultSigningKeyName { get; }
+        Task<KeyPair> GetOrUpsertKeyName(string keyName);
+        Task<byte[]> GetPublicKey(string keyName);
+        Task<byte[]> Sign(string keyName, byte[] message);
+        bool VerifySignature(byte[] signature, byte[] message);
+        bool VerifySignature(byte[] signature, byte[] publicKey, byte[] message);
+        byte[] CalculateVrfSignature(libsignal.ecc.ECPrivateKey privateKey, byte[] message);
+        byte[] VerifyVrfSignature(libsignal.ecc.ECPublicKey publicKey, byte[] message, byte[] signature);
+    }
+    
+    /// <summary>
+    /// 
+    /// </summary>
     public class Signing : ISigning
     {
         private readonly IDataProtectionProvider _dataProtectionProvider;
