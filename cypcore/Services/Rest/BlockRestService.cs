@@ -25,7 +25,7 @@ namespace CYPCore.Services.Rest
         [Post("/header/block")]
         Task<WebResponse> AddBlock(byte[] payload);
     }
-    
+
     /// <summary>
     /// 
     /// </summary>

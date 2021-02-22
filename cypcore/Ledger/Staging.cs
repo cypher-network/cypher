@@ -25,7 +25,7 @@ namespace CYPCore.Ledger
     {
         Task Ready(byte[] hash);
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -74,7 +74,7 @@ namespace CYPCore.Ledger
                     var added = await AddOrUpdate(blockHashLookup);
                     if (!added)
                     {
-                        _logger.Here().Warning("Unable to publish hash: {@Hash}");
+                        _logger.Here().Warning("Unable to publish hash: {@Hash}", hash);
                         return;
                     }
 
@@ -148,7 +148,7 @@ namespace CYPCore.Ledger
             {
                 var peers = await _localNode.GetPeers();
                 var nodeCount = peers.Count;
-                
+
                 staging = StagingProto.CreateInstance();
                 staging.Epoch = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                 staging.Hash = next.Block.Hash;
@@ -157,7 +157,6 @@ namespace CYPCore.Ledger
                 staging.Node = _serfClient.ClientId;
                 staging.TotalNodes = nodeCount;
                 staging.Status = StagingState.Started;
-                staging.Nodes = new List<ulong>();
 
                 staging.Nodes.AddRange(next.Deps?.Select(n => n.Block.Node) ?? Array.Empty<ulong>());
 

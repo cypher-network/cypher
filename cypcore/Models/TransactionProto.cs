@@ -53,7 +53,7 @@ namespace CYPCore.Models
         /// <returns></returns>
         T Cast<T>();
     }
-    
+
     [ProtoContract]
     public class TransactionProto : ITransactionProto
     {

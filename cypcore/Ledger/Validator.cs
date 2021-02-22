@@ -59,7 +59,7 @@ namespace CYPCore.Ledger
         ulong Fee(int nByte);
         bool VerifyNetworkShare(ulong solution, double previousNetworkShare, ref double runningDistributionTotal);
     }
-    
+
     /// <summary>
     /// 
     /// </summary>

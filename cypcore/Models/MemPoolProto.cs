@@ -23,7 +23,7 @@ namespace CYPCore.Models
         BlockGraph ToMemPool();
         byte[] ToIdentifier();
     }
-    
+
     [ProtoContract]
     public class MemPoolProto : IEquatable<MemPoolProto>, IMemPoolProto
     {

@@ -8,6 +8,6 @@ namespace CYPCore.Network
         public string Host { get; set; }
         public string PublicKey { get; set; }
         public ulong ClientId { get; set; }
-        public string NodeName { get; set; }  
+        public string NodeName { get; set; }
     }
 }

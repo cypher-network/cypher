@@ -19,7 +19,7 @@ namespace CYPCore.Services.Rest
         [Post("/pool")]
         Task<WebResponse> AddMemoryPool(byte[] pool);
     }
-    
+
     /// <summary>
     /// 
     /// </summary>

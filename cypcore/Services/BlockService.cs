@@ -30,7 +30,7 @@ namespace CYPCore.Services
         Task<IEnumerable<BlockHeaderProto>> GetSafeguardBlocks();
         Task<long> GetHeight();
     }
-    
+
     /// <summary>
     /// 
     /// </summary>

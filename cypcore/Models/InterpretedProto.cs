@@ -23,7 +23,7 @@ namespace CYPCore.Models
         string ToString();
         byte[] ToHash();
     }
-    
+
     [ProtoContract]
     public class InterpretedProto : IInterpretedProto
     {

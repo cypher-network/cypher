@@ -33,7 +33,7 @@ namespace CYPCore.Ledger
         StakingConfigurationOptions StakingConfigurationOptions { get; }
         Task RunStakingBlockAsync();
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
