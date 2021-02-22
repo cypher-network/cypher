@@ -10,6 +10,7 @@ using Dawn;
 using Serilog;
 
 using CYPCore.Extensions;
+using CYPCore.Extentions;
 using CYPCore.Models;
 
 namespace CYPCore.Persistence
@@ -114,7 +115,7 @@ namespace CYPCore.Persistence
         /// <returns></returns>
         public Task<MemPoolProto> PreviousAsync(byte[] hash, ulong node, ulong round)
         {
-            Guard.Argument(hash, nameof(hash)).NotNull().MaxCount(48);
+            Guard.Argument(hash, nameof(hash)).NotNull().MaxCount(32);
             Guard.Argument(node, nameof(node)).NotNegative();
             Guard.Argument(round, nameof(round)).NotNegative();
 
@@ -124,7 +125,7 @@ namespace CYPCore.Persistence
             {
                 round -= 1;
                 block = FirstAsync(x =>
-                    new ValueTask<bool>(x.Block.Hash.Equals(hash) && x.Block.Node == node && x.Block.Round == round)).Result;
+                    new ValueTask<bool>(x.Block.Hash.Equals(hash.ByteToHex()) && x.Block.Node == node && x.Block.Round == round)).Result;
             }
             catch (Exception ex)
             {
