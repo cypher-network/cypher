@@ -30,7 +30,7 @@ namespace CYPCore.Services
         Task StartAsync(IHostApplicationLifetime applicationLifetime);
         Task JoinSeedNodes(SeedNode seedNode);
     }
-    
+
     public class SerfService : ISerfService, IStartable
     {
         private readonly ISerfClient _serfClient;

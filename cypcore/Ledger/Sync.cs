@@ -27,7 +27,7 @@ namespace CYPCore.Ledger
         Task Check();
         Task Synchronize(Uri uri, long skip, long take);
     }
-    
+
     /// <summary>
     /// 
     /// </summary>

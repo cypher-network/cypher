@@ -29,7 +29,7 @@ namespace CYPCore.Ledger
         Task<MemPoolProto> AddTransaction(MemPoolProto memPool);
         Task Ready(byte[] hash);
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -76,7 +76,7 @@ namespace CYPCore.Ledger
             {
                 var memExists = await TransactionMemoryPoolExist(memPool);
                 var delivered = await TransactionDeliveredExist(memPool.Block.Transaction);
-                
+
                 if (!memExists && !delivered)
                 {
                     var saved = await _unitOfWork.MemPoolRepository.PutAsync(memPool.ToIdentifier(), memPool);
@@ -453,7 +453,7 @@ namespace CYPCore.Ledger
                                     x.Block.Round == memPool.Block.Round));
             return exist != null;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>

@@ -59,7 +59,7 @@ namespace CYPCore.Serf
         bool RemoveTcpSession(Guid tcpSessionId);
         Task<TaskResult<ulong>> GetClientId();
     }
-    
+
     /// <summary>
     /// 
     /// </summary>

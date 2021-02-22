@@ -29,7 +29,7 @@ namespace CYPCore.Network
         Task<Dictionary<ulong, Peer>> GetPeers();
         void Ready();
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -92,7 +92,7 @@ namespace CYPCore.Network
             {
                 Ready();
             }
-            
+
             var tcpSession = _serfClient.GetTcpSession(_tcpSession.SessionId);
             _ = _serfClient.Connect(tcpSession.SessionId);
 
@@ -115,11 +115,11 @@ namespace CYPCore.Network
 
                 var peer = new Peer
                 {
-                    Host = uri.OriginalString, 
-                    ClientId = Helper.Util.HashToId(member.Tags["pubkey"]), 
+                    Host = uri.OriginalString,
+                    ClientId = Helper.Util.HashToId(member.Tags["pubkey"]),
                     PublicKey = member.Tags["pubkey"]
                 };
-                
+
                 if (peers.TryAdd(peer.ClientId, peer)) continue;
 
                 _logger.Here().Error("Failed adding or exists in remote nodes: {@Node}",

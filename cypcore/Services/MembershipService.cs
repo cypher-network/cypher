@@ -25,7 +25,7 @@ namespace CYPCore.Services
         Task<byte[]> GetPublicKey();
         void Ready();
     }
-    
+
     /// <summary>
     /// 
     /// </summary>

@@ -31,7 +31,7 @@ namespace CYPCore.Cryptography
         byte[] CalculateVrfSignature(libsignal.ecc.ECPrivateKey privateKey, byte[] message);
         byte[] VerifyVrfSignature(libsignal.ecc.ECPublicKey publicKey, byte[] message, byte[] signature);
     }
-    
+
     /// <summary>
     /// 
     /// </summary>

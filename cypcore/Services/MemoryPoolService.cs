@@ -25,7 +25,7 @@ namespace CYPCore.Services
         Task<bool> AddTransaction(TransactionProto tx);
         Task<long> GetTransactionCount();
     }
-    
+
     /// <summary>
     /// 
     /// </summary>

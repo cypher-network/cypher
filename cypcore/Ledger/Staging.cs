@@ -25,7 +25,7 @@ namespace CYPCore.Ledger
     {
         Task Ready(byte[] hash);
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -148,7 +148,7 @@ namespace CYPCore.Ledger
             {
                 var peers = await _localNode.GetPeers();
                 var nodeCount = peers.Count;
-                
+
                 staging = StagingProto.CreateInstance();
                 staging.Epoch = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                 staging.Hash = next.Block.Hash;
