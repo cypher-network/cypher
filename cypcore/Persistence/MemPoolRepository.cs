@@ -124,7 +124,7 @@ namespace CYPCore.Persistence
             try
             {
                 round -= 1;
-                var memPools = WhereAsync(x => 
+                var memPools = WhereAsync(x =>
                     new ValueTask<bool>(x.Block.Hash.Equals(hash.ByteToHex())));
 
                 if (memPools.IsCompleted)

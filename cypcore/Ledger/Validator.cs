@@ -160,7 +160,7 @@ namespace CYPCore.Ledger
                     }
 
                     if (dep.Block.Node != memPool.Block.Node) continue;
-                    
+
                     _logger.Here().Error("Block references includes a block from same node in block reference {@Round} from node {@Node}",
                         memPool.Block.Round,
                         memPool.Block.Node);

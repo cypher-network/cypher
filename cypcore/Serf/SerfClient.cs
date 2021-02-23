@@ -435,14 +435,7 @@ namespace CYPCore.Serf
                     }
                 }
 
-                //_handlers.Remove(sequence);
-
-                foreach (var handler in _handlers)
-                {
-                    handler.Value.Dispose();
-                    _handlers.Remove(handler);
-                }
-
+                _handlers.Remove(sequence);
                 reset.Set();
             });
 

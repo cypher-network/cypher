@@ -286,18 +286,18 @@ namespace CYPCore.Ledger
                                 next.Round,
                                 next.Node);
                         }
-                        
+
                         continue;
                     }
 
-                    var memPool = await _unitOfWork.MemPoolRepository.FirstAsync(x => 
+                    var memPool = await _unitOfWork.MemPoolRepository.FirstAsync(x =>
                         new ValueTask<bool>(
-                            x.Block.Hash.Equals(next.Hash) && 
-                            x.Block.Node == next.Node && 
+                            x.Block.Hash.Equals(next.Hash) &&
+                            x.Block.Node == next.Node &&
                             x.Block.Round == next.Round &&
                             !string.IsNullOrEmpty(x.Block.PublicKey) &&
                             !string.IsNullOrEmpty(x.Block.Signature)));
-                    
+
                     if (memPool == null)
                     {
                         _logger.Here().Error("Unable to find matching block - Hash: {@Hash} Round: {@Round} from node {@Node}",
