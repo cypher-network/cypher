@@ -259,17 +259,45 @@ namespace CYPCore.Ledger
 
                     if (hasSeen != null)
                     {
-                        _logger.Here().Error("Unable to find matching block - Hash: {@Hash} Round: {@Round} from node {@Node}",
-                            next.Hash,
-                            next.Round,
-                            next.Node);
+                        var staging = await _unitOfWork.StagingRepository.FirstAsync(x =>
+                            new ValueTask<bool>(x.Hash.Equals(next.Hash)));
 
+                        if (staging != null)
+                        {
+                            staging.Status = StagingState.Delivered;
+                            var savedStaging = await _unitOfWork.StagingRepository.PutAsync(staging.ToIdentifier(), staging);
+                            if (savedStaging)
+                            {
+                                _logger.Here().Information(
+                                    "Marked staging state as Delivered - Hash: {@Hash} Round: {@Round} from Node {@Node}",
+                                    next.Hash,
+                                    next.Round,
+                                    next.Node);
+                            }
+                            else
+                            {
+                                _logger.Here().Warning("Unable to mark the staging state as Delivered");
+                            }
+                        }
+                        else
+                        {
+                            _logger.Here().Error("Unable to find matching block - Hash: {@Hash} Round: {@Round} from node {@Node}",
+                                next.Hash,
+                                next.Round,
+                                next.Node);
+                        }
+                        
                         continue;
                     }
 
-                    var memPool = await _unitOfWork.MemPoolRepository.FirstAsync(x =>
-                        new ValueTask<bool>(x.Block.Hash.Equals(next.Hash) && x.Block.Node == next.Node &&
-                                            x.Block.Round == next.Round));
+                    var memPool = await _unitOfWork.MemPoolRepository.FirstAsync(x => 
+                        new ValueTask<bool>(
+                            x.Block.Hash.Equals(next.Hash) && 
+                            x.Block.Node == next.Node && 
+                            x.Block.Round == next.Round &&
+                            !string.IsNullOrEmpty(x.Block.PublicKey) &&
+                            !string.IsNullOrEmpty(x.Block.Signature)));
+                    
                     if (memPool == null)
                     {
                         _logger.Here().Error("Unable to find matching block - Hash: {@Hash} Round: {@Round} from node {@Node}",
