@@ -119,20 +119,27 @@ namespace CYPCore.Persistence
             Guard.Argument(node, nameof(node)).NotNegative();
             Guard.Argument(round, nameof(round)).NotNegative();
 
-            MemPoolProto block = default;
+            MemPoolProto memPool = default;
 
             try
             {
                 round -= 1;
-                block = FirstAsync(x =>
-                    new ValueTask<bool>(x.Block.Hash.Equals(hash.ByteToHex()) && x.Block.Node == node && x.Block.Round == round)).Result;
+                var memPools = WhereAsync(x => 
+                    new ValueTask<bool>(x.Block.Hash.Equals(hash.ByteToHex())));
+
+                if (memPools.IsCompleted)
+                {
+                    memPool = memPools.Result
+                        .OrderBy(x => x.Block.Round)
+                        .FirstOrDefault(x => x.Block.Node == node && x.Block.Round == round);
+                }
             }
             catch (Exception ex)
             {
                 _logger.Here().Error(ex, "Unable to find previous");
             }
 
-            return Task.FromResult(block);
+            return Task.FromResult(memPool);
         }
     }
 }
