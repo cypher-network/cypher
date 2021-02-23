@@ -299,15 +299,10 @@ namespace CYPCore.Ledger
             {
                 foreach (var next in MemPoolProto.NextBlockGraph(blockHashLookup, _serfClient.ClientId))
                 {
-                    staging = await _unitOfWork.StagingRepository.GetAsync(next.ToIdentifier());
+                    staging = await _unitOfWork.StagingRepository.FirstAsync(x => new(x.Hash.Equals(next.Block.Hash)));
                     if (staging != null)
                     {
-                        if (staging.Status != StagingState.Blockmainia &&
-                            staging.Status != StagingState.Running &&
-                            staging.Status != StagingState.Delivered)
-                        {
-                            staging = await Existing(next);
-                        }
+                        staging = await Existing(next);
                         continue;
                     }
 
