@@ -159,14 +159,13 @@ namespace CYPCore.Ledger
                         return Task.FromResult(false);
                     }
 
-                    if (dep.Block.Node == memPool.Block.Node)
-                    {
-                        _logger.Here().Error("Block references includes a block from same node in block reference {@Round} from node {@Node}",
-                            memPool.Block.Round,
-                            memPool.Block.Node);
+                    if (dep.Block.Node != memPool.Block.Node) continue;
+                    
+                    _logger.Here().Error("Block references includes a block from same node in block reference {@Round} from node {@Node}",
+                        memPool.Block.Round,
+                        memPool.Block.Node);
 
-                        return Task.FromResult(false);
-                    }
+                    return Task.FromResult(false);
                 }
             }
             catch (Exception ex)
