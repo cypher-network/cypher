@@ -56,6 +56,7 @@ namespace CYPNode
         public void ConfigureContainer(ContainerBuilder builder)
         {
             builder.AddSerilog();
+            builder.AddNodeMonitorService(Configuration);
             builder.AddSwimGossipClient(Configuration);
             builder.AddSerfProcessService(Configuration);
             builder.AddUnitOfWork(Configuration);
