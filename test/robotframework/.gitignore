@@ -2,6 +2,6 @@ appsettings.json
 log.html
 output.xml
 report.html
-snapshot
+#snapshot
 stderr.txt
 stdout.txt
