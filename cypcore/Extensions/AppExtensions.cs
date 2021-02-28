@@ -21,6 +21,7 @@ using CYPCore.Serf;
 using CYPCore.Persistence;
 using CYPCore.Network;
 using CYPCore.Cryptography;
+using CYPCore.Helper;
 using CYPCore.Ledger;
 
 namespace CYPCore.Extensions
@@ -136,7 +137,7 @@ namespace CYPCore.Extensions
                 (
                      c.Resolve<ISerfClient>(),
                      c.Resolve<Serilog.ILogger>()
-                 );
+                );
 
                 return localNode;
             })
@@ -311,5 +312,28 @@ namespace CYPCore.Extensions
             builder.RegisterType<BlockService>().As<IBlockService>();
             return builder;
         }
+
+        public static ContainerBuilder AddNodeMonitorService(this ContainerBuilder builder, IConfiguration configuration)
+        {
+            builder.Register(c =>
+                {
+                    var nodeMonitorConfigurationOptions = new NodeMonitorConfigurationOptions();
+                    configuration.Bind(NodeMonitorConfigurationOptions.ConfigurationSectionName, nodeMonitorConfigurationOptions);
+
+                    var nodeMonitorProvider =
+                        new NodeMonitor(
+                            nodeMonitorConfigurationOptions,
+                            c.Resolve<Serilog.ILogger>());
+
+                    return nodeMonitorProvider;
+                })
+                .As<INodeMonitor>()
+                .InstancePerLifetimeScope();
+
+            builder.RegisterType<NodeMonitorService>().As<IHostedService>().SingleInstance();
+
+            return builder;
+        }
+
     }
 }

@@ -21,12 +21,28 @@ Test suite configuration
   *** Settings ***
   Library   OperatingSystem
   Library   Process
+  Library   String
   
   Resource  ../resources/variables.resource
 
   *** Variables ***
 
   *** Test Cases ***
-  Start cypnode
+  # cypnode starts, is interrupted, generates no fatal errors and returns with code 0
+  Start and stop cypnode
     Copy File   smoke/resources/process_start_cypnode.appsettings.json  appsettings.json
-    Start Process  ${cypnode}  stdout=stdout.txt  stderr=stderr.txt
+    ${cypnode_handle} =  Start Process  ${cypnode}  stdout=stdout.txt  stderr=stderr.txt
+    Sleep  10s
+    Process Should Be Running  ${cypnode_handle}
+    Send Signal To Process  SIGINT  ${cypnode_handle}
+    Sleep  10s
+    ${cypnode_result} =  Wait For Process  ${cypnode_handle}
+    Should Be Equal As Integers  ${cypnode_result.rc}  0
+    Should Not Contain  ${cypnode_result.stdout}  [FTL]
+
+  # cypnode without appsettings.json terminates itself with error code
+  Start cypnode without appsettings.json
+    Remove File  appsettings.json
+    ${cypnode_handle} =  Start Process  ${cypnode}  stdout=stdout.txt  stderr=stderr.txt
+    ${cypnode_result} =  Wait For Process  ${cypnode_handle}
+    Should Not Be Equal As Integers  ${cypnode_result.rc}  0
