@@ -47,7 +47,7 @@ namespace CYPCore.Services
 
                 while (_applicationRunning)
                 {
-                    _nodeMonitor.Listen(cancellationToken);
+                    await _nodeMonitor.Listen(cancellationToken);
                 }
             }
             catch (TaskCanceledException)

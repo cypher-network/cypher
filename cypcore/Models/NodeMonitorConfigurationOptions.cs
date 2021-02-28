@@ -1,5 +1,3 @@
-using System.Net;
-
 namespace CYPCore.Models
 {
     public class NodeMonitorConfigurationOptions

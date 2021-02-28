@@ -3,7 +3,6 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Transactions;
 using Serilog;
 
 using CYPCore.Extensions;
@@ -15,7 +14,7 @@ namespace CYPCore.Helper
     {
         public bool Start();
         public void Stop();
-        public void Listen(CancellationToken cancellationToken);
+        public Task<bool> Listen(CancellationToken cancellationToken);
     }
 
     public class NodeMonitor : INodeMonitor
@@ -46,6 +45,11 @@ namespace CYPCore.Helper
 
         public bool Start()
         {
+            if (!_configuration.Enabled)
+            {
+                return false;
+            }
+
             try
             {
                 _listener.Start();
@@ -74,7 +78,7 @@ namespace CYPCore.Helper
             }
         }
 
-        public async void Listen(CancellationToken cancellationToken)
+        public async Task<bool> Listen(CancellationToken cancellationToken)
         {
             var buffer = new byte[_listener.Server.ReceiveBufferSize];
 
@@ -100,7 +104,10 @@ namespace CYPCore.Helper
             catch (OperationCanceledException)
             {
                 _logger.Here().Debug("Listener interrupted");
+                return false;
             }
+
+            return true;
         }
 
         private async Task<TcpClient> AcceptAsync(CancellationToken cancellationToken)
