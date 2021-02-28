@@ -12,7 +12,7 @@ These tests rely on a self-contained cypnode build. The executable location can 
 Execute these tests as follows:
 
 * ``robot process.rst``
-* ``robot --variable cypnode:/home/johndoe/tangram/cypnode cypnode_process.rst``
+* ``robot --variable cypnode:/home/johndoe/tangram/cypnode process.rst``
 
 Test suite configuration
 ------------------------

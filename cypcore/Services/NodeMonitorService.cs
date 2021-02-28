@@ -12,12 +12,9 @@ namespace CYPCore.Services
 {
     public class NodeMonitorService : BackgroundService
     {
-        private ILogger _logger;
+        private readonly ILogger _logger;
         private readonly INodeMonitor _nodeMonitor;
-
-        //        private readonly NodeMonitorConfigurationOptions _configuration;
         private bool _applicationRunning = true;
-        private readonly ushort _taskDelay = 10000;
 
         public NodeMonitorService(INodeMonitor nodeMonitor, IHostApplicationLifetime applicationLifetime, ILogger logger)
         {
