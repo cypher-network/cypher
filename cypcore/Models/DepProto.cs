@@ -12,7 +12,7 @@ namespace CYPCore.Models
         [ProtoMember(1)]
         public InterpretedProto Block = InterpretedProto.CreateInstance();
         [ProtoMember(2)]
-        public List<InterpretedProto> Deps = new List<InterpretedProto>();
+        public List<InterpretedProto> Deps = new();
         [ProtoMember(3)]
         public InterpretedProto Prev = InterpretedProto.CreateInstance();
     }

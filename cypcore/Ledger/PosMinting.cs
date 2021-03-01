@@ -83,11 +83,11 @@ namespace CYPCore.Ledger
                 return;
             }
 
-            var coinstakeTimestamp = _validator.GetAdjustedTimeAsUnixTimestamp();
-            if (coinstakeTimestamp <= lastBlockHeader.Locktime)
+            var coinStakeTimestamp = _validator.GetAdjustedTimeAsUnixTimestamp();
+            if (coinStakeTimestamp <= lastBlockHeader.Locktime)
             {
                 _logger.Here().Warning("Current coinstake time {@Timestamp} is not greater than last search timestamp {@Locktime}",
-                    coinstakeTimestamp,
+                    coinStakeTimestamp,
                     lastBlockHeader.Locktime);
 
                 return;
@@ -118,14 +118,14 @@ namespace CYPCore.Ledger
 
             try
             {
-                var coinstakeTransaction = await CreateCoinstakeTransaction(bits, reward);
-                if (coinstakeTransaction == null)
+                var coinStakeTransaction = await CreateCoinstakeTransaction(bits, reward);
+                if (coinStakeTransaction == null)
                 {
                     _logger.Here().Error("Could not create coin stake transaction");
                     return;
                 }
 
-                transactions.Insert(0, coinstakeTransaction);
+                transactions.Insert(0, coinStakeTransaction);
             }
             catch (Exception ex)
             {
@@ -177,7 +177,7 @@ namespace CYPCore.Ledger
         private async Task<BlockHeaderProto> TryGetDeliveredBlockHeader(SeenBlockHeaderProto lastSeenBlockHeader)
         {
             var deliveredBlockHeader = lastSeenBlockHeader != null
-                ? await _unitOfWork.DeliveredRepository.FirstAsync(x => new ValueTask<bool>(x.MrklRoot == lastSeenBlockHeader.MrklRoot))
+                ? await _unitOfWork.DeliveredRepository.FirstAsync(x => new ValueTask<bool>(x.MerkelRoot == lastSeenBlockHeader.MrklRoot))
                 : await _unitOfWork.DeliveredRepository.FirstAsync();
 
             return deliveredBlockHeader;
@@ -222,7 +222,7 @@ namespace CYPCore.Ledger
                 Locktime = lockTime,
                 LocktimeScript = new Script(Op.GetPushOp(lockTime), OpcodeType.OP_CHECKLOCKTIMEVERIFY).ToString(),
                 Nonce = nonce,
-                PrevMrklRoot = deliveredBlockHeader.MrklRoot,
+                PrevMerkelRoot = deliveredBlockHeader.MerkelRoot,
                 Proof = signature.ByteToHex(),
                 Sec = _validator.Security256.ToStr(),
                 Seed = _validator.Seed.ByteToHex(),
@@ -268,8 +268,8 @@ namespace CYPCore.Ledger
         {
             currentBlock ??= new SeenBlockHeaderProto();
 
-            currentBlock.MrklRoot = blockHeader.MrklRoot;
-            currentBlock.PrevBlock = blockHeader.PrevMrklRoot;
+            currentBlock.MrklRoot = blockHeader.MerkelRoot;
+            currentBlock.PrevBlock = blockHeader.PrevMerkelRoot;
 
             var saved = await _unitOfWork.SeenBlockHeaderRepository.PutAsync(currentBlock.ToIdentifier(), currentBlock);
             return saved;
@@ -337,53 +337,51 @@ namespace CYPCore.Ledger
 
             TransactionProto transaction = null;
 
-            using (var client = new HttpClient())
+            using var client = new HttpClient { BaseAddress = new Uri(_stakingConfigurationOptions.WalletSettings.Url) };
+
+            client.DefaultRequestHeaders.Accept.Clear();
+            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/x-protobuf"));
+
+            try
             {
-                client.BaseAddress = new Uri(_stakingConfigurationOptions.WalletSettings.Url);
-                client.DefaultRequestHeaders.Accept.Clear();
-                client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/x-protobuf"));
-
-                try
+                var pub = await _signing.GetPublicKey(_signing.DefaultSigningKeyName);
+                var sendPayment = new SendPaymentProto
                 {
-                    var pub = await _signing.GetPublicKey(_signing.DefaultSigningKeyName);
-                    var sendPayment = new SendPaymentProto
-                    {
-                        Address = _stakingConfigurationOptions.WalletSettings.Address,
-                        Amount = ((double)bits).ConvertToUInt64(),
-                        Credentials = new CredentialsProto { Identifier = _stakingConfigurationOptions.WalletSettings.Identifier, Passphrase = _stakingConfigurationOptions.WalletSettings.Passphrase },
-                        Fee = reward,
-                        Memo = $"Coinstake {_serfClient.SerfConfigurationOptions.NodeName}: {pub.ByteToHex()}",
-                        SessionType = SessionType.Coinstake
-                    };
+                    Address = _stakingConfigurationOptions.WalletSettings.Address,
+                    Amount = ((double)bits).ConvertToUInt64(),
+                    Credentials = new CredentialsProto { Identifier = _stakingConfigurationOptions.WalletSettings.Identifier, Passphrase = _stakingConfigurationOptions.WalletSettings.Passphrase },
+                    Fee = reward,
+                    Memo = $"Coinstake {_serfClient.SerfConfigurationOptions.NodeName}: {pub.ByteToHex()}",
+                    SessionType = SessionType.Coinstake
+                };
 
-                    var proto = Util.SerializeProto(sendPayment);
+                var proto = Util.SerializeProto(sendPayment);
 
-                    var byteArrayContent = new ByteArrayContent(proto);
-                    byteArrayContent.Headers.ContentType = new MediaTypeHeaderValue("application/x-protobuf");
+                var byteArrayContent = new ByteArrayContent(proto);
+                byteArrayContent.Headers.ContentType = new MediaTypeHeaderValue("application/x-protobuf");
 
-                    using var response = await client.PostAsync(_stakingConfigurationOptions.WalletSettings.SendPaymentEndpoint, byteArrayContent, new System.Threading.CancellationToken());
+                using var response = await client.PostAsync(_stakingConfigurationOptions.WalletSettings.SendPaymentEndpoint, byteArrayContent, new System.Threading.CancellationToken());
 
-                    var read = response.Content.ReadAsStringAsync().Result;
-                    var jObject = JObject.Parse(read);
-                    var jToken = jObject.GetValue("protobuf");
-                    var byteArray = Convert.FromBase64String((jToken ?? throw new InvalidOperationException()).Value<string>());
+                var read = response.Content.ReadAsStringAsync().Result;
+                var jObject = JObject.Parse(read);
+                var jToken = jObject.GetValue("protobuf");
+                var byteArray = Convert.FromBase64String((jToken ?? throw new InvalidOperationException()).Value<string>());
 
-                    if (response.IsSuccessStatusCode)
-                        transaction = Util.DeserializeProto<TransactionProto>(byteArray);
-                    else
-                    {
-                        var content = await response.Content.ReadAsStringAsync();
-                        _logger.Here().Error("{@Content}\n StatusCode: {@StatusCode}",
-                            content,
-                            (int)response.StatusCode);
-
-                        throw new Exception(content);
-                    }
-                }
-                catch (Exception ex)
+                if (response.IsSuccessStatusCode)
+                    transaction = Util.DeserializeProto<TransactionProto>(byteArray);
+                else
                 {
-                    _logger.Here().Error(ex, "Cannot create coinstake transaction");
+                    var content = await response.Content.ReadAsStringAsync();
+                    _logger.Here().Error("{@Content}\n StatusCode: {@StatusCode}",
+                        content,
+                        (int)response.StatusCode);
+
+                    throw new Exception(content);
                 }
+            }
+            catch (Exception ex)
+            {
+                _logger.Here().Error(ex, "Cannot create coinstake transaction");
             }
 
             return transaction;

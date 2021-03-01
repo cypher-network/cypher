@@ -52,9 +52,6 @@
     <Folder Include="Services\" />
     <Folder Include="Extensions\" />
     <Folder Include="Persistence\" />
-    <Folder Include="Consensus\Blockmania\" />
-    <Folder Include="Consensus\Blockmania\Messages\" />
-    <Folder Include="Consensus\Blockmania\States\" />
     <Folder Include="Network\" />
     <Folder Include="Cryptography\" />
     <Folder Include="Services\Rest\" />

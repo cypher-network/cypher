@@ -246,7 +246,7 @@ namespace CYPCore.Services
             var saved = await _unitOfWork.DeliveredRepository.PutAsync(blockHeader.ToIdentifier(), blockHeader);
             if (saved) return true;
 
-            _logger.Here().Error("Unable to save block header: {@MerkleRoot}", blockHeader.MrklRoot);
+            _logger.Here().Error("Unable to save block header: {@MerkleRoot}", blockHeader.MerkelRoot);
 
             return false;
         }

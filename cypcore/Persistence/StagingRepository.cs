@@ -7,6 +7,10 @@ using CYPCore.Models;
 
 namespace CYPCore.Persistence
 {
+    public interface IStagingRepository : IRepository<StagingProto>
+    {
+    }
+
     public class StagingRepository : Repository<StagingProto>, IStagingRepository
     {
         public StagingRepository(IStoreDb storeDb, ILogger logger)

@@ -25,6 +25,7 @@ namespace CYPCore.Network
     public interface ILocalNode
     {
         Task Broadcast(byte[] data, TopicType topicType);
+        Task Broadcast(byte[] data, Peer[] peers, TopicType topicType);
         Task Send(byte[] data, TopicType topicType, string host);
         Task<Dictionary<ulong, Peer>> GetPeers();
         void Ready();
@@ -71,6 +72,34 @@ namespace CYPCore.Network
 
                 var broadcastPeers = peers.Select(p => p).ToList();
                 broadcastPeers.ForEach(x => { tasks.Add(Send(data, topicType, x.Value.Host)); });
+
+                await Task.WhenAll(tasks);
+            }
+            catch (Exception ex)
+            {
+                _logger.Here().Error(ex, "Error while broadcasting to clients");
+            }
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="data"></param>
+        /// <param name="peers"></param>
+        /// <param name="topicType"></param>
+        /// <returns></returns>
+        /// <exception cref="NotImplementedException"></exception>
+        public async Task Broadcast(byte[] data, Peer[] peers, TopicType topicType)
+        {
+            Guard.Argument(data, nameof(data)).NotNull();
+            Guard.Argument(peers, nameof(peers)).NotNull();
+
+            var tasks = new List<Task>();
+
+            try
+            {
+                var broadcastPeers = peers.Select(p => p).ToList();
+                broadcastPeers.ForEach(peer => { tasks.Add(Send(data, topicType, peer.Host)); });
 
                 await Task.WhenAll(tasks);
             }

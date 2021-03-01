@@ -8,13 +8,9 @@ namespace CYPCore.Models
     [ProtoContract]
     public class RCTProto
     {
-        [ProtoMember(1)]
-        public byte[] M { get; set; }
-        [ProtoMember(2)]
-        public byte[] P { get; set; }
-        [ProtoMember(3)]
-        public byte[] S { get; set; }
-        [ProtoMember(4)]
-        public byte[] I { get; set; }
+        [ProtoMember(1)] public byte[] M { get; set; }
+        [ProtoMember(2)] public byte[] P { get; set; }
+        [ProtoMember(3)] public byte[] S { get; set; }
+        [ProtoMember(4)] public byte[] I { get; set; }
     }
 }

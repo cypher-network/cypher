@@ -8,9 +8,7 @@ namespace CYPCore.Models
     [ProtoContract]
     public class AuxProto
     {
-        [ProtoMember(1)]
-        public byte[] K_Image { get; set; }
-        [ProtoMember(2)]
-        public byte[] K_Offsets { get; set; }
+        [ProtoMember(1)] public byte[] K_Image { get; set; }
+        [ProtoMember(2)] public byte[] K_Offsets { get; set; }
     }
 }

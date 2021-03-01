@@ -2,6 +2,8 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
@@ -13,8 +15,10 @@ using Autofac.Extensions.DependencyInjection;
 using Autofac;
 
 using CYPNode.StartupExtensions;
-using CYPCore.Consensus.Blockmania;
+using CYPCore.Consensus;
 using CYPCore.Extensions;
+using CYPCore.Extentions;
+using CYPCore.Models;
 
 namespace CYPNode
 {
@@ -45,7 +49,7 @@ namespace CYPNode
             services.AddSwaggerGenOptions();
             services.AddHttpContextAccessor();
             services.AddOptions();
-            services.Configure<PBFTOptions>(Configuration);
+            services.Configure<PbftOptions>(Configuration);
             services.AddDataKeysProtection(Configuration);
         }
 
@@ -60,6 +64,7 @@ namespace CYPNode
             builder.AddSwimGossipClient(Configuration);
             builder.AddSerfProcessService(Configuration);
             builder.AddUnitOfWork(Configuration);
+            builder.AddGraph();
             builder.AddMemoryPool();
             builder.AddStaging();
             builder.AddSigning();

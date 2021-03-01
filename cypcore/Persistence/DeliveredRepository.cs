@@ -12,6 +12,13 @@ using CYPCore.Models;
 
 namespace CYPCore.Persistence
 {
+    public interface IDeliveredRepository : IRepository<BlockHeaderProto>
+    {
+        BlockHeaderProto ToTrie(BlockHeaderProto blockHeader);
+        byte[] MerkleRoot { get; }
+        void ResetTrie();
+    }
+
     public class DeliveredRepository : Repository<BlockHeaderProto>, IDeliveredRepository
     {
         private readonly IStoreDb _storeDb;
@@ -54,7 +61,7 @@ namespace CYPCore.Persistence
                 _stateTrie.Put(blockHeader.ToHash(), blockHeader.ToHash());
                 _stateTrie.Flush();
 
-                blockHeader.MrklRoot = MerkleRoot.ByteToHex();
+                blockHeader.MerkelRoot = MerkleRoot.ByteToHex();
             }
             catch (System.Exception ex)
             {

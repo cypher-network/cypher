@@ -8,17 +8,11 @@ namespace CYPCore.Models
     [ProtoContract]
     public class PayloadProto
     {
-        [ProtoMember(1)]
-        public ulong Node { get; set; }
-        [ProtoMember(2)]
-        public byte[] Data { get; set; }
-        [ProtoMember(3)]
-        public byte[] PublicKey { get; set; }
-        [ProtoMember(4)]
-        public byte[] Signature { get; set; }
-        [ProtoMember(5)]
-        public string Message { get; set; }
-        [ProtoMember(6)]
-        public bool Error { get; set; }
+        [ProtoMember(1)] public ulong Node { get; set; }
+        [ProtoMember(2)] public byte[] Data { get; set; }
+        [ProtoMember(3)] public byte[] PublicKey { get; set; }
+        [ProtoMember(4)] public byte[] Signature { get; set; }
+        [ProtoMember(5)] public string Message { get; set; }
+        [ProtoMember(6)] public bool Error { get; set; }
     }
 }

@@ -8,7 +8,6 @@ namespace CYPCore.Models
     [ProtoContract]
     public class BpProto
     {
-        [ProtoMember(1)]
-        public byte[] Proof { get; set; }
+        [ProtoMember(1)] public byte[] Proof { get; set; }
     }
 }

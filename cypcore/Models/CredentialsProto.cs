@@ -8,9 +8,7 @@ namespace CYPCore.Models
     [ProtoContract]
     public class CredentialsProto
     {
-        [ProtoMember(1)]
-        public string Identifier { get; set; }
-        [ProtoMember(2)]
-        public string Passphrase { get; set; }
+        [ProtoMember(1)] public string Identifier { get; set; }
+        [ProtoMember(2)] public string Passphrase { get; set; }
     }
 }

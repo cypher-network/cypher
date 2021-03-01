@@ -2,14 +2,15 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System.Collections.Generic;
+using System.Linq;
 using ProtoBuf;
 using CYPCore.Extentions;
+using NBitcoin;
 
 namespace CYPCore.Models
 {
     public interface IStagingProto
     {
-        int Id { get; set; }
         string Hash { get; set; }
         ulong Node { get; set; }
         List<ulong> Nodes { get; set; }
@@ -17,7 +18,7 @@ namespace CYPCore.Models
         int TotalNodes { get; set; }
         int ExpectedTotalNodes { get; set; }
         StagingState Status { get; set; }
-        MemPoolProto MemPoolProto { get; set; }
+        List<MemPoolProto> MemPoolProtoList { get; set; }
         long Epoch { get; set; }
 
         /// <summary>
@@ -35,26 +36,15 @@ namespace CYPCore.Models
             return new();
         }
 
-        public int Id { get; set; }
-
-        [ProtoMember(1)]
-        public string Hash { get; set; }
-        [ProtoMember(2)]
-        public ulong Node { get; set; }
-        [ProtoMember(3)]
-        public List<ulong> Nodes { get; set; } = new();
-        [ProtoMember(4)]
-        public List<ulong> WaitingOn { get; set; } = new();
-        [ProtoMember(5)]
-        public int TotalNodes { get; set; }
-        [ProtoMember(6)]
-        public int ExpectedTotalNodes { get; set; }
-        [ProtoMember(7)]
-        public StagingState Status { get; set; }
-        [ProtoMember(8)]
-        public MemPoolProto MemPoolProto { get; set; }
-        [ProtoMember(9)]
-        public long Epoch { get; set; }
+        [ProtoMember(1)] public string Hash { get; set; }
+        [ProtoMember(2)] public ulong Node { get; set; }
+        [ProtoMember(3)] public List<ulong> Nodes { get; set; } = new();
+        [ProtoMember(4)] public List<ulong> WaitingOn { get; set; } = new();
+        [ProtoMember(5)] public int TotalNodes { get; set; }
+        [ProtoMember(6)] public int ExpectedTotalNodes { get; set; }
+        [ProtoMember(7)] public StagingState Status { get; set; }
+        [ProtoMember(8)] public List<MemPoolProto> MemPoolProtoList { get; set; } = new();
+        [ProtoMember(9)] public long Epoch { get; set; }
 
         /// <summary>
         /// 
@@ -62,8 +52,37 @@ namespace CYPCore.Models
         /// <returns></returns>
         public byte[] ToIdentifier()
         {
-            return MemPoolProto.Block.ToHash().ByteToHex().ToBytes();
+            return NBitcoin.Crypto.Hashes.DoubleSHA256(Stream()).ToBytes(false);
         }
 
+        public byte[] Stream()
+        {
+            using var ts = new Helper.TangramStream();
+            ts
+                .Append(Hash)
+                .Append(Node);
+
+            foreach (var @ulong in Nodes)
+            {
+                ts.Append(@ulong);
+            }
+
+            foreach (var @ulong in WaitingOn)
+            {
+                ts.Append(@ulong);
+            }
+
+            ts
+                .Append(TotalNodes)
+                .Append(ExpectedTotalNodes)
+                .Append(Status.ToString());
+
+            foreach (var memPoolProto in MemPoolProtoList)
+            {
+                ts.Append(memPoolProto.ToIdentifier());
+            }
+
+            return ts.ToArray(); ;
+        }
     }
 }

@@ -166,9 +166,6 @@ namespace CYPCore.Services
 
             if (_serfClient.ClientId == memPool.Block.Node) return false;
 
-            memPool.Included = false;
-            memPool.Replied = false;
-
             var added = await _memoryPool.AddTransaction(memPool);
             if (added != null) return true;
             _logger.Here().Error("Memory pool hash: {@Hash} was not added for node {@Node} and round {@Round}",

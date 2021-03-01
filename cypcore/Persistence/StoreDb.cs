@@ -7,6 +7,11 @@ using RocksDbSharp;
 
 namespace CYPCore.Persistence
 {
+    public interface IStoreDb
+    {
+        RocksDb Rocks { get; }
+    }
+
     public sealed class StoreDb : IStoreDb, IDisposable
     {
         private readonly string _name;

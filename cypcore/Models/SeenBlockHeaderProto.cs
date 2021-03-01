@@ -10,14 +10,9 @@ namespace CYPCore.Models
     [ProtoContract]
     public class SeenBlockHeaderProto
     {
-        public int Id { get; set; }
-
-        [ProtoMember(1)]
-        public string MrklRoot { get; set; }
-        [ProtoMember(2)]
-        public string PrevBlock { get; set; }
-        [ProtoMember(3)]
-        public bool Published { get; set; }
+        [ProtoMember(1)] public string MrklRoot { get; set; }
+        [ProtoMember(2)] public string PrevBlock { get; set; }
+        [ProtoMember(3)] public bool Published { get; set; }
 
         /// <summary>
         /// 

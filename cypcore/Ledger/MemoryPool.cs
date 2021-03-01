@@ -2,15 +2,14 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
 using Dawn;
 using Serilog;
 
-using CYPCore.Consensus.Blockmania;
 using CYPCore.Extentions;
-using CYPCore.Messages;
 using CYPCore.Models;
 using CYPCore.Persistence;
 using CYPCore.Serf;
@@ -27,7 +26,6 @@ namespace CYPCore.Ledger
     public interface IMemoryPool
     {
         Task<MemPoolProto> AddTransaction(MemPoolProto memPool);
-        Task Ready(byte[] hash);
     }
 
     /// <summary>
@@ -37,27 +35,22 @@ namespace CYPCore.Ledger
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly ISerfClient _serfClient;
-        private readonly IValidator _validator;
         private readonly ISigning _signing;
         private readonly IStaging _staging;
         private readonly ILocalNode _localNode;
+        private readonly IValidator _validator;
         private readonly ILogger _logger;
         private readonly BackgroundQueue _queue;
 
-        private Graph _graph;
-        private Config _config;
-
-        private LastInterpretedMessage _lastInterpretedMessage;
-
-        public MemoryPool(IUnitOfWork unitOfWork, ISerfClient serfClient, IValidator validator,
-            ISigning signing, IStaging staging, ILocalNode localNode, ILogger logger)
+        public MemoryPool(IUnitOfWork unitOfWork, ISerfClient serfClient,
+            ISigning signing, IStaging staging, ILocalNode localNode, IValidator validator, ILogger logger)
         {
             _unitOfWork = unitOfWork;
             _serfClient = serfClient;
-            _validator = validator;
             _signing = signing;
             _staging = staging;
             _localNode = localNode;
+            _validator = validator;
             _logger = logger.ForContext("SourceContext", nameof(MemoryPool));
 
             _queue = new BackgroundQueue();
@@ -79,18 +72,24 @@ namespace CYPCore.Ledger
 
                 if (!memExists && !delivered)
                 {
-                    var saved = await _unitOfWork.MemPoolRepository.PutAsync(memPool.ToIdentifier(), memPool);
-                    if (!saved)
+                    var pool = memPool;
+                    await Task.Run(async () =>
                     {
-                        _logger.Here().Error("Unable to save block {@Hash} for round {@Round} and node {@Node}",
-                            memPool.Block.Hash,
-                            memPool.Block.Round,
-                            memPool.Block.Node);
+                        var self = await SignOrVerifyThenSave(pool);
+                        if (self == null) return;
 
-                        return null;
-                    }
+                        var nextRound = false;
+                        nextRound |= pool.Block.Node != _serfClient.ClientId;
+                        if (nextRound)
+                        {
+                            self = await NextRoundThenSignOrVerifyThenSave(pool);
+                            if (self == null) return;
+                        }
 
-                    await _queue.QueueTask(() => Ready(memPool.Block.Hash.HexToByte()));
+                        await _staging.Ready(self);
+                        await Publish(self);
+
+                    }).ConfigureAwait(false);
                 }
                 else
                 {
@@ -114,233 +113,94 @@ namespace CYPCore.Ledger
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="hash"></param>
-        /// <returns></returns>
-        public async Task Ready(byte[] hash)
-        {
-            Guard.Argument(hash, nameof(hash)).NotNull().MaxCount(32);
-
-            var peers = await _localNode.GetPeers();
-            var totalNodes = peers.Count;
-
-            if (totalNodes < 4)
-            {
-                _logger.Here().Warning("Minimum number of nodes required: 4. Total number of nodes {@TotalNodes}", totalNodes);
-            }
-
-            if (totalNodes == 0)
-            {
-                _logger.Here().Warning("Total number of nodes: {@TotalNodes}", totalNodes);
-                totalNodes = 4;
-                _logger.Here().Warning("Setting default number of nodes: {@TotalNodes}", totalNodes);
-            }
-
-            await _signing.GetOrUpsertKeyName(_signing.DefaultSigningKeyName);
-
-            if (_graph == null)
-            {
-                var lastInterpreted = await LastInterpreted(hash);
-
-                _config = new Config(lastInterpreted, new ulong[totalNodes], _serfClient.ClientId, (ulong)totalNodes);
-
-                _graph = new Graph(_config);
-                _graph.BlockmaniaInterpreted += (sender, e) => BlockmaniaCallback(sender, e).SwallowException();
-            }
-
-            var memPools = await _unitOfWork.MemPoolRepository.WhereAsync(x =>
-                new ValueTask<bool>(x.Block.Hash.Equals(hash.ByteToHex()) && !x.Included && !x.Replied));
-
-            foreach (var memPool in memPools)
-            {
-                var self = await UpsertSelf(memPool);
-                if (self == null)
-                {
-                    _logger.Here().Error("Unable to set own block Hash: {@Hash} Round: {@Round} from node {@Node}",
-                        memPool.Block.Hash,
-                        memPool.Block.Round,
-                        memPool.Block.Node);
-
-                    continue;
-                }
-
-                await _staging.Ready(hash);
-                _ = await VerifySignatureAddToGraph(self);
-            }
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
         /// <param name="memPool"></param>
         /// <returns></returns>
-        private async Task<bool> VerifySignatureAddToGraph(MemPoolProto memPool)
+        private async Task Publish(MemPoolProto memPool)
         {
             Guard.Argument(memPool, nameof(memPool)).NotNull();
 
             try
             {
-                var staging = await _unitOfWork.StagingRepository.FirstAsync(x =>
-                    new ValueTask<bool>(x.Hash.Equals(memPool.Block.Hash) && x.Status == StagingState.Blockmainia));
+                var staging = await _unitOfWork.StagingRepository.LastAsync(x =>
+                    new ValueTask<bool>(x.Hash.Equals(memPool.Block.Hash)));
 
-                if (staging != null)
+                if (staging == null) return;
+
+                if (staging.Status != StagingState.Blockmania
+                    && staging.Status != StagingState.Running
+                    && staging.Status != StagingState.Delivered)
                 {
-                    var verified = await _validator.VerifyMemPoolSignatures(memPool);
-                    if (verified == false)
-                    {
-                        return false;
-                    }
-
-                    _graph.Add(staging.MemPoolProto.ToMemPool());
-
-                    staging.Status = StagingState.Running;
+                    staging.Status = StagingState.Pending;
 
                     var saved = await _unitOfWork.StagingRepository.PutAsync(staging.ToIdentifier(), staging);
                     if (!saved)
                     {
-                        _logger.Here().Warning("Unable to save staging with hash: {@Hash}", staging.Hash);
-                        staging = null;
+                        _logger.Here().Warning($"Unable to mark the staging state as Pending");
                     }
                 }
+
+                var peers = await _localNode.GetPeers();
+
+                Matrix(peers, staging, out var listMatrix);
+
+                var tasks = new List<Task>();
+                foreach (var matrix in listMatrix)
+                {
+                    foreach (var round in matrix.Sending)
+                    {
+                        var memPoolCheck =
+                            await _unitOfWork.MemPoolRepository.FirstAsync(x =>
+                                new ValueTask<bool>(x.Block.Hash.Equals(memPool.Block.Hash) &&
+                                                    x.Block.Node == _serfClient.ClientId &&
+                                                    x.Block.Round == (ulong)round));
+
+                        if (memPoolCheck == null) continue;
+
+                        tasks.Add(_localNode.Broadcast(Util.SerializeProto(memPool), new[] { matrix.Peer },
+                            TopicType.AddMemoryPool));
+                    }
+                }
+
+                await Task.WhenAll(tasks);
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, "Cannot verify signature");
+                _logger.Here().Error(ex, "Publishing error");
             }
-
-            return true;
         }
 
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="hash"></param>
-        /// <returns></returns>
-        private async Task<ulong> LastInterpreted(byte[] hash)
+        /// <param name="peers"></param>
+        /// <param name="staging"></param>
+        /// <param name="listMatrix"></param>
+        private static void Matrix(Dictionary<ulong, Peer> peers, IStagingProto staging, out List<BroadcastMatrix> listMatrix)
         {
-            Guard.Argument(hash, nameof(hash)).NotNull().MaxCount(32);
+            Guard.Argument(peers, nameof(peers)).NotNull();
+            Guard.Argument(staging, nameof(staging)).NotNull();
 
-            InterpretedProto interpreted = null;
+            listMatrix = new List<BroadcastMatrix>();
+            foreach (var bMatrix in peers.Select(peer => new BroadcastMatrix { Peer = peer.Value }))
+            {
+                bMatrix.Received = staging.MemPoolProtoList.SelectMany(x => x.Deps)
+                    .Where(x => x.Block.Node == bMatrix.Peer.ClientId)
+                    .Select(x => (int)x.Block.Round)
+                    .ToArray();
 
-            try
-            {
-                interpreted = await _unitOfWork.InterpretedRepository.LastAsync(x =>
-                    new ValueTask<bool>(x.Hash.Equals(hash.ByteToHex())));
-            }
-            catch (Exception ex)
-            {
-                _logger.Here().Warning(ex, "Cannot get element");
-            }
-            finally
-            {
-                _lastInterpretedMessage = interpreted switch
+                if (bMatrix.Received.Any() != true)
                 {
-                    null => new LastInterpretedMessage(0, null),
-                    _ => new LastInterpretedMessage(interpreted.Round, interpreted),
-                };
-            }
-
-            return _lastInterpretedMessage.Last > 0 ? _lastInterpretedMessage.Last - 1 : _lastInterpretedMessage.Last;
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="blockmaniaInterpreted"></param>
-        private async Task BlockmaniaCallback(object sender, Interpreted blockmaniaInterpreted)
-        {
-            Guard.Argument(blockmaniaInterpreted, nameof(blockmaniaInterpreted)).NotNull();
-
-            try
-            {
-                foreach (var next in blockmaniaInterpreted.Blocks)
-                {
-                    var hasSeen = await _unitOfWork.InterpretedRepository.FirstAsync(x =>
-                        new ValueTask<bool>(x.Hash.Equals(next.Hash)));
-
-                    if (hasSeen != null)
-                    {
-                        var staging = await _unitOfWork.StagingRepository.FirstAsync(x =>
-                            new ValueTask<bool>(x.Hash.Equals(next.Hash)));
-
-                        if (staging != null)
-                        {
-                            staging.Status = StagingState.Delivered;
-                            var savedStaging = await _unitOfWork.StagingRepository.PutAsync(staging.ToIdentifier(), staging);
-                            if (savedStaging)
-                            {
-                                _logger.Here().Information(
-                                    "Marked staging state as Delivered - Hash: {@Hash} Round: {@Round} from Node {@Node}",
-                                    next.Hash,
-                                    next.Round,
-                                    next.Node);
-                            }
-                            else
-                            {
-                                _logger.Here().Warning("Unable to mark the staging state as Delivered");
-                            }
-                        }
-                        else
-                        {
-                            _logger.Here().Error("Unable to find matching block - Hash: {@Hash} Round: {@Round} from node {@Node}",
-                                next.Hash,
-                                next.Round,
-                                next.Node);
-                        }
-
-                        continue;
-                    }
-
-                    var memPool = await _unitOfWork.MemPoolRepository.FirstAsync(x =>
-                        new ValueTask<bool>(
-                            x.Block.Hash.Equals(next.Hash) &&
-                            x.Block.Node == next.Node &&
-                            x.Block.Round == next.Round &&
-                            !string.IsNullOrEmpty(x.Block.PublicKey) &&
-                            !string.IsNullOrEmpty(x.Block.Signature)));
-
-                    if (memPool == null)
-                    {
-                        _logger.Here().Error("Unable to find matching block - Hash: {@Hash} Round: {@Round} from node {@Node}",
-                            next.Hash,
-                            next.Round,
-                            next.Node);
-
-                        continue;
-                    }
-
-                    var verified = await _validator.VerifyMemPoolSignatures(memPool);
-                    if (verified == false)
-                    {
-                        _logger.Here().Error("Unable to verify node signatures - Hash: {@Hash} Round: {@Round} from node {@Node}",
-                            next.Hash,
-                            next.Round,
-                            next.Node);
-
-                        continue;
-                    }
-
-                    var interpreted = InterpretedProto.CreateInstance();
-                    interpreted.Hash = memPool.Block.Hash;
-                    interpreted.InterpretedType = InterpretedType.Pending;
-                    interpreted.Node = memPool.Block.Node;
-                    interpreted.PreviousHash = memPool.Block.PreviousHash;
-                    interpreted.PublicKey = memPool.Block.PublicKey;
-                    interpreted.Round = memPool.Block.Round;
-                    interpreted.Signature = memPool.Block.Signature;
-                    interpreted.Transaction = memPool.Block.Transaction;
-
-                    var saved = await _unitOfWork.InterpretedRepository.PutAsync(interpreted.ToIdentifier(), interpreted);
-                    if (!saved)
-                    {
-                        _logger.Here().Error("Unable to save block for {@Node} and round {@Round}",
-                            interpreted.Node,
-                            interpreted.Round);
-                    }
+                    bMatrix.Received = new[] { 0 };
                 }
-            }
-            catch (Exception ex)
-            {
-                _logger.Here().Error(ex, "Blockmania error");
+
+                bMatrix.Sending = new int[bMatrix.Received.Length];
+
+                for (var i = 0; i < bMatrix.Received.Length; i++)
+                {
+                    bMatrix.Sending[i] = bMatrix.Received[i] + 1;
+                }
+
+                listMatrix.Add(bMatrix);
             }
         }
 
@@ -349,91 +209,73 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="memPool"></param>
         /// <returns></returns>
-        private async Task<MemPoolProto> UpsertSelf(MemPoolProto memPool)
+        private async Task<MemPoolProto> NextRoundThenSignOrVerifyThenSave(MemPoolProto memPool)
         {
             Guard.Argument(memPool, nameof(memPool)).NotNull();
 
-            MemPoolProto stored = null;
-
-            try
+            var series = Enumerable.Range(0, 2);
+            var stores = await Task.WhenAll(series.Select(async _ =>
             {
-                var copy = false;
-                copy |= memPool.Block.Node != _serfClient.ClientId;
+                var mem = memPool.Cast();
 
-                ulong round = 0, node = 0;
+                mem.Block.Round = await NextRound(mem.Block.Hash.HexToByte());
+                mem.Block.Node = _serfClient.ClientId;
+                mem.Deps = new List<DepProto>();
+                mem.Prev = InterpretedProto.CreateInstance();
 
-                switch (copy)
-                {
-                    case false:
-                        node = memPool.Block.Node;
-                        round = memPool.Block.Round;
-                        break;
-                    case true:
-                        round = await IncrementRound(memPool.Block.Hash.HexToByte());
-                        if (round == 0)
-                        {
-                            return null;
-                        }
-                        node = _serfClient.ClientId;
-                        break;
-                }
+                return await SignOrVerifyThenSave(mem);
+            }));
 
-                var prev = await _unitOfWork.MemPoolRepository.PreviousAsync(memPool.Block.Hash.HexToByte(), node, round);
-                if (prev != null)
-                {
-                    memPool.Block.PreviousHash = prev.Block.Hash;
-
-                    if (prev.Block.Round + 1 != memPool.Block.Round)
-                        memPool.Prev = prev.Block;
-                }
-
-                var signed = await Sign(node, round, memPool);
-                var saved = await _unitOfWork.MemPoolRepository.PutAsync(signed.ToIdentifier(), signed);
-                if (!saved)
-                {
-                    _logger.Here().Error("Unable to save block for {@Node} and round {@Round}",
-                        memPool.Block.Node,
-                        memPool.Block.Round);
-
-                    return null;
-                }
-
-                stored = signed;
-            }
-            catch (Exception ex)
-            {
-                _logger.Here().Error(ex, "Error while upserting");
-            }
-
-            return stored;
+            return stores.Last();
         }
 
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="node"></param>
-        /// <param name="round"></param>
         /// <param name="memPool"></param>
         /// <returns></returns>
-        private async Task<MemPoolProto> Sign(ulong node, ulong round, MemPoolProto memPool)
+        private async Task<MemPoolProto> SignOrVerifyThenSave(MemPoolProto memPool)
         {
-            Guard.Argument(node, nameof(node)).NotNegative();
-            Guard.Argument(round, nameof(round)).NotNegative();
             Guard.Argument(memPool, nameof(memPool)).NotNull();
 
-            var signature = await _signing.Sign(_signing.DefaultSigningKeyName, memPool.Block.Transaction.ToHash());
-            var pubKey = await _signing.GetPublicKey(_signing.DefaultSigningKeyName);
+            try
+            {
+                if (memPool.Block.Node == _serfClient.ClientId)
+                {
+                    await _signing.GetOrUpsertKeyName(_signing.DefaultSigningKeyName);
 
-            var signed = MemPoolProto.CreateInstance();
-            signed.Block = InterpretedProto.CreateInstance();
-            signed.Block.Hash = memPool.Block.Hash;
-            signed.Block.Node = node;
-            signed.Block.Round = round;
-            signed.Block.Transaction = memPool.Block.Transaction;
-            signed.Block.PublicKey = pubKey.ByteToHex();
-            signed.Block.Signature = signature.ByteToHex();
+                    var signature = await _signing.Sign(_signing.DefaultSigningKeyName, memPool.Block.Transaction.ToHash());
+                    var pubKey = await _signing.GetPublicKey(_signing.DefaultSigningKeyName);
 
-            return signed;
+                    memPool.Block.PublicKey = pubKey.ByteToHex();
+                    memPool.Block.Signature = signature.ByteToHex();
+                }
+                else
+                {
+                    var valid = await _validator.VerifyMemPoolSignature(memPool);
+                    if (!valid)
+                    {
+                        _logger.Here().Error("Unable to verify block for {@Node} and round {@Round}",
+                            memPool.Block.Node,
+                            memPool.Block.Round);
+
+                        return null;
+                    }
+                }
+
+                var saved = await _unitOfWork.MemPoolRepository.PutAsync(memPool.ToIdentifier(), memPool);
+                if (saved) return memPool;
+
+                _logger.Here().Error("Unable to save block for {@Node} and round {@Round}",
+                    memPool.Block.Node,
+                    memPool.Block.Round);
+            }
+            catch (Exception ex)
+            {
+                _logger.Here().Error(ex, "Unable to validate/sign and save");
+            }
+
+            return null;
         }
 
         /// <summary>
@@ -441,7 +283,7 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="hash"></param>
         /// <returns></returns>
-        private async Task<ulong> IncrementRound(byte[] hash)
+        private async Task<ulong> NextRound(byte[] hash)
         {
             Guard.Argument(hash, nameof(hash)).NotNull().MaxCount(32);
 
@@ -491,9 +333,8 @@ namespace CYPCore.Ledger
         {
             foreach (var vin in tx.Vin)
             {
-                var exists = await _unitOfWork.DeliveredRepository
-                    .FirstAsync(x =>
-                        new ValueTask<bool>(x.Transactions.Any(t => t.Vin.First().Key.K_Image.Xor(vin.Key.K_Image))));
+                var exists = await _unitOfWork.DeliveredRepository.FirstAsync(x =>
+                    new ValueTask<bool>(x.Transactions.Any(t => t.Vin.First().Key.K_Image.Xor(vin.Key.K_Image))));
 
                 if (exists != null)
                 {

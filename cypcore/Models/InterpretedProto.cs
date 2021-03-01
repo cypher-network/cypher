@@ -22,6 +22,8 @@ namespace CYPCore.Models
 
         string ToString();
         byte[] ToHash();
+        byte[] Stream();
+        T Cast<T>();
     }
 
     [ProtoContract]
@@ -32,7 +34,7 @@ namespace CYPCore.Models
             return new InterpretedProto();
         }
 
-        private const string hexUpper = "0123456789ABCDEF";
+        private const string HexUpper = "0123456789ABCDEF";
 
         [ProtoMember(1)]
         public string Hash { get; set; }
@@ -57,18 +59,15 @@ namespace CYPCore.Models
             v.Append(Node);
             v.Append(" | ");
             v.Append(Round);
-            if (!string.IsNullOrEmpty(Hash))
+            if (string.IsNullOrEmpty(Hash)) return v.ToString();
+            v.Append(" | ");
+            for (var i = 6; i < 12; i++)
             {
-                v.Append(" | ");
-                for (int i = 6; i < 12; i++)
-                {
-                    var c = Hash[i];
-                    v.Append(new char[] { hexUpper[c >> 4], hexUpper[c & 0x0f] });
-                }
+                var c = Hash[i];
+                v.Append(new char[] { HexUpper[c >> 4], HexUpper[c & 0x0f] });
             }
             return v.ToString();
         }
-
 
         /// <summary>
         /// 
@@ -95,57 +94,52 @@ namespace CYPCore.Models
         /// <returns></returns>
         public byte[] Stream()
         {
-            byte[] stream;
-            using (var ts = new Helper.TangramStream())
+            using var ts = new Helper.TangramStream();
+            ts
+                .Append(Hash)
+                .Append(Node)
+                .Append(PreviousHash ?? string.Empty)
+                .Append(Round)
+                .Append(PublicKey ?? string.Empty)
+                .Append(Signature ?? string.Empty)
+                .Append(Transaction.TxnId)
+                .Append(Transaction.Mix)
+                .Append(Transaction.Ver);
+
+            foreach (var bp in Transaction.Bp)
             {
-                ts
-                  .Append(Hash)
-                  .Append(Node)
-                  .Append(PreviousHash ?? string.Empty)
-                  .Append(Round)
-                  .Append(PublicKey ?? string.Empty)
-                  .Append(Signature ?? string.Empty)
-                  .Append(Transaction.TxnId)
-                  .Append(Transaction.Mix)
-                  .Append(Transaction.Ver);
-
-                foreach (var bp in Transaction.Bp)
-                {
-                    ts.Append(bp.Proof);
-                }
-
-                foreach (var vin in Transaction.Vin)
-                {
-                    ts.Append(vin.Key.K_Image);
-                    ts.Append(vin.Key.K_Offsets);
-                }
-
-                foreach (var vout in Transaction.Vout)
-                {
-                    ts
-                      .Append(vout.A)
-                      .Append(vout.C)
-                      .Append(vout.E)
-                      .Append(vout.L)
-                      .Append(vout.N)
-                      .Append(vout.P)
-                      .Append(vout.S ?? string.Empty)
-                      .Append(vout.T.ToString());
-                }
-
-                foreach (var rct in Transaction.Rct)
-                {
-                    ts
-                      .Append(rct.I)
-                      .Append(rct.M)
-                      .Append(rct.P)
-                      .Append(rct.S);
-                }
-
-                stream = ts.ToArray();
+                ts.Append(bp.Proof);
             }
 
-            return stream;
+            foreach (var vin in Transaction.Vin)
+            {
+                ts.Append(vin.Key.K_Image);
+                ts.Append(vin.Key.K_Offsets);
+            }
+
+            foreach (var vout in Transaction.Vout)
+            {
+                ts
+                    .Append(vout.A)
+                    .Append(vout.C)
+                    .Append(vout.E)
+                    .Append(vout.L)
+                    .Append(vout.N)
+                    .Append(vout.P)
+                    .Append(vout.S ?? string.Empty)
+                    .Append(vout.T.ToString());
+            }
+
+            foreach (var rct in Transaction.Rct)
+            {
+                ts
+                    .Append(rct.I)
+                    .Append(rct.M)
+                    .Append(rct.P)
+                    .Append(rct.S);
+            }
+
+            return ts.ToArray(); ;
         }
 
         /// <summary>

@@ -35,7 +35,7 @@ namespace CYPCore.Ledger
         byte[] Seed { get; }
         byte[] Security256 { get; }
 
-        Task<bool> VerifyMemPoolSignatures(MemPoolProto memPool);
+        Task<bool> VerifyMemPoolSignature(MemPoolProto memPool);
         bool VerifyBulletProof(TransactionProto transaction);
         bool VerifyCoinbaseTransaction(TransactionProto transaction, ulong solution);
         bool VerifySolution(byte[] vrfBytes, byte[] kernel, ulong solution);
@@ -53,7 +53,7 @@ namespace CYPCore.Ledger
         bool VerifyLockTime(LockTime target, string script);
         bool VerifyCommitSum(TransactionProto transaction);
         bool VerifyTransactionFee(TransactionProto transaction);
-        Task<bool> VerifyKimage(TransactionProto transaction);
+        Task<bool> VerifyKeyImage(TransactionProto transaction);
         Task<bool> VerifyVOutCommits(TransactionProto transaction);
         Task<double> GetRunningDistribution();
         ulong Fee(int nByte);
@@ -100,7 +100,7 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="memPool"></param>
         /// <returns></returns>
-        public Task<bool> VerifyMemPoolSignatures(MemPoolProto memPool)
+        public Task<bool> VerifyMemPoolSignature(MemPoolProto memPool)
         {
             Guard.Argument(memPool, nameof(memPool)).NotNull();
 
@@ -139,9 +139,9 @@ namespace CYPCore.Ledger
 
                     if (memPool.Prev.Round + 1 != memPool.Block.Round)
                     {
-                        _logger.Here().Error("Previous block round is invalid on block {@Round} from node {@Node}",
-                            memPool.Block.Round,
-                            memPool.Block.Node);
+                        _logger.Here()
+                            .Error("Previous block round is invalid on block {@Round} from node {@Node}",
+                                memPool.Block.Round, memPool.Block.Node);
 
                         return Task.FromResult(false);
                     }
@@ -232,6 +232,7 @@ namespace CYPCore.Ledger
 
                         var commitSumBalance = pedersen.CommitSum(new List<byte[]> { fee, payment, change },
                             new List<byte[]>());
+
                         if (!pedersen.VerifyCommitSum(new List<byte[]> { commitSumBalance },
                             new List<byte[]> { fee, payment, change }))
                             return false;
@@ -341,8 +342,8 @@ namespace CYPCore.Ledger
                 return false;
             }
 
-            if (blockHeader.MrklRoot.HexToByte().Xor(BlockZeroMerkel) &&
-                blockHeader.PrevMrklRoot.HexToByte().Xor(BlockZeroPreMerkel))
+            if (blockHeader.MerkelRoot.HexToByte().Xor(BlockZeroMerkel) &&
+                blockHeader.PrevMerkelRoot.HexToByte().Xor(BlockZeroPreMerkel))
                 _runningDistributionTotal -= blockHeader.Transactions.First().Vout.First().A.DivWithNaT();
 
             verified = VerifyCoinbaseTransaction(blockHeader.Transactions.First(), blockHeader.Solution);
@@ -373,8 +374,8 @@ namespace CYPCore.Ledger
                 return false;
             }
 
-            var merkel = blockHeader.MrklRoot.HexToByte();
-            blockHeader.MrklRoot = null;
+            var merkel = blockHeader.MerkelRoot.HexToByte();
+            blockHeader.MerkelRoot = null;
 
             var tempBlockHeader = _unitOfWork.DeliveredRepository.ToTrie(blockHeader);
             if (tempBlockHeader == null)
@@ -383,9 +384,9 @@ namespace CYPCore.Ledger
                 return false;
             }
 
-            blockHeader.MrklRoot = merkel.ByteToHex();
+            blockHeader.MerkelRoot = merkel.ByteToHex();
 
-            if (blockHeader.MrklRoot != _unitOfWork.DeliveredRepository.MerkleRoot.ByteToHex())
+            if (blockHeader.MerkelRoot != _unitOfWork.DeliveredRepository.MerkleRoot.ByteToHex())
             {
                 _logger.Here().Fatal("Could not verify the block header merkel");
                 return false;
@@ -401,12 +402,12 @@ namespace CYPCore.Ledger
                 return false;
             }
 
-            if (blockHeader.MrklRoot.HexToByte().Xor(BlockZeroMerkel) &&
-                blockHeader.PrevMrklRoot.HexToByte().Xor(BlockZeroPreMerkel))
+            if (blockHeader.MerkelRoot.HexToByte().Xor(BlockZeroMerkel) &&
+                blockHeader.PrevMerkelRoot.HexToByte().Xor(BlockZeroPreMerkel))
                 return true;
 
             var prevBlock = await _unitOfWork.DeliveredRepository.FirstAsync(x =>
-                new ValueTask<bool>(x.MrklRoot.Equals(blockHeader.PrevMrklRoot)));
+                new ValueTask<bool>(x.MerkelRoot.Equals(blockHeader.PrevMerkelRoot)));
 
             if (prevBlock == null)
             {
@@ -470,7 +471,7 @@ namespace CYPCore.Ledger
             var verifyVOutCommits = await VerifyVOutCommits(transaction);
             if (!verifyVOutCommits) return false;
 
-            var verifyKImage = await VerifyKimage(transaction);
+            var verifyKImage = await VerifyKeyImage(transaction);
             if (!verifyKImage) return false;
 
             using var mlsag = new MLSAG();
@@ -574,7 +575,7 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="transaction"></param>
         /// <returns></returns>
-        public async Task<bool> VerifyKimage(TransactionProto transaction)
+        public async Task<bool> VerifyKeyImage(TransactionProto transaction)
         {
             Guard.Argument(transaction, nameof(transaction)).NotNull();
 
@@ -791,15 +792,15 @@ namespace CYPCore.Ledger
                 var xBlockHeader = xChain.First();
                 var blockHeader = await _unitOfWork.DeliveredRepository.LastAsync();
 
-                if (blockHeader.MrklRoot.Equals(xBlockHeader.PrevMrklRoot)) return false;
+                if (blockHeader.MerkelRoot.Equals(xBlockHeader.PrevMerkelRoot)) return false;
 
                 blockHeader = await _unitOfWork.DeliveredRepository.FirstAsync(x =>
-                    new ValueTask<bool>(x.MrklRoot.Equals(xBlockHeader.PrevMrklRoot)));
+                    new ValueTask<bool>(x.MerkelRoot.Equals(xBlockHeader.PrevMerkelRoot)));
 
                 if (blockHeader == null) return false;
 
                 var blockIndex = (await _unitOfWork.DeliveredRepository.WhereAsync(x =>
-                    new ValueTask<bool>(x.MrklRoot != blockHeader.PrevMrklRoot))).Count;
+                    new ValueTask<bool>(x.MerkelRoot != blockHeader.PrevMerkelRoot))).Count;
 
                 var blockHeaders = await _unitOfWork.DeliveredRepository.SkipAsync(blockIndex);
 

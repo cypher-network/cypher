@@ -8,11 +8,7 @@ namespace CYPCore.Models
     [ProtoContract]
     public class DataProtectionKeyProto
     {
-        public int Id { get; set; }
-
-        [ProtoMember(1)]
-        public string FriendlyName { get; set; }
-        [ProtoMember(2)]
-        public string XmlData { get; set; }
+        [ProtoMember(1)] public string FriendlyName { get; set; }
+        [ProtoMember(2)] public string XmlData { get; set; }
     }
 }

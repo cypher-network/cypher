@@ -8,8 +8,7 @@ namespace CYPCore.Models
     [ProtoContract]
     public class VinProto
     {
-        [ProtoMember(1)]
-        public AuxProto Key { get; set; }
+        [ProtoMember(1)] public AuxProto Key { get; set; }
 
         /// <summary>
         /// 
@@ -22,17 +21,12 @@ namespace CYPCore.Models
 
         public byte[] Stream()
         {
-            byte[] stream;
-            using (var ts = new Helper.TangramStream())
-            {
-                ts
-                 .Append(Key.K_Image)
-                 .Append(Key.K_Offsets);
+            using var ts = new Helper.TangramStream();
+            ts
+                .Append(Key.K_Image)
+                .Append(Key.K_Offsets);
 
-                stream = ts.ToArray();
-            }
-
-            return stream;
+            return ts.ToArray(); ;
         }
     }
 }

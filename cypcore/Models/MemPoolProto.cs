@@ -4,7 +4,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using CYPCore.Consensus.Blockmania;
+using CYPCore.Consensus.Models;
 using Newtonsoft.Json;
 using ProtoBuf;
 using CYPCore.Extentions;
@@ -20,7 +20,7 @@ namespace CYPCore.Models
         bool Equals(object obj);
         bool Equals(MemPoolProto other);
         int GetHashCode();
-        BlockGraph ToMemPool();
+        BlockGraph ToBlockGraph();
         byte[] ToIdentifier();
     }
 
@@ -32,53 +32,40 @@ namespace CYPCore.Models
             return new MemPoolProto();
         }
 
-        [ProtoMember(1)] public bool Included { get; set; }
-        [ProtoMember(2)] public bool Replied { get; set; }
-        [ProtoMember(3)] public InterpretedProto Block { get; set; } = InterpretedProto.CreateInstance();
-        [ProtoMember(4)] public List<DepProto> Deps { get; set; } = new List<DepProto>();
-        [ProtoMember(5)] public InterpretedProto Prev { get; set; } = InterpretedProto.CreateInstance();
+        [ProtoMember(1)] public InterpretedProto Block { get; set; } = InterpretedProto.CreateInstance();
+        [ProtoMember(2)] public List<DepProto> Deps { get; set; } = new List<DepProto>();
+        [ProtoMember(3)] public InterpretedProto Prev { get; set; } = InterpretedProto.CreateInstance();
 
         /// <summary>
         /// 
         /// </summary>
         /// <returns></returns>
-        public BlockGraph ToMemPool()
+        public BlockGraph ToBlockGraph()
         {
-            BlockGraph blockGraph;
-
-            if (Prev == null)
-            {
-                blockGraph = new BlockGraph(
-                    new BlockID(Block.Hash, Block.Node, Block.Round, Block.Transaction));
-            }
-            else
-            {
-                blockGraph = new BlockGraph(
-                    new BlockID(Block.Hash, Block.Node, Block.Round, Block.Transaction),
-                    new BlockID(Prev.Hash, Prev.Node, Prev.Round, Prev.Transaction));
-            }
+            var blockGraph = Prev == null
+                ? new BlockGraph(new BlockId(Block.Hash, Block.Node, Block.Round, Block.Transaction))
+                : new BlockGraph(new BlockId(Block.Hash, Block.Node, Block.Round, Block.Transaction),
+                    new BlockId(Prev.Hash, Prev.Node, Prev.Round, Prev.Transaction));
 
             foreach (var dep in Deps)
             {
-                var deps = new List<BlockID>();
-                foreach (var d in dep.Deps)
-                {
-                    deps.Add(new BlockID(d.Hash, d.Node, d.Round, d.Transaction));
-                }
+                var dependencies = dep.Deps.Select(d => new BlockId(d.Hash, d.Node, d.Round, d.Transaction)).ToList();
 
-                if (dep.Prev == null)
+                if (dep.Prev != null)
                 {
                     blockGraph.Deps.Add(
                         new Dep(
-                            new BlockID(dep.Block.Hash, dep.Block.Node, dep.Block.Round, dep.Block.Transaction), deps)
+                            new BlockId(dep.Block.Hash, dep.Block.Node, dep.Block.Round, dep.Block.Transaction),
+                            dependencies,
+                            new BlockId(dep.Prev.Hash, dep.Prev.Node, dep.Prev.Round, dep.Prev.Transaction))
                     );
                 }
                 else
                 {
                     blockGraph.Deps.Add(
                         new Dep(
-                            new BlockID(dep.Block.Hash, dep.Block.Node, dep.Block.Round, dep.Block.Transaction), deps,
-                            new BlockID(dep.Prev.Hash, dep.Prev.Node, dep.Prev.Round, dep.Prev.Transaction))
+                            new BlockId(dep.Block.Hash, dep.Block.Node, dep.Block.Round, dep.Block.Transaction),
+                            dependencies)
                     );
                 }
             }
@@ -93,110 +80,6 @@ namespace CYPCore.Models
         public byte[] ToIdentifier()
         {
             return Block.ToHash().ByteToHex().ToBytes();
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="lookup"></param>
-        /// <param name="node"></param>
-        /// <returns></returns>
-        public static IEnumerable<MemPoolProto> NextBlockGraph(ILookup<string, MemPoolProto> lookup, ulong node)
-        {
-            if (lookup == null)
-                throw new ArgumentNullException(nameof(lookup));
-
-            if (node <= 0)
-                throw new ArgumentOutOfRangeException(nameof(node));
-
-            for (int i = 0, lookupCount = lookup.Count; i < lookupCount; i++)
-            {
-                var blockGraphs = lookup.ElementAt(i);
-                MemPoolProto root = null;
-
-                var sorted = CurrentNodeFirst(blockGraphs.ToList(), node);
-
-                foreach (var next in sorted)
-                {
-                    if (next.Block.Node.Equals(node))
-                    {
-                        root = NewBlockGraph(next);
-                    }
-                    else
-                    {
-                        AddDependency(root, next);
-                    }
-                }
-
-                if (root == null)
-                    continue;
-
-                yield return root;
-            }
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="blockGraphs"></param>
-        /// <param name="node"></param>
-        /// <returns></returns>
-        private static IEnumerable<MemPoolProto> CurrentNodeFirst(List<MemPoolProto> blockGraphs, ulong node)
-        {
-            // Not the best solution...
-            var list = new List<MemPoolProto>();
-            var nodeIndex = blockGraphs.FindIndex(x => x.Block.Node.Equals(node));
-
-            list.Add(blockGraphs[nodeIndex]);
-            blockGraphs.RemoveAt(nodeIndex);
-            list.AddRange(blockGraphs);
-
-            return list;
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="next"></param>
-        /// <returns></returns>
-        private static MemPoolProto NewBlockGraph(MemPoolProto next)
-        {
-            if (next == null)
-                throw new ArgumentNullException(nameof(next));
-
-            var graph = CreateInstance();
-            graph.Block = next.Block;
-            graph.Deps = next.Deps;
-            graph.Prev = next.Prev;
-            graph.Included = next.Included;
-            graph.Replied = next.Replied;
-            return graph;
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="root"></param>
-        /// <param name="next"></param>
-        public static void AddDependency(MemPoolProto root, MemPoolProto next)
-        {
-            if (root == null)
-                throw new ArgumentNullException(nameof(root));
-
-            if (next == null)
-                throw new ArgumentNullException(nameof(next));
-
-            if (root.Deps?.Any() != true)
-            {
-                root.Deps = new List<DepProto>();
-            }
-
-            root.Deps.Add(new DepProto
-            {
-                Block = next.Block,
-                Deps = next.Deps?.Select(d => d.Block).ToList(),
-                Prev = next.Prev ?? null
-            });
         }
 
         public static bool operator ==(MemPoolProto left, MemPoolProto right) => Equals(left, right);

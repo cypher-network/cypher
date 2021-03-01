@@ -7,6 +7,10 @@ using CYPCore.Models;
 
 namespace CYPCore.Persistence
 {
+    public interface IInterpretedRepository : IRepository<InterpretedProto>
+    {
+    }
+    
     public class InterpretedRepository : Repository<InterpretedProto>, IInterpretedRepository
     {
         public InterpretedRepository(IStoreDb storeDb, ILogger logger)

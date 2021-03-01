@@ -7,6 +7,18 @@ using Serilog;
 
 namespace CYPCore.Persistence
 {
+    public interface IUnitOfWork
+    {
+        IStoreDb StoreDb { get; }
+        IXmlRepository DataProtectionKeys { get; }
+        IDataProtectionRepository DataProtectionPayload { get; }
+        IInterpretedRepository InterpretedRepository { get; }
+        IMemPoolRepository MemPoolRepository { get; }
+        IStagingRepository StagingRepository { get; }
+        IDeliveredRepository DeliveredRepository { get; }
+        ISeenBlockHeaderRepository SeenBlockHeaderRepository { get; }
+    }
+
     public class UnitOfWork : IUnitOfWork
     {
         public IStoreDb StoreDb { get; }

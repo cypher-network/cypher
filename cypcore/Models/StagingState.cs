@@ -8,6 +8,8 @@ namespace CYPCore.Models
     /// </summary>
     public enum StagingState
     {
+        None,
+        Dequeued,
         Queued,
         Started,
         Running,
@@ -16,7 +18,7 @@ namespace CYPCore.Models
         Partial,
         Dialling,
         Answered,
-        Blockmainia,
+        Blockmania,
         Delivered
     }
 }

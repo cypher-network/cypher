@@ -146,13 +146,13 @@ namespace CYPCore.Ledger
                                         if (!saved)
                                         {
                                             _logger.Here().Error("Unable to save block header: {@MerkleRoot}",
-                                                blockHeader.MrklRoot);
+                                                blockHeader.MerkelRoot);
                                         }
                                     }
                                     catch (Exception ex)
                                     {
                                         _logger.Here().Error(ex, "Unable to save block header: {@MerkleRoot}",
-                                            blockHeader.MrklRoot);
+                                            blockHeader.MerkelRoot);
                                     }
                                 }
                             }

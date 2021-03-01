@@ -62,20 +62,13 @@ namespace CYPCore.Models
             return new TransactionProto();
         }
 
-        [ProtoMember(1)]
-        public byte[] TxnId { get; set; }
-        [ProtoMember(2)]
-        public BpProto[] Bp { get; set; }
-        [ProtoMember(3)]
-        public int Ver { get; set; }
-        [ProtoMember(4)]
-        public int Mix { get; set; }
-        [ProtoMember(5)]
-        public VinProto[] Vin { get; set; }
-        [ProtoMember(6)]
-        public VoutProto[] Vout { get; set; }
-        [ProtoMember(7)]
-        public RCTProto[] Rct { get; set; }
+        [ProtoMember(1)] public byte[] TxnId { get; set; }
+        [ProtoMember(2)] public BpProto[] Bp { get; set; }
+        [ProtoMember(3)] public int Ver { get; set; }
+        [ProtoMember(4)] public int Mix { get; set; }
+        [ProtoMember(5)] public VinProto[] Vin { get; set; }
+        [ProtoMember(6)] public VoutProto[] Vout { get; set; }
+        [ProtoMember(7)] public RCTProto[] Rct { get; set; }
 
         /// <summary>
         /// 
@@ -192,7 +185,7 @@ namespace CYPCore.Models
                         results.Add(new ValidationResult("Argument is null", new[] { "Vout.P" }));
                     }
 
-                    if (vo.P.Length != 33)
+                    if (vo.P != null && vo.P.Length != 33)
                     {
                         results.Add(new ValidationResult("Range exeption", new[] { "Vout.P" }));
                     }

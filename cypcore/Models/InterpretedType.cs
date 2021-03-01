@@ -5,6 +5,7 @@ namespace CYPCore.Models
 {
     public enum InterpretedType
     {
+        None,
         Pending,
         Processed
     }

@@ -10,7 +10,6 @@ using Dawn;
 using Serilog;
 
 using CYPCore.Extentions;
-using CYPCore.Helper;
 using CYPCore.Models;
 using CYPCore.Persistence;
 using CYPCore.Serf;
@@ -23,7 +22,7 @@ namespace CYPCore.Ledger
     /// </summary>
     public interface IStaging
     {
-        Task Ready(byte[] hash);
+        Task Ready(MemPoolProto memPool);
     }
 
     /// <summary>
@@ -47,89 +46,86 @@ namespace CYPCore.Ledger
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="hash"></param>
+        /// <param name="memPool"></param>
         /// <returns></returns>
-        public async Task Ready(byte[] hash)
+        public async Task Ready(MemPoolProto memPool)
         {
-            Guard.Argument(hash, nameof(hash)).NotNull().MaxCount(32);
+            Guard.Argument(memPool, nameof(memPool)).NotNull();
 
             try
             {
                 var memPools = await _unitOfWork.MemPoolRepository.WhereAsync(x =>
-                    new ValueTask<bool>(x.Block.Hash.Equals(hash.ByteToHex()) &&
-                                        !string.IsNullOrEmpty(x.Block.PublicKey) &&
-                                        !string.IsNullOrEmpty(x.Block.Signature) && !x.Included));
+                    new ValueTask<bool>(x.Block.Hash.Equals(memPool.Block.Hash)));
+
                 if (memPools.Any())
                 {
-                    var moreBlocks = await _unitOfWork.MemPoolRepository.HasMoreAsync(memPools.ToArray());
-                    var blockHashLookup = moreBlocks.ToLookup(i => i.Block.Hash);
+                    var memPoolList = new List<MemPoolProto>();
+                    var memPoolsGroupBy = memPools.GroupBy(n => n.Block.Node, m => m,
+                            (key, g) => new
+                            {
+                                Node = key,
+                                memPools = g.DistinctBy(d => d.Block.Round).OrderBy(r => r.Block.Round).ToList()
+                            })
+                        .ToList();
 
-                    blockHashLookup = blockHashLookup.Count switch
+                    var localMemPools = memPoolsGroupBy.Where(x => x.Node == _serfClient.ClientId).ToList();
+                    foreach (var localMem in localMemPools)
                     {
-                        0 => memPools.ToLookup(i => i.Block.Hash),
-                        _ => blockHashLookup
-                    };
+                        for (var j = 0; j < localMem.memPools.Count; j++)
+                        {
+                            var next = localMem.memPools[j];
 
-                    await _unitOfWork.MemPoolRepository.IncludeAsync(memPools.ToArray(), _serfClient.ClientId);
-                    var added = await AddOrUpdate(blockHashLookup);
-                    if (!added)
-                    {
-                        _logger.Here().Warning("Unable to publish hash: {@Hash}", hash);
-                        return;
+                            try
+                            {
+                                var previous = localMem.memPools[j - 1].Block;
+                                next.Prev = previous;
+                                next.Block.PreviousHash = previous.Hash;
+                            }
+                            catch (ArgumentOutOfRangeException)
+                            {
+                            }
+
+                            memPoolList.Add(next);
+                        }
                     }
 
-                    await Publish(hash);
+                    var remoteMemPools = memPoolsGroupBy.Where(x => x.Node != _serfClient.ClientId).ToList();
+                    foreach (var remoteMem in remoteMemPools)
+                    {
+                        foreach (var next in remoteMem.memPools)
+                        {
+                            var nextDependency = memPoolList
+                                .FirstOrDefault(x => x.Block.Round == next.Block.Round);
+
+                            var depProto = new DepProto
+                            {
+                                Block = next.Block,
+                                Deps = next.Deps.Select(x => new InterpretedProto()
+                                {
+                                    Hash = x.Block.Hash,
+                                    InterpretedType = x.Block.InterpretedType,
+                                    Node = x.Block.Node,
+                                    PreviousHash = x.Block.PreviousHash,
+                                    PublicKey = x.Block.PublicKey,
+                                    Round = x.Block.Round,
+                                    Signature = x.Block.Signature,
+                                    Transaction = x.Block.Transaction
+                                }).ToList(),
+                                Prev = next.Prev
+                            };
+
+                            if (nextDependency is not null) nextDependency.Deps = new List<DepProto>() { depProto };
+                        }
+                    }
+
+                    var list = memPoolList.ToArray();
+                    _ = await IncludeMany(list);
+                    _ = await AddOrUpdate(list, memPool.Block.Hash.HexToByte());
                 }
             }
             catch (Exception ex)
             {
                 _logger.Here().Error(ex, "Staging error");
-            }
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="hash"></param>
-        /// <returns></returns>
-        private async Task Publish(byte[] hash)
-        {
-            Guard.Argument(hash, nameof(hash)).NotNull().MaxCount(32);
-            MemPoolProto memPool;
-
-            try
-            {
-                memPool = await _unitOfWork.MemPoolRepository.LastAsync(x =>
-                    new ValueTask<bool>(x.Block.Hash.Equals(hash.ByteToHex()) &&
-                                        x.Block.InterpretedType == InterpretedType.Pending && x.Included));
-                if (memPool != null)
-                {
-                    var staging = await _unitOfWork.StagingRepository.LastAsync(x =>
-                        new ValueTask<bool>(x.Hash.Equals(memPool.Block.Hash)));
-
-                    if (staging != null)
-                    {
-                        if (staging.Status != StagingState.Blockmainia
-                            && staging.Status != StagingState.Running
-                            && staging.Status != StagingState.Delivered)
-                        {
-                            staging.Status = StagingState.Pending;
-                        }
-
-                        var saved = await _unitOfWork.StagingRepository.PutAsync(staging.ToIdentifier(), staging);
-                        if (!saved)
-                        {
-                            _logger.Here().Warning($"Unable to mark the staging state as Dialling");
-                            return;
-                        }
-
-                        await _localNode.Broadcast(Helper.Util.SerializeProto(memPool), TopicType.AddMemoryPool);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.Here().Error(ex, "Publishing error");
             }
         }
 
@@ -152,8 +148,8 @@ namespace CYPCore.Ledger
                 staging = StagingProto.CreateInstance();
                 staging.Epoch = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                 staging.Hash = next.Block.Hash;
-                staging.MemPoolProto = next;
-                staging.ExpectedTotalNodes = 4;
+                staging.MemPoolProtoList = new List<MemPoolProto> { next };
+                staging.ExpectedTotalNodes = 4; // TODO: Should change in future when more rules apply.
                 staging.Node = _serfClient.ClientId;
                 staging.TotalNodes = nodeCount;
                 staging.Status = StagingState.Started;
@@ -205,7 +201,7 @@ namespace CYPCore.Ledger
         {
             Guard.Argument(stage, nameof(stage)).NotNull();
 
-            if (stage.Status == StagingState.Blockmainia || stage.Status == StagingState.Running)
+            if (stage.Status == StagingState.Blockmania || stage.Status == StagingState.Running)
             {
                 stage.WaitingOn.Clear();
             }
@@ -233,13 +229,10 @@ namespace CYPCore.Ledger
 
                     await AddWaitingOnRange(staging);
 
-                    if (!staging.MemPoolProto.Equals(next))
-                    {
-                        staging.Status = Incoming(staging, next);
-                        ClearWaitingOn(staging);
-                    }
+                    staging.Status = Incoming(staging, next);
+                    staging.MemPoolProtoList.Add(next);
 
-                    staging.MemPoolProto = next;
+                    ClearWaitingOn(staging);
 
                     var saved = await _unitOfWork.StagingRepository.PutAsync(staging.ToIdentifier(), staging);
                     if (!saved)
@@ -275,46 +268,72 @@ namespace CYPCore.Ledger
                 var nodes = staging.Nodes?.Except(next.Deps.Select(x => x.Block.Node)).ToList();
                 if (nodes.Any() != true)
                 {
-                    return StagingState.Blockmainia;
+                    return StagingState.Blockmania;
                 }
             }
 
             if (!staging.WaitingOn.Any()) return staging.Status;
 
             var waitingOn = staging.WaitingOn?.Except(next.Deps.Select(x => x.Block.Node));
-            return waitingOn.Any() != true ? StagingState.Blockmainia : staging.Status;
+            return waitingOn.Any() != true ? StagingState.Blockmania : staging.Status;
         }
 
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="blockHashLookup"></param>
+        /// <param name="memPools"></param>
+        /// <param name="hash"></param>
         /// <returns></returns>
-        private async Task<bool> AddOrUpdate(ILookup<string, MemPoolProto> blockHashLookup)
+        private async Task<bool> AddOrUpdate(MemPoolProto[] memPools, byte[] hash)
         {
-            Guard.Argument(blockHashLookup, nameof(blockHashLookup)).NotNull();
+            Guard.Argument(memPools, nameof(memPools)).NotNull().NotEmpty();
+            Guard.Argument(hash, nameof(hash)).NotNull().MaxCount(32);
+
             StagingProto staging = null;
 
             try
             {
-                foreach (var next in MemPoolProto.NextBlockGraph(blockHashLookup, _serfClient.ClientId))
+                foreach (var memPool in memPools)
                 {
-                    staging = await _unitOfWork.StagingRepository.FirstAsync(x => new(x.Hash.Equals(next.Block.Hash)));
-                    if (staging != null)
-                    {
-                        staging = await Existing(next);
-                        continue;
-                    }
+                    staging = await _unitOfWork.StagingRepository.LastAsync(x =>
+                        new ValueTask<bool>(x.Hash.Equals(hash.ByteToHex())));
 
-                    staging = await Add(next);
+                    staging = staging != null ? await Existing(memPool) : await Add(memPool);
                 }
             }
             catch (Exception ex)
             {
+                staging = null;
                 _logger.Here().Error(ex, "Cannot add to staging");
             }
 
             return staging != null;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="memPools"></param>
+        /// <returns></returns>
+        private async Task<bool> IncludeMany(MemPoolProto[] memPools)
+        {
+            Guard.Argument(memPools, nameof(memPools)).NotNull().NotEmpty();
+
+            var included = false;
+
+            try
+            {
+                foreach (var next in memPools.Where(x => x.Block.Node == _serfClient.ClientId))
+                {
+                    included = await _unitOfWork.MemPoolRepository.PutAsync(next.ToIdentifier(), next);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Here().Error(ex, "Error while adding to memory pool");
+            }
+
+            return included;
         }
     }
 }
