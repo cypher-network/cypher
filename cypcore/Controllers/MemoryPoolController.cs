@@ -3,6 +3,7 @@
 
 using System;
 using System.Linq;
+using System.Net.Mime;
 using System.Threading.Tasks;
 using CYPCore.Extensions;
 using CYPCore.Models;
@@ -31,15 +32,14 @@ namespace CYPCore.Controllers
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="pool"></param>
+        /// <param name="memPool"></param>
         /// <returns></returns>
         [HttpPost(Name = "AddMemoryPool")]
         [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> AddMemoryPool([FromBody] byte[] pool)
+        public async Task<IActionResult> AddMemoryPool([FromBody] MemPoolProto memPool)
         {
-            var payload = Helper.Util.DeserializeProto<MemPoolProto>(pool);
-            var added = await _memoryPoolService.AddMemoryPool(payload);
+            var added = await _memoryPoolService.AddMemoryPool(memPool);
 
             return new ObjectResult(new { code = added ? StatusCodes.Status200OK : StatusCodes.Status500InternalServerError });
         }
@@ -52,10 +52,9 @@ namespace CYPCore.Controllers
         [HttpPost("pools", Name = "AddMemoryPools")]
         [ProducesResponseType(typeof(int), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> AddMemoryPools([FromBody] byte[] pools)
+        public async Task<IActionResult> AddMemoryPools([FromBody] MemPoolProto[] pools)
         {
-            var payloads = Helper.Util.DeserializeListProto<MemPoolProto>(pools).ToArray();
-            await _memoryPoolService.AddMemoryPools(payloads);
+            await _memoryPoolService.AddMemoryPools(pools);
 
             return new OkResult();
         }
@@ -63,17 +62,16 @@ namespace CYPCore.Controllers
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="tx"></param>
+        /// <param name="transaction"></param>
         /// <returns></returns>
         [HttpPost("transaction", Name = "AddTransaction")]
         [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> AddTransaction([FromBody] byte[] tx)
+        public async Task<IActionResult> AddTransaction([FromBody] TransactionProto transaction)
         {
             try
             {
-                var payload = Helper.Util.DeserializeProto<TransactionProto>(tx);
-                var added = await _memoryPoolService.AddTransaction(payload);
+                var added = await _memoryPoolService.AddTransaction(transaction);
 
                 return new ObjectResult(new { code = added ? StatusCodes.Status200OK : StatusCodes.Status500InternalServerError });
             }
