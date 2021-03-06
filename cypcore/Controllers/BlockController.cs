@@ -12,7 +12,6 @@ using Serilog;
 using CYPCore.Services;
 using CYPCore.Extentions;
 using CYPCore.Models;
-using Org.BouncyCastle.Crypto.Tls;
 
 namespace CYPCore.Controllers
 {

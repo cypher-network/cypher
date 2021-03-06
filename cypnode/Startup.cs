@@ -1,9 +1,6 @@
 // CYPNode by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
@@ -17,8 +14,6 @@ using Autofac;
 using CYPNode.StartupExtensions;
 using CYPCore.Consensus;
 using CYPCore.Extensions;
-using CYPCore.Extentions;
-using CYPCore.Models;
 using Microsoft.Net.Http.Headers;
 using WebApiContrib.Core.Formatter.Protobuf;
 

@@ -2,8 +2,6 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
-using System.Linq;
-using System.Net.Mime;
 using System.Threading.Tasks;
 using CYPCore.Extensions;
 using CYPCore.Models;
