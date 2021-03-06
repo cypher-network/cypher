@@ -23,8 +23,8 @@ namespace CYPCore.Services
     /// </summary>
     public interface IBlockService
     {
-        Task<bool> AddBlock(byte[] payload);
-        Task AddBlocks(byte[] payloads);
+        Task<bool> AddBlock(PayloadProto block);
+        Task AddBlocks(PayloadProto[] blocks);
         Task<byte[]> GetVout(byte[] txnId);
         Task<IEnumerable<BlockHeaderProto>> GetBlockHeaders(int skip, int take);
         Task<IEnumerable<BlockHeaderProto>> GetSafeguardBlocks();
@@ -164,20 +164,16 @@ namespace CYPCore.Services
         /// </summary>
         /// <param name="payload"></param>
         /// <returns></returns>
-        public async Task<bool> AddBlock(byte[] payload)
+        public async Task<bool> AddBlock(PayloadProto block)
         {
             bool processed = false;
 
             try
             {
-                var payloadProto = Helper.Util.DeserializeProto<PayloadProto>(payload);
-                if (payloadProto != null)
+                processed = await Process(block);
+                if (!processed)
                 {
-                    processed = await Process(payloadProto);
-                    if (!processed)
-                    {
-                        _logger.Here().Error("Unable to process the block header");
-                    }
+                    _logger.Here().Error("Unable to process the block header");
                 }
             }
             catch (Exception ex)
@@ -193,16 +189,15 @@ namespace CYPCore.Services
         /// </summary>
         /// <param name="payloads"></param>
         /// <returns></returns>
-        public async Task AddBlocks(byte[] payloads)
+        public async Task AddBlocks(PayloadProto[] blocks)
         {
             try
             {
-                var payloadProtos = Helper.Util.DeserializeListProto<PayloadProto>(payloads).ToList();
-                if (payloadProtos.Any())
+                if (blocks.Any())
                 {
-                    foreach (var payload in payloadProtos)
+                    foreach (var block in blocks)
                     {
-                        var processed = await Process(payload);
+                        var processed = await Process(block);
                         if (!processed)
                         {
                             _logger.Here().Error("Unable to process the block header");

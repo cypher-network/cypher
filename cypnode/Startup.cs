@@ -1,9 +1,6 @@
 // CYPNode by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
@@ -17,8 +14,8 @@ using Autofac;
 using CYPNode.StartupExtensions;
 using CYPCore.Consensus;
 using CYPCore.Extensions;
-using CYPCore.Extentions;
-using CYPCore.Models;
+using Microsoft.Net.Http.Headers;
+using WebApiContrib.Core.Formatter.Protobuf;
 
 namespace CYPNode
 {
@@ -44,8 +41,20 @@ namespace CYPNode
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddResponseCompression();
-            services.AddMvc(option => option.EnableEndpointRouting = false).SetCompatibilityVersion(CompatibilityVersion.Version_3_0);
-            services.AddControllers();
+
+            services.AddMvc(options =>
+            {
+                options.EnableEndpointRouting = false;
+                options.InputFormatters.Clear();
+            }).SetCompatibilityVersion(CompatibilityVersion.Version_3_0);
+
+            services.AddControllers(options =>
+            {
+                options.FormatterMappings
+                    .SetMediaTypeMappingForFormat("protobuf",
+                        MediaTypeHeaderValue.Parse("application/x-protobuf"));
+            }).AddProtobufFormatters();
+
             services.AddSwaggerGenOptions();
             services.AddHttpContextAccessor();
             services.AddOptions();

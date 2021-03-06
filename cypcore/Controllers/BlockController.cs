@@ -11,6 +11,7 @@ using Serilog;
 
 using CYPCore.Services;
 using CYPCore.Extentions;
+using CYPCore.Models;
 
 namespace CYPCore.Controllers
 {
@@ -30,28 +31,28 @@ namespace CYPCore.Controllers
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="payload"></param>
+        /// <param name="block"></param>
         /// <returns></returns>
         [HttpPost("block", Name = "AddBlock")]
         [ProducesResponseType(typeof(byte[]), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> AddBlock([FromBody] byte[] payload)
+        public async Task<IActionResult> AddBlock([FromBody] PayloadProto block)
         {
-            var added = await _blockService.AddBlock(payload);
+            var added = await _blockService.AddBlock(block);
             return new ObjectResult(new { code = added == true ? StatusCodes.Status200OK : StatusCodes.Status500InternalServerError });
         }
 
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="payloads"></param>
+        /// <param name="blocks"></param>
         /// <returns></returns>
         [HttpPost("blocks", Name = "AddBlocks")]
         [ProducesResponseType(typeof(byte[]), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> AddBlocks([FromBody] byte[] payloads)
+        public async Task<IActionResult> AddBlocks([FromBody] PayloadProto[] blocks)
         {
-            await _blockService.AddBlocks(payloads);
+            await _blockService.AddBlocks(blocks);
             return new OkResult();
         }
 
