@@ -30,8 +30,8 @@ Test suite configuration
   *** Test Cases ***
   Start and stop cypnode
     [Documentation]  cypnode starts, is interrupted and logs no fatal errors
-    Copy File   smoke/resources/process_start_cypnode.appsettings.json  appsettings.json
-    ${cypnode_handle} =  Start Process  ${cypnode}  stdout=stdout.txt  stderr=stderr.txt
+    Copy File   ${appsettings.default.json}  appsettings.json
+    ${cypnode_handle} =  Start Process  ${cypnode_path}/cypnode  stdout=stdout.txt  stderr=stderr.txt
     Sleep  10s
     Process Should Be Running  ${cypnode_handle}
     Send Signal To Process  SIGINT  ${cypnode_handle}
@@ -41,6 +41,6 @@ Test suite configuration
   Start cypnode without appsettings.json
     [Documentation]  cypnode without appsettings.json terminates itself with error code
     Remove File  appsettings.json
-    ${cypnode_handle} =  Start Process  ${cypnode}  stdout=stdout.txt  stderr=stderr.txt
+    ${cypnode_handle} =  Start Process  ${cypnode_path}/cypnode  stdout=stdout.txt  stderr=stderr.txt
     ${cypnode_result} =  Wait For Process  ${cypnode_handle}
     Should Not Be Equal As Integers  ${cypnode_result.rc}  0
