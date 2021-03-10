@@ -123,7 +123,7 @@ namespace CYPCore.Helper
                     _logger.Here().Information("Operation cancelled");
                     throw new OperationCanceledException();
                 }
-                catch (ObjectDisposedException) when (cancellationToken.IsCancellationRequested)
+                catch (ObjectDisposedException ex) when (cancellationToken.IsCancellationRequested)
                 {
                     _logger.Here().Information(ex, "Operation cancelled");
                     throw new OperationCanceledException();

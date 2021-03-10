@@ -3,7 +3,6 @@
 
 using System;
 using System.Linq;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using CYPCore.Consensus.Models;
 using CYPCore.Extensions;
@@ -38,11 +37,11 @@ namespace CYPCore.Controllers
         [HttpPost("block", Name = "AddBlock")]
         [ProducesResponseType(typeof(byte[]), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> AddBlock([FromBody] PayloadProto block)
+        public async Task<IActionResult> AddBlock([FromBody] byte[] block)
         {
             try
             {
-                var blockHeader = FlatBufferSerializer.Default.Parse<BlockHeaderProto>(payload);
+                var blockHeader = FlatBufferSerializer.Default.Parse<BlockHeaderProto>(block);
                 var added = await _graph.AddBlock(blockHeader);
 
                 return new ObjectResult(new { code = added == VerifyResult.Succeed ? StatusCodes.Status200OK : StatusCodes.Status500InternalServerError });
@@ -83,16 +82,16 @@ namespace CYPCore.Controllers
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="payloads"></param>
+        /// <param name="blocks"></param>
         /// <returns></returns>
         [HttpPost("blocks", Name = "AddBlocks")]
         [ProducesResponseType(typeof(byte[]), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> AddBlocks([FromBody] byte[] payload)
+        public async Task<IActionResult> AddBlocks([FromBody] byte[] blocks)
         {
             try
             {
-                var blockHeaders = FlatBufferSerializer.Default.Parse<BlockHeaderProto[]>(payload);
+                var blockHeaders = FlatBufferSerializer.Default.Parse<BlockHeaderProto[]>(blocks);
                 await _graph.AddBlocks(blockHeaders);
 
                 return new OkResult();
@@ -189,16 +188,16 @@ namespace CYPCore.Controllers
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="txnid"></param>
+        /// <param name="id"></param>
         /// <returns></returns>
-        [HttpGet("vout/{txnid}", Name = "GetVout")]
+        [HttpGet("transaction/{id}", Name = "GetTransaction")]
         [ProducesResponseType(typeof(byte[]), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> GetVout(string txnid)
+        public async Task<IActionResult> GetTransaction(string id)
         {
             try
             {
-                var tx = await _graph.GetTransaction(txnid.HexToByte());
+                var tx = await _graph.GetTransaction(id.HexToByte());
                 return new ObjectResult(new { protobufs = tx });
             }
             catch (Exception ex)
