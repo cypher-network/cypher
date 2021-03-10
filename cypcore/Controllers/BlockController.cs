@@ -33,12 +33,12 @@ namespace CYPCore.Controllers
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="payload"></param>
+        /// <param name="block"></param>
         /// <returns></returns>
         [HttpPost("block", Name = "AddBlock")]
         [ProducesResponseType(typeof(byte[]), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> AddBlock([FromBody] byte[] payload)
+        public async Task<IActionResult> AddBlock([FromBody] PayloadProto block)
         {
             try
             {

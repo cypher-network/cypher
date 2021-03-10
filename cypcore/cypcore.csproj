@@ -47,6 +47,8 @@
     <PackageReference Include="RocksDbNative" Version="6.2.2" />
     <PackageReference Include="RockDb.Native" Version="6.12.1" />
     <PackageReference Include="System.Linq.Async" Version="5.0.0" />
+    <PackageReference Include="System.Reactive" Version="5.0.0" />
+    <PackageReference Include="WebApiContrib.Core.Formatter.Protobuf" Version="3.0.0" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Consensus\" />
