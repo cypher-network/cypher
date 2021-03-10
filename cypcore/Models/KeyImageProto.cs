@@ -5,13 +5,10 @@ using FlatSharp.Attributes;
 
 namespace CYPCore.Models
 {
-    [FlatBufferEnum(typeof(sbyte))]
-    public enum CoinType : sbyte
+    [FlatBufferTable]
+    public class KeyImageProto : object
     {
-        Coin,
-        Coinbase,
-        Coinstake,
-        fee,
-        Genesis
+        [FlatBufferItem(0)] public virtual byte[] Image { get; set; }
+        [FlatBufferItem(1)] public virtual byte[] Offsets { get; set; }
     }
 }

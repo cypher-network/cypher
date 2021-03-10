@@ -4,6 +4,7 @@
 using Microsoft.AspNetCore.DataProtection.Repositories;
 
 using Serilog;
+using Serilog.Core;
 
 namespace CYPCore.Persistence
 {
@@ -12,11 +13,11 @@ namespace CYPCore.Persistence
         IStoreDb StoreDb { get; }
         IXmlRepository DataProtectionKeys { get; }
         IDataProtectionRepository DataProtectionPayload { get; }
-        IInterpretedRepository InterpretedRepository { get; }
-        IMemPoolRepository MemPoolRepository { get; }
         IStagingRepository StagingRepository { get; }
         IDeliveredRepository DeliveredRepository { get; }
-        ISeenBlockHeaderRepository SeenBlockHeaderRepository { get; }
+        ITransactionRepository TransactionRepository { get; }
+        IBlockGraphRepository BlockGraphRepository { get; }
+        IKeyImageRepository KeyImageRepository { get; }
     }
 
     public class UnitOfWork : IUnitOfWork
@@ -25,11 +26,11 @@ namespace CYPCore.Persistence
 
         public IXmlRepository DataProtectionKeys { get; }
         public IDataProtectionRepository DataProtectionPayload { get; }
-        public IInterpretedRepository InterpretedRepository { get; }
-        public IMemPoolRepository MemPoolRepository { get; }
         public IStagingRepository StagingRepository { get; }
         public IDeliveredRepository DeliveredRepository { get; }
-        public ISeenBlockHeaderRepository SeenBlockHeaderRepository { get; }
+        public ITransactionRepository TransactionRepository { get; }
+        public IBlockGraphRepository BlockGraphRepository { get; }
+        public IKeyImageRepository KeyImageRepository { get; }
 
         private readonly ILogger _logger;
 
@@ -41,10 +42,10 @@ namespace CYPCore.Persistence
 
             DataProtectionPayload = new DataProtectionRepository(StoreDb, logger);
             DeliveredRepository = new DeliveredRepository(StoreDb, logger);
-            InterpretedRepository = new InterpretedRepository(StoreDb, logger);
-            MemPoolRepository = new MemPoolRepository(StoreDb, logger);
             StagingRepository = new StagingRepository(StoreDb, logger);
-            SeenBlockHeaderRepository = new SeenBlockHeaderRepository(StoreDb, logger);
+            TransactionRepository = new TransactionRepository(StoreDb, logger);
+            BlockGraphRepository = new BlockGraphRepository(StoreDb, logger);
+            KeyImageRepository = new KeyImageRepository(StoreDb, logger);
         }
     }
 }

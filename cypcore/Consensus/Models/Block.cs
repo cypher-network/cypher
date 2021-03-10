@@ -3,40 +3,42 @@
 
 using System;
 using System.Text;
+using FlatSharp.Attributes;
 
 namespace CYPCore.Consensus.Models
 {
-    public class BlockId : IEquatable<BlockId>
+    [FlatBufferTable]
+    public class Block : object, IEquatable<Block>
     {
         private const string HexUpper = "0123456789ABCDEF";
 
-        public string Hash { get; }
-        public ulong Node { get; }
-        public ulong Round { get; }
-        public object Data { get; }
+        [FlatBufferItem(0)] public virtual string Hash { get; set; }
+        [FlatBufferItem(1)] public virtual ulong Node { get; set; }
+        [FlatBufferItem(2)] public virtual ulong Round { get; set; }
+        [FlatBufferItem(3)] public virtual byte[] Data { get; set; }
 
-        public BlockId()
+        public Block()
         {
             Hash = string.Empty;
             Node = 0;
             Round = 0;
         }
 
-        public BlockId(string hash)
+        public Block(string hash)
         {
             Hash = hash;
             Node = 0;
             Round = 0;
         }
 
-        public BlockId(string hash, ulong node, ulong round)
+        public Block(string hash, ulong node, ulong round)
         {
             Hash = hash;
             Node = node;
             Round = round;
         }
 
-        public BlockId(string hash, ulong node, ulong round, object data)
+        public Block(string hash, ulong node, ulong round, byte[] data)
         {
             Hash = hash;
             Node = node;
@@ -53,20 +55,18 @@ namespace CYPCore.Consensus.Models
             v.Append(" | ");
             v.Append(Round);
 
-            if (!string.IsNullOrEmpty(Hash))
+            if (string.IsNullOrEmpty(Hash)) return v.ToString();
+            v.Append(" | ");
+            for (var i = 6; i < 12; i++)
             {
-                v.Append(" | ");
-                for (int i = 6; i < 12; i++)
-                {
-                    var c = Hash[i];
-                    v.Append(new char[] { HexUpper[c >> 4], HexUpper[c & 0x0f] });
-                }
+                var c = Hash[i];
+                v.Append(new char[] { HexUpper[c >> 4], HexUpper[c & 0x0f] });
             }
 
             return v.ToString();
         }
 
-        public bool Equals(BlockId blockId)
+        public bool Equals(Block blockId)
         {
             return blockId != null
                    && blockId.Node == Node
@@ -81,7 +81,7 @@ namespace CYPCore.Consensus.Models
 
         public override bool Equals(object obj)
         {
-            return Equals(obj as BlockId);
+            return Equals(obj as Block);
         }
     }
 }

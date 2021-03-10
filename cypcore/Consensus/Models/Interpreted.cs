@@ -2,16 +2,18 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System.Collections.Generic;
+using FlatSharp.Attributes;
 
 namespace CYPCore.Consensus.Models
 {
+    [FlatBufferTable]
     public class Interpreted
     {
-        public List<BlockId> Blocks { get; }
-        public ulong Consumed { get; }
-        public ulong Round { get; }
+        [FlatBufferItem(0)] public virtual IList<Block> Blocks { get; set; } = new List<Block>();
+        [FlatBufferItem(1)] public virtual ulong Consumed { get; set; }
+        [FlatBufferItem(2)] public virtual ulong Round { get; set; }
 
-        public Interpreted(List<BlockId> blocks, ulong consumed, ulong round)
+        public Interpreted(IList<Block> blocks, ulong consumed, ulong round)
         {
             Blocks = blocks;
             Consumed = consumed;

@@ -56,7 +56,7 @@ namespace CYPCore.Services
                 {
                     stoppingToken.ThrowIfCancellationRequested();
 
-                    await _posMinting.RunStakingBlockAsync();
+                    await _posMinting.RunBlockStakingAsync();
 
                     if (_applicationRunning)
                     {

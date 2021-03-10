@@ -96,7 +96,7 @@ namespace CYPCore.Services
 
                 var pubKey = await _signing.GetPublicKey(_signing.DefaultSigningKeyName);
 
-                _serfClient.Name = $"{_serfClient.SerfConfigurationOptions.NodeName}-{Helper.Util.SHA384ManagedHash(pubKey).ByteToHex().Substring(0, 16)}";
+                _serfClient.Name = $"{_serfClient.SerfConfigurationOptions.NodeName}-{Helper.Util.Sha384ManagedHash(pubKey).ByteToHex().Substring(0, 16)}";
 
                 var serfPath = GetFilePath();
 

@@ -6,11 +6,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-
 using CYPCore.Extensions;
 using Serilog;
-
 using CYPCore.Extentions;
+using FlatSharp;
+using RocksDbSharp;
 
 namespace CYPCore.Persistence
 {
@@ -18,13 +18,12 @@ namespace CYPCore.Persistence
     {
         Task<long> CountAsync();
         Task<T> GetAsync(byte[] key);
-        Task<T> FirstAsync(Func<T, ValueTask<bool>> expression);
+        Task<T> GetAsync(Func<T, ValueTask<bool>> expression);
         void SetTableName(string tableName);
         Task<bool> PutAsync(byte[] key, T data);
-        Task<HashSet<T>> RangeAsync(long skip, int take);
+        Task<IList<T>> RangeAsync(long skip, int take);
         Task<T> LastAsync();
         ValueTask<List<T>> WhereAsync(Func<T, ValueTask<bool>> expression);
-        Task<T> LastAsync(Func<T, ValueTask<bool>> expression);
         Task<T> FirstAsync();
         ValueTask<List<T>> SelectAsync(Func<T, ValueTask<T>> selector);
         ValueTask<List<T>> SkipAsync(int skip);
@@ -32,11 +31,13 @@ namespace CYPCore.Persistence
         Task<bool> RemoveAsync(byte[] key);
     }
 
-    public class Repository<T> : IRepository<T>
+    public class Repository<T> : IRepository<T> where T : class
     {
         private readonly IStoreDb _storeDb;
         private readonly ILogger _logger;
         private readonly object _locker = new();
+        private readonly ReadOptions _readOptions;
+        private readonly ReaderWriterLockSlim _sync = new();
 
         private string _tableName;
 
@@ -44,6 +45,11 @@ namespace CYPCore.Persistence
         {
             _storeDb = storeDb;
             _logger = logger.ForContext("SourceContext", nameof(Repository<T>));
+
+            _readOptions = new ReadOptions();
+            _readOptions
+                .SetPrefixSameAsStart(true)
+                .SetVerifyChecksums(false);
         }
 
         public Task<long> CountAsync()
@@ -52,12 +58,10 @@ namespace CYPCore.Persistence
 
             try
             {
-                lock (_locker)
+                using (_sync.Read())
                 {
                     var cf = _storeDb.Rocks.GetColumnFamily(_tableName);
-                    var readOptions = new RocksDbSharp.ReadOptions();
-
-                    using var iterator = _storeDb.Rocks.NewIterator(cf, readOptions);
+                    using var iterator = _storeDb.Rocks.NewIterator(cf, _readOptions);
 
                     for (iterator.Seek(_tableName.ToBytes()); iterator.Valid(); iterator.Next())
                     {
@@ -87,13 +91,41 @@ namespace CYPCore.Persistence
 
             try
             {
-                lock (_locker)
+                using (_sync.Read())
                 {
                     var cf = _storeDb.Rocks.GetColumnFamily(_tableName);
-                    var value = _storeDb.Rocks.Get(StoreDb.Key(_tableName, key), cf);
+                    var value = _storeDb.Rocks.Get(StoreDb.Key(_tableName, key), cf, _readOptions);
                     if (value != null)
                     {
-                        entry = Helper.Util.DeserializeProto<T>(value);
+                        entry = FlatBufferSerializer.Default.Parse<T>(value);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Here().Error(ex, "Error while reading database");
+            }
+
+            return Task.FromResult(entry);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="expression"></param>
+        /// <returns></returns>
+        public Task<T> GetAsync(Func<T, ValueTask<bool>> expression)
+        {
+            T entry = default;
+
+            try
+            {
+                using (_sync.Read())
+                {
+                    var first = Iterate().FirstOrDefaultAwaitAsync(expression);
+                    if (first.IsCompleted)
+                    {
+                        entry = first.Result;
                     }
                 }
             }
@@ -116,7 +148,7 @@ namespace CYPCore.Persistence
 
             try
             {
-                lock (_locker)
+                using (_sync.Write())
                 {
                     var cf = _storeDb.Rocks.GetColumnFamily(_tableName);
                     _storeDb.Rocks.Remove(StoreDb.Key(_tableName, key), cf);
@@ -142,60 +174,16 @@ namespace CYPCore.Persistence
 
             try
             {
-                var first = Iterate().FirstOrDefaultAsync();
-                if (first.IsCompleted)
+                using (_sync.Read())
                 {
-                    entry = first.Result;
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.Here().Error(ex, "Error while reading database");
-            }
+                    var cf = _storeDb.Rocks.GetColumnFamily(_tableName);
+                    using var iterator = _storeDb.Rocks.NewIterator(cf, _readOptions);
 
-            return Task.FromResult(entry);
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="expression"></param>
-        /// <returns></returns>
-        public Task<T> FirstAsync(Func<T, ValueTask<bool>> expression)
-        {
-            T entry = default;
-
-            try
-            {
-                var first = Iterate().FirstOrDefaultAwaitAsync(expression);
-                if (first.IsCompleted)
-                {
-                    entry = first.Result;
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.Here().Error(ex, "Error while reading database");
-            }
-
-            return Task.FromResult(entry);
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="expression"></param>
-        /// <returns></returns>
-        public Task<T> LastAsync(Func<T, ValueTask<bool>> expression)
-        {
-            T entry = default;
-
-            try
-            {
-                var last = Iterate().LastOrDefaultAwaitAsync(expression);
-                if (last.IsCompleted)
-                {
-                    entry = last.Result;
+                    iterator.SeekToFirst();
+                    if (iterator.Valid())
+                    {
+                        entry = FlatBufferSerializer.Default.Parse<T>(iterator.Value());
+                    }
                 }
             }
             catch (Exception ex)
@@ -218,10 +206,15 @@ namespace CYPCore.Persistence
 
             try
             {
-                lock (_locker)
+                using (_sync.Write())
                 {
                     var cf = _storeDb.Rocks.GetColumnFamily(_tableName);
-                    _storeDb.Rocks.Put(StoreDb.Key(_tableName, key), Helper.Util.SerializeProto(data), cf);
+                    var maxBytesNeeded = FlatBufferSerializer.Default.GetMaxSize(data);
+                    var buffer = new byte[maxBytesNeeded];
+
+                    FlatBufferSerializer.Default.Serialize(data, buffer);
+
+                    _storeDb.Rocks.Put(StoreDb.Key(_tableName, key), buffer, cf);
                     saved = true;
                 }
             }
@@ -239,7 +232,7 @@ namespace CYPCore.Persistence
         /// <param name="tableName"></param>
         public void SetTableName(string tableName)
         {
-            lock (_locker)
+            using (_sync.Write())
             {
                 _tableName = tableName;
             }
@@ -251,38 +244,35 @@ namespace CYPCore.Persistence
         /// <param name="skip"></param>
         /// <param name="take"></param>
         /// <returns></returns>
-        public Task<HashSet<T>> RangeAsync(long skip, int take)
+        public Task<IList<T>> RangeAsync(long skip, int take)
         {
-            var entries = new HashSet<T>(take);
+            IList<T> entries = new List<T>(take);
 
             try
             {
-                lock (_locker)
+                using (_sync.Read())
                 {
                     long iSkip = 0;
                     var iTake = 0;
 
                     var cf = _storeDb.Rocks.GetColumnFamily(_tableName);
-                    var readOptions = new RocksDbSharp.ReadOptions();
-
-                    using var iterator = _storeDb.Rocks.NewIterator(cf, readOptions);
+                    using var iterator = _storeDb.Rocks.NewIterator(cf, _readOptions);
 
                     for (iterator.SeekToFirst(); iterator.Valid(); iterator.Next())
                     {
-                        if (iSkip % skip == 0)
+                        iSkip++;
+                        if (skip != 0)
                         {
-                            if (iTake % take == 0)
-                            {
-                                break;
-                            }
-
-                            entries.Add(Helper.Util.DeserializeProto<T>(iterator.Value()));
-                            iTake++;
-
-                            continue;
+                            if (iSkip % skip != 0) continue;
                         }
 
-                        iSkip++;
+                        iTake++;
+                        if (iTake % take == 0)
+                        {
+                            break;
+                        }
+
+                        entries.Add(FlatBufferSerializer.Default.Parse<T>(iterator.Value()));
                     }
                 }
             }
@@ -304,17 +294,15 @@ namespace CYPCore.Persistence
 
             try
             {
-                lock (_locker)
+                using (_sync.Read())
                 {
                     var cf = _storeDb.Rocks.GetColumnFamily(_tableName);
-                    var readOptions = new RocksDbSharp.ReadOptions();
-
-                    using var iterator = _storeDb.Rocks.NewIterator(cf, readOptions);
+                    using var iterator = _storeDb.Rocks.NewIterator(cf, _readOptions);
 
                     iterator.SeekToLast();
                     if (iterator.Valid())
                     {
-                        entry = Helper.Util.DeserializeProto<T>(iterator.Value());
+                        entry = FlatBufferSerializer.Default.Parse<T>(iterator.Value());
                     }
                 }
             }
@@ -337,7 +325,10 @@ namespace CYPCore.Persistence
 
             try
             {
-                entries = Iterate().WhereAwait(expression).ToListAsync();
+                using (_sync.Read())
+                {
+                    entries = Iterate().WhereAwait(expression).ToListAsync();
+                }
             }
             catch (Exception ex)
             {
@@ -353,7 +344,10 @@ namespace CYPCore.Persistence
 
             try
             {
-                entries = Iterate().SelectAwait(selector).ToListAsync();
+                using (_sync.Read())
+                {
+                    entries = Iterate().SelectAwait(selector).ToListAsync();
+                }
             }
             catch (Exception ex)
             {
@@ -375,7 +369,10 @@ namespace CYPCore.Persistence
 
             try
             {
-                entries = Iterate().Skip(skip).ToListAsync();
+                using (_sync.Read())
+                {
+                    entries = Iterate().Skip(skip).ToListAsync();
+                }
             }
             catch (Exception ex)
             {
@@ -396,7 +393,10 @@ namespace CYPCore.Persistence
 
             try
             {
-                entries = Iterate().Take(take).ToListAsync();
+                using (_sync.Read())
+                {
+                    entries = Iterate().Take(take).ToListAsync();
+                }
             }
             catch (Exception ex)
             {
@@ -414,21 +414,15 @@ namespace CYPCore.Persistence
         private async IAsyncEnumerable<T> Iterate()
 #pragma warning restore 1998
         {
-            lock (_locker)
+            var cf = _storeDb.Rocks.GetColumnFamily(_tableName);
+            using var iterator = _storeDb.Rocks.NewIterator(cf, _readOptions);
+
+            for (iterator.Seek(_tableName.ToBytes()); iterator.Valid(); iterator.Next())
             {
-                var cf = _storeDb.Rocks.GetColumnFamily(_tableName);
-                var readOptions = new RocksDbSharp.ReadOptions();
+                if (!new string(iterator.Key().ToStr()).StartsWith(new string(_tableName))) continue;
+                if (!iterator.Valid()) continue;
 
-                using var iterator = _storeDb.Rocks.NewIterator(cf, readOptions);
-
-                for (iterator.Seek(_tableName.ToBytes()); iterator.Valid(); iterator.Next())
-                {
-                    if (!new string(iterator.Key().ToStr()).StartsWith(new string(_tableName))) continue;
-                    if (iterator.Valid())
-                    {
-                        yield return Helper.Util.DeserializeProto<T>(iterator.Value());
-                    }
-                }
+                yield return FlatBufferSerializer.Default.Parse<T>(iterator.Value()); ;
             }
         }
     }

@@ -1,14 +1,15 @@
 ﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
+using FlatSharp.Attributes;
 using ProtoBuf;
 
 namespace CYPCore.Models
 {
-    [ProtoContract]
-    public class DataProtectionKeyProto
+    [FlatBufferTable]
+    public class DataProtectionKeyProto : object
     {
-        [ProtoMember(1)] public string FriendlyName { get; set; }
-        [ProtoMember(2)] public string XmlData { get; set; }
+        [FlatBufferItem(0)] public virtual string FriendlyName { get; set; }
+        [FlatBufferItem(1)] public virtual string XmlData { get; set; }
     }
 }

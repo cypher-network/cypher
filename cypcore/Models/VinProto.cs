@@ -1,14 +1,47 @@
 ﻿// TGMNode by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
-using ProtoBuf;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using FlatSharp.Attributes;
 
 namespace CYPCore.Models
 {
-    [ProtoContract]
-    public class VinProto
+    [FlatBufferTable]
+    public class VinProto : object
     {
-        [ProtoMember(1)] public AuxProto Key { get; set; }
+        [FlatBufferItem(0)] public virtual KeyImageProto Key { get; set; }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        public IEnumerable<ValidationResult> Validate()
+        {
+            var results = new List<ValidationResult>();
+
+            if (Key.Image == null)
+            {
+                results.Add(new ValidationResult("Argument is null", new[] { "VinProto.Key.Image" }));
+            }
+
+            if (Key.Image != null && Key.Image.Length != 33)
+            {
+                results.Add(new ValidationResult("Range exception", new[] { "VinProto.Key.Image" }));
+            }
+
+            if (Key.Offsets == null)
+            {
+                results.Add(new ValidationResult("Argument is null", new[] { "VinProto.Key.Offsets" }));
+            }
+
+            if (Key.Offsets != null && Key.Offsets.Length != 1452)
+            {
+                results.Add(new ValidationResult("Range exception", new[] { "VinProto.Key.Offsets" }));
+            }
+
+            return results;
+        }
 
         /// <summary>
         /// 
@@ -23,8 +56,8 @@ namespace CYPCore.Models
         {
             using var ts = new Helper.TangramStream();
             ts
-                .Append(Key.K_Image)
-                .Append(Key.K_Offsets);
+                .Append(Key.Image)
+                .Append(Key.Offsets);
 
             return ts.ToArray(); ;
         }

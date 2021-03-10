@@ -46,6 +46,7 @@ namespace CYPNode
             services.AddResponseCompression();
             services.AddMvc(option => option.EnableEndpointRouting = false).SetCompatibilityVersion(CompatibilityVersion.Version_3_0);
             services.AddControllers();
+            services.AddLazyCache();
             services.AddSwaggerGenOptions();
             services.AddHttpContextAccessor();
             services.AddOptions();
@@ -69,8 +70,6 @@ namespace CYPNode
             builder.AddStaging();
             builder.AddSigning();
             builder.AddValidator();
-            builder.AddBlockService();
-            builder.AddMemoryPoolService();
             builder.AddMembershipService();
             builder.AddPosMinting(Configuration);
             builder.AddSync();

@@ -3,10 +3,8 @@
 
 namespace CYPCore.Models
 {
-    public enum InterpretedType
+    public class FlatBufferStream
     {
-        None,
-        Pending,
-        Processed
+        public byte[] FlatBuffer { get; set; }
     }
 }

@@ -14,6 +14,8 @@ using CYPCore.Models;
 using CYPCore.Network;
 using CYPCore.Persistence;
 using CYPCore.Services.Rest;
+using Dawn;
+using FlatSharp;
 
 namespace CYPCore.Ledger
 {
@@ -107,6 +109,10 @@ namespace CYPCore.Ledger
         /// <returns></returns>
         public async Task Synchronize(Uri uri, long skip, long take)
         {
+            Guard.Argument(uri, nameof(uri)).NotNull();
+            Guard.Argument(skip, nameof(skip)).NotNegative();
+            Guard.Argument(take, nameof(take)).NotNegative();
+
             var throttler = new SemaphoreSlim(int.MaxValue);
             await throttler.WaitAsync();
 
@@ -117,26 +123,26 @@ namespace CYPCore.Ledger
 
                 for (var i = 0; i < numberOfBatches; i++)
                 {
+                    var i1 = i;
                     tasks.Add(Task.Run(async () =>
                     {
                         try
                         {
                             var blockRestApi = new RestBlockService(uri);
-                            var blockHeaderStream = await blockRestApi.GetBlockHeaders((int)(i * skip), BatchSize);
+                            var blockHeaderStream = await blockRestApi.GetBlockHeaders((int)(i1 * skip), BatchSize);
 
-                            if (blockHeaderStream.Protobufs.Any())
+                            if (blockHeaderStream.FlatBuffer.Any())
                             {
                                 var blockHeaders =
-                                    Helper.Util.DeserializeListProto<BlockHeaderProto>(blockHeaderStream.Protobufs);
+                                    FlatBufferSerializer.Default.Parse<GenericList<BlockHeaderProto>>(blockHeaderStream
+                                        .FlatBuffer);
 
-                                foreach (var blockHeader in blockHeaders)
+                                foreach (var blockHeader in blockHeaders.Data.OrderBy(x => x.Height))
                                 {
                                     try
                                     {
-                                        await _validator.GetRunningDistribution();
-
-                                        var verified = await _validator.VerifyBlockHeader(blockHeader);
-                                        if (!verified)
+                                        var verifyBlockHeader = await _validator.VerifyBlockHeader(blockHeader);
+                                        if (verifyBlockHeader != VerifyResult.Succeed)
                                         {
                                             return;
                                         }
