@@ -200,11 +200,13 @@ namespace CYPCore.Controllers
                 var transaction = await _graph.GetTransaction(id.HexToByte());
                 if (transaction != null)
                 {
-                    var maxBytesNeeded = FlatBufferSerializer.Default.GetMaxSize(transaction);
+                    var genericList = new GenericList<VoutProto> { Data = transaction.ToList() };
+                    var maxBytesNeeded = FlatBufferSerializer.Default.GetMaxSize(genericList);
                     var buffer = new byte[maxBytesNeeded];
 
-                    FlatBufferSerializer.Default.Serialize(transaction, buffer);
-                    return new ObjectResult(new { flatbuffer = buffer });
+                    FlatBufferSerializer.Default.Serialize(genericList, buffer);
+
+                    return new ObjectResult(new { flatbuffers = buffer });
                 }
             }
             catch (Exception ex)
