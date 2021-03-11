@@ -197,12 +197,19 @@ namespace CYPCore.Controllers
         {
             try
             {
-                var tx = await _graph.GetTransaction(id.HexToByte());
-                return new ObjectResult(new { protobufs = tx });
+                var transaction = await _graph.GetTransaction(id.HexToByte());
+                if (transaction != null)
+                {
+                    var maxBytesNeeded = FlatBufferSerializer.Default.GetMaxSize(transaction);
+                    var buffer = new byte[maxBytesNeeded];
+
+                    FlatBufferSerializer.Default.Serialize(transaction, buffer);
+                    return new ObjectResult(new { flatbuffer = buffer });
+                }
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, "Cannot get Vout");
+                _logger.Here().Error(ex, "Cannot get transaction");
             }
 
             return NotFound();
