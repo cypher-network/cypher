@@ -145,8 +145,7 @@ namespace CYPCore.Ledger
         [Conditional("RELEASE")]
         private void IsRelease()
         {
-            _logger.Here().Error("Total number of nodes cannot be zero. Application is shutting down.");
-            Environment.Exit(0);
+            _logger.Here().Error("Total number of nodes cannot be zero.");
         }
 
         /// <summary>
