@@ -11,7 +11,7 @@ namespace CYPCore.Models
         Coin,
         Coinbase,
         Coinstake,
-        fee,
+        Fee,
         Genesis
     }
 }
