@@ -416,7 +416,7 @@ namespace CYPCore.Ledger
                     return verifyTransaction;
                 }
 
-                if (transaction.Vout.First().T == CoinType.Fee)
+                if (transaction.Vout.First().T == CoinType.fee)
                 {
                     var verifyTransactionFee = VerifyTransactionFee(transaction);
                     if (verifyTransactionFee == VerifyResult.Succeed) continue;
@@ -451,7 +451,7 @@ namespace CYPCore.Ledger
             if (verifyBulletProof == VerifyResult.UnableToVerify) return verifyBulletProof;
 
             var transactionTypeArray = transaction.Vout.Select(x => x.T.ToString()).ToArray();
-            if (transactionTypeArray.Contains(CoinType.Fee.ToString()) &&
+            if (transactionTypeArray.Contains(CoinType.fee.ToString()) &&
                 transactionTypeArray.Contains(CoinType.Coin.ToString()))
             {
                 var verifyVOutCommits = await VerifyVOutCommits(transaction);
@@ -489,7 +489,7 @@ namespace CYPCore.Ledger
 
             var vout = transaction.Vout.First();
 
-            if (vout.T != CoinType.Fee) return VerifyResult.UnableToVerify;
+            if (vout.T != CoinType.fee) return VerifyResult.UnableToVerify;
 
             var feeRate = Fee(FeeNByte);
             if (vout.A != feeRate) return VerifyResult.UnableToVerify;
@@ -605,7 +605,7 @@ namespace CYPCore.Ledger
 
 
                 var vouts = blockHeaders.SelectMany(blockHeader => blockHeader.Transactions).SelectMany(x => x.Vout);
-                if (vouts.Where(vout => vout.T == CoinType.Coinbase && vout.T == CoinType.Fee)
+                if (vouts.Where(vout => vout.T == CoinType.Coinbase && vout.T == CoinType.fee)
                     .Select(vout => VerifyLockTime(new LockTime(Utils.UnixTimeToDateTime(vout.L)), vout.S))
                     .Any(verified => verified != VerifyResult.UnableToVerify))
                 {

@@ -76,7 +76,7 @@ namespace CYPCore.Models
             }
 
             if (T != CoinType.Coin && T != CoinType.Coinbase && T != CoinType.Coinstake &&
-                T != CoinType.Fee)
+                T != CoinType.fee)
             {
                 results.Add(new ValidationResult("Argument exception", new[] { "VoutProto.T" }));
             }
