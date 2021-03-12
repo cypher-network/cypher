@@ -120,6 +120,7 @@ namespace CYPCore.Ledger
             {
                 var tasks = new List<Task>();
                 var numberOfBatches = (int)Math.Ceiling((double)take / BatchSize);
+                numberOfBatches = numberOfBatches == 0 ? 1 : numberOfBatches;
 
                 for (var i = 0; i < numberOfBatches; i++)
                 {
