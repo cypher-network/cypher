@@ -1,4 +1,4 @@
-// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
@@ -450,8 +450,13 @@ namespace CYPCore.Ledger
             var verifyBulletProof = VerifyBulletProof(transaction);
             if (verifyBulletProof == VerifyResult.UnableToVerify) return verifyBulletProof;
 
-            var verifyVOutCommits = await VerifyVOutCommits(transaction);
-            if (verifyVOutCommits == VerifyResult.UnableToVerify) return verifyVOutCommits;
+            var transactionTypeArray = transaction.Vout.Select(x => x.T.ToString()).ToArray();
+            if (transactionTypeArray.Contains(CoinType.Fee.ToString()) &&
+                transactionTypeArray.Contains(CoinType.Coin.ToString()))
+            {
+                var verifyVOutCommits = await VerifyVOutCommits(transaction);
+                if (verifyVOutCommits == VerifyResult.UnableToVerify) return verifyVOutCommits;
+            }
 
             var verifyKImage = await VerifyKeyImage(transaction);
             if (verifyKImage == VerifyResult.UnableToVerify) return verifyKImage;

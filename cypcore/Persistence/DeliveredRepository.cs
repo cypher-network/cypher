@@ -58,7 +58,8 @@ namespace CYPCore.Persistence
         {
             try
             {
-                _stateTrie.Put(blockHeader.ToHash(), blockHeader.ToHash());
+                var leftright = blockHeader.ToHash();
+                _stateTrie.Put(leftright, leftright);
                 _stateTrie.Flush();
 
                 blockHeader.MerkelRoot = MerkleRoot.ByteToHex();

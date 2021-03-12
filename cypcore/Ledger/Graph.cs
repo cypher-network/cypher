@@ -355,8 +355,6 @@ namespace CYPCore.Ledger
             var exists = await Exists(blockHeader);
             if (exists == VerifyResult.AlreadyExists) return VerifyResult.Invalid;
 
-            await _validator.GetRunningDistribution();
-
             var verifyBlockHeader = await _validator.VerifyBlockHeader(blockHeader);
             if (verifyBlockHeader == VerifyResult.UnableToVerify)
             {
