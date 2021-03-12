@@ -85,7 +85,6 @@ namespace CYPCore.Ledger
 
         public uint StakeTimestampMask => 0x0000000A;
         public byte[] BlockZeroMerkel => "4157dd0a13221f2a1b90fef7e4864925389d3107e112c03a267580d3e84d7b49".HexToByte();
-
         public byte[] BlockZeroPreMerkel =>
             "3030303030303030437970686572204e6574776f726b2076742e322e32303231".HexToByte();
 
@@ -362,8 +361,7 @@ namespace CYPCore.Ledger
             }
 
             blockHeader.MerkelRoot = merkel.ByteToHex();
-
-            if (blockHeader.MerkelRoot != _unitOfWork.DeliveredRepository.MerkleRoot.ByteToHex())
+            if (!blockHeader.MerkelRoot.Equals(tempBlockHeader.MerkelRoot))
             {
                 _logger.Here().Fatal("Could not verify the block header merkel");
                 return VerifyResult.UnableToVerify;
@@ -509,13 +507,12 @@ namespace CYPCore.Ledger
             return (0.000012 * nByte).ConvertToUInt64();
         }
 
+
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="prevMerkelRoot"></param>
         /// <param name="coinbase"></param>
         /// <param name="solution"></param>
-        /// <param name="merkelRoot"></param>
         /// <returns></returns>
         public async Task<VerifyResult> VerifyCoinbaseTransaction(VoutProto coinbase, ulong solution)
         {

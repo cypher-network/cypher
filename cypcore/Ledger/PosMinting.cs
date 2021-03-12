@@ -139,8 +139,6 @@ namespace CYPCore.Ledger
                     return;
                 }
 
-                await _validator.VerifyBlockHeader(blockHeader);
-
                 var maxBytesNeeded = FlatBufferSerializer.Default.GetMaxSize(blockHeader);
                 var buffer = new byte[maxBytesNeeded];
 
