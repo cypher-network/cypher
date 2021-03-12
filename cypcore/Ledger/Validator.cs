@@ -367,7 +367,7 @@ namespace CYPCore.Ledger
                 return VerifyResult.UnableToVerify;
             }
 
-            _unitOfWork.DeliveredRepository.ResetTrie();
+            //_unitOfWork.DeliveredRepository.ResetTrie();
 
             var verifyLockTime = VerifyLockTime(new LockTime(Utils.UnixTimeToDateTime(blockHeader.Locktime)),
                 blockHeader.LocktimeScript);
