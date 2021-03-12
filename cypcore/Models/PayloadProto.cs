@@ -2,7 +2,6 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using FlatSharp.Attributes;
-using ProtoBuf;
 
 namespace CYPCore.Models
 {

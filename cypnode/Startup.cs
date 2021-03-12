@@ -14,8 +14,6 @@ using Autofac;
 using CYPNode.StartupExtensions;
 using CYPCore.Consensus;
 using CYPCore.Extensions;
-using Microsoft.Net.Http.Headers;
-using WebApiContrib.Core.Formatter.Protobuf;
 
 namespace CYPNode
 {
@@ -43,7 +41,6 @@ namespace CYPNode
             services.AddResponseCompression();
             services.AddMvc(option => option.EnableEndpointRouting = false).SetCompatibilityVersion(CompatibilityVersion.Version_3_0);
             services.AddControllers();
-            services.AddLazyCache();
             services.AddSwaggerGenOptions();
             services.AddHttpContextAccessor();
             services.AddOptions();
