@@ -216,7 +216,7 @@ namespace CYPCore.Ledger
                 var last = await _unitOfWork.DeliveredRepository.LastAsync();
                 if (last != null)
                 {
-                    height = last.Height == 0 ? 1 : last.Height;
+                    height = last.Height == 0 ? 1 : last.Height + 1;
                 }
             }
             catch (Exception ex)
