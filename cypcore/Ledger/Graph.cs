@@ -26,7 +26,7 @@ namespace CYPCore.Ledger
     public interface IGraph
     {
         Task Ready(int threads);
-        void WriteAsync(int take, CancellationToken cancellationToken);
+        Task WriteAsync(int take, CancellationToken cancellationToken);
         void StopWriter();
         Task<VerifyResult> TryAddBlockGraph(BlockGraph blockGraph);
         Task<VerifyResult> AddBlock(BlockHeaderProto payload);
@@ -46,10 +46,11 @@ namespace CYPCore.Ledger
         private readonly IValidator _validator;
         private readonly ISigning _signing;
         private readonly ILogger _logger;
+        private readonly ChannelWriter<BlockGraph> _writer;
+        private readonly ChannelReader<BlockGraph> _reader;
 
         private Blockmania _blockmania;
         private Config _config;
-        private ChannelWriter<BlockGraph> _writer;
 
         public Graph(IUnitOfWork unitOfWork, IStaging staging, ILocalNode localNode,
             ISerfClient serfClient, IValidator validator, ISigning signing, ILogger logger)
@@ -61,6 +62,10 @@ namespace CYPCore.Ledger
             _validator = validator;
             _signing = signing;
             _logger = logger;
+
+            var channel = Channel.CreateUnbounded<BlockGraph>();
+            _reader = channel.Reader;
+            _writer = channel.Writer;
         }
 
         /// <summary>
@@ -375,44 +380,39 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="take"></param>
         /// <param name="cancellationToken"></param>
-        public void WriteAsync(int take, CancellationToken cancellationToken)
+        public async Task WriteAsync(int take, CancellationToken cancellationToken)
         {
             Guard.Argument(take, nameof(take)).NotNegative();
 
-            var task = Task.Factory.StartNew(async () =>
+            try
             {
-                try
+                if (_blockmania != null)
                 {
-                    if (_blockmania != null)
+                    _blockmania.NodeCount = (int)await GetTotalNodes();
+                }
+
+                var staging = await _unitOfWork.StagingRepository.WhereAsync(x =>
+                    new ValueTask<bool>(x.Status == StagingState.Blockmania));
+
+                foreach (var staged in staging.Take(take))
+                {
+                    foreach (var blockGraph in staged.BlockGraphs)
                     {
-                        _blockmania.NodeCount = (int)await GetTotalNodes();
+                        await _writer.WriteAsync(blockGraph, cancellationToken);
                     }
 
-                    var staging = await _unitOfWork.StagingRepository.WhereAsync(x =>
-                        new ValueTask<bool>(x.Status == StagingState.Blockmania));
+                    staged.Status = StagingState.Running;
 
-                    foreach (var staged in staging.Take(take))
-                    {
-                        foreach (var blockGraph in staged.BlockGraphs)
-                        {
-                            await _writer.WriteAsync(blockGraph, cancellationToken);
-                        }
+                    var saved = await _unitOfWork.StagingRepository.PutAsync(staged.ToIdentifier(), staged);
+                    if (saved) return;
 
-                        staged.Status = StagingState.Running;
-
-                        var saved = await _unitOfWork.StagingRepository.PutAsync(staged.ToIdentifier(), staged);
-                        if (saved) return;
-
-                        _logger.Here().Warning("Unable to save staging with hash: {@Hash}", staged.Hash);
-                    }
+                    _logger.Here().Warning("Unable to save staging with hash: {@Hash}", staged.Hash);
                 }
-                catch (Exception ex)
-                {
-                    _logger.Here().Error(ex, "Queue exception");
-                }
-            }, cancellationToken);
-
-            task.Wait(cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.Here().Error(ex, "Queue exception");
+            }
         }
 
         /// <summary>
@@ -432,27 +432,22 @@ namespace CYPCore.Ledger
         {
             Guard.Argument(threads, nameof(threads)).NotNegative();
 
-            var channel = Channel.CreateUnbounded<BlockGraph>();
-            var reader = channel.Reader;
-            _writer = channel.Writer;
-
             for (var i = 0; i < threads; i++)
             {
                 await Task.Factory.StartNew(async () =>
                 {
-                    while (await reader.WaitToReadAsync())
-                    {
-                        var blockGraph = await reader.ReadAsync();
+                    while (await _reader.WaitToReadAsync())
+                        while (_reader.TryRead(out var blockGraph))
+                        {
+                            var hasInfo = _blockmania.Blocks.FirstOrDefault(x =>
+                                x.Data.Block.Hash.Equals(blockGraph.Block.Hash) &&
+                                x.Data.Block.Node == blockGraph.Block.Node && x.Data.Block.Round == blockGraph.Block.Round);
 
-                        var hasInfo = _blockmania.Blocks.FirstOrDefault(x =>
-                            x.Data.Block.Hash.Equals(blockGraph.Block.Hash) &&
-                            x.Data.Block.Node == blockGraph.Block.Node && x.Data.Block.Round == blockGraph.Block.Round);
+                            if (hasInfo != null) continue;
 
-                        if (hasInfo != null) continue;
-
-                        _blockmania.Add(blockGraph);
-                        await RemoveAndUpdate(blockGraph.Block.Hash.HexToByte(), StagingState.Dequeued);
-                    }
+                            _blockmania.Add(blockGraph);
+                            await RemoveAndUpdate(blockGraph.Block.Hash.HexToByte(), StagingState.Dequeued);
+                        }
                 }, TaskCreationOptions.LongRunning);
             }
         }

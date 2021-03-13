@@ -133,6 +133,8 @@ namespace CYPCore.Extensions
         public static ContainerBuilder AddGraph(this ContainerBuilder builder)
         {
             builder.RegisterType<Graph>().As<IGraph>().SingleInstance();
+            builder.RegisterType<GraphBackgroundService>().As<IHostedService>();
+
             return builder;
         }
 
@@ -156,8 +158,7 @@ namespace CYPCore.Extensions
             .As<ILocalNode>()
             .SingleInstance();
 
-            builder.RegisterType<GraphBackgroundService>().As<IHostedService>().SingleInstance();
-            builder.RegisterType<SyncBackgroundService>().As<IHostedService>().SingleInstance();
+            builder.RegisterType<SyncBackgroundService>().As<IHostedService>();
 
             return builder;
         }
@@ -321,7 +322,7 @@ namespace CYPCore.Extensions
                 .As<INodeMonitor>()
                 .InstancePerLifetimeScope();
 
-            builder.RegisterType<NodeMonitorService>().As<IHostedService>().SingleInstance();
+            builder.RegisterType<NodeMonitorService>().As<IHostedService>();
 
             return builder;
         }
