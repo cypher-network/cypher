@@ -1,13 +1,15 @@
 ﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
-using System.Collections.Generic;
-using System.Threading.Tasks;
+using FlatSharp.Attributes;
 
-namespace CYPCore.Helper
+namespace CYPCore.Models
 {
-    public interface IData<T>
+    [FlatBufferEnum(typeof(byte))]
+    public enum Status : byte
     {
-        Task<IEnumerable<T>> GeData(int count);
+        None,
+        Pending,
+        Processed
     }
 }

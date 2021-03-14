@@ -2,15 +2,13 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
-using System.Threading.Tasks;
 using CYPCore.Extensions;
+using CYPCore.Ledger;
 using CYPCore.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-
 using Serilog;
-
-using CYPCore.Services;
+using FlatSharp;
 
 namespace CYPCore.Controllers
 {
@@ -18,60 +16,31 @@ namespace CYPCore.Controllers
     [ApiController]
     public class MemoryPoolController
     {
-        private readonly IMemoryPoolService _memoryPoolService;
+        private readonly IMemoryPool _memoryPool;
         private readonly ILogger _logger;
 
-        public MemoryPoolController(IMemoryPoolService memoryPoolService, ILogger logger)
+        public MemoryPoolController(IMemoryPool memoryPool, ILogger logger)
         {
-            _memoryPoolService = memoryPoolService;
+            _memoryPool = memoryPool;
             _logger = logger.ForContext("SourceContext", nameof(MemoryPoolController));
         }
 
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="memPool"></param>
-        /// <returns></returns>
-        [HttpPost(Name = "AddMemoryPool")]
-        [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> AddMemoryPool([FromBody] MemPoolProto memPool)
-        {
-            var added = await _memoryPoolService.AddMemoryPool(memPool);
-
-            return new ObjectResult(new { code = added ? StatusCodes.Status200OK : StatusCodes.Status500InternalServerError });
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="pools"></param>
-        /// <returns></returns>
-        [HttpPost("pools", Name = "AddMemoryPools")]
-        [ProducesResponseType(typeof(int), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> AddMemoryPools([FromBody] MemPoolProto[] pools)
-        {
-            await _memoryPoolService.AddMemoryPools(pools);
-
-            return new OkResult();
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="transaction"></param>
+        /// <param name="tx"></param>
         /// <returns></returns>
         [HttpPost("transaction", Name = "AddTransaction")]
         [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> AddTransaction([FromBody] TransactionProto transaction)
+        public IActionResult AddTransaction([FromBody] byte[] tx)
         {
             try
             {
-                var added = await _memoryPoolService.AddTransaction(transaction);
+                var payload = FlatBufferSerializer.Default.Parse<TransactionProto>(tx);
+                var added = _memoryPool.Add(payload);
 
-                return new ObjectResult(new { code = added ? StatusCodes.Status200OK : StatusCodes.Status500InternalServerError });
+                return new ObjectResult(new { code = added == VerifyResult.Succeed ? StatusCodes.Status200OK : StatusCodes.Status500InternalServerError });
             }
             catch (Exception ex)
             {
@@ -85,15 +54,15 @@ namespace CYPCore.Controllers
         /// 
         /// </summary>
         /// <returns></returns>
-        [HttpGet("count", Name = "GetTransactionCount")]
+        [HttpGet("count", Name = "GetCount")]
         [ProducesResponseType(typeof(int), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> GetTransactionCount()
+        public IActionResult GetCount()
         {
             try
             {
-                var transactionCount = await _memoryPoolService.GetTransactionCount();
-                return new ObjectResult(new { count = transactionCount });
+                var count = _memoryPool.Count();
+                return new ObjectResult(new { count });
             }
             catch (Exception ex)
             {

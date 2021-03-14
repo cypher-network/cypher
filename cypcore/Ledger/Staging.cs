@@ -5,10 +5,10 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using CYPCore.Consensus.Models;
 using CYPCore.Extensions;
 using Dawn;
 using Serilog;
-
 using CYPCore.Extentions;
 using CYPCore.Models;
 using CYPCore.Persistence;
@@ -22,7 +22,7 @@ namespace CYPCore.Ledger
     /// </summary>
     public interface IStaging
     {
-        Task Ready(MemPoolProto memPool);
+        Task Ready(BlockGraph blockGraph);
     }
 
     /// <summary>
@@ -46,81 +46,60 @@ namespace CYPCore.Ledger
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="memPool"></param>
+        /// <param name="blockGraph"></param>
         /// <returns></returns>
-        public async Task Ready(MemPoolProto memPool)
+        public async Task Ready(BlockGraph blockGraph)
         {
-            Guard.Argument(memPool, nameof(memPool)).NotNull();
+            Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
 
             try
             {
-                var memPools = await _unitOfWork.MemPoolRepository.WhereAsync(x =>
-                    new ValueTask<bool>(x.Block.Hash.Equals(memPool.Block.Hash)));
+                var blockGraphs = await _unitOfWork.BlockGraphRepository.WhereAsync(x =>
+                    new ValueTask<bool>(x.Block.Hash.Equals(blockGraph.Block.Hash)));
 
-                if (memPools.Any())
+                if (blockGraphs.Any())
                 {
-                    var memPoolList = new List<MemPoolProto>();
-                    var memPoolsGroupBy = memPools.GroupBy(n => n.Block.Node, m => m,
+                    var blockGraphList = new List<BlockGraph>();
+                    var blockGraphsGroupBy = blockGraphs.GroupBy(n => n.Block.Node, m => m,
                             (key, g) => new
                             {
                                 Node = key,
-                                memPools = g.DistinctBy(d => d.Block.Round).OrderBy(r => r.Block.Round).ToList()
+                                blockGraphs = g.DistinctBy(d => d.Block.Round).OrderBy(r => r.Block.Round).ToList()
                             })
                         .ToList();
 
-                    var localMemPools = memPoolsGroupBy.Where(x => x.Node == _serfClient.ClientId).ToList();
-                    foreach (var localMem in localMemPools)
+                    var localBlockGraphs = blockGraphsGroupBy.Where(x => x.Node == _serfClient.ClientId).ToList();
+                    foreach (var localBlockGraph in localBlockGraphs)
                     {
-                        for (var j = 0; j < localMem.memPools.Count; j++)
+                        for (var j = 0; j < localBlockGraph.blockGraphs.Count; j++)
                         {
-                            var next = localMem.memPools[j];
+                            var next = localBlockGraph.blockGraphs[j];
 
                             try
                             {
-                                var previous = localMem.memPools[j - 1].Block;
+                                var previous = localBlockGraph.blockGraphs[j - 1].Block;
                                 next.Prev = previous;
-                                next.Block.PreviousHash = previous.Hash;
                             }
                             catch (ArgumentOutOfRangeException)
                             {
                             }
 
-                            memPoolList.Add(next);
+                            blockGraphList.Add(next);
                         }
                     }
 
-                    var remoteMemPools = memPoolsGroupBy.Where(x => x.Node != _serfClient.ClientId).ToList();
-                    foreach (var remoteMem in remoteMemPools)
+                    var remoteBlockGraphs = blockGraphsGroupBy.Where(x => x.Node != _serfClient.ClientId).ToList();
+                    foreach (var dep in remoteBlockGraphs.SelectMany(remoteBlockGraph =>
+                        remoteBlockGraph.blockGraphs.Select(nextRemote =>
+                            new Dep(
+                                new Block(nextRemote.Block.Hash, remoteBlockGraph.Node, nextRemote.Block.Round,
+                                    nextRemote.Block.Data), nextRemote.Deps.Select(x => x.Block).ToList(),
+                                nextRemote.Prev))))
                     {
-                        foreach (var next in remoteMem.memPools)
-                        {
-                            var nextDependency = memPoolList
-                                .FirstOrDefault(x => x.Block.Round == next.Block.Round);
-
-                            var depProto = new DepProto
-                            {
-                                Block = next.Block,
-                                Deps = next.Deps.Select(x => new InterpretedProto()
-                                {
-                                    Hash = x.Block.Hash,
-                                    InterpretedType = x.Block.InterpretedType,
-                                    Node = x.Block.Node,
-                                    PreviousHash = x.Block.PreviousHash,
-                                    PublicKey = x.Block.PublicKey,
-                                    Round = x.Block.Round,
-                                    Signature = x.Block.Signature,
-                                    Transaction = x.Block.Transaction
-                                }).ToList(),
-                                Prev = next.Prev
-                            };
-
-                            if (nextDependency is not null) nextDependency.Deps = new List<DepProto>() { depProto };
-                        }
+                        blockGraphList.LastOrDefault()?.Deps.Add(dep);
                     }
 
-                    var list = memPoolList.ToArray();
-                    _ = await IncludeMany(list);
-                    _ = await AddOrUpdate(list, memPool.Block.Hash.HexToByte());
+                    _ = await AddOrUpdate(blockGraphList.ToArray(), blockGraph.Block.Hash.HexToByte());
                 }
             }
             catch (Exception ex)
@@ -134,7 +113,7 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="next"></param>
         /// <returns></returns>
-        private async Task<StagingProto> Add(MemPoolProto next)
+        private async Task<StagingProto> Add(BlockGraph next)
         {
             Guard.Argument(next, nameof(next)).NotNull();
 
@@ -148,13 +127,13 @@ namespace CYPCore.Ledger
                 staging = StagingProto.CreateInstance();
                 staging.Epoch = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                 staging.Hash = next.Block.Hash;
-                staging.MemPoolProtoList = new List<MemPoolProto> { next };
+                staging.BlockGraphs = new List<BlockGraph> { next };
                 staging.ExpectedTotalNodes = 4; // TODO: Should change in future when more rules apply.
                 staging.Node = _serfClient.ClientId;
                 staging.TotalNodes = nodeCount;
                 staging.Status = StagingState.Started;
 
-                staging.Nodes.AddRange(next.Deps?.Select(n => n.Block.Node) ?? Array.Empty<ulong>());
+                ((List<ulong>)staging.Nodes).AddRange(next.Deps?.Select(n => n.Block.Node) ?? Array.Empty<ulong>());
 
                 await AddWaitingOnRange(staging);
 
@@ -190,7 +169,7 @@ namespace CYPCore.Ledger
             Guard.Argument(stage, nameof(stage)).NotNull();
 
             var peers = await _localNode.GetPeers();
-            stage.WaitingOn.AddRange(peers.Select(k => k.Value.ClientId));
+            ((List<ulong>)stage.WaitingOn).AddRange(peers.Select(k => k.Value.ClientId));
         }
 
         /// <summary>
@@ -212,25 +191,25 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="next"></param>
         /// <returns></returns>
-        private async Task<StagingProto> Existing(MemPoolProto next)
+        private async Task<StagingProto> Existing(BlockGraph next)
         {
             Guard.Argument(next, nameof(next)).NotNull();
             StagingProto staging;
 
             try
             {
-                staging = await _unitOfWork.StagingRepository.LastAsync(x =>
+                staging = await _unitOfWork.StagingRepository.GetAsync(x =>
                     new ValueTask<bool>(x.Hash.Equals(next.Block.Hash)));
 
                 if (staging != null)
                 {
                     staging.Nodes = new List<ulong>();
-                    staging.Nodes.AddRange(next.Deps?.Select(n => n.Block.Node) ?? Array.Empty<ulong>());
+                    ((List<ulong>)staging.Nodes).AddRange(next.Deps?.Select(n => n.Block.Node) ?? Array.Empty<ulong>());
 
                     await AddWaitingOnRange(staging);
 
                     staging.Status = Incoming(staging, next);
-                    staging.MemPoolProtoList.Add(next);
+                    staging.BlockGraphs.Add(next);
 
                     ClearWaitingOn(staging);
 
@@ -258,7 +237,7 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="next"></param>
         /// <param name="staging"></param>
-        private static StagingState Incoming(StagingProto staging, MemPoolProto next)
+        private static StagingState Incoming(StagingProto staging, BlockGraph next)
         {
             Guard.Argument(staging, nameof(staging)).NotNull();
             Guard.Argument(next, nameof(next)).NotNull();
@@ -281,24 +260,24 @@ namespace CYPCore.Ledger
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="memPools"></param>
+        /// <param name="blockGraphs"></param>
         /// <param name="hash"></param>
         /// <returns></returns>
-        private async Task<bool> AddOrUpdate(MemPoolProto[] memPools, byte[] hash)
+        private async Task<VerifyResult> AddOrUpdate(BlockGraph[] blockGraphs, byte[] hash)
         {
-            Guard.Argument(memPools, nameof(memPools)).NotNull().NotEmpty();
+            Guard.Argument(blockGraphs, nameof(blockGraphs)).NotNull().NotEmpty();
             Guard.Argument(hash, nameof(hash)).NotNull().MaxCount(32);
 
             StagingProto staging = null;
 
             try
             {
-                foreach (var memPool in memPools)
+                foreach (var blockGraph in blockGraphs)
                 {
-                    staging = await _unitOfWork.StagingRepository.LastAsync(x =>
+                    staging = await _unitOfWork.StagingRepository.GetAsync(x =>
                         new ValueTask<bool>(x.Hash.Equals(hash.ByteToHex())));
 
-                    staging = staging != null ? await Existing(memPool) : await Add(memPool);
+                    staging = staging != null ? await Existing(blockGraph) : await Add(blockGraph);
                 }
             }
             catch (Exception ex)
@@ -307,33 +286,7 @@ namespace CYPCore.Ledger
                 _logger.Here().Error(ex, "Cannot add to staging");
             }
 
-            return staging != null;
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="memPools"></param>
-        /// <returns></returns>
-        private async Task<bool> IncludeMany(MemPoolProto[] memPools)
-        {
-            Guard.Argument(memPools, nameof(memPools)).NotNull().NotEmpty();
-
-            var included = false;
-
-            try
-            {
-                foreach (var next in memPools.Where(x => x.Block.Node == _serfClient.ClientId))
-                {
-                    included = await _unitOfWork.MemPoolRepository.PutAsync(next.ToIdentifier(), next);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.Here().Error(ex, "Error while adding to memory pool");
-            }
-
-            return included;
+            return staging != null ? VerifyResult.Succeed : VerifyResult.Invalid;
         }
     }
 }

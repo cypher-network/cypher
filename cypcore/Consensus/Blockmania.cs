@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Channels;
 using System.Diagnostics;
+using System.Linq;
 using CYPCore.Consensus.Messages;
 using CYPCore.Consensus.States;
 using CYPCore.Consensus.Models;
@@ -17,8 +18,8 @@ namespace CYPCore.Consensus
 
     public class Blockmania
     {
-        private readonly Mutex GraphMutex;
-        private readonly Channel<BlockGraph> Entries;
+        private readonly Mutex _graphMutex;
+        private readonly Channel<BlockGraph> _entries;
 
         protected virtual void OnBlockmaniaInterpreted(Interpreted e)
         {
@@ -28,8 +29,8 @@ namespace CYPCore.Consensus
         public event EventHandler<Interpreted> Delivered;
 
         public List<BlockInfo> Blocks;
-        public Func<Task<Interpreted>> action;
-        public Dictionary<BlockId, ulong> Max;
+        public Func<Task<Interpreted>> Action;
+        public Dictionary<Block, ulong> Max;
         public int NodeCount;
         public ulong[] Nodes;
         public int Quorumf1;
@@ -38,17 +39,17 @@ namespace CYPCore.Consensus
         public Dictionary<ulong, Dictionary<ulong, string>> Resolved;
         public ulong Round;
         public ulong Self;
-        public Dictionary<BlockId, State> Statess;
+        public Dictionary<Block, State> Statess;
         public ulong TotalNodes;
         public List<Reached> Consensus;
 
         public Blockmania()
         {
             Blocks = new List<BlockInfo>();
-            Max = new Dictionary<BlockId, ulong>();
+            Max = new Dictionary<Block, ulong>();
             Resolved = new Dictionary<ulong, Dictionary<ulong, string>>();
-            Statess = new Dictionary<BlockId, State>();
-            GraphMutex = new Mutex();
+            Statess = new Dictionary<Block, State>();
+            _graphMutex = new Mutex();
             Consensus = new List<Reached>();
         }
 
@@ -56,7 +57,7 @@ namespace CYPCore.Consensus
         {
             var f = (cfg.Nodes.Length - 1) / 3;
             Blocks = new List<BlockInfo>();
-            Max = new Dictionary<BlockId, ulong>();
+            Max = new Dictionary<Block, ulong>();
             NodeCount = cfg.Nodes.Length;
             Nodes = cfg.Nodes;
             Quorumf1 = f + 1;
@@ -64,26 +65,34 @@ namespace CYPCore.Consensus
             Quorum2f1 = 2 * f + 1;
             Resolved = new Dictionary<ulong, Dictionary<ulong, string>>();
             Round = cfg.LastInterpreted + 1;
-            Self = cfg.SelfID;
-            Statess = new Dictionary<BlockId, State>();
+            Self = cfg.SelfId;
+            Statess = new Dictionary<Block, State>();
             TotalNodes = cfg.TotalNodes;
-            GraphMutex = new Mutex();
-            Entries = Channel.CreateBounded<BlockGraph>(10000);
+            _graphMutex = new Mutex();
+            _entries = Channel.CreateBounded<BlockGraph>(10000);
             Consensus = new List<Reached>();
 
             _ = Task.Factory.StartNew(async () =>
             {
-                await Run(Entries.Reader);
+                await Run(_entries.Reader);
             });
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="node"></param>
+        /// <param name="round"></param>
+        /// <param name="hash"></param>
         private void Deliver(ulong node, ulong round, string hash)
         {
             if (round < Round)
             {
                 return;
             }
-            var hashes = new Dictionary<ulong, string>();
+
+            Dictionary<ulong, string> hashes;
+
             if (Resolved.ContainsKey(round))
             {
                 hashes = Resolved[round];
@@ -121,67 +130,86 @@ namespace CYPCore.Consensus
             }
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="round"></param>
+        /// <param name="hashes"></param>
         private void DeliverRound(ulong round, Dictionary<ulong, string> hashes)
         {
-            var blocks = new List<BlockId>();
-            foreach (KeyValuePair<ulong, string> item in hashes)
+            while (true)
             {
-                if (string.IsNullOrEmpty(item.Value))
+                var blocks = (from item in hashes
+                              where !string.IsNullOrEmpty(item.Value)
+                              select new Block(item.Value, item.Key, round)).ToList();
+
+                blocks.Sort((x, y) => string.Compare(x.Hash, y.Hash, StringComparison.Ordinal));
+                Resolved.Remove(round);
+
+                _graphMutex.WaitOne();
+
+                var consumed = Blocks[0].Data.Block.Round - 1;
+                var idx = 0;
+                for (var i = 0; i < Blocks.Count; i++)
                 {
-                    continue;
+                    var info = Blocks[i];
+
+                    var b = blocks.Find(x =>
+                        x.Hash == info.Data.Block.Hash && x.Node == info.Data.Block.Node &&
+                        x.Round == info.Data.Block.Round);
+
+                    if (b != null)
+                    {
+                        b.Data = info.Data.Block.Data;
+                    }
+
+                    if (info.Max > round)
+                    {
+                        break;
+                    }
+
+                    Max.Remove(info.Data.Block);
+                    Statess.Remove(info.Data.Block);
+                    foreach (var dep in info.Data.Deps)
+                    {
+                        Max.Remove(dep.Block);
+                        Statess.Remove(dep.Block);
+                    }
+
+                    consumed++;
+                    idx = i + 1;
                 }
-                blocks.Add(new BlockId(item.Value, item.Key, round));
-            }
-            blocks.Sort((x, y) => string.Compare(x.Hash, y.Hash, StringComparison.Ordinal));
-            Resolved.Remove(round);
-            GraphMutex.WaitOne();
-            var consumed = Blocks[0].Data.Block.Round - 1;
-            var idx = 0;
-            for (var i = 0; i < Blocks.Count; i++)
-            {
-                var info = Blocks[i];
-                if (info.Max > round)
+
+                if (idx > 0)
                 {
-                    break;
+                    Blocks = Blocks.GetRange(idx, Blocks.Count - idx);
                 }
-                Max.Remove(info.Data.Block);
-                Statess.Remove(info.Data.Block);
-                foreach (var dep in info.Data.Deps)
-                {
-                    Max.Remove(dep.Block);
-                    Statess.Remove(dep.Block);
-                }
-                consumed++;
-                idx = i + 1;
-            }
-            if (idx > 0)
-            {
-                Blocks = Blocks.GetRange(idx, Blocks.Count - idx);
-            }
-            Round++;
-            Debug.WriteLine($"Mem usage: g.max={Max.Count} g.statess={Statess.Count} g.blocks={Blocks.Count}");
-            GraphMutex.ReleaseMutex();
-            OnBlockmaniaInterpreted(new Interpreted(blocks, consumed, round));
-            if (Resolved.ContainsKey(round + 1) && hashes.Count == NodeCount)
-            {
+
+                Round++;
+
+                Debug.WriteLine($"Mem usage: g.max={Max.Count} g.states={Statess.Count} g.blocks={Blocks.Count}");
+                _graphMutex.ReleaseMutex();
+
+                OnBlockmaniaInterpreted(new Interpreted(blocks, consumed, round));
+
+                if (!Resolved.ContainsKey(round + 1) || hashes.Count != NodeCount) return;
+
                 hashes = Resolved[round + 1];
-                DeliverRound(round + 1, hashes);
+                round += 1;
             }
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="e"></param>
+        /// <returns></returns>
         private State FindOrCreateState(Entry e)
         {
             State stat;
             if (e.Prev.Valid())
             {
-                if (!Statess.ContainsKey(e.Prev))
-                {
-                    stat = new State(new Dictionary<ulong, List<Timeout>>()).Clone(Round);
-                }
-                else
-                {
-                    stat = Statess[e.Prev].Clone(Round);
-                }
+                stat = !Statess.ContainsKey(e.Prev) ? new State(new Dictionary<ulong, List<Timeout>>()).Clone(Round) : Statess[e.Prev].Clone(Round);
             }
             else
             {
@@ -190,68 +218,69 @@ namespace CYPCore.Consensus
             return stat;
         }
 
-        private void Process(Entry ntry)
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="entry"></param>
+        private void Process(Entry entry)
         {
-            Debug.WriteLine($"Interpreting block block.id={ntry.Block}");
+            Debug.WriteLine($"Interpreting block block.id={entry.Block}");
 
-            var state = FindOrCreateState(ntry);
-            var node = ntry.Block.Node;
-            var round = ntry.Block.Round;
-            var hash = ntry.Block.Hash;
-            var out_ = new List<IMessage>
+            var state = FindOrCreateState(entry);
+            var node = entry.Block.Node;
+            var round = entry.Block.Round;
+            var hash = entry.Block.Hash;
+            var outMessages = new List<IMessage>
             {
                 new PrePrepare(hash, node, round, 0)
             };
-            if (ntry.Deps.Length > 0)
+
+            if (entry.Deps.Any())
             {
-                if (state.Delay == null)
-                {
-                    state.Delay = new Dictionary<ulong, ulong>();
-                }
-                foreach (var dep in ntry.Deps)
+                state.Delay ??= new Dictionary<ulong, ulong>();
+
+                foreach (var dep in entry.Deps)
                 {
                     state.Delay[dep.Node] = Util.Diff(round, dep.Round) * 10;
                 }
             }
-            var tval = 10UL;
 
+            var timeOutVal = 10UL;
             if (state.Delay.Count > Quorum2f1)
             {
-                var vals = new ulong[state.Delay.Count];
+                var timeOutValues = new ulong[state.Delay.Count];
                 var i = 0;
-                foreach (KeyValuePair<ulong, ulong> item in state.Delay)
+                foreach (var item in state.Delay)
                 {
-                    vals[i] = item.Value;
+                    timeOutValues[i] = item.Value;
                     i++;
                 }
-                Array.Sort(vals);
+                Array.Sort(timeOutValues);
 
-                var xval = vals[Quorum2f];
-                if (xval > tval)
+                var xval = timeOutValues[Quorum2f];
+                if (xval > timeOutVal)
                 {
-                    tval = xval;
+                    timeOutVal = xval;
                 }
             }
             else
             {
-                foreach (KeyValuePair<ulong, ulong> item in state.Delay)
+                foreach (var val in state.Delay.Select(item => item.Value).Where(val => val > timeOutVal))
                 {
-                    var val = item.Value;
-                    if (val > tval)
-                    {
-                        tval = val;
-                    }
+                    timeOutVal = val;
                 }
             }
-            state.Timeout = tval;
-            var tround = round + tval;
-            foreach (var xnode in Nodes)
+            state.Timeout = timeOutVal;
+
+            var timeoutRound = round + timeOutVal;
+            foreach (var nextNode in Nodes)
             {
-                if (!state.Timeouts.ContainsKey(tround) || state.Timeouts[tround] == null)
+                if (!state.Timeouts.ContainsKey(timeoutRound) || state.Timeouts[timeoutRound] == null)
                 {
-                    state.Timeouts[tround] = new List<Timeout>();
+                    state.Timeouts[timeoutRound] = new List<Timeout>();
                 }
-                state.Timeouts[tround].Add(new Timeout(xnode, round, 0));
+
+                state.Timeouts[timeoutRound].Add(new Timeout(nextNode, round, 0));
             }
 
             if (state.Timeouts.ContainsKey(round))
@@ -286,29 +315,39 @@ namespace CYPCore.Consensus
                     {
                         state.Data[skey] = v + 1;
                     }
-                    out_.Add(new ViewChange(hval, tmout.Node, tmout.Round, node, tmout.View + 1));
+                    outMessages.Add(new ViewChange(hval, tmout.Node, tmout.Round, node, tmout.View + 1));
                 }
             }
 
-            var idx = out_.Count;
+            var idx = outMessages.Count;
             var processed = new Dictionary<IMessage, bool>();
-            out_.AddRange(ProcessMessages(state, processed, node, node, ntry.Block, out_.GetRange(0, idx)));
-            foreach (var dep in ntry.Deps)
+            outMessages.AddRange(ProcessMessages(state, processed, node, node, entry.Block, outMessages.GetRange(0, idx)));
+            foreach (var dep in entry.Deps)
             {
                 Debug.WriteLine($"Processing block dep block.id={dep}");
 
-                List<IMessage> output = new List<IMessage>();
+                var output = new List<IMessage>();
                 if (Statess.ContainsKey(dep) && Statess[dep] != null)
                 {
                     output = Statess[dep].GetOutPut();
                 }
-                out_.AddRange(ProcessMessages(state, processed, dep.Node, node, ntry.Block, output));
+                outMessages.AddRange(ProcessMessages(state, processed, dep.Node, node, entry.Block, output));
             }
-            state.Out = out_;
-            Statess[ntry.Block] = state;
+            state.Out = outMessages;
+            Statess[entry.Block] = state;
         }
 
-        private IMessage ProcessMessage(State s, ulong sender, ulong receiver, BlockId origin, IMessage msg)
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="s"></param>
+        /// <param name="sender"></param>
+        /// <param name="receiver"></param>
+        /// <param name="origin"></param>
+        /// <param name="msg"></param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
+        private IMessage ProcessMessage(State s, ulong sender, ulong receiver, Block origin, IMessage msg)
         {
             var (node, round) = msg.NodeRound();
             if (s.Data.ContainsKey(new Final(node, round)))
@@ -331,14 +370,14 @@ namespace CYPCore.Consensus
                     {
                         return null;
                     }
-                    ulong size = sender > receiver ? sender : receiver;
+                    var size = sender > receiver ? sender : receiver;
                     // var b = s.GetBitSet(NodeCount, m);
                     var b = s.GetBitSet((int)size, m);
                     b.SetPrepare(sender);
                     b.SetPrepare(receiver);
                     if (s.Data == null)
                     {
-                        s.Data = new StateKV() { { pp, m } };
+                        s.Data = new StateKV { { pp, m } };
                     }
                     else
                     {
@@ -373,16 +412,14 @@ namespace CYPCore.Consensus
                     }
                     b.SetCommit(receiver);
                     var p = new Prepared(node, round, m.View);
-                    if (!s.Data.ContainsKey(p))
+                    if (s.Data.ContainsKey(p)) return new Commit(m.Hash, node, round, receiver, m.View);
+                    if (s.Data == null)
                     {
-                        if (s.Data == null)
-                        {
-                            s.Data = new StateKV() { { p, m.Hash } };
-                        }
-                        else
-                        {
-                            s.Data[p] = m.Hash;
-                        }
+                        s.Data = new StateKV() { { p, m.Hash } };
+                    }
+                    else
+                    {
+                        s.Data[p] = m.Hash;
                     }
                     return new Commit(m.Hash, node, round, receiver, m.View);
                 case Commit m:
@@ -446,17 +483,13 @@ namespace CYPCore.Consensus
                     }
                     s.Data[new View(node, round)] = m.View;
                     var hash = "";
-                    foreach (KeyValuePair<ulong, string> item in vcs)
+                    foreach (var hval in vcs.Select(item => item.Value).Where(hval => hval != ""))
                     {
-                        var hval = item.Value;
-                        if (hval != "")
+                        if (hash != "" && hval != hash)
                         {
-                            if (hash != "" && hval != hash)
-                            {
-                                Console.WriteLine($"Got multiple hashes in a view change node.id={node} round={round} hash={hash} hash.alt={hval}");
-                            }
-                            hash = hval;
+                            Console.WriteLine($"Got multiple hashes in a view change node.id={node} round={round} hash={hash} hash.alt={hval}");
                         }
+                        hash = hval;
                     }
                     return new NewView(hash, node, round, receiver, m.View);
                 case NewView m:
@@ -469,10 +502,7 @@ namespace CYPCore.Consensus
                     {
                         return null;
                     }
-                    if (s.Data == null)
-                    {
-                        s.Data = new StateKV();
-                    }
+                    s.Data ??= new StateKV();
                     s.Data[new View(node, round)] = m.View;
                     var tval = origin.Round + s.Timeout + 5;
                     if (!s.Timeouts.ContainsKey(tval))
@@ -487,10 +517,21 @@ namespace CYPCore.Consensus
             }
         }
 
-        private List<IMessage> ProcessMessages(State s, Dictionary<IMessage, bool> processed, ulong sender, ulong receiver, BlockId origin, List<IMessage> msgs)
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="s"></param>
+        /// <param name="processed"></param>
+        /// <param name="sender"></param>
+        /// <param name="receiver"></param>
+        /// <param name="origin"></param>
+        /// <param name="messages"></param>
+        /// <returns></returns>
+        private IEnumerable<IMessage> ProcessMessages(State s, IDictionary<IMessage, bool> processed, ulong sender,
+            ulong receiver, Block origin, IEnumerable<IMessage> messages)
         {
-            var out_ = new List<IMessage>();
-            foreach (var msg in msgs)
+            var outMessages = new List<IMessage>();
+            foreach (var msg in messages)
             {
                 if (processed.ContainsKey(msg) && processed[msg])
                 {
@@ -500,12 +541,12 @@ namespace CYPCore.Consensus
                 processed[msg] = true;
                 if (resp != null)
                 {
-                    out_.Add(resp);
+                    outMessages.Add(resp);
                 }
             }
-            for (var i = 0; i < out_.Count; i++)
+            for (var i = 0; i < outMessages.Count; i++)
             {
-                var msg = out_[i];
+                var msg = outMessages[i];
                 if (processed.ContainsKey(msg) && processed[msg])
                 {
                     continue;
@@ -514,10 +555,10 @@ namespace CYPCore.Consensus
                 processed[msg] = true;
                 if (resp != null)
                 {
-                    out_.Add(resp);
+                    outMessages.Add(resp);
                 }
             }
-            return out_;
+            return outMessages;
         }
 
         private async Task Run(ChannelReader<BlockGraph> reader)
@@ -526,10 +567,12 @@ namespace CYPCore.Consensus
             {
                 while (reader.TryRead(out var data))
                 {
+                    _graphMutex.WaitOne();
+
                     var entries = new Entry[data.Deps.Count];
-                    GraphMutex.WaitOne();
                     var max = data.Block.Round;
                     var round = Round;
+
                     for (var i = 0; i < data.Deps.Count; i++)
                     {
                         var dep = data.Deps[i];
@@ -537,18 +580,19 @@ namespace CYPCore.Consensus
                         Debug.WriteLine($"Dep: block.id={dep.Block}");
 
                         var depMax = dep.Block.Round;
-                        var rcheck = false;
-                        var e = new Entry(dep.Block, dep.Prev);
+                        var firstRecheck = false;
+                        var entry = new Entry(dep.Block, dep.Prev);
+
                         if (dep.Block.Round != 1)
                         {
-                            e.Deps = new BlockId[dep.Deps.Count + 1];
-                            e.Deps[0] = dep.Prev;
-                            Array.Copy(dep.Deps.ToArray(), 0, e.Deps, 1, dep.Deps.Count);
-                            var prevMax = (ulong)0;
+                            entry.Deps = new Block[dep.Deps.Count + 1];
+                            entry.Deps[0] = dep.Prev;
+                            Array.Copy(dep.Deps.ToArray(), 0, entry.Deps.ToArray(), 1, dep.Deps.Count);
+                            var prevMax = 0ul;
                             if (Max.ContainsKey(dep.Prev))
                             {
                                 prevMax = Max[dep.Prev];
-                                rcheck = true;
+                                firstRecheck = true;
                             }
                             else if (prevMax > depMax)
                             {
@@ -557,14 +601,14 @@ namespace CYPCore.Consensus
                         }
                         else
                         {
-                            e.Deps = dep.Deps.ToArray();
+                            entry.Deps = dep.Deps.ToArray();
                         }
-                        entries[i] = e;
+                        entries[i] = entry;
                         foreach (var link in dep.Deps)
                         {
                             if (!Max.ContainsKey(link))
                             {
-                                rcheck = true;
+                                firstRecheck = true;
                             }
                             else
                             {
@@ -575,7 +619,7 @@ namespace CYPCore.Consensus
                                 }
                             }
                         }
-                        if (rcheck && round > depMax)
+                        if (firstRecheck && round > depMax)
                         {
                             depMax = round;
                         }
@@ -585,12 +629,12 @@ namespace CYPCore.Consensus
                             max = depMax;
                         }
                     }
-                    var rcheck2 = false;
+                    var secondRecheck = false;
                     if (data.Block.Round != 1)
                     {
                         if (!Max.ContainsKey(data.Prev))
                         {
-                            rcheck2 = true;
+                            secondRecheck = true;
                         }
                         else
                         {
@@ -601,20 +645,20 @@ namespace CYPCore.Consensus
                             }
                         }
                     }
-                    if (rcheck2 && round > max)
+                    if (secondRecheck && round > max)
                     {
                         max = round;
                     }
                     Max[data.Block] = max;
                     Blocks.Add(new BlockInfo(data, max));
-                    GraphMutex.ReleaseMutex();
+                    _graphMutex.ReleaseMutex();
                     foreach (var e in entries)
                     {
                         Process(e);
                     }
                     var self = new Entry(data.Block, data.Prev)
                     {
-                        Deps = new BlockId[data.Deps.Count + 1]
+                        Deps = new Block[data.Deps.Count + 1]
                     };
                     self.Deps[0] = data.Prev;
                     for (var i = 0; i < data.Deps.Count; i++)
@@ -627,13 +671,17 @@ namespace CYPCore.Consensus
             }
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="data"></param>
         public void Add(BlockGraph data)
         {
             Debug.WriteLine($"Adding block to graph block.id={data.Block}");
 
             var task = Task.Factory.StartNew(async () =>
             {
-                await Entries.Writer.WriteAsync(data);
+                await _entries.Writer.WriteAsync(data);
             });
 
             task.Wait();

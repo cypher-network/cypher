@@ -1,19 +1,22 @@
 // CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
+using FlatSharp.Attributes;
+
 namespace CYPCore.Consensus.Models
 {
-    public class Config
+    [FlatBufferTable]
+    public class Config : object
     {
-        public ulong LastInterpreted;
-        public ulong[] Nodes;
-        public ulong SelfID;
-        public ulong TotalNodes;
+        [FlatBufferItem(0)] public virtual ulong LastInterpreted { get; set; }
+        [FlatBufferItem(1)] public virtual ulong[] Nodes { get; set; }
+        [FlatBufferItem(2)] public virtual ulong SelfId { get; set; }
+        [FlatBufferItem(3)] public virtual ulong TotalNodes { get; set; }
 
         public Config(ulong[] nodes, ulong id)
         {
             Nodes = nodes;
-            SelfID = id;
+            SelfId = id;
             TotalNodes = (ulong)nodes.Length;
         }
 
@@ -21,7 +24,7 @@ namespace CYPCore.Consensus.Models
         {
             LastInterpreted = lastInterpreted;
             Nodes = nodes;
-            SelfID = id;
+            SelfId = id;
             TotalNodes = totalNodes;
         }
     }

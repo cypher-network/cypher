@@ -14,8 +14,6 @@ using Autofac;
 using CYPNode.StartupExtensions;
 using CYPCore.Consensus;
 using CYPCore.Extensions;
-using Microsoft.Net.Http.Headers;
-using WebApiContrib.Core.Formatter.Protobuf;
 
 namespace CYPNode
 {
@@ -41,20 +39,8 @@ namespace CYPNode
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddResponseCompression();
-
-            services.AddMvc(options =>
-            {
-                options.EnableEndpointRouting = false;
-                options.InputFormatters.Clear();
-            }).SetCompatibilityVersion(CompatibilityVersion.Version_3_0);
-
-            services.AddControllers(options =>
-            {
-                options.FormatterMappings
-                    .SetMediaTypeMappingForFormat("protobuf",
-                        MediaTypeHeaderValue.Parse("application/x-protobuf"));
-            }).AddProtobufFormatters();
-
+            services.AddMvc(option => option.EnableEndpointRouting = false).SetCompatibilityVersion(CompatibilityVersion.Version_3_0);
+            services.AddControllers();
             services.AddSwaggerGenOptions();
             services.AddHttpContextAccessor();
             services.AddOptions();
@@ -78,8 +64,6 @@ namespace CYPNode
             builder.AddStaging();
             builder.AddSigning();
             builder.AddValidator();
-            builder.AddBlockService();
-            builder.AddMemoryPoolService();
             builder.AddMembershipService();
             builder.AddPosMinting(Configuration);
             builder.AddSync();

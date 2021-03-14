@@ -3,42 +3,28 @@
 
 using System.Linq;
 using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
-
-using ProtoBuf;
-
 using CYPCore.Extentions;
+using FlatSharp.Attributes;
 
 namespace CYPCore.Models
 {
-    [ProtoContract]
-    public class BlockHeaderProto
+    [FlatBufferTable]
+    public class BlockHeaderProto : object
     {
-        [ProtoMember(1)] public int Bits { get; set; }
-        [ProtoMember(2)] public long Height { get; set; }
-        [ProtoMember(3)] public long Locktime { get; set; }
-        [ProtoMember(4)] public string LocktimeScript { get; set; }
-        [ProtoMember(5)] public string MerkelRoot { get; set; }
-        [ProtoMember(6)] public string Nonce { get; set; }
-        [ProtoMember(7)] public string PrevMerkelRoot { get; set; }
-        [ProtoMember(8)] public string Proof { get; set; }
-        [ProtoMember(9)] public string Sec { get; set; }
-        [ProtoMember(10)] public string Seed { get; set; }
-        [ProtoMember(11)] public ulong Solution { get; set; }
-        [ProtoMember(12)] public HashSet<TransactionProto> Transactions { get; set; }
-        [ProtoMember(13)] public int Version { get; set; }
-        [ProtoMember(14)] public string VrfSig { get; set; }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <returns></returns>
-        public IEnumerable<ValidationResult> Validate()
-        {
-            var results = new List<ValidationResult>();
-
-            return results;
-        }
+        [FlatBufferItem(0)] public virtual int Bits { get; set; }
+        [FlatBufferItem(1)] public virtual long Height { get; set; }
+        [FlatBufferItem(2)] public virtual long Locktime { get; set; }
+        [FlatBufferItem(3)] public virtual string LocktimeScript { get; set; }
+        [FlatBufferItem(4)] public virtual string MerkelRoot { get; set; }
+        [FlatBufferItem(5)] public virtual string Nonce { get; set; }
+        [FlatBufferItem(6)] public virtual string PrevMerkelRoot { get; set; }
+        [FlatBufferItem(7)] public virtual string Proof { get; set; }
+        [FlatBufferItem(8)] public virtual string Sec { get; set; }
+        [FlatBufferItem(9)] public virtual string Seed { get; set; }
+        [FlatBufferItem(10)] public virtual ulong Solution { get; set; }
+        [FlatBufferItem(11)] public virtual TransactionProto[] Transactions { get; set; }
+        [FlatBufferItem(12)] public virtual int Version { get; set; }
+        [FlatBufferItem(13)] public virtual string VrfSig { get; set; }
 
         /// <summary>
         /// 
@@ -55,6 +41,7 @@ namespace CYPCore.Models
         /// <returns></returns>
         public byte[] ToHash()
         {
+            //TODO: remove .Append(MerkelRoot ?? string.Empty) when we create a new block zero
             using var ts = new Helper.TangramStream();
             ts
                 .Append(Bits)
@@ -67,8 +54,8 @@ namespace CYPCore.Models
                 .Append(Solution)
                 .Append(Locktime)
                 .Append(LocktimeScript)
-                .Append(Helper.Util.SHA384ManagedHash(
-                    Helper.Util.Combine(Transactions.Select(x => x.ToHash()).ToArray())))
+                .Append(NBitcoin.Crypto.Hashes.DoubleSHA256(
+                    Helper.Util.Combine(Transactions.Select(x => x.ToHash()).ToArray())).ToBytes(false))
                 .Append(Version)
                 .Append(VrfSig);
 

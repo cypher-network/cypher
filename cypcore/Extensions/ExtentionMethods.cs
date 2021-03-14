@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Security;
+using Dawn;
 
 namespace CYPCore.Extentions
 {
@@ -40,21 +41,28 @@ namespace CYPCore.Extentions
 
         public static double DivWithNaT(this ulong value) => Convert.ToDouble(value) / 1000_000_000;
 
+        // public static ulong ConvertToUInt64(this double value)
+        // {
+        //     ulong amount;
+        //
+        //     var parts = value.ToString(CultureInfo.CurrentCulture).Split(new char[] { '.', ',' });
+        //     var part1 = (ulong)Math.Truncate(value);
+        //
+        //     if (parts.Length == 1)
+        //         amount = part1.MulWithNaT();
+        //     else
+        //     {
+        //         var part2 = (ulong)((value - part1) * ulong.Parse("1".PadRight(parts[1].Length + 1, '0')) + 0.5);
+        //         amount = part1.MulWithNaT() + ulong.Parse(part2.ToString());
+        //     }
+        //
+        //     return amount;
+        // }
+
         public static ulong ConvertToUInt64(this double value)
         {
-            ulong amount;
-
-            var parts = value.ToString(CultureInfo.CurrentCulture).Split(new char[] { '.', ',' });
-            var part1 = (ulong)Math.Truncate(value);
-
-            if (parts.Length == 1)
-                amount = part1.MulWithNaT();
-            else
-            {
-                var part2 = (ulong)((value - part1) * ulong.Parse("1".PadRight(parts[1].Length + 1, '0')) + 0.5);
-                amount = part1.MulWithNaT() + ulong.Parse(part2.ToString());
-            }
-
+            Guard.Argument(value, nameof(value)).NotZero().NotNegative();
+            var amount = (ulong)(value * 1000_000_000);
             return amount;
         }
     }

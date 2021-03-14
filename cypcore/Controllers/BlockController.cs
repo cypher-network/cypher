@@ -2,16 +2,17 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
+using System.Linq;
 using System.Threading.Tasks;
+using CYPCore.Consensus.Models;
 using CYPCore.Extensions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-
 using Serilog;
-
-using CYPCore.Services;
 using CYPCore.Extentions;
+using CYPCore.Ledger;
 using CYPCore.Models;
+using FlatSharp;
 
 namespace CYPCore.Controllers
 {
@@ -19,12 +20,12 @@ namespace CYPCore.Controllers
     [ApiController]
     public class BlockController : Controller
     {
-        private readonly IBlockService _blockService;
+        private readonly IGraph _graph;
         private readonly ILogger _logger;
 
-        public BlockController(IBlockService blockService, ILogger logger)
+        public BlockController(IGraph graph, ILogger logger)
         {
-            _blockService = blockService;
+            _graph = graph;
             _logger = logger.ForContext("SourceContext", nameof(BlockController));
         }
 
@@ -36,10 +37,46 @@ namespace CYPCore.Controllers
         [HttpPost("block", Name = "AddBlock")]
         [ProducesResponseType(typeof(byte[]), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> AddBlock([FromBody] PayloadProto block)
+        public async Task<IActionResult> AddBlock([FromBody] byte[] block)
         {
-            var added = await _blockService.AddBlock(block);
-            return new ObjectResult(new { code = added == true ? StatusCodes.Status200OK : StatusCodes.Status500InternalServerError });
+            try
+            {
+                var blockHeader = FlatBufferSerializer.Default.Parse<BlockHeaderProto>(block);
+                var added = await _graph.AddBlock(blockHeader);
+
+                return new ObjectResult(new { code = added == VerifyResult.Succeed ? StatusCodes.Status200OK : StatusCodes.Status500InternalServerError });
+            }
+            catch (Exception ex)
+            {
+                _logger.Here().Error(ex, "Cannot add block");
+            }
+
+            return new StatusCodeResult(StatusCodes.Status500InternalServerError);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="blockGraph"></param>
+        /// <returns></returns>
+        [HttpPost("blockgraph", Name = "AddBlockGraph")]
+        [ProducesResponseType(typeof(byte[]), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> AddBlockGraph([FromBody] byte[] blockGraph)
+        {
+            try
+            {
+                var payload = FlatBufferSerializer.Default.Parse<BlockGraph>(blockGraph);
+                var added = await _graph.TryAddBlockGraph(payload);
+
+                return new ObjectResult(new { code = added == VerifyResult.Succeed ? StatusCodes.Status200OK : StatusCodes.Status500InternalServerError });
+            }
+            catch (Exception ex)
+            {
+                _logger.Here().Error(ex, "Cannot add block graph");
+            }
+
+            return new StatusCodeResult(StatusCodes.Status500InternalServerError);
         }
 
         /// <summary>
@@ -50,10 +87,21 @@ namespace CYPCore.Controllers
         [HttpPost("blocks", Name = "AddBlocks")]
         [ProducesResponseType(typeof(byte[]), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> AddBlocks([FromBody] PayloadProto[] blocks)
+        public async Task<IActionResult> AddBlocks([FromBody] byte[] blocks)
         {
-            await _blockService.AddBlocks(blocks);
-            return new OkResult();
+            try
+            {
+                var blockHeaders = FlatBufferSerializer.Default.Parse<BlockHeaderProto[]>(blocks);
+                await _graph.AddBlocks(blockHeaders);
+
+                return new OkResult();
+            }
+            catch (Exception ex)
+            {
+                _logger.Here().Error(ex, "Cannot add blocks");
+            }
+
+            return new StatusCodeResult(StatusCodes.Status500InternalServerError);
         }
 
         /// <summary>
@@ -67,8 +115,15 @@ namespace CYPCore.Controllers
         {
             try
             {
-                var safeGuardTransactions = await _blockService.GetSafeguardBlocks();
-                return new ObjectResult(new { protobufs = Helper.Util.SerializeProto(safeGuardTransactions) });
+                var safeGuardTransactions = await _graph.GetSafeguardBlocks();
+                var blockHeaders = safeGuardTransactions as BlockHeaderProto[] ?? safeGuardTransactions.ToArray();
+                var genericList = new GenericList<BlockHeaderProto> { Data = blockHeaders };
+                var maxBytesNeeded = FlatBufferSerializer.Default.GetMaxSize(genericList);
+                var buffer = new byte[maxBytesNeeded];
+
+                FlatBufferSerializer.Default.Serialize(genericList, buffer);
+
+                return new ObjectResult(new { flatbuffers = buffer });
             }
             catch (Exception ex)
             {
@@ -89,7 +144,7 @@ namespace CYPCore.Controllers
         {
             try
             {
-                var height = await _blockService.GetHeight();
+                var height = await _graph.GetHeight();
                 return new ObjectResult(new { height });
             }
             catch (Exception ex)
@@ -113,8 +168,14 @@ namespace CYPCore.Controllers
         {
             try
             {
-                var blocks = await _blockService.GetBlockHeaders(skip, take);
-                return new ObjectResult(new { protobufs = Helper.Util.SerializeProto(blocks) });
+                var blocks = await _graph.GetBlockHeaders(skip, take);
+                var genericList = new GenericList<BlockHeaderProto> { Data = blocks.ToList() };
+                var maxBytesNeeded = FlatBufferSerializer.Default.GetMaxSize(genericList);
+                var buffer = new byte[maxBytesNeeded];
+
+                FlatBufferSerializer.Default.Serialize(genericList, buffer);
+
+                return new ObjectResult(new { flatbuffer = buffer });
             }
             catch (Exception ex)
             {
@@ -127,21 +188,30 @@ namespace CYPCore.Controllers
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="txnid"></param>
+        /// <param name="id"></param>
         /// <returns></returns>
-        [HttpGet("vout/{txnid}", Name = "GetVout")]
+        [HttpGet("transaction/{id}", Name = "GetTransaction")]
         [ProducesResponseType(typeof(byte[]), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> GetVout(string txnid)
+        public async Task<IActionResult> GetTransaction(string id)
         {
             try
             {
-                var tx = await _blockService.GetVout(txnid.HexToByte());
-                return new ObjectResult(new { protobufs = tx });
+                var transaction = await _graph.GetTransaction(id.HexToByte());
+                if (transaction != null)
+                {
+                    var genericList = new GenericList<VoutProto> { Data = transaction.ToList() };
+                    var maxBytesNeeded = FlatBufferSerializer.Default.GetMaxSize(genericList);
+                    var buffer = new byte[maxBytesNeeded];
+
+                    FlatBufferSerializer.Default.Serialize(genericList, buffer);
+
+                    return new ObjectResult(new { flatbuffers = buffer });
+                }
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, "Cannot get Vout");
+                _logger.Here().Error(ex, "Cannot get transaction");
             }
 
             return NotFound();

@@ -2,18 +2,15 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System.Collections.Generic;
-using ProtoBuf;
+using FlatSharp.Attributes;
 
 namespace CYPCore.Models
 {
-    [ProtoContract]
-    public class DepProto
+    [FlatBufferTable]
+    public class DepProto : object
     {
-        [ProtoMember(1)]
-        public InterpretedProto Block = InterpretedProto.CreateInstance();
-        [ProtoMember(2)]
-        public List<InterpretedProto> Deps = new();
-        [ProtoMember(3)]
-        public InterpretedProto Prev = InterpretedProto.CreateInstance();
+        [FlatBufferItem(0)] public virtual InterpretedProto Block { get; set; }
+        [FlatBufferItem(1)] public virtual IList<InterpretedProto> Deps { get; set; } = new List<InterpretedProto>();
+        [FlatBufferItem(2)] public virtual InterpretedProto Prev { get; set; }
     }
 }

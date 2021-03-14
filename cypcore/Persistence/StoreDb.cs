@@ -20,14 +20,12 @@ namespace CYPCore.Persistence
         private bool _disposedValue;
         public RocksDb Rocks { get; }
 
-        public static readonly StoreDb DeliveredTable = new(1, "DeliveredTable");
-        public static readonly StoreDb MemoryPoolTable = new(2, "MemoryPoolTable");
-        public static readonly StoreDb InterpretedTable = new(3, "InterpretedTable");
-        public static readonly StoreDb StagingTable = new(4, "StagingTable");
-        public static readonly StoreDb SeenBlockHeaderTable = new(5, "SeenBlockHeaderTable");
-        public static readonly StoreDb DataProtectionTable = new(6, "DataProtectionTable");
-        public static readonly StoreDb TransactionTable = new(7, "TransactionTable");
-        public static readonly StoreDb KeyImageTable = new(8, "KeyImageTable");
+        public static readonly StoreDb BlockGraphTable = new(1, "BlockGraphTable");
+        public static readonly StoreDb DataProtectionTable = new(2, "DataProtectionTable");
+        public static readonly StoreDb DeliveredTable = new(3, "DeliveredTable");
+        public static readonly StoreDb KeyImageTable = new(4, "KeyImageTable");
+        public static readonly StoreDb StagingTable = new(5, "StagingTable");
+        public static readonly StoreDb TransactionTable = new(6, "TransactionTable");
 
         private StoreDb(int value, string name)
         {
@@ -47,8 +45,8 @@ namespace CYPCore.Persistence
                     throw new InvalidOperationException(), folder);
 
             var blockBasedTableOptions = BlockBasedTableOptions();
-            var options = DbOptions();
             var columnFamilies = ColumnFamilies(blockBasedTableOptions);
+            var options = DbOptions();
 
             Rocks = RocksDb.Open(options, dataPath, columnFamilies);
         }
@@ -81,54 +79,12 @@ namespace CYPCore.Persistence
             var columnFamilies = new ColumnFamilies
             {
                 {"default", new ColumnFamilyOptions().OptimizeForPointLookup(256)},
-                {
-                    DeliveredTable.ToString(), new ColumnFamilyOptions()
-                        .SetMemtableHugePageSize(2 * 1024 * 1024)
-                        .SetPrefixExtractor(SliceTransform.CreateFixedPrefix((ulong) 8))
-                        .SetBlockBasedTableFactory(blockBasedTableOptions)
-                },
-                {
-                    DataProtectionTable.ToString(), new ColumnFamilyOptions()
-                        .SetMemtableHugePageSize(2 * 1024 * 1024)
-                        .SetPrefixExtractor(SliceTransform.CreateFixedPrefix((ulong) 8))
-                        .SetBlockBasedTableFactory(blockBasedTableOptions)
-                },
-                {
-                    MemoryPoolTable.ToString(), new ColumnFamilyOptions()
-                        .SetMemtableHugePageSize(2 * 1024 * 1024)
-                        .SetPrefixExtractor(SliceTransform.CreateFixedPrefix((ulong) 8))
-                        .SetBlockBasedTableFactory(blockBasedTableOptions)
-                },
-                {
-                    StagingTable.ToString(), new ColumnFamilyOptions()
-                        .SetMemtableHugePageSize(2 * 1024 * 1024)
-                        .SetPrefixExtractor(SliceTransform.CreateFixedPrefix((ulong) 8))
-                        .SetBlockBasedTableFactory(blockBasedTableOptions)
-                },
-                {
-                    SeenBlockHeaderTable.ToString(), new ColumnFamilyOptions()
-                        .SetMemtableHugePageSize(2 * 1024 * 1024)
-                        .SetPrefixExtractor(SliceTransform.CreateFixedPrefix((ulong) 8))
-                        .SetBlockBasedTableFactory(blockBasedTableOptions)
-                },
-                {
-                    TransactionTable.ToString(), new ColumnFamilyOptions()
-                        .SetMemtableHugePageSize(2 * 1024 * 1024)
-                        .SetPrefixExtractor(SliceTransform.CreateFixedPrefix((ulong) 8))
-                        .SetBlockBasedTableFactory(blockBasedTableOptions)
-                },
-                {
-                    KeyImageTable.ToString(), new ColumnFamilyOptions()
-                        .SetMemtableHugePageSize(2 * 1024 * 1024)
-                        .SetPrefixExtractor(SliceTransform.CreateFixedPrefix((ulong) 8))
-                        .SetBlockBasedTableFactory(blockBasedTableOptions)
-                },
-                {
-                    InterpretedTable.ToString(), new ColumnFamilyOptions()
-                        .SetMemtableHugePageSize(2 * 1024 * 1024)
-                        .SetPrefixExtractor(SliceTransform.CreateFixedPrefix((ulong) 8))
-                        .SetBlockBasedTableFactory(blockBasedTableOptions)
-                }
+                {BlockGraphTable.ToString(), ColumnFamilyOptions(blockBasedTableOptions)},
+                {DataProtectionTable.ToString(), ColumnFamilyOptions(blockBasedTableOptions)},
+                {DeliveredTable.ToString(), ColumnFamilyOptions(blockBasedTableOptions)},
+                {KeyImageTable.ToString(), ColumnFamilyOptions(blockBasedTableOptions)},
+                {StagingTable.ToString(), ColumnFamilyOptions(blockBasedTableOptions)},
+                {TransactionTable.ToString(), ColumnFamilyOptions(blockBasedTableOptions)}
             };
             return columnFamilies;
         }
@@ -144,8 +100,33 @@ namespace CYPCore.Persistence
                 .SetCreateMissingColumnFamilies()
                 .SetCreateIfMissing()
                 .SetMaxBackgroundFlushes(2)
-                .SetMaxBackgroundCompactions(8);
+                .SetMaxBackgroundCompactions(Environment.ProcessorCount)
+                .SetMaxOpenFiles(-1);
             return options;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="blockBasedTableOptions"></param>
+        /// <returns></returns>
+        private static ColumnFamilyOptions ColumnFamilyOptions(BlockBasedTableOptions blockBasedTableOptions)
+        {
+            var columnFamilyOptions = new ColumnFamilyOptions()
+                .SetMemtableHugePageSize(2 * 1024 * 1024)
+                .SetPrefixExtractor(SliceTransform.CreateFixedPrefix((ulong)8))
+                .SetBlockBasedTableFactory(blockBasedTableOptions)
+                .SetWriteBufferSize(64 * 1024 * 1024)
+                .SetTargetFileSizeBase(64 * 1024 * 1024)
+                .SetMaxBytesForLevelBase(512 * 1024 * 1024)
+                .SetCompactionStyle(Compaction.Level)
+                .SetLevel0FileNumCompactionTrigger(8)
+                .SetLevel0SlowdownWritesTrigger(17)
+                .SetLevel0StopWritesTrigger(24)
+                .SetMaxWriteBufferNumber(3)
+                .SetMaxBytesForLevelMultiplier(8)
+                .SetNumLevels(4);
+            return columnFamilyOptions;
         }
 
         /// <summary>
@@ -157,7 +138,12 @@ namespace CYPCore.Persistence
             var blockBasedTableOptions = new BlockBasedTableOptions()
                 .SetFilterPolicy(BloomFilterPolicy.Create(10, false))
                 .SetWholeKeyFiltering(false)
-                .SetCacheIndexAndFilterBlocks(true);
+                .SetFormatVersion(4)
+                .SetIndexType(BlockBasedTableIndexType.Hash)
+                .SetBlockSize(16 * 1024)
+                .SetCacheIndexAndFilterBlocks(true)
+                .SetBlockCache(Cache.CreateLru(32 * 1024 * 1024))
+                .SetPinL0FilterAndIndexBlocksInCache(true);
             return blockBasedTableOptions;
         }
 

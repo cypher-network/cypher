@@ -184,10 +184,16 @@ namespace CYPCore.Network
                                 await restBlockService.AddBlock(data);
                                 return;
                             }
-                        case TopicType.AddMemoryPool:
+                        case TopicType.AddBlockGraph:
                             {
-                                RestMemoryPoolService restMemoryPoolService = new(uri);
-                                await restMemoryPoolService.AddMemoryPool(data);
+                                BlockGraphRestService blockGraphRestService = new(uri);
+                                await blockGraphRestService.AddBlockGraph(data);
+                                return;
+                            }
+                        case TopicType.AddTransaction:
+                            {
+                                TransactionRestService restTransactionService = new(uri);
+                                await restTransactionService.AddTransaction(data);
                                 return;
                             }
                     }

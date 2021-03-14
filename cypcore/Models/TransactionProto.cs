@@ -3,12 +3,9 @@
 
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-
 using Newtonsoft.Json;
-
-using ProtoBuf;
-
 using CYPCore.Extentions;
+using FlatSharp.Attributes;
 
 namespace CYPCore.Models
 {
@@ -54,22 +51,16 @@ namespace CYPCore.Models
         T Cast<T>();
     }
 
-    [ProtoContract]
-    public class TransactionProto : ITransactionProto
+    [FlatBufferTable]
+    public class TransactionProto : object, ITransactionProto
     {
-        public static TransactionProto CreateInstance()
-        {
-            return new TransactionProto();
-        }
-
-        [ProtoMember(1)] public byte[] TxnId { get; set; }
-        [ProtoMember(2)] public BpProto[] Bp { get; set; }
-        [ProtoMember(3)] public int Ver { get; set; }
-        [ProtoMember(4)] public int Mix { get; set; }
-        [ProtoMember(5)] public VinProto[] Vin { get; set; }
-        [ProtoMember(6)] public VoutProto[] Vout { get; set; }
-        [ProtoMember(7)] public RCTProto[] Rct { get; set; }
-
+        [FlatBufferItem(0)] public virtual byte[] TxnId { get; set; }
+        [FlatBufferItem(1)] public virtual BpProto[] Bp { get; set; }
+        [FlatBufferItem(2)] public virtual int Ver { get; set; }
+        [FlatBufferItem(3)] public virtual int Mix { get; set; }
+        [FlatBufferItem(4)] public virtual VinProto[] Vin { get; set; }
+        [FlatBufferItem(5)] public virtual VoutProto[] Vout { get; set; }
+        [FlatBufferItem(6)] public virtual RCTProto[] Rct { get; set; }
         /// <summary>
         /// 
         /// </summary>
@@ -84,15 +75,15 @@ namespace CYPCore.Models
             }
             if (TxnId != null && TxnId.Length != 32)
             {
-                results.Add(new ValidationResult("Range exeption", new[] { "TxnId" }));
+                results.Add(new ValidationResult("Range exception", new[] { "TxnId" }));
             }
             if (Mix < 0)
             {
-                results.Add(new ValidationResult("Range exeption", new[] { "Mix" }));
+                results.Add(new ValidationResult("Range exception", new[] { "Mix" }));
             }
             if (Mix != 22)
             {
-                results.Add(new ValidationResult("Range exeption", new[] { "Mix" }));
+                results.Add(new ValidationResult("Range exception", new[] { "Mix" }));
             }
             if (Rct == null)
             {
@@ -113,141 +104,26 @@ namespace CYPCore.Models
 
             foreach (var bp in Bp)
             {
-                if (bp.Proof == null)
-                {
-                    results.Add(new ValidationResult("Argument is null", new[] { "Bp.Proof" }));
-                }
-                if (bp.Proof != null && bp.Proof.Length != 675)
-                {
-                    results.Add(new ValidationResult("Range exeption", new[] { "Bp.Proof" }));
-                }
+                results.AddRange(bp.Validate());
             }
 
             if (Vin != null)
                 foreach (var vi in Vin)
                 {
-                    if (vi.Key.K_Image == null)
-                    {
-                        results.Add(new ValidationResult("Argument is null", new[] { "Vin.Key.K_Image" }));
-                    }
-
-                    if (vi.Key.K_Image != null && vi.Key.K_Image.Length != 33)
-                    {
-                        results.Add(new ValidationResult("Range exeption", new[] { "Vin.Key.K_Image" }));
-                    }
-
-                    if (vi.Key.K_Offsets == null)
-                    {
-                        results.Add(new ValidationResult("Argument is null", new[] { "Vin.Key.K_Offsets" }));
-                    }
-
-                    if (vi.Key.K_Offsets != null && vi.Key.K_Offsets.Length != 1452)
-                    {
-                        results.Add(new ValidationResult("Range exeption", new[] { "Vin.Key.K_Offsets" }));
-                    }
+                    results.AddRange(vi.Validate());
                 }
 
             if (Vout != null)
                 foreach (var vo in Vout)
                 {
-                    if (vo.C == null)
-                    {
-                        results.Add(new ValidationResult("Argument is null", new[] { "Vout.C" }));
-                    }
-
-                    if (vo.C.Length != 33)
-                    {
-                        results.Add(new ValidationResult("Range exeption", new[] { "Vout.C" }));
-                    }
-
-                    if (vo.E == null)
-                    {
-                        results.Add(new ValidationResult("Argument is null", new[] { "Vout.E" }));
-                    }
-
-                    if (vo.E.Length != 33)
-                    {
-                        results.Add(new ValidationResult("Range exeption", new[] { "Vout.E" }));
-                    }
-
-                    if (vo.N == null)
-                    {
-                        results.Add(new ValidationResult("Argument is null", new[] { "Vout.N" }));
-                    }
-
-                    if (vo.N.Length > 241)
-                    {
-                        results.Add(new ValidationResult("Range exeption", new[] { "Vout.N" }));
-                    }
-
-                    if (vo.P == null)
-                    {
-                        results.Add(new ValidationResult("Argument is null", new[] { "Vout.P" }));
-                    }
-
-                    if (vo.P != null && vo.P.Length != 33)
-                    {
-                        results.Add(new ValidationResult("Range exeption", new[] { "Vout.P" }));
-                    }
-
-                    if (!string.IsNullOrEmpty(vo.S))
-                    {
-                        if (vo.S.Length != 16)
-                        {
-                            results.Add(new ValidationResult("Range exeption", new[] { "Vout.S" }));
-                        }
-                    }
-
-                    if (vo.T != CoinType.Coin && vo.T != CoinType.Coinbase && vo.T != CoinType.Coinstake &&
-                        vo.T != CoinType.fee)
-                    {
-                        results.Add(new ValidationResult("Argument exeption", new[] { "Vout.T" }));
-                    }
+                    results.AddRange(vo.Validate());
                 }
 
             if (Rct == null) return results;
 
             foreach (var rct in Rct)
             {
-                if (rct.I == null)
-                {
-                    results.Add(new ValidationResult("Argument is null", new[] { "Rct.I" }));
-                }
-
-                if (rct.I != null && rct.I.Length != 32)
-                {
-                    results.Add(new ValidationResult("Range exeption", new[] { "Rct.I" }));
-                }
-
-                if (rct.M == null)
-                {
-                    results.Add(new ValidationResult("Argument is null", new[] { "Rct.M" }));
-                }
-
-                if (rct.M != null && rct.M.Length != 1452)
-                {
-                    results.Add(new ValidationResult("Range exeption", new[] { "Rct.M" }));
-                }
-
-                if (rct.P == null)
-                {
-                    results.Add(new ValidationResult("Argument is null", new[] { "Rct.P" }));
-                }
-
-                if (rct.P != null && rct.P.Length != 32)
-                {
-                    results.Add(new ValidationResult("Range exeption", new[] { "Rct.P" }));
-                }
-
-                if (rct.S == null)
-                {
-                    results.Add(new ValidationResult("Argument is null", new[] { "Rct.S" }));
-                }
-
-                if (rct.S != null && rct.S.Length != 1408)
-                {
-                    results.Add(new ValidationResult("Range exeption", new[] { "Rct.S" }));
-                }
+                results.AddRange(rct.Validate());
             }
 
             return results;
@@ -290,8 +166,8 @@ namespace CYPCore.Models
 
             foreach (var vin in Vin)
             {
-                ts.Append(vin.Key.K_Image);
-                ts.Append(vin.Key.K_Offsets);
+                ts.Append(vin.Key.Image);
+                ts.Append(vin.Key.Offsets);
             }
 
             foreach (var vout in Vout)

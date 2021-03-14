@@ -1,18 +1,18 @@
 ﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
-using ProtoBuf;
+using FlatSharp.Attributes;
 
 namespace CYPCore.Models
 {
-    [ProtoContract]
-    public class PayloadProto
+    [FlatBufferTable]
+    public class PayloadProto : object
     {
-        [ProtoMember(1)] public ulong Node { get; set; }
-        [ProtoMember(2)] public byte[] Data { get; set; }
-        [ProtoMember(3)] public byte[] PublicKey { get; set; }
-        [ProtoMember(4)] public byte[] Signature { get; set; }
-        [ProtoMember(5)] public string Message { get; set; }
-        [ProtoMember(6)] public bool Error { get; set; }
+        [FlatBufferItem(0)] public virtual ulong Node { get; set; }
+        [FlatBufferItem(1)] public virtual byte[] Data { get; set; }
+        [FlatBufferItem(2)] public virtual byte[] PublicKey { get; set; }
+        [FlatBufferItem(3)] public virtual byte[] Signature { get; set; }
+        [FlatBufferItem(4)] public virtual string Message { get; set; }
+        [FlatBufferItem(5)] public virtual bool Error { get; set; }
     }
 }

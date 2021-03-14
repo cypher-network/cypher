@@ -27,16 +27,16 @@
   <ItemGroup>
     <PackageReference Include="Autofac.Extensions.DependencyInjection" Version="7.1.0" />
     <PackageReference Include="AutofacSerilogIntegration" Version="5.0.0" />
-    <PackageReference Include="CliWrap" Version="3.3.0" />
+    <PackageReference Include="CliWrap" Version="3.3.1" />
     <PackageReference Include="Dawn.Guard" Version="1.12.0" />
+    <PackageReference Include="FlatSharp" Version="5.0.0" />
     <PackageReference Include="libsecp256k1Zkp.Net" Version="1.1.6" />
     <PackageReference Include="libsignal-protocol-dotnet" Version="2.8.1" />
     <PackageReference Include="MessagePack" Version="1.9.11" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc" Version="2.2.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Systemd" Version="5.0.1" />
-    <PackageReference Include="NBitcoin" Version="5.0.73" />
-    <PackageReference Include="protobuf-net" Version="3.0.73" />
-    <PackageReference Include="Refit" Version="5.2.4" />
+    <PackageReference Include="NBitcoin" Version="5.0.76" />
+    <PackageReference Include="Refit" Version="6.0.24" />
     <PackageReference Include="Serilog.Extensions.Logging.File" Version="2.0.0" />
     <PackageReference Include="Serilog.Sinks.Console" Version="3.1.1" />
     <PackageReference Include="Serilog.Sinks.File" Version="5.0.0-dev-00909" />
@@ -46,7 +46,6 @@
     <PackageReference Include="RockDb.Native" Version="6.12.1" />
     <PackageReference Include="System.Linq.Async" Version="5.0.0" />
     <PackageReference Include="System.Reactive" Version="5.0.0" />
-    <PackageReference Include="WebApiContrib.Core.Formatter.Protobuf" Version="3.0.0" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Consensus\" />

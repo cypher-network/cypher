@@ -1,12 +1,11 @@
 ﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
+using System;
 using System.Text;
-
 using Newtonsoft.Json;
-
-using ProtoBuf;
 using CYPCore.Extentions;
+using FlatSharp.Attributes;
 
 namespace CYPCore.Models
 {
@@ -15,43 +14,31 @@ namespace CYPCore.Models
         string Hash { get; set; }
         ulong Node { get; set; }
         ulong Round { get; set; }
-        TransactionProto Transaction { get; set; }
+        object Data { get; set; }
         string PublicKey { get; set; }
         string Signature { get; set; }
         string PreviousHash { get; set; }
-
         string ToString();
         byte[] ToHash();
         byte[] Stream();
         T Cast<T>();
     }
 
-    [ProtoContract]
-    public class InterpretedProto : IInterpretedProto
+    [FlatBufferTable]
+    public class InterpretedProto : object, IInterpretedProto
     {
-        public static InterpretedProto CreateInstance()
-        {
-            return new InterpretedProto();
-        }
-
         private const string HexUpper = "0123456789ABCDEF";
 
-        [ProtoMember(1)]
-        public string Hash { get; set; }
-        [ProtoMember(2)]
-        public ulong Node { get; set; }
-        [ProtoMember(3)]
-        public ulong Round { get; set; }
-        [ProtoMember(4)]
-        public TransactionProto Transaction { get; set; }
-        [ProtoMember(5)]
-        public string PublicKey { get; set; }
-        [ProtoMember(6)]
-        public string Signature { get; set; }
-        [ProtoMember(7)]
-        public string PreviousHash { get; set; }
-        [ProtoMember(8)]
-        public InterpretedType InterpretedType { get; set; }
+        [FlatBufferItem(0)] public virtual string Hash { get; set; }
+        [FlatBufferItem(1)] public virtual ulong Node { get; set; }
+        [FlatBufferItem(2)] public virtual ulong Round { get; set; }
+        [FlatBufferItem(3)] public virtual object Data { get; set; }
+        [FlatBufferItem(4)] public virtual string PublicKey { get; set; }
+        [FlatBufferItem(5)] public virtual string Signature { get; set; }
+        [FlatBufferItem(6)] public virtual string PreviousHash { get; set; }
+
+        [FlatBufferItem(7, DefaultValue = Models.Status.None)]
+        public virtual Status Status { get; set; }
 
         public override string ToString()
         {
@@ -81,7 +68,6 @@ namespace CYPCore.Models
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="data"></param>
         /// <returns></returns>
         public byte[] ToHash()
         {
@@ -101,43 +87,7 @@ namespace CYPCore.Models
                 .Append(PreviousHash ?? string.Empty)
                 .Append(Round)
                 .Append(PublicKey ?? string.Empty)
-                .Append(Signature ?? string.Empty)
-                .Append(Transaction.TxnId)
-                .Append(Transaction.Mix)
-                .Append(Transaction.Ver);
-
-            foreach (var bp in Transaction.Bp)
-            {
-                ts.Append(bp.Proof);
-            }
-
-            foreach (var vin in Transaction.Vin)
-            {
-                ts.Append(vin.Key.K_Image);
-                ts.Append(vin.Key.K_Offsets);
-            }
-
-            foreach (var vout in Transaction.Vout)
-            {
-                ts
-                    .Append(vout.A)
-                    .Append(vout.C)
-                    .Append(vout.E)
-                    .Append(vout.L)
-                    .Append(vout.N)
-                    .Append(vout.P)
-                    .Append(vout.S ?? string.Empty)
-                    .Append(vout.T.ToString());
-            }
-
-            foreach (var rct in Transaction.Rct)
-            {
-                ts
-                    .Append(rct.I)
-                    .Append(rct.M)
-                    .Append(rct.P)
-                    .Append(rct.S);
-            }
+                .Append(Signature ?? string.Empty);
 
             return ts.ToArray(); ;
         }

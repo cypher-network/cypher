@@ -4,18 +4,13 @@
 using System;
 using System.Linq;
 using System.Net;
-using System.Net.Http;
 using System.Text;
 using System.Collections.Generic;
 using System.Reflection;
 using System.IO;
 using System.Security;
-using System.Threading.Tasks;
 using System.Numerics;
 using System.Security.Cryptography;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
-using ProtoBuf;
 using CYPCore.Extentions;
 using System.Runtime.InteropServices;
 
@@ -95,29 +90,6 @@ namespace CYPCore.Helper
             return result.ToArray();
         }
 
-        public static T DeserializeJsonFromStream<T>(Stream stream)
-        {
-            if (stream == null || stream.CanRead == false)
-                return default;
-
-            using var sr = new StreamReader(stream);
-            using var jtr = new JsonTextReader(sr);
-            var js = new JsonSerializer();
-            var searchResult = js.Deserialize<T>(jtr);
-            return searchResult;
-        }
-
-        public static async Task<string> StreamToStringAsync(Stream stream)
-        {
-            string content = null;
-
-            if (stream != null)
-                using (var sr = new StreamReader(stream))
-                    content = await sr.ReadToEndAsync();
-
-            return content;
-        }
-
         public static BigInteger Mod(BigInteger a, BigInteger n)
         {
             var result = a % n;
@@ -127,87 +99,6 @@ namespace CYPCore.Helper
             }
 
             return result;
-        }
-
-        public static BigInteger ConvertHashToNumber(byte[] hash, BigInteger prime, int bytes)
-        {
-            var intH = new BigInteger(hash);
-            var subString = BigInteger.Parse(intH.ToString().Substring(0, bytes));
-            var result = Mod(subString, prime);
-
-            return result;
-        }
-
-        public static long GetInt64HashCode(byte[] hash)
-        {
-            //32Byte hashText separate
-            //hashCodeStart = 0~7  8Byte
-            //hashCodeMedium = 8~23  8Byte
-            //hashCodeEnd = 24~31  8Byte
-            //and Fold
-            var hashCodeStart = BitConverter.ToInt64(hash, 0);
-            var hashCodeMedium = BitConverter.ToInt64(hash, 8);
-            var hashCodeEnd = BitConverter.ToInt64(hash, 24);
-
-            long hashCode = hashCodeStart ^ hashCodeMedium ^ hashCodeEnd;
-
-            return hashCode;
-        }
-
-        public static byte[] SerializeProto<T>(T data)
-        {
-            byte[] mArray = default;
-
-            try
-            {
-                using var ms = new MemoryStream();
-
-                Serializer.Serialize(ms, data);
-                mArray = ms.ToArray();
-            }
-            catch
-            {
-            }
-
-            return mArray;
-        }
-
-        public static T DeserializeProto<T>(byte[] data)
-        {
-            T item = default;
-
-            try
-            {
-                using var ms = new MemoryStream(data);
-                item = Serializer.Deserialize<T>(ms);
-            }
-            catch
-            {
-            }
-
-            return item;
-        }
-
-        public static IEnumerable<T> DeserializeListProto<T>(byte[] data) where T : class
-        {
-            List<T> list = new();
-            T item;
-
-            try
-            {
-                using var ms = new MemoryStream(data);
-
-                while ((item = Serializer.DeserializeWithLengthPrefix<T>(ms, PrefixStyle.Base128, fieldNumber: 1)) !=
-                       null)
-                {
-                    list.Add(item);
-                }
-            }
-            catch
-            {
-            }
-
-            return list.AsEnumerable();
         }
 
         public static byte[] Combine(byte[] first, byte[] second)
@@ -256,7 +147,7 @@ namespace CYPCore.Helper
                     v.Append(new char[] { HexUpper[c >> 4], HexUpper[c & 0x0f] });
                 }
 
-                var byteHex = SHA384ManagedHash(v.ToString().ToBytes());
+                var byteHex = Sha384ManagedHash(v.ToString().ToBytes());
 
                 id = (ulong)BitConverter.ToInt64(byteHex, 0);
                 id = (ulong)Convert.ToInt64(id.ToString().Substring(0, xBase));
@@ -269,37 +160,16 @@ namespace CYPCore.Helper
             return id;
         }
 
-        public static byte[] SHA384ManagedHash(byte[] data)
+        public static byte[] Sha384ManagedHash(byte[] data)
         {
             SHA384 sHA384 = new SHA384Managed();
             return sHA384.ComputeHash(data);
         }
 
-        public static byte[] SHA256ManagedHash(byte[] data)
+        public static byte[] Sha256ManagedHash(byte[] data)
         {
             SHA256 sHA256 = new SHA256Managed();
             return sHA256.ComputeHash(data);
-        }
-
-        public static JToken ReadJToken(HttpResponseMessage httpResponseMessage, string attr)
-        {
-            var read = httpResponseMessage.Content.ReadAsStringAsync().Result;
-            var jObject = JObject.Parse(read);
-            var jToken = jObject.GetValue(attr);
-
-            return jToken;
-        }
-
-        public static void Shuffle<T>(T[] array)
-        {
-            int n = array.Length;
-            for (int i = 0; i < n; i++)
-            {
-                int r = i + Random.Next(n - i);
-                T t = array[r];
-                array[r] = array[i];
-                array[i] = t;
-            }
         }
 
         public static BigInteger Exp(BigInteger a, BigInteger exponent, BigInteger n)
@@ -335,45 +205,6 @@ namespace CYPCore.Helper
             }
 
             return res;
-        }
-
-        public static double ShannonEntropy(string input)
-        {
-            static double logtwo(double num)
-            {
-                return Math.Log(num) / Math.Log(2);
-            }
-
-            static double Contain(string x, char k)
-            {
-                double count = 0;
-                foreach (char Y in x)
-                {
-                    if (Y.Equals(k))
-                        count++;
-                }
-
-                return count;
-            }
-
-            double infoC = 0;
-            double freq;
-            string k = "";
-            foreach (char c1 in input)
-            {
-                if (!k.Contains(c1.ToString()))
-                    k += c1;
-            }
-
-            foreach (char c in k)
-            {
-                freq = Contain(input, c) / input.Length;
-                infoC += freq * logtwo(freq);
-            }
-
-            infoC /= -1;
-
-            return infoC;
         }
 
         public static bool IsLocalIpAddress(string host)

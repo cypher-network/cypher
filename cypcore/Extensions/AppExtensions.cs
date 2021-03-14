@@ -56,7 +56,7 @@ namespace CYPCore.Extensions
         /// <returns></returns>
         public static ContainerBuilder AddMemoryPool(this ContainerBuilder builder)
         {
-            builder.RegisterType<MemoryPool>().As<IMemoryPool>().InstancePerDependency();
+            builder.RegisterType<MemoryPool>().As<IMemoryPool>().SingleInstance();
             return builder;
         }
 
@@ -74,11 +74,12 @@ namespace CYPCore.Extensions
                 configuration.Bind("Staking", stakingConfigurationOptions);
 
                 var posMintingProvider = new PosMinting(
+                    c.Resolve<IGraph>(),
+                    c.Resolve<IMemoryPool>(),
                     c.Resolve<ISerfClient>(),
                     c.Resolve<IUnitOfWork>(),
                     c.Resolve<ISigning>(),
                     c.Resolve<IValidator>(),
-                    c.Resolve<ILocalNode>(),
                     stakingConfigurationOptions,
                     c.Resolve<Serilog.ILogger>());
 
@@ -132,6 +133,8 @@ namespace CYPCore.Extensions
         public static ContainerBuilder AddGraph(this ContainerBuilder builder)
         {
             builder.RegisterType<Graph>().As<IGraph>().SingleInstance();
+            builder.RegisterType<GraphBackgroundService>().As<IHostedService>();
+
             return builder;
         }
 
@@ -155,8 +158,7 @@ namespace CYPCore.Extensions
             .As<ILocalNode>()
             .SingleInstance();
 
-            builder.RegisterType<GraphBackgroundService>().As<IHostedService>().SingleInstance();
-            builder.RegisterType<SyncBackgroundService>().As<IHostedService>().SingleInstance();
+            builder.RegisterType<SyncBackgroundService>().As<IHostedService>();
 
             return builder;
         }
@@ -304,31 +306,9 @@ namespace CYPCore.Extensions
         /// </summary>
         /// <param name="builder"></param>
         /// <returns></returns>
-        public static ContainerBuilder AddMemoryPoolService(this ContainerBuilder builder)
-        {
-            builder.RegisterType<MemoryPoolService>().As<IMemoryPoolService>();
-            return builder;
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="builder"></param>
-        /// <returns></returns>
         public static ContainerBuilder AddMembershipService(this ContainerBuilder builder)
         {
             builder.RegisterType<MembershipService>().As<IMembershipService>();
-            return builder;
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="builder"></param>
-        /// <returns></returns>
-        public static ContainerBuilder AddBlockService(this ContainerBuilder builder)
-        {
-            builder.RegisterType<BlockService>().As<IBlockService>();
             return builder;
         }
 
@@ -349,7 +329,7 @@ namespace CYPCore.Extensions
                 .As<INodeMonitor>()
                 .InstancePerLifetimeScope();
 
-            builder.RegisterType<NodeMonitorService>().As<IHostedService>().SingleInstance();
+            builder.RegisterType<NodeMonitorService>().As<IHostedService>();
 
             return builder;
         }

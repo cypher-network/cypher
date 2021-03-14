@@ -4,9 +4,7 @@
 using System;
 using System.Net.Http;
 using System.Threading.Tasks;
-
 using Refit;
-
 using CYPCore.Models;
 
 namespace CYPCore.Services.Rest
@@ -20,7 +18,7 @@ namespace CYPCore.Services.Rest
         Task<BlockHeight> GetHeight();
 
         [Get("/header/blocks/{skip}/{take}")]
-        Task<ProtobufStream> GetBlockHeaders(int skip, int take);
+        Task<FlatBufferStream> GetBlockHeaders(int skip, int take);
 
         [Post("/header/block")]
         Task<WebResponse> AddBlock(byte[] payload);
@@ -31,13 +29,12 @@ namespace CYPCore.Services.Rest
     /// </summary>
     public class RestBlockService
     {
-        private readonly HttpClient _httpClient;
         private readonly IRestBlockService _restBlockService;
 
         public RestBlockService(Uri baseUrl)
         {
-            _httpClient = new() { BaseAddress = baseUrl };
-            _restBlockService = RestService.For<IRestBlockService>(_httpClient);
+            HttpClient httpClient = new() { BaseAddress = baseUrl };
+            _restBlockService = RestService.For<IRestBlockService>(httpClient);
         }
 
         /// <summary>
@@ -46,7 +43,7 @@ namespace CYPCore.Services.Rest
         /// <param name="skip"></param>
         /// <param name="take"></param>
         /// <returns></returns>
-        public async Task<ProtobufStream> GetBlockHeaders(int skip, int take)
+        public async Task<FlatBufferStream> GetBlockHeaders(int skip, int take)
         {
             return await _restBlockService.GetBlockHeaders(skip, take).ConfigureAwait(false);
         }

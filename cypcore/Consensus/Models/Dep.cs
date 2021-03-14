@@ -2,37 +2,39 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System.Collections.Generic;
+using FlatSharp.Attributes;
 
 namespace CYPCore.Consensus.Models
 {
-    public class Dep
+    [FlatBufferTable]
+    public class Dep : object
     {
-        public BlockId Block { get; }
-        public List<BlockId> Deps { get; }
-        public BlockId Prev { get; }
+        [FlatBufferItem(0)] public virtual Block Block { get; }
+        [FlatBufferItem(1)] public virtual IList<Block> Deps { get; } = new List<Block>();
+        [FlatBufferItem(2)] public virtual Block Prev { get; }
 
         public Dep()
         {
-            Block = new BlockId();
-            Deps = new List<BlockId>();
-            Prev = new BlockId();
+            Block = new Block();
+            Deps = new List<Block>();
+            Prev = new Block();
         }
 
-        public Dep(BlockId block)
+        public Dep(Block block)
         {
             Block = block;
-            Deps = new List<BlockId>();
-            Prev = new BlockId();
+            Deps = new List<Block>();
+            Prev = new Block();
         }
 
-        public Dep(BlockId block, List<BlockId> deps)
+        public Dep(Block block, List<Block> deps)
         {
             Block = block;
             Deps = deps;
-            Prev = new BlockId();
+            Prev = new Block();
         }
 
-        public Dep(BlockId block, List<BlockId> deps, BlockId prev)
+        public Dep(Block block, List<Block> deps, Block prev)
         {
             Block = block;
             Deps = deps;

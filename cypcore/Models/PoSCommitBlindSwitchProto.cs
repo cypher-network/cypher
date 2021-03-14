@@ -1,13 +1,12 @@
-﻿using System;
-using ProtoBuf;
+﻿using FlatSharp.Attributes;
 
 namespace CYPCore.Models
 {
-    [ProtoContract]
-    public class PoSCommitBlindSwitchProto
+    [FlatBufferTable]
+    public class PoSCommitBlindSwitchProto : object
     {
-        [ProtoMember(1)] public string Balance { get; set; }
-        [ProtoMember(2)] public string Difficulty { get; set; }
-        [ProtoMember(3)] public string Difference { get; set; }
+        [FlatBufferItem(0)] public virtual string Balance { get; set; }
+        [FlatBufferItem(1)] public virtual string Difficulty { get; set; }
+        [FlatBufferItem(2)] public virtual string Difference { get; set; }
     }
 }
