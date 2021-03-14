@@ -14,14 +14,16 @@ namespace CYPCore.Helper
     {
         public bool Start();
         public void Stop();
-        public Task<bool> Listen(CancellationToken cancellationToken);
+        public Task<bool> Connect(CancellationToken cancellationToken);
     }
 
     public class NodeMonitor : INodeMonitor
     {
         private readonly ILogger _logger;
         private readonly NodeMonitorConfigurationOptions _configuration;
-        private readonly TcpListener _listener;
+
+        private readonly IPEndPoint _endPoint;
+        private readonly Socket _client;
 
         public NodeMonitor(NodeMonitorConfigurationOptions configuration, ILogger logger)
         {
@@ -32,9 +34,9 @@ namespace CYPCore.Helper
             {
                 try
                 {
-                    var ipAddress = IPAddress.Parse(_configuration.Listening);
-                    var endPoint = new IPEndPoint(ipAddress, _configuration.Port);
-                    _listener = new TcpListener(endPoint);
+                    var ipAddress = IPAddress.Parse(_configuration.Tester.Listening);
+                    _endPoint = new IPEndPoint(ipAddress, _configuration.Tester.Port);
+                    _client = new Socket(ipAddress.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
                 }
                 catch (Exception ex)
                 {
@@ -50,85 +52,41 @@ namespace CYPCore.Helper
                 return false;
             }
 
-            try
-            {
-                _listener.Start();
-            }
-            catch (Exception ex)
-            {
-                _logger.Here().Error(ex, "Cannot start TCP listener");
-                return false;
-            }
-
             return true;
         }
 
         public void Stop()
         {
-            if (_configuration.Enabled)
-            {
-                try
-                {
-                    _listener.Stop();
-                }
-                catch (Exception ex)
-                {
-                    _logger.Here().Error(ex, "Error while stopping TCP listener");
-                }
-            }
-        }
-
-        public async Task<bool> Listen(CancellationToken cancellationToken)
-        {
-            var buffer = new byte[_listener.Server.ReceiveBufferSize];
+            if (!_configuration.Enabled || !_client.Connected) return;
 
             try
             {
-                var client = await AcceptAsync(cancellationToken);
-                _logger.Here().Information("Client connected");
+                _client.Disconnect(true);
+            }
+            catch (Exception ex)
+            {
+                _logger.Here().Error(ex, "Error while stopping TCP listener");
+            }
+        }
 
-                while (client.Connected)
-                {
-                    var bytesReceived = await client.GetStream().ReadAsync(buffer, 0, buffer.Length, cancellationToken);
-                    if (bytesReceived == 0)
-                    {
-                        _logger.Here().Debug("Received 0 bytes, connection terminated");
-                        break;
-                    }
-
-                    _logger.Here().Debug("Received {@NumBytes} bytes", bytesReceived);
-                }
-                _logger.Here().Information("Client disconnected");
+        public async Task<bool> Connect(CancellationToken cancellationToken)
+        {
+            try
+            {
+                await _client.ConnectAsync(_endPoint, cancellationToken);
+                _logger.Here().Information("Client connected: {@Connected}", _client.Connected);
 
             }
-            catch (OperationCanceledException)
+            catch (Exception ex)
             {
-                _logger.Here().Debug("Listener interrupted");
+                _logger.Here().Error(ex, "Cannot connect to tester {@Address}:{@Port} ",
+                    _endPoint.Address.ToString(),
+                    _endPoint.Port);
+
                 return false;
             }
 
             return true;
-        }
-
-        private async Task<TcpClient> AcceptAsync(CancellationToken cancellationToken)
-        {
-            await using (cancellationToken.Register(_listener.Stop))
-            {
-                try
-                {
-                    return await _listener.AcceptTcpClientAsync();
-                }
-                catch (SocketException ex) when (ex.SocketErrorCode == SocketError.Interrupted)
-                {
-                    _logger.Here().Information("Operation cancelled");
-                    throw new OperationCanceledException();
-                }
-                catch (ObjectDisposedException) when (cancellationToken.IsCancellationRequested)
-                {
-                    _logger.Here().Information("Operation cancelled");
-                    throw new OperationCanceledException();
-                }
-            }
         }
     }
 }

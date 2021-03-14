@@ -25,13 +25,13 @@ using Microsoft.Extensions.Hosting;
 
 namespace CYPCore.Services
 {
-    public interface ISerfService
+    public interface ISerfService : IStartable
     {
         Task StartAsync(IHostApplicationLifetime applicationLifetime);
         Task JoinSeedNodes(SeedNode seedNode);
     }
 
-    public class SerfService : ISerfService, IStartable
+    public class SerfService : ISerfService
     {
         private readonly ISerfClient _serfClient;
         private readonly ISigning _signing;

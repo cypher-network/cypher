@@ -234,6 +234,10 @@ namespace CYPCore.Extensions
         /// <returns></returns>
         public static ContainerBuilder AddSerfProcessService(this ContainerBuilder builder, IConfiguration configuration)
         {
+            // Do not start Serf when NodeMonitor is active
+            var nodeMonitorConfigurationOptions = new NodeMonitorConfigurationOptions();
+            configuration.Bind(NodeMonitorConfigurationOptions.ConfigurationSectionName, nodeMonitorConfigurationOptions);
+
             builder.Register(c =>
             {
                 var ct = new CancellationTokenSource();
@@ -243,7 +247,10 @@ namespace CYPCore.Extensions
                 var serfClient = c.Resolve<ISerfClient>();
                 var logger = c.Resolve<Serilog.ILogger>();
 
-                var serfService = new SerfService(serfClient, signing, logger);
+                ISerfService serfService =
+                    nodeMonitorConfigurationOptions.Enabled
+                        ? new SerfServiceTester(serfClient, signing, logger)
+                        : new SerfService(serfClient, signing, logger);
 
                 serfService.StartAsync(lifetime).ConfigureAwait(false).GetAwaiter();
 
