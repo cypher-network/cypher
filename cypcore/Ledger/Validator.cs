@@ -56,7 +56,7 @@ namespace CYPCore.Ledger
         VerifyResult VerifyCommitSum(TransactionProto transaction);
         VerifyResult VerifyTransactionFee(TransactionProto transaction);
         Task<VerifyResult> VerifyKeyImage(TransactionProto transaction);
-        Task<VerifyResult> VerifyVOutCommits(TransactionProto transaction);
+        Task<VerifyResult> VerifyOutputCommits(TransactionProto transaction);
         Task<double> GetRunningDistribution();
         ulong Fee(int nByte);
         VerifyResult VerifyNetworkShare(ulong solution, double previousNetworkShare,
@@ -367,8 +367,6 @@ namespace CYPCore.Ledger
                 return VerifyResult.UnableToVerify;
             }
 
-            //_unitOfWork.DeliveredRepository.ResetTrie();
-
             var verifyLockTime = VerifyLockTime(new LockTime(Utils.UnixTimeToDateTime(blockHeader.Locktime)),
                 blockHeader.LocktimeScript);
             if (verifyLockTime == VerifyResult.UnableToVerify)
@@ -452,7 +450,7 @@ namespace CYPCore.Ledger
             if (transactionTypeArray.Contains(CoinType.fee.ToString()) &&
                 transactionTypeArray.Contains(CoinType.Coin.ToString()))
             {
-                var verifyVOutCommits = await VerifyVOutCommits(transaction);
+                var verifyVOutCommits = await VerifyOutputCommits(transaction);
                 if (verifyVOutCommits == VerifyResult.UnableToVerify) return verifyVOutCommits;
             }
 
@@ -586,7 +584,7 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="transaction"></param>
         /// <returns></returns>
-        public async Task<VerifyResult> VerifyVOutCommits(TransactionProto transaction)
+        public async Task<VerifyResult> VerifyOutputCommits(TransactionProto transaction)
         {
             Guard.Argument(transaction, nameof(transaction)).NotNull();
 
