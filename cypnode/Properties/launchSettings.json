@@ -14,13 +14,12 @@
         "ASPNETCORE_ENVIRONMENT": "Development"
       }
     },
-    "TGMNode": {
+    "CYPNode": {
       "commandName": "Project",
-      "launchBrowser": true,
+      "applicationUrl": "http://localhost:7000",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
-      },
-      "applicationUrl": "http://localhost:31123"
+      }
     }
   }
 }

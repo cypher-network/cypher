@@ -3,30 +3,19 @@
 
 using System;
 using System.IO;
+using System.Runtime.InteropServices;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Hosting;
-
-using Autofac.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
+using Autofac.Extensions.DependencyInjection;
 using Serilog;
-using Serilog.Events;
 using CYPCore.Models;
+using CYPCore.Helper;
 
 namespace CYPNode
 {
     public static class Program
     {
-        static IConfigurationRoot ConfigurationRoot
-        {
-            get
-            {
-                return new ConfigurationBuilder()
-                                .SetBasePath(Directory.GetCurrentDirectory())
-                                .AddJsonFile("appsettings.json")
-                                .Build();
-            }
-        }
-
         /// <summary>
         ///
         /// </summary>
@@ -34,21 +23,56 @@ namespace CYPNode
         /// <returns></returns>
         public static int Main(string[] args)
         {
-            Log.Logger = new LoggerConfiguration()
-                .ReadFrom.Configuration(ConfigurationRoot, "Log")
-                .CreateLogger();
+            var config = new ConfigurationBuilder()
+                .SetBasePath(Directory.GetCurrentDirectory())
+                .AddJsonFile("appsettings.json", optional: false)
+                .AddCommandLine(args)
+                .Build();
+
+            const string logSectionName = "Log";
+            if (config.GetSection(logSectionName) != null)
+            {
+                Log.Logger = new LoggerConfiguration()
+                    .ReadFrom.Configuration(config, logSectionName)
+                    .CreateLogger();
+            }
+            else
+            {
+                throw new Exception(string.Format($"No \"{@logSectionName}\" section found in appsettings.json", logSectionName));
+            }
+
+            if (config.GetValue<bool>("Log:FirstChanceException"))
+            {
+                AppDomain.CurrentDomain.FirstChanceException += (sender, e) =>
+                {
+                    Log.Error(e.Exception, e.Exception.Message);
+                };
+            }
 
             try
             {
                 Log.Information("Starting web host");
-                var builder = CreateWebHostBuilder(args);
+                var builder = CreateWebHostBuilder(args, config);
 
-                using (IHost host = builder.Build())
+                var platform = Util.GetOperatingSystemPlatform();
+                if (platform == OSPlatform.Linux)
                 {
-                    host.Run();
-                    host.WaitForShutdown();
-                    Log.Information("Ran cleanup code inside using host block.");
+                    builder.UseSystemd();
                 }
+                else if (platform == OSPlatform.OSX)
+                {
+                    // TODO
+                }
+                else if (platform == OSPlatform.Windows)
+                {
+                    builder.UseWindowsService();
+                }
+
+                using var host = builder.Build();
+
+                host.Run();
+                host.WaitForShutdown();
+                Log.Information("Ran cleanup code inside using host block.");
             }
             catch (ObjectDisposedException)
             {
@@ -67,17 +91,17 @@ namespace CYPNode
             return 0;
         }
 
-        private static IHostBuilder CreateWebHostBuilder(string[] args) =>
+        private static IHostBuilder CreateWebHostBuilder(string[] args, IConfigurationRoot configurationRoot) =>
             Host.CreateDefaultBuilder(args)
-            .UseServiceProviderFactory(new AutofacServiceProviderFactory())
-            .ConfigureWebHostDefaults(webBuilder =>
-            {
-                ApiConfigurationOptions apiConfigurationOptions = new();
-                ConfigurationRoot.Bind("Api", apiConfigurationOptions);
+                .UseServiceProviderFactory(new AutofacServiceProviderFactory())
+                .ConfigureWebHostDefaults(webBuilder =>
+                {
+                    ApiConfigurationOptions apiConfigurationOptions = new();
+                    configurationRoot.Bind("Api", apiConfigurationOptions);
 
-                webBuilder.UseStartup<Startup>()
-                          .UseUrls(new string[] { apiConfigurationOptions.Listening })
-                          .UseSerilog();
-            });
+                    webBuilder.UseStartup<Startup>()
+                        .UseUrls(apiConfigurationOptions.Listening)
+                        .UseSerilog();
+                });
     }
 }

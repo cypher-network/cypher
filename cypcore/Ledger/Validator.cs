@@ -3,229 +3,267 @@
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
-
-using Microsoft.Extensions.Logging;
-
-using Dawn;
-
-using BigInteger = NBitcoin.BouncyCastle.Math.BigInteger;
-
-using Libsecp256k1Zkp.Net;
-
-using NBitcoin;
-
+using CYPCore.Consensus.Models;
+using CYPCore.Cryptography;
+using cypcore.Extensions;
+using CYPCore.Extensions;
 using CYPCore.Extentions;
+using CYPCore.Helper;
 using CYPCore.Models;
 using CYPCore.Persistence;
-using CYPCore.Extensions;
-using CYPCore.Cryptography;
+using Dawn;
+using Libsecp256k1Zkp.Net;
+using Serilog;
+using NBitcoin;
+using NBitcoin.BouncyCastle.Math;
 using NBitcoin.Crypto;
-using cypcore.Extensions;
+using Util = CYPCore.Helper.Util;
 
 namespace CYPCore.Ledger
 {
+    /// <summary>
+    /// 
+    /// </summary>
+    public interface IValidator
+    {
+        uint StakeTimestampMask { get; }
+
+        byte[] BlockZeroMerkel { get; }
+        byte[] BlockZeroPreMerkel { get; }
+        byte[] Seed { get; }
+        byte[] Security256 { get; }
+
+        Task<VerifyResult> VerifyBlockGraphSignatureNodeRound(BlockGraph blockGraph);
+        VerifyResult VerifyBulletProof(TransactionProto transaction);
+        Task<VerifyResult> VerifyCoinbaseTransaction(VoutProto coinbase, ulong solution);
+        VerifyResult VerifySolution(byte[] vrfBytes, byte[] kernel, ulong solution);
+        Task<VerifyResult> VerifyBlockHeader(BlockHeaderProto blockHeader);
+        Task<VerifyResult> VerifyBlockHeaders(BlockHeaderProto[] blockHeaders);
+        Task<VerifyResult> VerifyTransaction(TransactionProto transaction);
+        Task<VerifyResult> VerifyTransactions(TransactionProto[] transactions);
+        VerifyResult VerifySloth(int bits, byte[] vrfSig, byte[] nonce, byte[] security);
+        int Difficulty(ulong solution, double networkShare);
+        ulong Reward(ulong solution, double runningDistribution);
+        double NetworkShare(ulong solution, double runningDistribution);
+        ulong Solution(byte[] vrfSig, byte[] kernel);
+        long GetAdjustedTimeAsUnixTimestamp();
+        Task<VerifyResult> VerifyForkRule(BlockHeaderProto[] xChain);
+        VerifyResult VerifyLockTime(LockTime target, string script);
+        VerifyResult VerifyCommitSum(TransactionProto transaction);
+        VerifyResult VerifyTransactionFee(TransactionProto transaction);
+        Task<VerifyResult> VerifyKeyImage(TransactionProto transaction);
+        Task<VerifyResult> VerifyVOutCommits(TransactionProto transaction);
+        Task<double> GetRunningDistribution();
+        ulong Fee(int nByte);
+        VerifyResult VerifyNetworkShare(ulong solution, double previousNetworkShare,
+            double runningDistributionTotal);
+    }
+
+    /// <summary>
+    /// 
+    /// </summary>
     public class Validator : IValidator
     {
-        protected readonly IUnitOfWork _unitOfWork;
+        private const double Distribution = 139_000_000;
+        private const int FeeNByte = 6000;
+
+        private readonly IUnitOfWork _unitOfWork;
         private readonly ISigning _signingProvider;
         private readonly ILogger _logger;
+        private readonly ReaderWriterLockSlim _sync = new();
 
-        private double _distribution;
-        private double _runningDistributionTotal;
-
-        public Validator(IUnitOfWork unitOfWork, ISigning signingProvider, ILogger<Validator> logger)
+        public Validator(IUnitOfWork unitOfWork, ISigning signingProvider, ILogger logger)
         {
             _unitOfWork = unitOfWork;
             _signingProvider = signingProvider;
-            _logger = logger;
+            _logger = logger.ForContext("SourceContext", nameof(Validator));
         }
 
         public uint StakeTimestampMask => 0x0000000A;
-        public byte[] BlockZeroMR => "1a4e00081a8c83f10a427145df6b84beba286b368b5b9a7f9e8f13f426dfd6e8".HexToByte();
-        public byte[] BlockZeroPR => "3030303030303030437970686572204e6574776f726b2076742e322e30303030".HexToByte();
-        public byte[] Seed => "6b341e59ba355e73b1a8488e75b617fe1caa120aa3b56584a217862840c4f7b5d70cefc0d2b36038d67a35b3cd406d54f8065c1371a17a44c1abb38eea8883b2".HexToByte();
-        public byte[] Security256 => "60464814417085833675395020742168312237934553084050601624605007846337253615407".ToBytes();
+        public byte[] BlockZeroMerkel => "4157dd0a13221f2a1b90fef7e4864925389d3107e112c03a267580d3e84d7b49".HexToByte();
+        public byte[] BlockZeroPreMerkel =>
+            "3030303030303030437970686572204e6574776f726b2076742e322e32303231".HexToByte();
+
+        public byte[] Seed =>
+            "6b341e59ba355e73b1a8488e75b617fe1caa120aa3b56584a217862840c4f7b5d70cefc0d2b36038d67a35b3cd406d54f8065c1371a17a44c1abb38eea8883b2"
+                .HexToByte();
+
+        public byte[] Security256 =>
+            "60464814417085833675395020742168312237934553084050601624605007846337253615407".ToBytes();
 
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="memPool"></param>
+        /// <param name="blockGraph"></param>
         /// <returns></returns>
-        public Task<bool> VerifyMemPoolSignatures(MemPoolProto memPool)
+        public Task<VerifyResult> VerifyBlockGraphSignatureNodeRound(BlockGraph blockGraph)
         {
-            Guard.Argument(memPool, nameof(memPool)).NotNull();
+            Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
 
             try
             {
-                if (!_signingProvider.VerifySignature(memPool.Block.Signature.HexToByte(), memPool.Block.PublicKey.HexToByte(), memPool.Block.Transaction.ToHash()))
+                if (!_signingProvider.VerifySignature(blockGraph.Signature,
+                    blockGraph.PublicKey, blockGraph.ToHash()))
                 {
-                    _logger.LogError($"<<< Validator.VerifiyMemPoolSignatures >>>: Unable to verify signature for block {memPool.Block.Round} from node {memPool.Block.Node}");
-                    return Task.FromResult(false);
+                    _logger.Here().Error("Unable to verify signature for block {@Round} from node {@Node}",
+                        blockGraph.Block.Round,
+                        blockGraph.Block.Node);
+
+                    return Task.FromResult(VerifyResult.UnableToVerify);
                 }
 
-                if (memPool.Prev != null && memPool.Prev?.Round != 0)
+                if (blockGraph.Prev != null && blockGraph.Prev?.Round != 0)
                 {
-                    if (!_signingProvider.VerifySignature(memPool.Prev.Signature.HexToByte(), memPool.Prev.PublicKey.HexToByte(), memPool.Prev.Transaction.ToHash()))
+                    if (blockGraph.Prev.Node != blockGraph.Block.Node)
                     {
-                        _logger.LogError($"<<< Validator.VerifiyMemPoolSignatures >>>: Unable to verify signature for previous block on block {memPool.Block.Round} from node {memPool.Block.Node}");
-                        return Task.FromResult(false);
+                        _logger.Here().Error("Previous block node does not match on block {@Round} from node {@Node}",
+                            blockGraph.Block.Round,
+                            blockGraph.Block.Node);
+
+                        return Task.FromResult(VerifyResult.UnableToVerify);
                     }
 
-                    if (memPool.Prev.Node != memPool.Block.Node)
+                    if (blockGraph.Prev.Round + 1 != blockGraph.Block.Round)
                     {
-                        _logger.LogError($"<<< Validator.VerifiyMemPoolSignatures >>>: Previous block node does not match on block {memPool.Block.Round} from node {memPool.Block.Node}");
-                        return Task.FromResult(false);
-                    }
+                        _logger.Here()
+                            .Error("Previous block round is invalid on block {@Round} from node {@Node}",
+                                blockGraph.Block.Round, blockGraph.Block.Node);
 
-                    if (memPool.Prev.Round + 1 != memPool.Block.Round)
-                    {
-                        _logger.LogError($"<<< Validator.VerifiyMemPoolSignatures >>>: Previous block round is invalid on block {memPool.Block.Round} from node {memPool.Block.Node}");
-                        return Task.FromResult(false);
+                        return Task.FromResult(VerifyResult.UnableToVerify);
                     }
                 }
 
-                for (int i = 0; i < memPool.Deps.Count; i++)
+                if (blockGraph.Deps.Any(dep => dep.Block.Node == blockGraph.Block.Node))
                 {
-                    var dep = memPool.Deps[i];
+                    _logger.Here().Error(
+                        "Block references includes a block from same node in block reference {@Round} from node {@Node}",
+                        blockGraph.Block.Round,
+                        blockGraph.Block.Node);
 
-                    if (!_signingProvider.VerifySignature(dep.Block.Signature.HexToByte(), dep.Block.PublicKey.HexToByte(), dep.Block.Transaction.ToHash()))
-                    {
-                        _logger.LogError($"<<< Validator.VerifiyMemPoolSignatures >>>: Unable to verify signature for block reference {memPool.Block.Round} from node {memPool.Block.Node}");
-                        return Task.FromResult(false);
-                    }
-
-                    if (dep.Block.Node == memPool.Block.Node)
-                    {
-                        _logger.LogError($"<<< Validator.VerifiyMemPoolSignatures >>>: Block references includes a block from same node in block reference  {memPool.Block.Round} from node {memPool.Block.Node}");
-                        return Task.FromResult(false);
-                    }
+                    return Task.FromResult(VerifyResult.UnableToVerify);
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< Validator.VerifiyMemPoolSignatures >>>: {ex}");
-                return Task.FromResult(false);
+                _logger.Here().Error(ex, "Cannot verify block graph signature");
+                return Task.FromResult(VerifyResult.UnableToVerify);
             }
 
-            return Task.FromResult(true);
+            return Task.FromResult(VerifyResult.Succeed);
         }
 
         /// <summary>
-        /// 
         /// </summary>
         /// <param name="transaction"></param>
         /// <returns></returns>
-        public bool VerifyBulletProof(TransactionProto transaction)
+        public VerifyResult VerifyBulletProof(TransactionProto transaction)
         {
             Guard.Argument(transaction, nameof(transaction)).NotNull();
             Guard.Argument(transaction.Vout, nameof(transaction)).NotNull();
 
             try
             {
-                var elements = transaction.Validate().Any();
-                if (!elements)
-                {
-                    using var secp256k1 = new Secp256k1();
-                    using var bulletProof = new BulletProof();
+                if (transaction.Validate().Any()) return VerifyResult.UnableToVerify;
 
-                    for (int i = 0; i < transaction.Bp.Length; i++)
-                    {
-                        var verified = bulletProof.Verify(transaction.Vout[i + 2].C, transaction.Bp[i].Proof, null);
-                        if (!verified)
-                        {
-                            return false;
-                        }
-                    }
+                using var secp256K1 = new Secp256k1();
+                using var bulletProof = new BulletProof();
+
+                if (transaction.Bp.Select((t, i) => bulletProof.Verify(transaction.Vout[i + 2].C, t.Proof, null))
+                    .Any(verified => !verified))
+                {
+                    return VerifyResult.UnableToVerify;
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< Validator.VerifyBulletProof >>>: {ex}");
-                return false;
+                _logger.Here().Error(ex, "Cannot verify bulletproof");
+                return VerifyResult.UnableToVerify;
             }
 
-            return true;
+            return VerifyResult.Succeed;
         }
 
         /// <summary>
-        /// 
         /// </summary>
         /// <param name="transaction"></param>
         /// <returns></returns>
-        public bool VerifyCommitSum(TransactionProto transaction)
+        public VerifyResult VerifyCommitSum(TransactionProto transaction)
         {
             Guard.Argument(transaction, nameof(transaction)).NotNull();
 
             try
             {
-                var elements = transaction.Validate().Any();
-                if (!elements)
+                if (transaction.Validate().Any()) return VerifyResult.UnableToVerify;
+
+                using var pedersen = new Pedersen();
+
+                for (var i = 0; i < transaction.Vout.Length / 3; i++)
                 {
-                    using var pedersen = new Pedersen();
+                    var fee = transaction.Vout[i].C;
+                    var payment = transaction.Vout[i + 1].C;
+                    var change = transaction.Vout[i + 2].C;
 
-                    for (int i = 0; i < transaction.Vout.Length / 3; i++)
-                    {
-                        var fee = transaction.Vout[i].C;
-                        var payment = transaction.Vout[i + 1].C;
-                        var change = transaction.Vout[i + 2].C;
+                    var commitSumBalance = pedersen.CommitSum(new List<byte[]> { fee, payment, change },
+                        new List<byte[]>());
 
-                        var commitSumBalance = pedersen.CommitSum(new List<byte[]> { fee, payment, change }, new List<byte[]> { });
-                        if (!pedersen.VerifyCommitSum(new List<byte[]> { commitSumBalance }, new List<byte[]> { fee, payment, change }))
-                        {
-                            return false;
-                        }
-                    }
+                    if (!pedersen.VerifyCommitSum(new List<byte[]> { commitSumBalance },
+                        new List<byte[]> { fee, payment, change }))
+                        return VerifyResult.UnableToVerify;
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< Validator.VerifyCommitSum >>>: {ex}");
-                return false;
+                _logger.Here().Error(ex, "Cannot verify commit sum");
+                return VerifyResult.UnableToVerify;
             }
 
-            return true;
+            return VerifyResult.Succeed;
         }
 
         /// <summary>
-        /// 
         /// </summary>
         /// <param name="poSCommitBlindSwitch"></param>
         /// <returns></returns>
-        public bool VerifyCommitBlindSwitch(PoSCommitBlindSwitchProto poSCommitBlindSwitch)
+        public VerifyResult VerifyCommitBlindSwitch(PoSCommitBlindSwitchProto poSCommitBlindSwitch)
         {
             Guard.Argument(poSCommitBlindSwitch, nameof(poSCommitBlindSwitch)).NotNull();
 
             try
             {
                 using var pedersen = new Pedersen();
-
-                return pedersen.VerifyCommitSum(
+                var verifyCommitSum = pedersen.VerifyCommitSum(
                     new List<byte[]> { poSCommitBlindSwitch.Balance.HexToByte() },
-                    new List<byte[]> { poSCommitBlindSwitch.Difficulty.HexToByte(), poSCommitBlindSwitch.Difference.HexToByte() });
+                    new List<byte[]>
+                    {
+                        poSCommitBlindSwitch.Difficulty.HexToByte(), poSCommitBlindSwitch.Difference.HexToByte()
+                    });
+
+                return verifyCommitSum ? VerifyResult.Succeed : VerifyResult.UnableToVerify;
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< Validator.VerifyCommitBlindSwitch >>>: {ex}");
-                return false;
+                _logger.Here().Error(ex, "Cannot verify blind switch");
+                return VerifyResult.UnableToVerify;
             }
         }
 
         /// <summary>
-        /// 
         /// </summary>
         /// <param name="vrfBytes"></param>
         /// <param name="kernel"></param>
         /// <param name="solution"></param>
         /// <returns></returns>
-        public bool VerifySolution(byte[] vrfBytes, byte[] kernel, ulong solution)
+        public VerifyResult VerifySolution(byte[] vrfBytes, byte[] kernel, ulong solution)
         {
             Guard.Argument(vrfBytes, nameof(vrfBytes)).NotNull().MaxCount(32);
             Guard.Argument(kernel, nameof(kernel)).NotNull().MaxCount(32);
-            Guard.Argument(solution, nameof(solution)).NotNegative().NotZero();
+            Guard.Argument(solution, nameof(solution)).NotZero().NotNegative();
 
-            bool isSolution = false;
+            var isSolution = false;
 
             try
             {
@@ -239,239 +277,158 @@ namespace CYPCore.Ledger
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< Validator.VerifySolution >>>: {ex}");
+                _logger.Here().Error(ex, "Cannot verify solution");
             }
 
-            return isSolution;
+            return isSolution ? VerifyResult.Succeed : VerifyResult.UnableToVerify;
         }
 
         /// <summary>
-        /// 
         /// </summary>
         /// <param name="blockHeaders"></param>
         /// <returns></returns>
-        public async Task<bool> VerifyBlockHeaders(IEnumerable<BlockHeaderProto> blockHeaders)
+        public async Task<VerifyResult> VerifyBlockHeaders(BlockHeaderProto[] blockHeaders)
         {
             Guard.Argument(blockHeaders, nameof(blockHeaders)).NotNull();
 
             foreach (var blockHeader in blockHeaders)
             {
-                var verified = await VerifyBlockHeader(blockHeader);
-                if (!verified)
-                {
-                    _logger.LogCritical($"<<< Validator.VerifyBlockHeaders >>>: Could not verify block header");
-                    return false;
-                }
+                var verifyBlockHeader = await VerifyBlockHeader(blockHeader);
+                if (verifyBlockHeader == VerifyResult.Succeed) continue;
+
+                _logger.Here().Fatal("Could not verify block header");
+
+                return VerifyResult.UnableToVerify;
             }
 
-            return true;
+            return VerifyResult.Succeed;
         }
 
         /// <summary>
-        /// 
         /// </summary>
         /// <param name="blockHeader"></param>
         /// <returns></returns>
-        public async Task<bool> VerifyBlockHeader(BlockHeaderProto blockHeader)
+        public async Task<VerifyResult> VerifyBlockHeader(BlockHeaderProto blockHeader)
         {
             Guard.Argument(blockHeader, nameof(blockHeader)).NotNull();
 
-            var verified = VerifySloth(blockHeader.Bits, blockHeader.VrfSig.HexToByte(), blockHeader.Nonce.ToBytes(), blockHeader.Sec.ToBytes());
-            if (!verified)
+            var verifySloth = VerifySloth(blockHeader.Bits, blockHeader.VrfSig.HexToByte(), blockHeader.Nonce.ToBytes(),
+                blockHeader.Sec.ToBytes());
+            if (verifySloth == VerifyResult.UnableToVerify)
             {
-                _logger.LogCritical($"<<< Validator.VerifyBlockHeader >>>: Could not verify the block header solth");
-                return false;
+                _logger.Here().Fatal("Could not verify the block header sloth");
+                return verifySloth;
             }
 
-            if (blockHeader.MrklRoot.HexToByte().Xor(BlockZeroMR) && blockHeader.PrevMrklRoot.HexToByte().Xor(BlockZeroPR))
+            var verifyCoinbase = await VerifyCoinbaseTransaction(blockHeader.Transactions.First().Vout.First(),
+                blockHeader.Solution);
+            if (verifyCoinbase == VerifyResult.UnableToVerify)
             {
-                _runningDistributionTotal -= blockHeader.Transactions.First().Vout.First().A.DivWithNaT();
-            }
-
-            verified = VerifyCoinbaseTransaction(blockHeader.Transactions.First(), blockHeader.Solution);
-            if (!verified)
-            {
-                _logger.LogCritical($"<<< Validator.VerifyBlockHeader >>>: Could not verify the block header coinbase transaction");
-                return false;
+                _logger.Here().Fatal("Could not verify the block header coinbase transaction");
+                return verifyCoinbase;
             }
 
             uint256 hash;
-            using (var ts = new Helper.TangramStream())
+            using (var ts = new TangramStream())
             {
                 blockHeader.Transactions.Skip(1).ForEach(x => ts.Append(x.Stream()));
                 hash = Hashes.DoubleSHA256(ts.ToArray());
             }
 
-            var solution = VerifySolution(blockHeader.VrfSig.HexToByte(), hash.ToBytes(false), blockHeader.Solution);
-            if (!solution)
+            var verifySolution =
+                VerifySolution(blockHeader.VrfSig.HexToByte(), hash.ToBytes(false), blockHeader.Solution);
+            if (verifySolution == VerifyResult.UnableToVerify)
             {
-                _logger.LogCritical($"<<< Validator.VerifyBlockHeader >>>: Could not verify the block header solution");
-                return false;
+                _logger.Here().Fatal("Could not verify the block header solution");
+                return verifySolution;
             }
 
             var bits = Difficulty(blockHeader.Solution, blockHeader.Transactions.First().Vout.First().A.DivWithNaT());
             if (blockHeader.Bits != bits)
             {
-                _logger.LogCritical($"<<< Validator.VerifyBlockHeader >>>: Could not verify the block header bits");
-                return false;
+                _logger.Here().Fatal("Could not verify the block header bits");
+                return VerifyResult.UnableToVerify;
             }
 
-            var merkel = blockHeader.MrklRoot.HexToByte();
-            blockHeader.MrklRoot = null;
+            var merkel = blockHeader.MerkelRoot.HexToByte();
+            blockHeader.MerkelRoot = null;
 
             var tempBlockHeader = _unitOfWork.DeliveredRepository.ToTrie(blockHeader);
             if (tempBlockHeader == null)
             {
-                _logger.LogCritical($"<<< Validator.VerifyBlockHeader >>>: Could not add the block header to merkel");
-                return false;
+                _logger.Here().Fatal("Could not add the block header to merkel");
+                return VerifyResult.UnableToVerify;
             }
 
-            blockHeader.MrklRoot = merkel.ByteToHex();
-
-            if (blockHeader.MrklRoot != _unitOfWork.DeliveredRepository.MrklRoot.ByteToHex())
+            blockHeader.MerkelRoot = merkel.ByteToHex();
+            if (!blockHeader.MerkelRoot.Equals(tempBlockHeader.MerkelRoot))
             {
-                _logger.LogCritical($"<<< Validator.VerifyBlockHeader >>>: Could not verify the block header merkel");
-                return false;
+                _logger.Here().Fatal("Could not verify the block header merkel");
+                return VerifyResult.UnableToVerify;
             }
 
-            _unitOfWork.DeliveredRepository.ResetTrie();
+            //_unitOfWork.DeliveredRepository.ResetTrie();
 
-            verified = VerifyLockTime(new LockTime(Utils.UnixTimeToDateTime(blockHeader.Locktime)), blockHeader.LocktimeScript);
-            if (!verified)
+            var verifyLockTime = VerifyLockTime(new LockTime(Utils.UnixTimeToDateTime(blockHeader.Locktime)),
+                blockHeader.LocktimeScript);
+            if (verifyLockTime == VerifyResult.UnableToVerify)
             {
-                _logger.LogCritical($"<<< Validator.VerifyBlockHeader >>>: Could not verify the block header locktime");
-                return false;
+                _logger.Here().Fatal("Could not verify the block header lock time");
+                return verifyLockTime;
             }
 
-            if (blockHeader.MrklRoot.HexToByte().Xor(BlockZeroMR) && blockHeader.PrevMrklRoot.HexToByte().Xor(BlockZeroPR))
-            {
-                return true;
-            }
+            if (blockHeader.MerkelRoot.HexToByte().Xor(BlockZeroMerkel) &&
+                blockHeader.PrevMerkelRoot.HexToByte().Xor(BlockZeroPreMerkel))
+                return VerifyResult.Succeed;
 
-            var prevBlock = await _unitOfWork.DeliveredRepository.FirstOrDefaultAsync(x => new(x.MrklRoot == blockHeader.PrevMrklRoot));
+            var prevBlock = await _unitOfWork.DeliveredRepository.GetAsync(x =>
+                new ValueTask<bool>(x.MerkelRoot.Equals(blockHeader.PrevMerkelRoot)));
+
             if (prevBlock == null)
             {
-                _logger.LogCritical($"<<< Validator.VerifyBlockHeader >>>: Could not find previous block header");
-                return false;
+                _logger.Here().Fatal("Could not find previous block header");
+                return VerifyResult.UnableToVerify;
             }
 
-            verified = await VerifyTransactions(blockHeader.Transactions);
-            if (!verified)
-            {
-                _logger.LogCritical($"<<< Validator.VerifyBlockHeader >>>: Could not verify the block header transactions");
-                return false;
-            }
+            var verifyTransactions = await VerifyTransactions(blockHeader.Transactions);
+            if (verifyTransactions == VerifyResult.Succeed) return VerifyResult.Succeed;
 
-            return true;
+            _logger.Here().Fatal("Could not verify block header transactions");
+            return VerifyResult.UnableToVerify;
         }
 
         /// <summary>
-        /// 
         /// </summary>
-        /// <param name="Transactions"></param>
+        /// <param name="transactions"></param>
         /// <returns></returns>
-        public async Task<bool> VerifyTransactions(HashSet<TransactionProto> transactions)
+        public async Task<VerifyResult> VerifyTransactions(TransactionProto[] transactions)
         {
             Guard.Argument(transactions, nameof(transactions)).NotNull();
 
-            foreach (var tx in transactions)
+            foreach (var transaction in transactions)
             {
-                var verified = await VerifyTransaction(tx);
-                if (!verified)
+                var verifyTransaction = await VerifyTransaction(transaction);
+                if (verifyTransaction == VerifyResult.UnableToVerify)
                 {
-                    _logger.LogCritical($"<<< Validator.VerifyTransactions >>>: Could not verify the transaction");
-                    return false;
+                    _logger.Here().Fatal("Could not verify transaction");
+                    return verifyTransaction;
                 }
 
-                verified = VerifyTransactionFee(tx);
-                if (!verified)
+                if (transaction.Vout.First().T == CoinType.fee)
                 {
-                    _logger.LogCritical($"<<< Validator.VerifyTransactions >>>: Could not verify the transaction fee");
-                    return false;
+                    var verifyTransactionFee = VerifyTransactionFee(transaction);
+                    if (verifyTransactionFee == VerifyResult.Succeed) continue;
                 }
-            }
-
-            return true;
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="tx"></param>
-        /// <returns></returns>
-        public async Task<bool> VerifyTransaction(TransactionProto transaction)
-        {
-            Guard.Argument(transaction, nameof(transaction)).NotNull();
-
-            var notValid = transaction.Validate().Any();
-            if (notValid)
-            {
-                return false;
-            }
-
-            var verifySum = VerifyCommitSum(transaction);
-            if (!verifySum)
-            {
-                return false;
-            }
-
-            var verifyBulletProof = VerifyBulletProof(transaction);
-            if (!verifyBulletProof)
-            {
-                return false;
-            }
-
-            var verifyVoutCommits = await VerifyVoutCommits(transaction);
-            if (!verifyVoutCommits)
-            {
-                return false;
-            }
-
-            var verifyKImage = await VerifyKimage(transaction);
-            if (!verifyKImage)
-            {
-                return false;
-            }
-
-            using var mlsag = new MLSAG();
-            for (int i = 0; i < transaction.Vin.Length; i++)
-            {
-                byte[] Prepare(byte[] m, byte[] keyOffset, int mix, int rows)
+                else if (transaction.Vout.First().T == CoinType.Coinbase)
                 {
-                    var pcm_in = new Span<byte[]>(new byte[mix * 1][]);
-                    var pcm_out = new Span<byte[]>(new byte[3][]);
-                    var offsets = keyOffset.Split(33);
-
-                    foreach (var cin in offsets.Take(mix).Select((value, i) => (i, value)))
-                    {
-                        pcm_in[cin.i] = cin.value;
-                    }
-
-                    foreach (var cout in offsets.Skip(mix).Select((value, i) => (i, value)))
-                    {
-                        pcm_out[cout.i] = cout.value;
-                    }
-
-                    var prepareMLSAG = mlsag.Prepare(m, null, pcm_out.Length, pcm_out.Length, mix, rows, pcm_in, pcm_out, null);
-                    if (!prepareMLSAG)
-                    {
-                        _logger.LogCritical($"<<< Validator.VerifyTransaction >>>: Could not verify the MLSAG transaction");
-                        return null;
-                    }
-
-                    return m;
+                    continue;
                 }
 
-                var m = Prepare(transaction.Rct[i].M, transaction.Vin[i].Key.K_Offsets, transaction.Mix, 2);
-                var verifyMLSAG = mlsag.Verify(transaction.Rct[i].I, transaction.Mix, 2, m, transaction.Vin[i].Key.K_Image, transaction.Rct[i].P, transaction.Rct[i].S);
-                if (!verifyMLSAG)
-                {
-                    _logger.LogCritical($"<<< Validator.VerifyTransaction >>>: Could not verify the MLSAG transaction");
-                    return false;
-                }
+                _logger.Here().Fatal("Could not verify transaction fee");
+                return VerifyResult.UnableToVerify;
             }
 
-            return true;
+            return VerifyResult.Succeed;
         }
 
         /// <summary>
@@ -479,314 +436,310 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="transaction"></param>
         /// <returns></returns>
-        public bool VerifyTransactionFee(TransactionProto transaction)
+        public async Task<VerifyResult> VerifyTransaction(TransactionProto transaction)
+        {
+            Guard.Argument(transaction, nameof(transaction)).NotNull();
+
+            if (transaction.Validate().Any()) return VerifyResult.UnableToVerify;
+
+            var verifySum = VerifyCommitSum(transaction);
+            if (verifySum == VerifyResult.UnableToVerify) return verifySum;
+
+            var verifyBulletProof = VerifyBulletProof(transaction);
+            if (verifyBulletProof == VerifyResult.UnableToVerify) return verifyBulletProof;
+
+            var transactionTypeArray = transaction.Vout.Select(x => x.T.ToString()).ToArray();
+            if (transactionTypeArray.Contains(CoinType.fee.ToString()) &&
+                transactionTypeArray.Contains(CoinType.Coin.ToString()))
+            {
+                var verifyVOutCommits = await VerifyVOutCommits(transaction);
+                if (verifyVOutCommits == VerifyResult.UnableToVerify) return verifyVOutCommits;
+            }
+
+            var verifyKImage = await VerifyKeyImage(transaction);
+            if (verifyKImage == VerifyResult.UnableToVerify) return verifyKImage;
+
+            using var mlsag = new MLSAG();
+            for (var i = 0; i < transaction.Vin.Length; i++)
+            {
+                var m = PrepareMlsag(transaction.Rct[i].M, transaction.Vout, transaction.Vin[i].Key.Offsets,
+                    transaction.Mix, 2);
+
+                var verifyMlsag = mlsag.Verify(transaction.Rct[i].I, transaction.Mix, 2, m,
+                    transaction.Vin[i].Key.Image, transaction.Rct[i].P, transaction.Rct[i].S);
+                if (verifyMlsag) continue;
+
+                _logger.Here().Fatal("Could not verify the MLSAG transaction");
+
+                return VerifyResult.UnableToVerify;
+            }
+
+            return VerifyResult.Succeed;
+        }
+
+        /// <summary>
+        /// </summary>
+        /// <param name="transaction"></param>
+        /// <returns></returns>
+        public VerifyResult VerifyTransactionFee(TransactionProto transaction)
         {
             Guard.Argument(transaction, nameof(transaction)).NotNull();
 
             var vout = transaction.Vout.First();
-            if (vout.A < 0)
-            {
-                return false;
-            }
 
-            if (vout.T != CoinType.fee)
-            {
-                return false;
-            }
+            if (vout.T != CoinType.fee) return VerifyResult.UnableToVerify;
 
-            var feeRate = Fee(transaction.Stream().Length);
-            if (vout.A != feeRate)
-            {
-                return false;
-            }
+            var feeRate = Fee(FeeNByte);
+            if (vout.A != feeRate) return VerifyResult.UnableToVerify;
 
             using var pedersen = new Pedersen();
 
             var commitSum = pedersen.CommitSum(new List<byte[]> { vout.C }, new List<byte[]> { vout.C });
-            if (commitSum != null)
-            {
-                return false;
-            }
-
-            return true;
+            return commitSum == null ? VerifyResult.Succeed : VerifyResult.UnableToVerify;
         }
 
         /// <summary>
-        /// 
         /// </summary>
         /// <param name="nByte"></param>
         /// <returns></returns>
         public ulong Fee(int nByte)
         {
-            return ((double)0.000012 * nByte).ConvertToUInt64();
+            return (0.000012 * nByte).ConvertToUInt64();
         }
+
 
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="transaction"></param>
+        /// <param name="coinbase"></param>
+        /// <param name="solution"></param>
         /// <returns></returns>
-        public bool VerifyCoinbaseTransaction(TransactionProto transaction, ulong solution)
+        public async Task<VerifyResult> VerifyCoinbaseTransaction(VoutProto coinbase, ulong solution)
         {
-            Guard.Argument(transaction, nameof(transaction)).NotNull();
-            Guard.Argument(solution, nameof(solution)).NotNegative();
+            Guard.Argument(coinbase, nameof(coinbase)).NotNull();
+            Guard.Argument(solution, nameof(solution)).NotZero().NotNegative();
 
-            var vout = transaction.Vout.First();
-            if (vout.T != CoinType.Coinbase)
-            {
-                return false;
-            }
+            if (coinbase.Validate().Any()) return VerifyResult.UnableToVerify;
+            if (coinbase.T != CoinType.Coinbase) return VerifyResult.UnableToVerify;
 
-            var verified = VerifyNetworkShare(solution, vout.A.DivWithNaT(), ref _runningDistributionTotal);
-            if (!verified)
-            {
-                return false;
-            }
+            var runningDistribution = await GetRunningDistribution() - coinbase.A.DivWithNaT();
+
+            var verifyNetworkShare = VerifyNetworkShare(solution, coinbase.A.DivWithNaT(), runningDistribution);
+            if (verifyNetworkShare == VerifyResult.UnableToVerify) return verifyNetworkShare;
 
             using var pedersen = new Pedersen();
-            var commitSum = pedersen.CommitSum(new List<byte[]> { vout.C }, new List<byte[]> { vout.C });
-            if (commitSum != null)
-            {
-                return false;
-            }
+            var commitSum = pedersen.CommitSum(new List<byte[]> { coinbase.C }, new List<byte[]> { coinbase.C });
 
-            return true;
+            return commitSum == null ? VerifyResult.Succeed : VerifyResult.UnableToVerify;
         }
 
         /// <summary>
-        /// 
         /// </summary>
         /// <param name="target"></param>
         /// <param name="script"></param>
         /// <returns></returns>
-        public bool VerifyLockTime(LockTime target, string script)
+        public VerifyResult VerifyLockTime(LockTime target, string script)
         {
             Guard.Argument(target, nameof(target)).NotDefault();
-            Guard.Argument(script, nameof(script)).NotNull().NotEmpty();
+            Guard.Argument(script, nameof(script)).NotNull().NotEmpty().NotWhiteSpace();
 
             var sc1 = new Script(Op.GetPushOp(target.Value), OpcodeType.OP_CHECKLOCKTIMEVERIFY);
             var sc2 = new Script(script);
 
-            if (!sc1.ToString().Equals(sc2.ToString()))
-            {
-                return false;
-            }
+            if (!sc1.ToString().Equals(sc2.ToString())) return VerifyResult.UnableToVerify;
 
             var tx = NBitcoin.Network.Main.CreateTransaction();
-            tx.Outputs.Add(new TxOut()
-            {
-                ScriptPubKey = new Script(script)
-            });
+            tx.Outputs.Add(new TxOut { ScriptPubKey = new Script(script) });
 
             var spending = NBitcoin.Network.Main.CreateTransaction();
             spending.LockTime = new LockTime(DateTimeOffset.Now);
             spending.Inputs.Add(new TxIn(tx.Outputs.AsCoins().First().Outpoint, new Script()));
             spending.Inputs[0].Sequence = 1;
 
-            return spending.Inputs.AsIndexedInputs().First().VerifyScript(tx.Outputs[0]);
+            return spending.Inputs.AsIndexedInputs().First().VerifyScript(tx.Outputs[0])
+                ? VerifyResult.Succeed
+                : VerifyResult.UnableToVerify;
         }
 
         /// <summary>
-        /// 
         /// </summary>
         /// <param name="transaction"></param>
         /// <returns></returns>
-        public async Task<bool> VerifyKimage(TransactionProto transaction)
+        public async Task<VerifyResult> VerifyKeyImage(TransactionProto transaction)
         {
             Guard.Argument(transaction, nameof(transaction)).NotNull();
 
-            var elements = transaction.Validate().Any();
-            if (!elements)
-            {
-                foreach (var vin in transaction.Vin)
-                {
-                    var blockHeaders = await _unitOfWork.DeliveredRepository
-                        .WhereAsync(x => new ValueTask<bool>(x.Transactions.Any(t => t.Vin.First().Key.K_Image.Xor(vin.Key.K_Image))));
+            if (transaction.Validate().Any()) return VerifyResult.UnableToVerify;
 
-                    if (blockHeaders.Count() > 1)
-                    {
-                        return false;
-                    }
-                }
+            foreach (var vin in transaction.Vin)
+            {
+                var blockHeaders = await _unitOfWork.DeliveredRepository.WhereAsync(x =>
+                    new ValueTask<bool>(x.Transactions.Any(t => t.Vin.First().Key.Image.Xor(vin.Key.Image))));
+
+                if (blockHeaders.Count > 1) return VerifyResult.UnableToVerify;
             }
 
-            return true;
+            return VerifyResult.Succeed;
         }
 
         /// <summary>
-        /// 
         /// </summary>
         /// <param name="transaction"></param>
         /// <returns></returns>
-        public async Task<bool> VerifyVoutCommits(TransactionProto transaction)
+        public async Task<VerifyResult> VerifyVOutCommits(TransactionProto transaction)
         {
             Guard.Argument(transaction, nameof(transaction)).NotNull();
 
-            foreach (var commit in transaction.Vin.Select(v => v.Key).SelectMany(k => k.K_Offsets.Split(33)))
-            {
-                var blockHeaders = await _unitOfWork.DeliveredRepository
-                    .WhereAsync(x => new ValueTask<bool>(x.Transactions.Any(t => t.Vout.FirstOrDefault().C.Xor(commit))));
+            var offSets = transaction.Vin.Select(v => v.Key).SelectMany(k => k.Offsets.Split(33)).ToArray();
+            var list = offSets.Where((value, index) => index % 2 == 0).ToArray();
 
-                if (!blockHeaders.Any())
-                {
-                    return false;
-                }
+            foreach (var commit in list)
+            {
+                var blockHeaders = await _unitOfWork.DeliveredRepository.WhereAsync(x =>
+                    new ValueTask<bool>(x.Transactions.Any(v => v.Vout.Any(c => c.C.Xor(commit)))));
+
+                if (!blockHeaders.Any()) return VerifyResult.UnableToVerify;
+
 
                 var vouts = blockHeaders.SelectMany(blockHeader => blockHeader.Transactions).SelectMany(x => x.Vout);
-                foreach (var vout in vouts.Where(vout => vout.T == CoinType.Coinbase && vout.T == CoinType.fee))
+                if (vouts.Where(vout => vout.T == CoinType.Coinbase && vout.T == CoinType.fee)
+                    .Select(vout => VerifyLockTime(new LockTime(Utils.UnixTimeToDateTime(vout.L)), vout.S))
+                    .Any(verified => verified != VerifyResult.UnableToVerify))
                 {
-                    var verified = VerifyLockTime(new LockTime(Utils.UnixTimeToDateTime(vout.L)), vout.S);
-                    if (!verified)
-                    {
-                        return false;
-                    }
+                    return VerifyResult.UnableToVerify;
                 }
             }
 
-            return true;
+            return VerifyResult.Succeed;
         }
 
         /// <summary>
         /// 
         /// </summary>
         /// <param name="bits"></param>
-        /// <param name="proof"></param>
+        /// <param name="vrfSig"></param>
         /// <param name="nonce"></param>
         /// <param name="security"></param>
         /// <returns></returns>
-        public bool VerifySloth(int bits, byte[] vrfSig, byte[] nonce, byte[] security)
+        public VerifyResult VerifySloth(int bits, byte[] vrfSig, byte[] nonce, byte[] security)
         {
             Guard.Argument(bits, nameof(bits)).NotNegative().NotZero();
             Guard.Argument(vrfSig, nameof(vrfSig)).NotNull().MaxCount(32);
             Guard.Argument(nonce, nameof(nonce)).NotNull().MaxCount(77);
             Guard.Argument(security, nameof(security)).NotNull().MaxCount(77);
 
-            bool verified = false;
+            var verifySloth = false;
 
             try
             {
                 var sloth = new Sloth();
 
-                var x = System.Numerics.BigInteger.Parse(vrfSig.ByteToHex(), System.Globalization.NumberStyles.AllowHexSpecifier);
+                var x = System.Numerics.BigInteger.Parse(vrfSig.ByteToHex(),
+                    NumberStyles.AllowHexSpecifier);
                 var y = System.Numerics.BigInteger.Parse(nonce.ToStr());
                 var p256 = System.Numerics.BigInteger.Parse(security.ToStr());
 
-                if (x.Sign <= 0)
-                {
-                    x = -x;
-                }
+                if (x.Sign <= 0) x = -x;
 
-                verified = sloth.Verify(bits, x, y, p256);
+                verifySloth = sloth.Verify(bits, x, y, p256);
             }
             catch (Exception ex)
             {
-                _logger.LogCritical($"<<< Validator.VerifySloth >>>: {ex.Message}");
+                _logger.Here().Fatal(ex, "Could not verify sloth");
             }
 
-            return verified;
+            return verifySloth ? VerifyResult.Succeed : VerifyResult.UnableToVerify;
         }
 
         /// <summary>
-        /// 
         /// </summary>
         /// <param name="solution"></param>
+        /// <param name="runningDistribution"></param>
         /// <returns></returns>
-        public ulong Reward(ulong solution)
+        public ulong Reward(ulong solution, double runningDistribution)
         {
-            Guard.Argument(solution, nameof(solution)).NotNegative();
+            Guard.Argument(solution, nameof(solution)).NotZero().NotNegative();
+            Guard.Argument(runningDistribution, nameof(runningDistribution)).NotNegative().NotNaN().NotInfinity();
 
-            var networkShare = NetworkShare(solution);
-
-            _runningDistributionTotal -= networkShare;
+            var networkShare = NetworkShare(solution, runningDistribution);
             return networkShare.ConvertToUInt64();
         }
 
         /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="distribution"></param>
-        public void SetInitalRunningDistribution(double distribution)
-        {
-            _distribution = distribution;
-            _runningDistributionTotal = distribution;
-        }
-
-        /// <summary>
-        /// 
         /// </summary>
         /// <returns></returns>
         public async Task<double> GetRunningDistribution()
         {
+            var runningDistributionTotal = Distribution;
+
             try
             {
-                var blockHeaders = await _unitOfWork.DeliveredRepository.SelectAsync(x => new ValueTask<BlockHeaderProto>(x));
-                for (int i = 0; i < blockHeaders.Count; i++)
-                {
-                    _runningDistributionTotal -= NetworkShare(blockHeaders.ElementAt(i).Solution);
-                }
+                var blockHeaders = await _unitOfWork.DeliveredRepository.SelectAsync(x =>
+                    new ValueTask<BlockHeaderProto>(x));
+
+                for (var i = 0; i < blockHeaders.Count; i++)
+                    runningDistributionTotal -= NetworkShare(blockHeaders.ElementAt(i).Solution, runningDistributionTotal);
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< Validator.GetRunningDistribution >>>: {ex}");
+                _logger.Here().Error(ex, "Cannot get running distribution");
             }
 
-            return _runningDistributionTotal;
+            return runningDistributionTotal;
         }
 
         /// <summary>
-        /// 
         /// </summary>
         /// <param name="solution"></param>
+        /// <param name="runningDistribution"></param>
         /// <returns></returns>
-        public double NetworkShare(ulong solution)
+        public double NetworkShare(ulong solution, double runningDistribution)
         {
-            Guard.Argument(solution, nameof(solution)).NotNegative();
+            Guard.Argument(solution, nameof(solution)).NotZero().NotNegative();
+            Guard.Argument(runningDistribution, nameof(runningDistribution)).NotNegative().NotNaN().NotInfinity();
 
-            var r = (_distribution - _runningDistributionTotal).FromExponential(11);
-            var percentage = r / (_runningDistributionTotal * 100) == 0 ? 0.1 : r / (_runningDistributionTotal * 100);
+            var r = (Distribution - runningDistribution).FromExponential(11);
+            var percentage = r / (runningDistribution * 100) == 0 ? 0.1 : r / (runningDistribution * 100);
 
             percentage = percentage.FromExponential(11);
-
-            var networkShare = (solution * percentage / _distribution).FromExponential(11);
-
-            return networkShare;
+            return (solution * percentage / Distribution).FromExponential(11); ;
         }
 
         /// <summary>
-        /// 
         /// </summary>
         /// <param name="solution"></param>
         /// <param name="previousNetworkShare"></param>
         /// <param name="runningDistributionTotal"></param>
         /// <returns></returns>
-        public bool VerifyNetworkShare(ulong solution, double previousNetworkShare, ref double runningDistributionTotal)
+        public VerifyResult VerifyNetworkShare(ulong solution, double previousNetworkShare, double runningDistributionTotal)
         {
-            Guard.Argument(solution, nameof(solution)).NotNegative();
+            Guard.Argument(solution, nameof(solution)).NotZero().NotNegative();
 
             var previousRunningDistribution = runningDistributionTotal + previousNetworkShare;
-            var r = (_distribution - previousRunningDistribution).FromExponential(11);
-            var percentage = r / (previousRunningDistribution * 100) == 0 ? 0.1 : r / (previousRunningDistribution * 100);
+            if (previousRunningDistribution > Distribution) return VerifyResult.UnableToVerify;
+
+            var r = (Distribution - previousRunningDistribution).FromExponential(11);
+            var percentage = r / (previousRunningDistribution * 100) == 0
+                ? 0.1
+                : r / (previousRunningDistribution * 100);
 
             percentage = percentage.FromExponential(11);
 
-            var networkShare = (solution * percentage / _distribution).FromExponential(11);
-
-            return networkShare == previousNetworkShare;
+            var networkShare = (solution * percentage / Distribution).FromExponential(11);
+            return networkShare == previousNetworkShare ? VerifyResult.Succeed : VerifyResult.UnableToVerify;
         }
 
         /// <summary>
-        /// 
         /// </summary>
         /// <param name="solution"></param>
         /// <param name="networkShare"></param>
         /// <returns></returns>
         public int Difficulty(ulong solution, double networkShare)
         {
-            Guard.Argument(solution, nameof(solution)).NotNegative();
-            Guard.Argument(networkShare, nameof(networkShare)).NotNegative();
+            Guard.Argument(solution, nameof(solution)).NotZero().NotNegative();
+            Guard.Argument(networkShare, nameof(networkShare)).NotNaN().NotInfinity().NotNegative();
 
             var diff = Math.Truncate(solution * networkShare / 144);
-
             diff = diff == 0 ? 1 : diff;
 
             return (int)diff;
@@ -795,7 +748,7 @@ namespace CYPCore.Ledger
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="vrfBytes"></param>
+        /// <param name="vrfSig"></param>
         /// <param name="kernel"></param>
         /// <returns></returns>
         public ulong Solution(byte[] vrfSig, byte[] kernel)
@@ -803,8 +756,8 @@ namespace CYPCore.Ledger
             Guard.Argument(vrfSig, nameof(vrfSig)).NotNull().MaxCount(32);
             Guard.Argument(kernel, nameof(kernel)).NotNull().MaxCount(32);
 
-            bool calculating = true;
-            long itrr = 0;
+            var calculating = true;
+            long itr = 0;
 
             var target = new BigInteger(1, vrfSig);
             var hashTarget = new BigInteger(1, kernel);
@@ -814,71 +767,92 @@ namespace CYPCore.Ledger
 
             while (calculating)
             {
-                var weightedTarget = target.Multiply(BigInteger.ValueOf(itrr));
-                if (hashWeightedTarget.CompareTo(weightedTarget) <= 0)
-                {
-                    calculating = false;
-                }
+                var weightedTarget = target.Multiply(BigInteger.ValueOf(itr));
+                if (hashWeightedTarget.CompareTo(weightedTarget) <= 0) calculating = false;
 
-                itrr++;
+                itr++;
             }
 
-            return (ulong)itrr;
+            return (ulong)itr;
         }
 
         /// <summary>
-        /// 
         /// </summary>
         /// <param name="xChain"></param>
         /// <returns></returns>
-        public async Task<bool> ForkRule(IEnumerable<BlockHeaderProto> xChain)
+        public async Task<VerifyResult> VerifyForkRule(BlockHeaderProto[] xChain)
         {
-            Guard.Argument(xChain, nameof(xChain)).NotNull();
+            Guard.Argument(xChain, nameof(xChain)).NotNull().NotEmpty();
 
             try
             {
                 var xBlockHeader = xChain.First();
-                var blockHeader = await _unitOfWork.DeliveredRepository.LastOrDefaultAsync();
+                var blockHeader = await _unitOfWork.DeliveredRepository.LastAsync();
 
-                if (blockHeader.MrklRoot.Equals(xBlockHeader.PrevMrklRoot))
-                {
-                    return false;
-                }
+                if (blockHeader.MerkelRoot.Equals(xBlockHeader.PrevMerkelRoot)) return VerifyResult.Invalid;
 
-                blockHeader = await _unitOfWork.DeliveredRepository.FirstOrDefaultAsync(x => new(x.MrklRoot.Equals(xBlockHeader.PrevMrklRoot)));
-                if (blockHeader == null)
-                {
-                    return false;
-                }
+                blockHeader = await _unitOfWork.DeliveredRepository.GetAsync(x =>
+                    new ValueTask<bool>(x.MerkelRoot.Equals(xBlockHeader.PrevMerkelRoot)));
 
-                var blockIndex = (await _unitOfWork.DeliveredRepository.TakeWhileAsync(x => new ValueTask<bool>(x.MrklRoot != blockHeader.PrevMrklRoot))).Count();
-                var blockHeaders = await _unitOfWork.DeliveredRepository.TakeLastAsync(blockIndex);
+                if (blockHeader == null) return VerifyResult.UnableToVerify;
+
+                var blockIndex = (await _unitOfWork.DeliveredRepository.WhereAsync(x =>
+                    new ValueTask<bool>(x.MerkelRoot != blockHeader.PrevMerkelRoot))).Count;
+
+                var blockHeaders = await _unitOfWork.DeliveredRepository.SkipAsync(blockIndex);
 
                 if (blockHeaders.Any())
                 {
-                    var blockTime = blockHeaders.First().Locktime.FromUnixTimeSeconds() - blockHeaders.Last().Locktime.FromUnixTimeSeconds();
-                    var xBlockTime = xChain.First().Locktime.FromUnixTimeSeconds() - xChain.Last().Locktime.FromUnixTimeSeconds();
-                    if (xBlockTime < blockTime)
-                    {
-                        return true;
-                    }
+                    var blockTime = blockHeaders.First().Locktime.FromUnixTimeSeconds() -
+                                    blockHeaders.Last().Locktime.FromUnixTimeSeconds();
+                    var xBlockTime = xChain.First().Locktime.FromUnixTimeSeconds() -
+                                     xChain.Last().Locktime.FromUnixTimeSeconds();
+                    if (xBlockTime < blockTime) return VerifyResult.Succeed;
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogCritical($"<<< Validator.ForkRule >>>: {ex}");
+                _logger.Here().Fatal(ex, "Error while processing fork rule");
             }
 
-            return false;
+            return VerifyResult.UnableToVerify;
         }
 
         /// <summary>
-        /// 
         /// </summary>
         /// <returns></returns>
         public long GetAdjustedTimeAsUnixTimestamp()
         {
-            return Helper.Util.GetAdjustedTimeAsUnixTimestamp() & ~StakeTimestampMask;
+            return Util.GetAdjustedTimeAsUnixTimestamp() & ~StakeTimestampMask;
+        }
+
+        /// <summary>
+        /// </summary>
+        /// <param name="m"></param>
+        /// <param name="vout"></param>
+        /// <param name="keyOffset"></param>
+        /// <param name="cols"></param>
+        /// <param name="rows"></param>
+        /// <returns></returns>
+        private byte[] PrepareMlsag(byte[] m, VoutProto[] vout, byte[] keyOffset, int cols, int rows)
+        {
+            Guard.Argument(m, nameof(m)).NotNull();
+            Guard.Argument(vout, nameof(vout)).NotNull();
+            Guard.Argument(keyOffset, nameof(keyOffset)).NotNull();
+            Guard.Argument(cols, nameof(cols)).NotZero().NotNegative();
+            Guard.Argument(rows, nameof(rows)).NotZero().NotNegative();
+
+            var pcmOut = new Span<byte[]>(new[] { vout[0].C, vout[1].C, vout[2].C });
+            var kOffsets = keyOffset.Split(33).Select(x => x).ToList();
+            var pcmIn = kOffsets.Where((value, index) => index % 2 == 0).ToArray().AsSpan();
+
+            using var mlsag = new MLSAG();
+
+            var prepareMlsag = mlsag.Prepare(m, null, pcmOut.Length, pcmOut.Length, cols, rows, pcmIn, pcmOut, null);
+            if (prepareMlsag) return m;
+
+            _logger.Here().Fatal("Could not verify the MLSAG transaction");
+            return null;
         }
     }
 }

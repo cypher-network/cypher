@@ -13,7 +13,7 @@ namespace CYPCore.Models
         public string NodeName { get; set; }
         public int RetryMax { get; set; }
         public bool Rejoin { get; set; }
-        public string BroadcasTimeout { get; set; }
+        public string BroadcastTimeout { get; set; }
         public string Loglevel { get; set; }
         public bool Replay { get; set; }
         public string KeyringFile { get; set; }

@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using CYPCore.Helper;
 
 namespace CYPCore.Extentions
 {
@@ -77,6 +78,19 @@ namespace CYPCore.Extentions
             list.Insert(index, item);
 
             return list.Select(i => i);
+        }
+
+        public static IEnumerable<TSource> DistinctBy<TSource, TKey>
+            (this IEnumerable<TSource> source, Func<TSource, TKey> keySelector)
+        {
+            var seenKeys = new HashSet<TKey>();
+            foreach (var element in source)
+            {
+                if (seenKeys.Add(keySelector(element)))
+                {
+                    yield return element;
+                }
+            }
         }
     }
 }

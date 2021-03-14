@@ -4,30 +4,63 @@
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using Newtonsoft.Json;
-
-using ProtoBuf;
 using CYPCore.Extentions;
+using FlatSharp.Attributes;
 
 namespace CYPCore.Models
 {
-    [ProtoContract]
-    public class TransactionProto
+    public interface ITransactionProto
     {
-        [ProtoMember(1)]
-        public byte[] TxnId { get; set; }
-        [ProtoMember(2)]
-        public BpProto[] Bp { get; set; }
-        [ProtoMember(3)]
-        public int Ver { get; set; }
-        [ProtoMember(4)]
-        public int Mix { get; set; }
-        [ProtoMember(5)]
-        public VinProto[] Vin { get; set; }
-        [ProtoMember(6)]
-        public VoutProto[] Vout { get; set; }
-        [ProtoMember(7)]
-        public RCTProto[] Rct { get; set; }
+        byte[] TxnId { get; set; }
+        BpProto[] Bp { get; set; }
+        int Ver { get; set; }
+        int Mix { get; set; }
+        VinProto[] Vin { get; set; }
+        VoutProto[] Vout { get; set; }
+        RCTProto[] Rct { get; set; }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        IEnumerable<ValidationResult> Validate();
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        byte[] ToIdentifier();
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        byte[] ToHash();
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        byte[] Stream();
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <returns></returns>
+        T Cast<T>();
+    }
+
+    [FlatBufferTable]
+    public class TransactionProto : object, ITransactionProto
+    {
+        [FlatBufferItem(0)] public virtual byte[] TxnId { get; set; }
+        [FlatBufferItem(1)] public virtual BpProto[] Bp { get; set; }
+        [FlatBufferItem(2)] public virtual int Ver { get; set; }
+        [FlatBufferItem(3)] public virtual int Mix { get; set; }
+        [FlatBufferItem(4)] public virtual VinProto[] Vin { get; set; }
+        [FlatBufferItem(5)] public virtual VoutProto[] Vout { get; set; }
+        [FlatBufferItem(6)] public virtual RCTProto[] Rct { get; set; }
         /// <summary>
         /// 
         /// </summary>
@@ -40,25 +73,25 @@ namespace CYPCore.Models
             {
                 results.Add(new ValidationResult("Argument is null", new[] { "TxnId" }));
             }
-            if (TxnId.Length != 48)
+            if (TxnId != null && TxnId.Length != 32)
             {
-                results.Add(new ValidationResult("Range exeption", new[] { "TxnId" }));
+                results.Add(new ValidationResult("Range exception", new[] { "TxnId" }));
             }
             if (Mix < 0)
             {
-                results.Add(new ValidationResult("Range exeption", new[] { "Mix" }));
+                results.Add(new ValidationResult("Range exception", new[] { "Mix" }));
             }
-            if (Mix > 22)
+            if (Mix != 22)
             {
-                results.Add(new ValidationResult("Range exeption", new[] { "Mix" }));
+                results.Add(new ValidationResult("Range exception", new[] { "Mix" }));
             }
             if (Rct == null)
             {
-                results.Add(new ValidationResult("Argument is null", new[] { "RingSig" }));
+                results.Add(new ValidationResult("Argument is null", new[] { "Rct" }));
             }
             if (Ver != 0x1)
             {
-                results.Add(new ValidationResult("Incorrect number", new[] { "Version" }));
+                results.Add(new ValidationResult("Incorrect number", new[] { "Ver" }));
             }
             if (Vin == null)
             {
@@ -71,22 +104,26 @@ namespace CYPCore.Models
 
             foreach (var bp in Bp)
             {
-
+                results.AddRange(bp.Validate());
             }
 
-            foreach (var vi in Vin)
-            {
+            if (Vin != null)
+                foreach (var vi in Vin)
+                {
+                    results.AddRange(vi.Validate());
+                }
 
-            }
+            if (Vout != null)
+                foreach (var vo in Vout)
+                {
+                    results.AddRange(vo.Validate());
+                }
 
-            foreach (var vo in Vout)
-            {
-
-            }
+            if (Rct == null) return results;
 
             foreach (var rct in Rct)
             {
-
+                results.AddRange(rct.Validate());
             }
 
             return results;
@@ -104,27 +141,10 @@ namespace CYPCore.Models
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="data"></param>
         /// <returns></returns>
         public byte[] ToHash()
         {
-            return Helper.Util.SHA384ManagedHash(Stream());
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <returns></returns>
-        public byte[] ToKeyImage()
-        {
-            byte[] hash;
-            using (var ts = new Helper.TangramStream())
-            {
-                Vin.ForEach(x => ts.Append(x.Key.K_Image));
-                hash = Helper.Util.SHA384ManagedHash(ts.ToArray());
-            }
-
-            return hash;
+            return NBitcoin.Crypto.Hashes.DoubleSHA256(Stream()).ToBytes(false);
         }
 
         /// <summary>
@@ -133,49 +153,46 @@ namespace CYPCore.Models
         /// <returns></returns>
         public byte[] Stream()
         {
-            byte[] stream;
-            using (var ts = new Helper.TangramStream())
-            {
-                ts
+            using var ts = new Helper.TangramStream();
+            ts
+                .Append(TxnId)
                 .Append(Mix)
                 .Append(Ver);
 
-                foreach (var bp in Bp)
-                {
-                    ts.Append(bp.Proof);
-                }
-
-                foreach (var vin in Vin)
-                {
-                    ts.Append(vin.Key.K_Image);
-                }
-
-                foreach (var vout in Vout)
-                {
-                    ts
-                      .Append(vout.A)
-                      .Append(vout.C)
-                      .Append(vout.E)
-                      .Append(vout.L)
-                      .Append(vout.N)
-                      .Append(vout.P)
-                      .Append(vout.S ?? string.Empty)
-                      .Append(vout.T.ToString());
-                }
-
-                foreach (var rct in Rct)
-                {
-                    ts
-                      .Append(rct.I)
-                      .Append(rct.M)
-                      .Append(rct.P)
-                      .Append(rct.S);
-                }
-
-                stream = ts.ToArray();
+            foreach (var bp in Bp)
+            {
+                ts.Append(bp.Proof);
             }
 
-            return stream;
+            foreach (var vin in Vin)
+            {
+                ts.Append(vin.Key.Image);
+                ts.Append(vin.Key.Offsets);
+            }
+
+            foreach (var vout in Vout)
+            {
+                ts
+                    .Append(vout.A)
+                    .Append(vout.C)
+                    .Append(vout.E)
+                    .Append(vout.L)
+                    .Append(vout.N)
+                    .Append(vout.P)
+                    .Append(vout.S ?? string.Empty)
+                    .Append(vout.T.ToString());
+            }
+
+            foreach (var rct in Rct)
+            {
+                ts
+                    .Append(rct.I)
+                    .Append(rct.M)
+                    .Append(rct.P)
+                    .Append(rct.S);
+            }
+
+            return ts.ToArray(); ;
         }
 
         /// <summary>

@@ -2,39 +2,50 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using Microsoft.AspNetCore.DataProtection.Repositories;
-using Microsoft.Extensions.Logging;
+
+using Serilog;
+using Serilog.Core;
 
 namespace CYPCore.Persistence
 {
+    public interface IUnitOfWork
+    {
+        IStoreDb StoreDb { get; }
+        IXmlRepository DataProtectionKeys { get; }
+        IDataProtectionRepository DataProtectionPayload { get; }
+        IStagingRepository StagingRepository { get; }
+        IDeliveredRepository DeliveredRepository { get; }
+        ITransactionRepository TransactionRepository { get; }
+        IBlockGraphRepository BlockGraphRepository { get; }
+        IKeyImageRepository KeyImageRepository { get; }
+    }
+
     public class UnitOfWork : IUnitOfWork
     {
-        public IStoredbContext StoredbContext { get; }
+        public IStoreDb StoreDb { get; }
+
         public IXmlRepository DataProtectionKeys { get; }
-        public IDataProtectionPayloadRepository DataProtectionPayload { get; }
-        public IInterpretedRepository InterpretedRepository { get; }
-        public IMemPoolRepository MemPoolRepository { get; }
+        public IDataProtectionRepository DataProtectionPayload { get; }
         public IStagingRepository StagingRepository { get; }
         public IDeliveredRepository DeliveredRepository { get; }
+        public ITransactionRepository TransactionRepository { get; }
+        public IBlockGraphRepository BlockGraphRepository { get; }
+        public IKeyImageRepository KeyImageRepository { get; }
 
         private readonly ILogger _logger;
 
-        public UnitOfWork(IStoredbContext storedbContext, ILogger<UnitOfWork> logger)
+        public UnitOfWork(string folderDb, ILogger logger)
         {
-            StoredbContext = storedbContext;
+            StoreDb = new StoreDb(folderDb);
 
-            _logger = logger;
+            _logger = logger.ForContext("SourceContext", nameof(UnitOfWork));
 
-            DataProtectionKeys = new DataProtectionKeyRepository(storedbContext);
-            DataProtectionPayload = new DataProtectionPayloadRepository(storedbContext, logger);
-            DeliveredRepository = new DeliveredRepository(storedbContext, logger);
-            InterpretedRepository = new InterpretedRepository(storedbContext, logger);
-            MemPoolRepository = new MemPoolRepository(storedbContext, logger);
-            StagingRepository = new StagingRepository(storedbContext, logger);
-        }
-
-        public IGenericRepository<T> GenericRepositoryFactory<T>()
-        {
-            return new GenericRepository<T>(StoredbContext, _logger);
+            DataProtectionPayload = new DataProtectionRepository(StoreDb, logger);
+            DeliveredRepository = new DeliveredRepository(StoreDb, logger);
+            StagingRepository = new StagingRepository(StoreDb, logger);
+            TransactionRepository = new TransactionRepository(StoreDb, logger);
+            BlockGraphRepository = new BlockGraphRepository(StoreDb, logger);
+            KeyImageRepository = new KeyImageRepository(StoreDb, logger);
         }
     }
 }

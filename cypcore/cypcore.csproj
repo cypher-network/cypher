@@ -26,22 +26,26 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Autofac.Extensions.DependencyInjection" Version="7.1.0" />
-    <PackageReference Include="CliWrap" Version="3.3.0" />
+    <PackageReference Include="AutofacSerilogIntegration" Version="5.0.0" />
+    <PackageReference Include="CliWrap" Version="3.3.1" />
     <PackageReference Include="Dawn.Guard" Version="1.12.0" />
-    <PackageReference Include="libsecp256k1Zkp.Net" Version="1.1.3" />
-    <PackageReference Include="libsignal-protocol-dotnet" Version="2.7.0" />
+    <PackageReference Include="FlatSharp" Version="5.0.0" />
+    <PackageReference Include="libsecp256k1Zkp.Net" Version="1.1.6" />
+    <PackageReference Include="libsignal-protocol-dotnet" Version="2.8.1" />
     <PackageReference Include="MessagePack" Version="1.9.11" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc" Version="2.2.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Systemd" Version="5.0.1" />
-    <PackageReference Include="Microsoft.FASTER.Core" Version="1.8.0" />
-    <PackageReference Include="NBitcoin" Version="5.0.73" />
-    <PackageReference Include="protobuf-net" Version="3.0.73" />
-    <PackageReference Include="Refit" Version="5.2.4" />
-    <PackageReference Include="Serilog" Version="2.10.1-dev-01265" />
+    <PackageReference Include="NBitcoin" Version="5.0.76" />
+    <PackageReference Include="Refit" Version="6.0.24" />
+    <PackageReference Include="Serilog.Extensions.Logging.File" Version="2.0.0" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="3.1.1" />
+    <PackageReference Include="Serilog.Sinks.File" Version="5.0.0-dev-00909" />
     <PackageReference Include="Stratis.Patricia" Version="1.0.7" />
+    <PackageReference Include="RocksDbSharp" Version="6.2.2" />
+    <PackageReference Include="RocksDbNative" Version="6.2.2" />
+    <PackageReference Include="RockDb.Native" Version="6.12.1" />
+    <PackageReference Include="System.Linq.Async" Version="5.0.0" />
     <PackageReference Include="System.Reactive" Version="5.0.0" />
-    <PackageReference Include="System.ServiceModel.Primitives" Version="4.8.1" />
-    <PackageReference Include="websocketsharp.core" Version="1.0.0" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Consensus\" />
@@ -49,13 +53,10 @@
     <Folder Include="Services\" />
     <Folder Include="Extensions\" />
     <Folder Include="Persistence\" />
-    <Folder Include="Consensus\Blockmania\" />
-    <Folder Include="Consensus\Blockmania\Messages\" />
-    <Folder Include="Consensus\Blockmania\States\" />
     <Folder Include="Network\" />
-    <Folder Include="Network\P2P\" />
     <Folder Include="Cryptography\" />
     <Folder Include="Services\Rest\" />
+    <Folder Include="Controllers\" />
   </ItemGroup>
   <ItemGroup>
     <None Remove="libs\libhydrogen.a" />

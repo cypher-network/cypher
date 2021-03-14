@@ -1,2 +1,2 @@
 ﻿@echo off
-pushd %USERPROFILE%\.cypher & dotnet TGMNode.dll %* & popd
+pushd %USERPROFILE%\.cypher & dotnet CYPNode.dll %* & popd

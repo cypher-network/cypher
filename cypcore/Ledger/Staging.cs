@@ -5,109 +5,106 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-
-using Microsoft.Extensions.Logging;
-
+using CYPCore.Consensus.Models;
+using CYPCore.Extensions;
 using Dawn;
-
+using Serilog;
 using CYPCore.Extentions;
 using CYPCore.Models;
 using CYPCore.Persistence;
 using CYPCore.Serf;
-using CYPCore.Network.P2P;
+using CYPCore.Network;
 
 namespace CYPCore.Ledger
 {
+    /// <summary>
+    /// 
+    /// </summary>
+    public interface IStaging
+    {
+        Task Ready(BlockGraph blockGraph);
+    }
+
+    /// <summary>
+    /// 
+    /// </summary>
     public class Staging : IStaging
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly ISerfClient _serfClient;
         private readonly ILocalNode _localNode;
         private readonly ILogger _logger;
-        private readonly TcpSession _tcpSession;
 
-        public Staging(IUnitOfWork unitOfWork, ISerfClient serfClient,
-            ILocalNode localNode, ILogger<Staging> logger)
+        public Staging(IUnitOfWork unitOfWork, ISerfClient serfClient, ILocalNode localNode, ILogger logger)
         {
             _unitOfWork = unitOfWork;
             _serfClient = serfClient;
             _localNode = localNode;
-            _logger = logger;
-
-            _tcpSession = serfClient.TcpSessionsAddOrUpdate(new TcpSession(
-                serfClient.SerfConfigurationOptions.Listening).Connect(serfClient.SerfConfigurationOptions.RPC));
+            _logger = logger.ForContext("SourceContext", nameof(Staging));
         }
 
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="message"></param>
+        /// <param name="blockGraph"></param>
         /// <returns></returns>
-        public async Task Ready(byte[] hash)
+        public async Task Ready(BlockGraph blockGraph)
         {
-            Guard.Argument(hash, nameof(hash)).NotNull().MaxCount(48);
+            Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
 
             try
             {
-                var memPools = await _unitOfWork.MemPoolRepository.WhereAsync(x =>
-                    new ValueTask<bool>(x.Block.Hash.Equals(hash.ByteToHex()) && !string.IsNullOrEmpty(x.Block.PublicKey) && !string.IsNullOrEmpty(x.Block.Signature) && !x.Included));
+                var blockGraphs = await _unitOfWork.BlockGraphRepository.WhereAsync(x =>
+                    new ValueTask<bool>(x.Block.Hash.Equals(blockGraph.Block.Hash)));
 
-                if (memPools.Any())
+                if (blockGraphs.Any())
                 {
-                    var moreBlocks = await _unitOfWork.MemPoolRepository.MoreAsync(memPools);
-                    var blockHashLookup = moreBlocks.ToLookup(i => i.Block.Hash);
+                    var blockGraphList = new List<BlockGraph>();
+                    var blockGraphsGroupBy = blockGraphs.GroupBy(n => n.Block.Node, m => m,
+                            (key, g) => new
+                            {
+                                Node = key,
+                                blockGraphs = g.DistinctBy(d => d.Block.Round).OrderBy(r => r.Block.Round).ToList()
+                            })
+                        .ToList();
 
-                    await _unitOfWork.MemPoolRepository.IncludeAllAsync(memPools, _serfClient.P2PConnectionOptions.ClientId);
-                    await AddOrUpdate(blockHashLookup);
-                }
-
-                await Publish(hash);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"<<< StagingProvider.Ready >>>: {ex}");
-            }
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="hash"></param>
-        /// <returns></returns>
-        public async Task Publish(byte[] hash)
-        {
-            Guard.Argument(hash, nameof(hash)).NotNull().MaxCount(48);
-
-            try
-            {
-                var memPool = await _unitOfWork.MemPoolRepository.LastOrDefaultAsync(x => new(x.Block.Hash.Equals(hash.ByteToHex())));
-                if (memPool == null)
-                {
-                    return;
-                }
-
-                await _localNode.Broadcast(Helper.Util.SerializeProto(new List<MemPoolProto> { memPool }), SocketTopicType.Mempool);
-
-                var staging = await _unitOfWork.StagingRepository.FirstOrDefaultAsync(x => new(x.Hash.Equals(memPool.Block.Hash)));
-                if (staging != null)
-                {
-                    if (staging.Status != StagingState.Blockmainia
-                        && staging.Status != StagingState.Running
-                        && staging.Status != StagingState.Delivered)
+                    var localBlockGraphs = blockGraphsGroupBy.Where(x => x.Node == _serfClient.ClientId).ToList();
+                    foreach (var localBlockGraph in localBlockGraphs)
                     {
-                        staging.Status = StagingState.Pending;
+                        for (var j = 0; j < localBlockGraph.blockGraphs.Count; j++)
+                        {
+                            var next = localBlockGraph.blockGraphs[j];
+
+                            try
+                            {
+                                var previous = localBlockGraph.blockGraphs[j - 1].Block;
+                                next.Prev = previous;
+                            }
+                            catch (ArgumentOutOfRangeException)
+                            {
+                            }
+
+                            blockGraphList.Add(next);
+                        }
                     }
 
-                    var stored = await _unitOfWork.StagingRepository.PutAsync(staging, staging.ToIdentifier());
-                    if (stored == null)
+                    var remoteBlockGraphs = blockGraphsGroupBy.Where(x => x.Node != _serfClient.ClientId).ToList();
+                    foreach (var dep in remoteBlockGraphs.SelectMany(remoteBlockGraph =>
+                        remoteBlockGraph.blockGraphs.Select(nextRemote =>
+                            new Dep(
+                                new Block(nextRemote.Block.Hash, remoteBlockGraph.Node, nextRemote.Block.Round,
+                                    nextRemote.Block.Data), nextRemote.Deps.Select(x => x.Block).ToList(),
+                                nextRemote.Prev))))
                     {
-                        _logger.LogWarning($"Unable to mark the staging state as Dialling");
+                        blockGraphList.LastOrDefault()?.Deps.Add(dep);
                     }
+
+                    _ = await AddOrUpdate(blockGraphList.ToArray(), blockGraph.Block.Hash.HexToByte());
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< PublishMemPoolProvider.Publish >>>: {ex}");
+                _logger.Here().Error(ex, "Staging error");
             }
         }
 
@@ -116,52 +113,50 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="next"></param>
         /// <returns></returns>
-        private async Task<StagingProto> Add(MemPoolProto next)
+        private async Task<StagingProto> Add(BlockGraph next)
         {
             Guard.Argument(next, nameof(next)).NotNull();
 
-            StagingProto stageProto = null;
-            int nodeCount = 0;
+            StagingProto staging;
 
             try
             {
-                var tcpSession = _serfClient.GetTcpSession(_tcpSession.SessionId);
-                if (tcpSession.Ready)
+                var peers = await _localNode.GetPeers();
+                var nodeCount = peers.Count;
+
+                staging = StagingProto.CreateInstance();
+                staging.Epoch = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                staging.Hash = next.Block.Hash;
+                staging.BlockGraphs = new List<BlockGraph> { next };
+                staging.ExpectedTotalNodes = 4; // TODO: Should change in future when more rules apply.
+                staging.Node = _serfClient.ClientId;
+                staging.TotalNodes = nodeCount;
+                staging.Status = StagingState.Started;
+
+                ((List<ulong>)staging.Nodes).AddRange(next.Deps?.Select(n => n.Block.Node) ?? Array.Empty<ulong>());
+
+                await AddWaitingOnRange(staging);
+
+                staging.Status = Incoming(staging, next);
+
+                ClearWaitingOn(staging);
+
+                var saved = await _unitOfWork.StagingRepository.PutAsync(staging.ToIdentifier(), staging);
+                if (!saved)
                 {
-                    await _serfClient.Connect(tcpSession.SessionId);
-                    var countResult = await _serfClient.MembersCount(tcpSession.SessionId);
-                    // Replace with toal dependency count
-                    nodeCount = countResult.Success ? countResult.Value : 0;
+                    _logger.Here().Warning("Unable to save staging with hash: {@Hash}",
+                        staging.Hash);
+
+                    staging = null;
                 }
-
-                stageProto = new StagingProto
-                {
-                    Epoch = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
-                    Hash = next.Block.Hash,
-                    MemPoolProto = next,
-                    ExpectedTotalNodes = 4,
-                    Node = _serfClient.P2PConnectionOptions.ClientId,
-                    TotalNodes = nodeCount,
-                    Status = StagingState.Started
-                };
-
-                stageProto.Nodes = new List<ulong>();
-                stageProto.Nodes.AddRange(next.Deps?.Select(n => n.Block.Node));
-
-                await AddWaitingOnRange(stageProto);
-
-                stageProto.Status = Incoming(stageProto, next);
-
-                ClearWaitingOn(stageProto);
-
-                var saved = await _unitOfWork.StagingRepository.PutAsync(stageProto, stageProto.ToIdentifier());
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< StagingProvider.Add >>>: {ex}");
+                staging = null;
+                _logger.Here().Error(ex, "Cannot add to staging");
             }
 
-            return stageProto;
+            return staging;
         }
 
         /// <summary>
@@ -173,15 +168,8 @@ namespace CYPCore.Ledger
         {
             Guard.Argument(stage, nameof(stage)).NotNull();
 
-            var tcpSession = _serfClient.GetTcpSession(_tcpSession.SessionId);
-            var membersResult = await _serfClient.Members(tcpSession.SessionId);
-
-            stage.WaitingOn = new List<ulong>();
-
-            if (!membersResult.Success)
-                return;
-
-            stage.WaitingOn.AddRange(membersResult.Value.Members.Select(k => Helper.Util.HashToId(k.Tags["pubkey"])).ToArray());
+            var peers = await _localNode.GetPeers();
+            ((List<ulong>)stage.WaitingOn).AddRange(peers.Select(k => k.Value.ClientId));
         }
 
         /// <summary>
@@ -192,7 +180,7 @@ namespace CYPCore.Ledger
         {
             Guard.Argument(stage, nameof(stage)).NotNull();
 
-            if (stage.Status == StagingState.Blockmainia || stage.Status == StagingState.Running)
+            if (stage.Status == StagingState.Blockmania || stage.Status == StagingState.Running)
             {
                 stage.WaitingOn.Clear();
             }
@@ -203,37 +191,42 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="next"></param>
         /// <returns></returns>
-        private async Task<StagingProto> Existing(MemPoolProto next)
+        private async Task<StagingProto> Existing(BlockGraph next)
         {
             Guard.Argument(next, nameof(next)).NotNull();
-
-            StagingProto staging = null;
+            StagingProto staging;
 
             try
             {
-                staging = await _unitOfWork.StagingRepository.FirstOrDefaultAsync(x => new(x.Hash.Equals(next.Block.Hash)));
+                staging = await _unitOfWork.StagingRepository.GetAsync(x =>
+                    new ValueTask<bool>(x.Hash.Equals(next.Block.Hash)));
+
                 if (staging != null)
                 {
                     staging.Nodes = new List<ulong>();
-                    staging.Nodes.AddRange(next.Deps?.Select(n => n.Block.Node));
+                    ((List<ulong>)staging.Nodes).AddRange(next.Deps?.Select(n => n.Block.Node) ?? Array.Empty<ulong>());
 
                     await AddWaitingOnRange(staging);
 
-                    if (!staging.MemPoolProto.Equals(next))
+                    staging.Status = Incoming(staging, next);
+                    staging.BlockGraphs.Add(next);
+
+                    ClearWaitingOn(staging);
+
+                    var saved = await _unitOfWork.StagingRepository.PutAsync(staging.ToIdentifier(), staging);
+                    if (!saved)
                     {
-                        staging.Status = Incoming(staging, next);
+                        _logger.Here().Warning("Unable to save staging with hash: {@Hash}",
+                            staging.Hash);
 
-                        ClearWaitingOn(staging);
+                        staging = null;
                     }
-
-                    staging.MemPoolProto = next;
-
-                    staging = await _unitOfWork.StagingRepository.PutAsync(staging, staging.ToIdentifier());
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< StagingProvider.Existing >>>: {ex}");
+                _logger.Here().Error(ex, "Cannot add to staging");
+                staging = null;
             }
 
             return staging;
@@ -244,63 +237,56 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="next"></param>
         /// <param name="staging"></param>
-        public static StagingState Incoming(StagingProto staging, MemPoolProto next)
+        private static StagingState Incoming(StagingProto staging, BlockGraph next)
         {
             Guard.Argument(staging, nameof(staging)).NotNull();
             Guard.Argument(next, nameof(next)).NotNull();
 
             if (staging.Nodes.Any())
             {
-                var nodes = staging.Nodes?.Except(next.Deps.Select(x => x.Block.Node));
+                var nodes = staging.Nodes?.Except(next.Deps.Select(x => x.Block.Node)).ToList();
                 if (nodes.Any() != true)
                 {
-                    return StagingState.Blockmainia;
+                    return StagingState.Blockmania;
                 }
             }
 
-            if (staging.WaitingOn.Any())
-            {
-                var waitingOn = staging.WaitingOn?.Except(next.Deps.Select(x => x.Block.Node));
-                if (waitingOn.Any() != true)
-                {
-                    return StagingState.Blockmainia;
-                }
-            }
+            if (!staging.WaitingOn.Any()) return staging.Status;
 
-            return staging.Status;
+            var waitingOn = staging.WaitingOn?.Except(next.Deps.Select(x => x.Block.Node));
+            return waitingOn.Any() != true ? StagingState.Blockmania : staging.Status;
         }
 
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="blockHashLookup"></param>
+        /// <param name="blockGraphs"></param>
+        /// <param name="hash"></param>
         /// <returns></returns>
-        private async Task AddOrUpdate(ILookup<string, MemPoolProto> blockHashLookup)
+        private async Task<VerifyResult> AddOrUpdate(BlockGraph[] blockGraphs, byte[] hash)
         {
-            Guard.Argument(blockHashLookup, nameof(blockHashLookup)).NotNull();
+            Guard.Argument(blockGraphs, nameof(blockGraphs)).NotNull().NotEmpty();
+            Guard.Argument(hash, nameof(hash)).NotNull().MaxCount(32);
 
-            if (blockHashLookup.Any() != true)
-            {
-                return;
-            }
+            StagingProto staging = null;
 
-            foreach (var next in MemPoolProto.NextBlockGraph(blockHashLookup, _serfClient.P2PConnectionOptions.ClientId))
+            try
             {
-                var staging = await _unitOfWork.StagingRepository.FirstOrDefaultAsync(x => new(x.Hash.Equals(next.Block.Hash)));
-                if (staging != null)
+                foreach (var blockGraph in blockGraphs)
                 {
-                    if (staging.Status != StagingState.Blockmainia &&
-                        staging.Status != StagingState.Running &&
-                        staging.Status != StagingState.Delivered)
-                    {
-                        await Existing(next);
-                    }
+                    staging = await _unitOfWork.StagingRepository.GetAsync(x =>
+                        new ValueTask<bool>(x.Hash.Equals(hash.ByteToHex())));
 
-                    continue;
+                    staging = staging != null ? await Existing(blockGraph) : await Add(blockGraph);
                 }
-
-                await Add(next);
             }
+            catch (Exception ex)
+            {
+                staging = null;
+                _logger.Here().Error(ex, "Cannot add to staging");
+            }
+
+            return staging != null ? VerifyResult.Succeed : VerifyResult.Invalid;
         }
     }
 }

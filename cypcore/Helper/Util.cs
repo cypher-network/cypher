@@ -3,36 +3,28 @@
 
 using System;
 using System.Linq;
-using System.Net.Http;
+using System.Net;
 using System.Text;
 using System.Collections.Generic;
 using System.Reflection;
 using System.IO;
-using System.Runtime.InteropServices;
 using System.Security;
-using System.Threading.Tasks;
 using System.Numerics;
-
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
-
-using ProtoBuf;
-
-using System.Net;
-using CYPCore.Extentions;
 using System.Security.Cryptography;
+using CYPCore.Extentions;
+using System.Runtime.InteropServices;
 
 namespace CYPCore.Helper
 {
     public static class Util
     {
-        public const string hexUpper = "0123456789ABCDEF";
+        private const string HexUpper = "0123456789ABCDEF";
 
-        internal static Random _Random = new Random();
+        private static readonly Random Random = new Random();
 
         public static byte[] GetZeroBytes()
         {
-            byte[] bytes = new byte[0];
+            byte[] bytes = Array.Empty<byte>();
             if ((bytes[^1] & 0x80) != 0)
             {
                 Array.Resize(ref bytes, bytes.Length + 1);
@@ -43,22 +35,26 @@ namespace CYPCore.Helper
 
         public static string EntryAssemblyPath()
         {
-            return Path.GetDirectoryName(Assembly.GetEntryAssembly().Location);
+            return Path.GetDirectoryName(Assembly.GetEntryAssembly()?.Location);
         }
 
-        public static OSPlatform GetOSPlatform()
+        public static OSPlatform GetOperatingSystemPlatform()
         {
-            OSPlatform osPlatform = OSPlatform.Create("Other Platform");
-            bool isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
-            osPlatform = isWindows ? OSPlatform.Windows : osPlatform;
+            foreach (var platform in new[]
+            {
+                OSPlatform.Linux,
+                OSPlatform.FreeBSD,
+                OSPlatform.OSX,
+                OSPlatform.Windows
+            })
+            {
+                if (RuntimeInformation.IsOSPlatform(platform))
+                {
+                    return platform;
+                }
+            }
 
-            bool isOSX = RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
-            osPlatform = isOSX ? OSPlatform.OSX : osPlatform;
-
-            bool isLinux = RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
-            osPlatform = isLinux ? OSPlatform.Linux : osPlatform;
-
-            return osPlatform;
+            throw new NotSupportedException();
         }
 
         public static string Pop(string value, string delimiter)
@@ -72,7 +68,7 @@ namespace CYPCore.Helper
             if (s == null)
                 throw new NullReferenceException();
             if (s.Length == 0)
-                return new byte[0];
+                return Array.Empty<byte>();
             var result = new List<byte>();
             IntPtr ptr = SecureStringMarshal.SecureStringToGlobalAllocAnsi(s);
             try
@@ -90,36 +86,9 @@ namespace CYPCore.Helper
             {
                 Marshal.ZeroFreeGlobalAllocAnsi(ptr);
             }
+
             return result.ToArray();
         }
-
-        public static T DeserializeJsonFromStream<T>(Stream stream)
-        {
-            if (stream == null || stream.CanRead == false)
-                return default;
-
-            using var sr = new StreamReader(stream);
-            using var jtr = new JsonTextReader(sr);
-            var js = new JsonSerializer();
-            var searchResult = js.Deserialize<T>(jtr);
-            return searchResult;
-        }
-
-        public static async Task<string> StreamToStringAsync(Stream stream)
-        {
-            string content = null;
-
-            if (stream != null)
-                using (var sr = new StreamReader(stream))
-                    content = await sr.ReadToEndAsync();
-
-            return content;
-        }
-
-        [CLSCompliant(false)]
-#pragma warning disable CS3021 // Type or member does not need a CLSCompliant attribute because the assembly does not have a CLSCompliant attribute
-        public static InsecureString Insecure(this SecureString secureString) => new InsecureString(secureString);
-#pragma warning restore CS3021 // Type or member does not need a CLSCompliant attribute because the assembly does not have a CLSCompliant attribute
 
         public static BigInteger Mod(BigInteger a, BigInteger n)
         {
@@ -128,81 +97,8 @@ namespace CYPCore.Helper
             {
                 result += n;
             }
-            return result;
-        }
-
-        public static BigInteger ConvertHashToNumber(byte[] hash, BigInteger prime, int bytes)
-        {
-            var intH = new BigInteger(hash);
-            var subString = BigInteger.Parse(intH.ToString().Substring(0, bytes));
-            var result = Mod(subString, prime);
 
             return result;
-        }
-
-        public static long GetInt64HashCode(byte[] hash)
-        {
-            //32Byte hashText separate
-            //hashCodeStart = 0~7  8Byte
-            //hashCodeMedium = 8~23  8Byte
-            //hashCodeEnd = 24~31  8Byte
-            //and Fold
-            var hashCodeStart = BitConverter.ToInt64(hash, 0);
-            var hashCodeMedium = BitConverter.ToInt64(hash, 8);
-            var hashCodeEnd = BitConverter.ToInt64(hash, 24);
-
-            long hashCode = hashCodeStart ^ hashCodeMedium ^ hashCodeEnd;
-
-            return hashCode;
-        }
-
-        public static byte[] SerializeProto<T>(T data)
-        {
-            byte[] mArray = default;
-
-            try
-            {
-                using var ms = new MemoryStream();
-
-                Serializer.Serialize(ms, data);
-                mArray = ms.ToArray();
-            }
-            catch { }
-
-            return mArray;
-        }
-
-        public static T DeserializeProto<T>(byte[] data)
-        {
-            T item = default;
-
-            try
-            {
-                using var ms = new MemoryStream(data);
-                item = Serializer.Deserialize<T>(ms);
-            }
-            catch { }
-
-            return item;
-        }
-
-        public static IEnumerable<T> DeserializeListProto<T>(byte[] data) where T : class
-        {
-            List<T> list = new();
-            T item;
-
-            try
-            {
-                using var ms = new MemoryStream(data);
-
-                while ((item = Serializer.DeserializeWithLengthPrefix<T>(ms, PrefixStyle.Base128, fieldNumber: 1)) != null)
-                {
-                    list.Add(item);
-                }
-            }
-            catch { }
-
-            return list.AsEnumerable();
         }
 
         public static byte[] Combine(byte[] first, byte[] second)
@@ -231,6 +127,7 @@ namespace CYPCore.Helper
                 Buffer.BlockCopy(data, 0, ret, offset, data.Length);
                 offset += data.Length;
             }
+
             return ret;
         }
 
@@ -247,10 +144,10 @@ namespace CYPCore.Helper
                 for (int i = 6; i < 12; i++)
                 {
                     var c = hash[i];
-                    v.Append(new char[] { hexUpper[c >> 4], hexUpper[c & 0x0f] });
+                    v.Append(new char[] { HexUpper[c >> 4], HexUpper[c & 0x0f] });
                 }
 
-                var byteHex = SHA384ManagedHash(v.ToString().ToBytes());
+                var byteHex = Sha384ManagedHash(v.ToString().ToBytes());
 
                 id = (ulong)BitConverter.ToInt64(byteHex, 0);
                 id = (ulong)Convert.ToInt64(id.ToString().Substring(0, xBase));
@@ -263,37 +160,16 @@ namespace CYPCore.Helper
             return id;
         }
 
-        public static byte[] SHA384ManagedHash(byte[] data)
+        public static byte[] Sha384ManagedHash(byte[] data)
         {
             SHA384 sHA384 = new SHA384Managed();
             return sHA384.ComputeHash(data);
         }
 
-        public static byte[] SHA256ManagedHash(byte[] data)
+        public static byte[] Sha256ManagedHash(byte[] data)
         {
             SHA256 sHA256 = new SHA256Managed();
             return sHA256.ComputeHash(data);
-        }
-
-        public static JToken ReadJToken(HttpResponseMessage httpResponseMessage, string attr)
-        {
-            var read = httpResponseMessage.Content.ReadAsStringAsync().Result;
-            var jObject = JObject.Parse(read);
-            var jToken = jObject.GetValue(attr);
-
-            return jToken;
-        }
-
-        public static void Shuffle<T>(T[] array)
-        {
-            int n = array.Length;
-            for (int i = 0; i < n; i++)
-            {
-                int r = i + _Random.Next(n - i);
-                T t = array[r];
-                array[r] = array[i];
-                array[i] = t;
-            }
         }
 
         public static BigInteger Exp(BigInteger a, BigInteger exponent, BigInteger n)
@@ -308,6 +184,7 @@ namespace CYPCore.Helper
             {
                 a %= n;
             }
+
             if (a.Sign == 1)
             {
                 a += n;
@@ -330,42 +207,6 @@ namespace CYPCore.Helper
             return res;
         }
 
-        public static double ShannonEntropy(string input)
-        {
-            static double logtwo(double num)
-            {
-                return Math.Log(num) / Math.Log(2);
-            }
-
-            static double Contain(string x, char k)
-            {
-                double count = 0;
-                foreach (char Y in x)
-                {
-                    if (Y.Equals(k))
-                        count++;
-                }
-                return count;
-            }
-
-            double infoC = 0;
-            double freq;
-            string k = "";
-            foreach (char c1 in input)
-            {
-                if (!k.Contains(c1.ToString()))
-                    k += c1;
-            }
-            foreach (char c in k)
-            {
-                freq = Contain(input, c) / input.Length;
-                infoC += freq * logtwo(freq);
-            }
-            infoC /= -1;
-
-            return infoC;
-        }
-
         public static bool IsLocalIpAddress(string host)
         {
             try
@@ -382,7 +223,10 @@ namespace CYPCore.Helper
                     }
                 }
             }
-            catch { }
+            catch
+            {
+            }
+
             return false;
         }
 
@@ -417,6 +261,47 @@ namespace CYPCore.Helper
         public static long GetAdjustedTimeAsUnixTimestamp()
         {
             return new DateTimeOffset(GetAdjustedTime()).ToUnixTimeSeconds();
+        }
+
+        public static class ConfigurationFile
+        {
+            private const string AppSettingsFilename = "appsettings.json";
+
+            public static string Local() => Path.Combine(
+                Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? string.Empty,
+                AppSettingsFilename);
+
+            private static string SystemDefaultLinux() =>
+                Path.Combine("/etc", "tangram", "cypher", AppSettingsFilename);
+
+            private static string SystemDefaultMacOS() =>
+                throw new Exception("No macOS system default implemented yet");
+
+            private static string SystemDefaultWindows() => Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+                AppSettingsFilename);
+
+            public static string SystemDefault()
+            {
+                var platform = GetOperatingSystemPlatform();
+
+                if (platform == OSPlatform.Linux)
+                {
+                    return SystemDefaultLinux();
+                }
+
+                if (platform == OSPlatform.OSX)
+                {
+                    return SystemDefaultMacOS();
+                }
+
+                if (platform == OSPlatform.Windows)
+                {
+                    return SystemDefaultWindows();
+                }
+
+                throw new Exception("Unsupported operating system");
+            }
         }
     }
 }

@@ -1,128 +1,80 @@
-﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
-using System.Linq;
 using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
-
-using Microsoft.Extensions.Logging;
-
-using FASTER.core;
-
+using CYPCore.Extensions;
+using Serilog;
+using CYPCore.Extentions;
+using FlatSharp;
+using RocksDbSharp;
 
 namespace CYPCore.Persistence
 {
-    public class Repository<TEntity> : IRepository<TEntity>
+    public interface IRepository<T>
     {
-        private readonly IStoredbContext _storedbContext;
+        Task<long> CountAsync();
+        Task<T> GetAsync(byte[] key);
+        Task<T> GetAsync(Func<T, ValueTask<bool>> expression);
+        void SetTableName(string tableName);
+        Task<bool> PutAsync(byte[] key, T data);
+        Task<IList<T>> RangeAsync(long skip, int take);
+        Task<T> LastAsync();
+        ValueTask<List<T>> WhereAsync(Func<T, ValueTask<bool>> expression);
+        Task<T> FirstAsync();
+        ValueTask<List<T>> SelectAsync(Func<T, ValueTask<T>> selector);
+        ValueTask<List<T>> SkipAsync(int skip);
+        ValueTask<List<T>> TakeAsync(int take);
+        Task<bool> RemoveAsync(byte[] key);
+    }
+
+    public class Repository<T> : IRepository<T> where T : class
+    {
+        private readonly IStoreDb _storeDb;
         private readonly ILogger _logger;
+        private readonly object _locker = new();
+        private readonly ReadOptions _readOptions;
+        private readonly ReaderWriterLockSlim _sync = new();
 
-        private string _tableType;
+        private string _tableName;
 
-        public Repository(IStoredbContext storedbContext, ILogger logger)
+        protected Repository(IStoreDb storeDb, ILogger logger)
         {
-            _storedbContext = storedbContext;
-            _logger = logger;
+            _storeDb = storeDb;
+            _logger = logger.ForContext("SourceContext", nameof(Repository<T>));
+
+            _readOptions = new ReadOptions();
+            _readOptions
+                .SetPrefixSameAsStart(true)
+                .SetVerifyChecksums(false);
         }
 
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="table"></param>
-        public void SetTableType(string table)
+        public Task<long> CountAsync()
         {
-            _tableType = table;
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <param name="key"></param>
-        /// <returns></returns>
-        public Task<TEntity> GetAsync(byte[] key)
-        {
-            TEntity entity = default;
+            long count = 0;
 
             try
             {
-                using var session = _storedbContext.Store.Database.NewSession(new StoreFunctions());
-
-                var output = new StoreOutput();
-                var blockKey = new StoreKey { tableType = _tableType, key = key };
-                var readStatus = session.Read(ref blockKey, ref output);
-
-                if (readStatus == Status.OK)
+                using (_sync.Read())
                 {
-                    entity = Helper.Util.DeserializeProto<TEntity>(output.value.value);
+                    var cf = _storeDb.Rocks.GetColumnFamily(_tableName);
+                    using var iterator = _storeDb.Rocks.NewIterator(cf, _readOptions);
+
+                    for (iterator.Seek(_tableName.ToBytes()); iterator.Valid(); iterator.Next())
+                    {
+                        if (new string(iterator.Key().ToStr()).StartsWith(new string(_tableName)))
+                        {
+                            Interlocked.Increment(ref count);
+                        }
+                    }
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< Repository.GetAsync >>>: {ex}");
-            }
-
-            return Task.FromResult(entity);
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="entity"></param>
-        /// <param name="key"></param>
-        /// <returns></returns>
-        public Task<TEntity> PutAsync(TEntity entity, byte[] key)
-        {
-            TEntity entityPut = default;
-
-            try
-            {
-                using var session = _storedbContext.Store.Database.NewSession(new StoreFunctions());
-
-                var blockKey = new StoreKey { tableType = _tableType, key = key };
-                var blockvalue = new StoreValue { value = Helper.Util.SerializeProto(entity) };
-
-                var addStatus = session.Upsert(ref blockKey, ref blockvalue);
-                if (addStatus == Status.OK)
-                {
-                    entityPut = entity;
-                }
-
-                session.CompletePending(true);
-
-                ///TODO: Implement a better solution as this is incorrect.
-                _storedbContext.Store.Checkpoint().Wait();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"<<< StoredbContext.SaveOrUpdate >>>: {ex}");
-            }
-
-            return Task.FromResult(entityPut);
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <returns></returns>
-        public Task<int> CountAsync()
-        {
-            int count = 0;
-
-            try
-            {
-                using var iterateAsync = CreateIterateAsync();
-                ValueTask<int> total = iterateAsync.Iterate().CountAsync();
-
-                if (total.IsCompleted)
-                {
-                    count = total.Result;
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"<<< Repository.CountAsync >>>: {ex}");
+                _logger.Here().Error(ex, "Error while reading database");
             }
 
             return Task.FromResult(count);
@@ -131,49 +83,30 @@ namespace CYPCore.Persistence
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="expression"></param>
+        /// <param name="key"></param>
         /// <returns></returns>
-        public ValueTask<List<TEntity>> WhereAsync(Func<TEntity, ValueTask<bool>> expression)
+        public Task<T> GetAsync(byte[] key)
         {
-            ValueTask<List<TEntity>> entities = default;
+            T entry = default;
 
             try
             {
-                using var iterateAsync = CreateIterateAsync();
-                entities = iterateAsync.Iterate().WhereAwait(expression).ToListAsync();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"<<< Repository.WhereAsync >>>: {ex}");
-            }
-
-            return entities;
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <returns></returns>
-        public Task<TEntity> FirstOrDefaultAsync()
-        {
-            TEntity entity = default;
-
-            try
-            {
-                using var iterateAsync = CreateIterateAsync();
-                ValueTask<TEntity> first = iterateAsync.Iterate().FirstOrDefaultAsync();
-
-                if (first.IsCompleted)
+                using (_sync.Read())
                 {
-                    entity = first.Result;
+                    var cf = _storeDb.Rocks.GetColumnFamily(_tableName);
+                    var value = _storeDb.Rocks.Get(StoreDb.Key(_tableName, key), cf, _readOptions);
+                    if (value != null)
+                    {
+                        entry = FlatBufferSerializer.Default.Parse<T>(value);
+                    }
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< Repository.FirstOrDefaultAsync >>>: {ex}");
+                _logger.Here().Error(ex, "Error while reading database");
             }
 
-            return Task.FromResult(entity);
+            return Task.FromResult(entry);
         }
 
         /// <summary>
@@ -181,128 +114,128 @@ namespace CYPCore.Persistence
         /// </summary>
         /// <param name="expression"></param>
         /// <returns></returns>
-        public Task<TEntity> FirstOrDefaultAsync(Func<TEntity, ValueTask<bool>> expression)
+        public Task<T> GetAsync(Func<T, ValueTask<bool>> expression)
         {
-            TEntity entity = default;
+            T entry = default;
 
             try
             {
-                using var iterateAsync = CreateIterateAsync();
-                ValueTask<TEntity> first = iterateAsync.Iterate().FirstOrDefaultAwaitAsync(expression);
-
-                if (first.IsCompleted)
+                using (_sync.Read())
                 {
-                    entity = first.Result;
+                    var first = Iterate().FirstOrDefaultAwaitAsync(expression);
+                    if (first.IsCompleted)
+                    {
+                        entry = first.Result;
+                    }
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< Repository.FirstOrDefaultAsync(Func) >>>: {ex}");
+                _logger.Here().Error(ex, "Error while reading database");
             }
 
-            return Task.FromResult(entity);
+            return Task.FromResult(entry);
         }
 
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="expression"></param>
+        /// <param name="key"></param>
         /// <returns></returns>
-        public Task<TEntity> LastOrDefaultAsync(Func<TEntity, ValueTask<bool>> expression)
+        public Task<bool> RemoveAsync(byte[] key)
         {
-            TEntity entity = default;
+            var removed = false;
 
             try
             {
-                using var iterateAsync = CreateIterateAsync();
-                ValueTask<TEntity> last = iterateAsync.Iterate().LastOrDefaultAwaitAsync(expression);
-
-                if (last.IsCompleted)
+                using (_sync.Write())
                 {
-                    entity = last.Result;
+                    var cf = _storeDb.Rocks.GetColumnFamily(_tableName);
+                    _storeDb.Rocks.Remove(StoreDb.Key(_tableName, key), cf);
+
+                    removed = true;
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< Repository.LastOrDefaultAsync >>>: {ex}");
+                _logger.Here().Error(ex, "Error while removing from database");
             }
 
-            return Task.FromResult(entity);
+            return Task.FromResult(removed);
         }
 
         /// <summary>
         /// 
         /// </summary>
         /// <returns></returns>
-        public Task<TEntity> LastOrDefaultAsync()
+        public Task<T> FirstAsync()
         {
-            TEntity entity = default;
+            T entry = default;
 
             try
             {
-                using var iterateAsync = CreateIterateAsync();
-                var last = iterateAsync.Iterate().LastOrDefaultAsync();
-
-                if (last.IsCompleted)
+                using (_sync.Read())
                 {
-                    entity = last.Result;
+                    var cf = _storeDb.Rocks.GetColumnFamily(_tableName);
+                    using var iterator = _storeDb.Rocks.NewIterator(cf, _readOptions);
+
+                    iterator.SeekToFirst();
+                    if (iterator.Valid())
+                    {
+                        entry = FlatBufferSerializer.Default.Parse<T>(iterator.Value());
+                    }
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< Repository.LastOrDefaultAsync >>>: {ex}");
+                _logger.Here().Error(ex, "Error while reading database");
             }
 
-            return Task.FromResult(entity);
+            return Task.FromResult(entry);
         }
 
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="storeKey"></param>
+        /// <param name="key"></param>
+        /// <param name="data"></param>
         /// <returns></returns>
-        public Task<bool> DeleteAsync(StoreKey storeKey)
+        public Task<bool> PutAsync(byte[] key, T data)
         {
-            bool result = false;
+            var saved = false;
 
             try
             {
-                using var session = _storedbContext.Store.Database.NewSession(new StoreFunctions());
-                var deleteStatus = session.Delete(ref storeKey);
+                using (_sync.Write())
+                {
+                    var cf = _storeDb.Rocks.GetColumnFamily(_tableName);
+                    var maxBytesNeeded = FlatBufferSerializer.Default.GetMaxSize(data);
+                    var buffer = new byte[maxBytesNeeded];
 
-                if (deleteStatus != Status.OK)
-                    throw new Exception();
+                    FlatBufferSerializer.Default.Serialize(data, buffer);
 
-                result = true;
+                    _storeDb.Rocks.Put(StoreDb.Key(_tableName, key), buffer, cf);
+                    saved = true;
+                }
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< Repository.DeleteAsync >>>: {ex}");
+                _logger.Here().Error(ex, "Error while storing in database");
             }
 
-            return Task.FromResult(result);
+            return Task.FromResult(saved);
         }
 
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="take"></param>
-        /// <returns></returns>
-        public ValueTask<List<TEntity>> TakeAsync(int take)
+        /// <param name="tableName"></param>
+        public void SetTableName(string tableName)
         {
-            ValueTask<List<TEntity>> entities = default;
-
-            try
+            using (_sync.Write())
             {
-                using var iterateAsync = CreateIterateAsync();
-                entities = iterateAsync.Iterate().Take(take).ToListAsync();
+                _tableName = tableName;
             }
-            catch (Exception ex)
-            {
-                _logger.LogError($"<<< Repository.TakeAsync >>>: {ex}");
-            }
-
-            return entities;
         }
 
         /// <summary>
@@ -311,43 +244,74 @@ namespace CYPCore.Persistence
         /// <param name="skip"></param>
         /// <param name="take"></param>
         /// <returns></returns>
-        public ValueTask<List<TEntity>> RangeAsync(int skip, int take)
+        public Task<IList<T>> RangeAsync(long skip, int take)
         {
-            ValueTask<List<TEntity>> entities = default;
+            IList<T> entries = new List<T>(take);
 
             try
             {
-                using var iterateAsync = CreateIterateAsync();
-                entities = iterateAsync.Iterate().Skip(skip).Take(take).ToListAsync();
+                using (_sync.Read())
+                {
+                    long iSkip = 0;
+                    var iTake = 0;
+
+                    var cf = _storeDb.Rocks.GetColumnFamily(_tableName);
+                    using var iterator = _storeDb.Rocks.NewIterator(cf, _readOptions);
+
+                    for (iterator.SeekToFirst(); iterator.Valid(); iterator.Next())
+                    {
+                        iSkip++;
+                        if (skip != 0)
+                        {
+                            if (iSkip % skip != 0) continue;
+                        }
+
+                        iTake++;
+                        if (iTake % take == 0)
+                        {
+                            break;
+                        }
+
+                        entries.Add(FlatBufferSerializer.Default.Parse<T>(iterator.Value()));
+                    }
+                }
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< Repository.RangeAsync >>>: {ex}");
+                _logger.Here().Error(ex, "Error while reading database");
             }
 
-            return entities;
+            return Task.FromResult(entries);
         }
 
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="n"></param>
         /// <returns></returns>
-        public ValueTask<List<TEntity>> TakeLastAsync(int n)
+        public Task<T> LastAsync()
         {
-            ValueTask<List<TEntity>> entities = default;
+            T entry = default;
 
             try
             {
-                using var iterateAsync = CreateIterateAsync();
-                entities = iterateAsync.Iterate().TakeLast(n).ToListAsync();
+                using (_sync.Read())
+                {
+                    var cf = _storeDb.Rocks.GetColumnFamily(_tableName);
+                    using var iterator = _storeDb.Rocks.NewIterator(cf, _readOptions);
+
+                    iterator.SeekToLast();
+                    if (iterator.Valid())
+                    {
+                        entry = FlatBufferSerializer.Default.Parse<T>(iterator.Value());
+                    }
+                }
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< Repository.TakeLastAsync >>>: {ex}");
+                _logger.Here().Error(ex, "Error while reading database");
             }
 
-            return entities;
+            return Task.FromResult(entry);
         }
 
         /// <summary>
@@ -355,101 +319,111 @@ namespace CYPCore.Persistence
         /// </summary>
         /// <param name="expression"></param>
         /// <returns></returns>
-        public ValueTask<List<TEntity>> TakeWhileAsync(Func<TEntity, ValueTask<bool>> expression)
+        public ValueTask<List<T>> WhereAsync(Func<T, ValueTask<bool>> expression)
         {
-            ValueTask<List<TEntity>> entities = default;
+            ValueTask<List<T>> entries = default;
 
             try
             {
-                using var iterateAsync = CreateIterateAsync();
-                entities = iterateAsync.Iterate().TakeWhileAwait(expression).ToListAsync();
+                using (_sync.Read())
+                {
+                    entries = Iterate().WhereAwait(expression).ToListAsync();
+                }
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< Repository.TakeWhileAsync >>>: {ex}");
+                _logger.Here().Error(ex, "Error while reading database");
             }
 
-            return entities;
+            return entries;
+        }
+
+        public ValueTask<List<T>> SelectAsync(Func<T, ValueTask<T>> selector)
+        {
+            ValueTask<List<T>> entries = default;
+
+            try
+            {
+                using (_sync.Read())
+                {
+                    entries = Iterate().SelectAwait(selector).ToListAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Here().Error(ex, "Error while reading database");
+            }
+
+            return entries;
         }
 
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="selector"></param>
+        /// <param name="skip"></param>
+        /// <param name="take"></param>
         /// <returns></returns>
-        public ValueTask<List<TEntity>> SelectAsync(Func<TEntity, ValueTask<TEntity>> selector)
+        public ValueTask<List<T>> SkipAsync(int skip)
         {
-            ValueTask<List<TEntity>> entities = default;
+            ValueTask<List<T>> entries = default;
 
             try
             {
-                using var iterateAsync = CreateIterateAsync();
-                entities = iterateAsync.Iterate().SelectAwait(selector).ToListAsync();
+                using (_sync.Read())
+                {
+                    entries = Iterate().Skip(skip).ToListAsync();
+                }
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< Repository.SelectAsync >>>: {ex}");
+                _logger.Here().Error(ex, "Error while reading database");
             }
 
-            return entities;
+            return entries;
         }
 
-        protected class IterateAsyncWrapper : IDisposable
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="take"></param>
+        /// <returns></returns>
+        public ValueTask<List<T>> TakeAsync(int take)
         {
-            private bool _disposed = false;
-            private IFasterScanIterator<StoreKey, StoreValue> _iterator;
-            private string _tableType;
+            ValueTask<List<T>> entries = default;
 
-            public IterateAsyncWrapper(IStoredbContext context, string tableType)
+            try
             {
-                _iterator = context.Store.Database.Iterate();
-                _tableType = tableType;
-            }
-
-            public async IAsyncEnumerable<TEntity> Iterate()
-            {
-                while (_iterator.GetNext(out RecordInfo recordInfo, out StoreKey storeKey, out StoreValue storeValue))
+                using (_sync.Read())
                 {
-                    if (storeKey.tableType == _tableType)
-                    {
-                        yield return Helper.Util.DeserializeProto<TEntity>(storeValue.value);
-                    }
+                    entries = Iterate().Take(take).ToListAsync();
                 }
             }
-
-            public void Dispose()
+            catch (Exception ex)
             {
-                Dispose(true);
-                GC.SuppressFinalize(this);
+                _logger.Error(ex, "Error while reading database");
             }
 
-            protected virtual void Dispose(bool disposing)
-            {
-                if (_disposed)
-                {
-                    return;
-                }
-
-                if (disposing)
-                {
-                    try
-                    {
-                        _iterator.Dispose();
-                    }
-                    catch (NullReferenceException)
-                    {
-
-                    }
-                }
-
-                _iterator = null;
-                _disposed = true;
-            }
+            return entries;
         }
 
-        protected IterateAsyncWrapper CreateIterateAsync()
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+#pragma warning disable 1998
+        private async IAsyncEnumerable<T> Iterate()
+#pragma warning restore 1998
         {
-            return new(_storedbContext, _tableType);
+            var cf = _storeDb.Rocks.GetColumnFamily(_tableName);
+            using var iterator = _storeDb.Rocks.NewIterator(cf, _readOptions);
+
+            for (iterator.Seek(_tableName.ToBytes()); iterator.Valid(); iterator.Next())
+            {
+                if (!new string(iterator.Key().ToStr()).StartsWith(new string(_tableName))) continue;
+                if (!iterator.Valid()) continue;
+
+                yield return FlatBufferSerializer.Default.Parse<T>(iterator.Value()); ;
+            }
         }
     }
 }

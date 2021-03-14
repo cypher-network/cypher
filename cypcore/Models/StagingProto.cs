@@ -1,35 +1,51 @@
 ﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
+using System;
+using System.Linq;
 using System.Collections.Generic;
-using ProtoBuf;
-using CYPCore.Extentions;
+using CYPCore.Consensus.Models;
+using FlatSharp.Attributes;
+
 
 namespace CYPCore.Models
 {
-    [ProtoContract]
-    public class StagingProto
+    public interface IStagingProto
     {
-        public string Id { get; set; }
+        string Hash { get; set; }
+        ulong Node { get; set; }
+        IList<ulong> Nodes { get; set; }
+        IList<ulong> WaitingOn { get; set; }
+        int TotalNodes { get; set; }
+        int ExpectedTotalNodes { get; set; }
+        StagingState Status { get; set; }
+        IList<BlockGraph> BlockGraphs { get; set; }
+        long Epoch { get; set; }
 
-        [ProtoMember(1)]
-        public string Hash { get; set; }
-        [ProtoMember(2)]
-        public ulong Node { get; set; }
-        [ProtoMember(3)]
-        public List<ulong> Nodes { get; set; }
-        [ProtoMember(4)]
-        public List<ulong> WaitingOn { get; set; }
-        [ProtoMember(5)]
-        public int TotalNodes { get; set; }
-        [ProtoMember(6)]
-        public int ExpectedTotalNodes { get; set; }
-        [ProtoMember(7)]
-        public StagingState Status { get; set; }
-        [ProtoMember(8)]
-        public MemPoolProto MemPoolProto { get; set; }
-        [ProtoMember(9)]
-        public long Epoch { get; set; }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        byte[] ToIdentifier();
+    }
+
+    [FlatBufferTable]
+    public class StagingProto : object, IStagingProto
+    {
+        public static StagingProto CreateInstance()
+        {
+            return new();
+        }
+
+        [FlatBufferItem(0)] public virtual string Hash { get; set; }
+        [FlatBufferItem(1)] public virtual ulong Node { get; set; }
+        [FlatBufferItem(2)] public virtual IList<ulong> Nodes { get; set; } = new List<ulong>();
+        [FlatBufferItem(3)] public virtual IList<ulong> WaitingOn { get; set; } = new List<ulong>();
+        [FlatBufferItem(4)] public virtual int TotalNodes { get; set; }
+        [FlatBufferItem(5)] public virtual int ExpectedTotalNodes { get; set; }
+        [FlatBufferItem(6, DefaultValue = StagingState.None)] public virtual StagingState Status { get; set; }
+        [FlatBufferItem(7)] public virtual IList<BlockGraph> BlockGraphs { get; set; } = new List<BlockGraph>();
+        [FlatBufferItem(8)] public virtual long Epoch { get; set; }
 
         /// <summary>
         /// 
@@ -37,8 +53,37 @@ namespace CYPCore.Models
         /// <returns></returns>
         public byte[] ToIdentifier()
         {
-            return MemPoolProto.Block.ToHash().ByteToHex().ToBytes();
+            return NBitcoin.Crypto.Hashes.DoubleSHA256(Stream()).ToBytes(false);
         }
 
+        public byte[] Stream()
+        {
+            using var ts = new Helper.TangramStream();
+            ts
+                .Append(Hash)
+                .Append(Node);
+
+            foreach (var @ulong in Nodes)
+            {
+                ts.Append(@ulong);
+            }
+
+            foreach (var @ulong in WaitingOn)
+            {
+                ts.Append(@ulong);
+            }
+
+            ts
+                .Append(TotalNodes)
+                .Append(ExpectedTotalNodes)
+                .Append(Status.ToString());
+
+            foreach (var blockGraph in BlockGraphs)
+            {
+                ts.Append(blockGraph.ToIdentifier());
+            }
+
+            return ts.ToArray(); ;
+        }
     }
 }

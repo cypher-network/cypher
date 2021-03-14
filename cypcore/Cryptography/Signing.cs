@@ -4,15 +4,12 @@
 using System;
 using System.Threading.Tasks;
 using System.Security.Cryptography;
-
-using Microsoft.AspNetCore.DataProtection;
-using Microsoft.Extensions.Logging;
-
-using libsignal.ecc;
-
-using Newtonsoft.Json;
-
+using CYPCore.Extensions;
 using Dawn;
+using Microsoft.AspNetCore.DataProtection;
+using libsignal.ecc;
+using Newtonsoft.Json;
+using Serilog;
 
 using CYPCore.Models;
 using CYPCore.Extentions;
@@ -20,24 +17,40 @@ using CYPCore.Persistence;
 
 namespace CYPCore.Cryptography
 {
+    /// <summary>
+    /// 
+    /// </summary>
+    public interface ISigning
+    {
+        string DefaultSigningKeyName { get; }
+        Task<KeyPair> GetOrUpsertKeyName(string keyName);
+        Task<byte[]> GetPublicKey(string keyName);
+        Task<byte[]> Sign(string keyName, byte[] message);
+        bool VerifySignature(byte[] signature, byte[] message);
+        bool VerifySignature(byte[] signature, byte[] publicKey, byte[] message);
+        byte[] CalculateVrfSignature(libsignal.ecc.ECPrivateKey privateKey, byte[] message);
+        byte[] VerifyVrfSignature(libsignal.ecc.ECPublicKey publicKey, byte[] message, byte[] signature);
+    }
+
+    /// <summary>
+    /// 
+    /// </summary>
     public class Signing : ISigning
     {
-        private const string TableDataProtectionPayload = "DataProtectionPayload";
-
         private readonly IDataProtectionProvider _dataProtectionProvider;
         private readonly ILogger _logger;
         private readonly IUnitOfWork _unitOfWork;
 
         private IDataProtector _dataProtector;
-        private DataProtectionPayloadProto _protectionPayloadProto;
+        private DataProtectionProto _protectionProto;
 
         public string DefaultSigningKeyName => "DefaultSigning.Key";
 
-        public Signing(IDataProtectionProvider dataProtectionProvider, IUnitOfWork unitOfWork, ILogger<Signing> logger)
+        public Signing(IDataProtectionProvider dataProtectionProvider, IUnitOfWork unitOfWork, ILogger logger)
         {
             _dataProtectionProvider = dataProtectionProvider;
             _unitOfWork = unitOfWork;
-            _logger = logger;
+            _logger = logger.ForContext("SourceContext", nameof(Signing));
         }
 
         /// <summary>
@@ -46,10 +59,10 @@ namespace CYPCore.Cryptography
         /// <returns></returns>
         private KeyPair GetKeyPair()
         {
-            Guard.Argument(_protectionPayloadProto, nameof(_protectionPayloadProto)).NotNull();
-            Guard.Argument(_protectionPayloadProto.Payload, nameof(_protectionPayloadProto.Payload)).NotNull().NotWhiteSpace();
+            Guard.Argument(_protectionProto, nameof(_protectionProto)).NotNull();
+            Guard.Argument(_protectionProto.Payload, nameof(_protectionProto.Payload)).NotNull().NotWhiteSpace();
 
-            var unprotectedPayload = _dataProtector.Unprotect(_protectionPayloadProto.Payload);
+            var unprotectedPayload = _dataProtector.Unprotect(_protectionProto.Payload);
             var definition = new { PrivateKey = string.Empty, PublicKey = string.Empty };
             var message = JsonConvert.DeserializeAnonymousType(unprotectedPayload, definition);
 
@@ -71,20 +84,20 @@ namespace CYPCore.Cryptography
             try
             {
                 _dataProtector = _dataProtectionProvider.CreateProtector(keyName);
-                _protectionPayloadProto = await _unitOfWork.DataProtectionPayload.FirstOrDefaultAsync(x => new(x.FriendlyName == keyName));
+                _protectionProto = await _unitOfWork.DataProtectionPayload.GetAsync(keyName.ToBytes());
 
-                if (_protectionPayloadProto == null)
+                if (_protectionProto == null)
                 {
-                    _protectionPayloadProto = new DataProtectionPayloadProto
+                    _protectionProto = new DataProtectionProto
                     {
                         FriendlyName = keyName,
                         Payload = _dataProtector.Protect(JsonConvert.SerializeObject(GenerateKeyPair()))
                     };
 
-                    var stored = await _unitOfWork.DataProtectionPayload.PutAsync(_protectionPayloadProto, _protectionPayloadProto.FriendlyName.ToBytes());
-                    if (stored == null)
+                    var saved = await _unitOfWork.DataProtectionPayload.PutAsync(keyName.ToBytes(), _protectionProto);
+                    if (!saved)
                     {
-                        _logger.LogError($"<<< SigningProvider.GetOrUpsertKeyName >>>: Unable to save protection key payload for: {keyName}");
+                        _logger.Here().Error("Unable to save protection key payload for: {@KeyName}", keyName);
                         return null;
                     }
                 }
@@ -93,11 +106,11 @@ namespace CYPCore.Cryptography
             }
             catch (CryptographicException ex)
             {
-                _logger.LogCritical($"<<< SigningProvider.GetOrUpsertKeyName >>>: {ex}");
+                _logger.Here().Fatal(ex, "Cannot get keypair");
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< SigningProvider.GetOrUpsertKeyName >>>: {ex}");
+                _logger.Here().Error(ex, "Cannot get keypair");
             }
 
             return kp;
@@ -121,7 +134,7 @@ namespace CYPCore.Cryptography
         public async Task<byte[]> GetPublicKey(string keyName)
         {
             var kp = await GetOrUpsertKeyName(keyName);
-            return kp.PublicKey;
+            return kp?.PublicKey;
         }
 
         /// <summary>
@@ -144,7 +157,7 @@ namespace CYPCore.Cryptography
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< SigningActor.Sign >>>: {ex}");
+                _logger.Here().Error(ex, "Cannot sign");
             }
 
             return signature;
@@ -170,7 +183,7 @@ namespace CYPCore.Cryptography
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< SigningActor.VerifiySignature >>>: {ex}");
+                _logger.Here().Error(ex, "Cannot verify signature");
             }
 
             return verified;
@@ -197,7 +210,7 @@ namespace CYPCore.Cryptography
             }
             catch (Exception ex)
             {
-                _logger.LogError($"<<< SigningActor.VerifiySignature(byte[] signature, byte[] publicKey, byte[] message) >>>: {ex}");
+                _logger.Here().Error(ex, "Cannot verify signature");
             }
 
             return verified;

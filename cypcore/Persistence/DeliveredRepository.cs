@@ -1,60 +1,45 @@
 ﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
-using Microsoft.Extensions.Logging;
+using System;
 
+using CYPCore.Extensions;
+using Serilog;
 using Stratis.Patricia;
+
 using CYPCore.Extentions;
 using CYPCore.Models;
 
 namespace CYPCore.Persistence
 {
+    public interface IDeliveredRepository : IRepository<BlockHeaderProto>
+    {
+        BlockHeaderProto ToTrie(BlockHeaderProto blockHeader);
+        byte[] MerkleRoot { get; }
+        void ResetTrie();
+    }
+
     public class DeliveredRepository : Repository<BlockHeaderProto>, IDeliveredRepository
     {
-        private const string TableDelivered = "Delivered";
-
-        private readonly IStoredbContext _storedbContext;
+        private readonly IStoreDb _storeDb;
         private readonly ILogger _logger;
         private readonly IPatriciaTrie _stateTrie;
 
-        public string Table => TableDelivered;
-
-        public DeliveredRepository(IStoredbContext storedbContext, ILogger logger)
-            : base(storedbContext, logger)
+        public DeliveredRepository(IStoreDb storeDb, ILogger logger)
+            : base(storeDb, logger)
         {
-            _storedbContext = storedbContext;
-            _logger = logger;
+            _storeDb = storeDb;
+            _logger = logger.ForContext("SourceContext", nameof(DeliveredRepository));
 
             _stateTrie = new PatriciaTrie();
 
-            SetTableType(TableDelivered);
-
-            //InitTrie();
+            SetTableName(StoreDb.DeliveredTable.ToString());
         }
 
         /// <summary>
         /// 
         /// </summary>
-        //private void InitTrie()
-        //{
-        //    try
-        //    {
-        //        var blockHeader = LastOrDefaultAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-        //        if (blockHeader == null)
-        //            return;
-
-        //        _stateTrie.SetRootHash(blockHeader.MrklRoot.FromHex());
-        //    }
-        //    catch (System.Exception ex)
-        //    {
-        //        _logger.LogError($"<<< DeliveredRepository.InitTrie >>>: {ex}");
-        //    }
-        //}
-
-        /// <summary>
-        /// 
-        /// </summary>
-        public byte[] MrklRoot => _stateTrie.GetRootHash();
+        public byte[] MerkleRoot => _stateTrie.GetRootHash();
 
         /// <summary>
         /// 
@@ -63,7 +48,6 @@ namespace CYPCore.Persistence
         {
             _stateTrie.Flush();
         }
-
 
         /// <summary>
         /// 
@@ -74,15 +58,16 @@ namespace CYPCore.Persistence
         {
             try
             {
-                _stateTrie.Put(blockHeader.ToHash(), blockHeader.ToHash());
+                var leftright = blockHeader.ToHash();
+                _stateTrie.Put(leftright, leftright);
                 _stateTrie.Flush();
 
-                blockHeader.MrklRoot = MrklRoot.ByteToHex();
+                blockHeader.MerkelRoot = MerkleRoot.ByteToHex();
             }
             catch (System.Exception ex)
             {
                 blockHeader = null;
-                _logger.LogError($"<<< DeliveredRepository.AddToTrie >>>: {ex}");
+                _logger.Here().Error(ex, "Error while adding to trie");
             }
 
             return blockHeader;
@@ -93,7 +78,7 @@ namespace CYPCore.Persistence
         /// </summary>
         public void ResetTrie()
         {
-            _stateTrie.SetRootHash(new byte[0]);
+            _stateTrie.SetRootHash(Array.Empty<byte>());
         }
     }
 }
