@@ -30,7 +30,7 @@
     <PackageReference Include="CliWrap" Version="3.3.1" />
     <PackageReference Include="Dawn.Guard" Version="1.12.0" />
     <PackageReference Include="FlatSharp" Version="5.0.0" />
-    <PackageReference Include="libsecp256k1Zkp.Net" Version="1.1.6" />
+    <PackageReference Include="libsecp256k1Zkp.Net" Version="1.1.7" />
     <PackageReference Include="libsignal-protocol-dotnet" Version="2.8.1" />
     <PackageReference Include="MessagePack" Version="1.9.11" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc" Version="2.2.0" />
