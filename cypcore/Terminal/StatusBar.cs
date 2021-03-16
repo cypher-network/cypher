@@ -22,8 +22,6 @@ namespace CYPCore.Terminal
             };
 
             Add(_label);
-
-            _label.Text = "Dit is de status bla bla. Dit is de status bla bla. Dit is de status bla bla. Dit is de status bla bla. Dit is de status bla bla. Dit is de status bla bla. Dit is de status bla bla. ";
         }
 
         public new string Text
