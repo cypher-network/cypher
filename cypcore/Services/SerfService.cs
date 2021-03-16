@@ -34,11 +34,12 @@ namespace CYPCore.Services
     public class SerfService : ISerfService
     {
         private readonly ISerfClient _serfClient;
+        private readonly ISerfRxClient _serfRxClient;
         private readonly ISigning _signing;
         private readonly ILogger _logger;
         private readonly TcpSession _tcpSession;
 
-        public SerfService(ISerfClient serfClient, ISigning signing, ILogger logger)
+        public SerfService(ISerfClient serfClient, ISerfRxClient serfRxClient, ISigning signing, ILogger logger)
         {
             _serfClient = serfClient;
             _signing = signing;
@@ -63,6 +64,8 @@ namespace CYPCore.Services
         /// <returns></returns>
         public async Task StartAsync(IHostApplicationLifetime applicationLifetime)
         {
+            return;
+
             if (_serfClient.ProcessStarted)
                 return;
 

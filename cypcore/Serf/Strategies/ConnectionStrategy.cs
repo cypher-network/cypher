@@ -39,19 +39,19 @@ namespace CYPCore.Serf.Strategies
     public class DelayConnectionStrategy : ConnectionStrategy
     {
         private readonly TimeSpan _delay;
-        
+
         public DelayConnectionStrategy(long delaySeconds)
-            :base(null)
+            : base(null)
         {
             _delay = TimeSpan.FromSeconds(delaySeconds);
         }
 
         public DelayConnectionStrategy(long delaySeconds, int maxNumberOfAttempts)
-            :base(maxNumberOfAttempts)
+            : base(maxNumberOfAttempts)
         {
             _delay = TimeSpan.FromSeconds(delaySeconds);
         }
-        
+
         protected override void StrategyImplementation(int numberOfAttempts)
         {
             Task.Delay(_delay).Wait();
@@ -63,7 +63,7 @@ namespace CYPCore.Serf.Strategies
     {
         private readonly TimeSpan _baseTime;
         private TimeSpan _currentDelay = TimeSpan.Zero;
-        
+
         public ExponentialBackoffConnectionStrategy(TimeSpan baseTime)
             : base(null)
         {
@@ -71,7 +71,7 @@ namespace CYPCore.Serf.Strategies
         }
 
         public ExponentialBackoffConnectionStrategy(TimeSpan baseTime, int maxNumberOfAttempts)
-            :base(maxNumberOfAttempts)
+            : base(maxNumberOfAttempts)
         {
             _baseTime = baseTime;
         }
@@ -86,7 +86,7 @@ namespace CYPCore.Serf.Strategies
             {
                 _currentDelay *= 2;
             }
-            
+
             Task.Delay(_currentDelay).Wait();
             Reconnect.OnNext(true);
         }

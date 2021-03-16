@@ -7,6 +7,9 @@ using Serilog;
 
 using CYPCore.Extensions;
 using CYPCore.Models;
+using CYPCore.Serf;
+using CYPCore.Terminal;
+using Microsoft.CodeAnalysis;
 
 namespace CYPCore.Helper
 {
@@ -25,12 +28,36 @@ namespace CYPCore.Helper
         private readonly IPEndPoint _endPoint;
         private readonly Socket _client;
 
-        public NodeMonitor(NodeMonitorConfigurationOptions configuration, ILogger logger)
+        private readonly CancellationTokenSource _cancellationTokenSource;
+        private readonly MainWindow _mainWindow;
+        private readonly Thread _mainWindowThread;
+
+        private ISerfRxClient _serfRxClient;
+        private IDisposable _serfRxClientStateObserver;
+
+        public NodeMonitor(NodeMonitorConfigurationOptions configuration, ISerfRxClient serfRxClient, ILogger logger)
         {
             _logger = logger.ForContext("SourceContext", nameof(NodeMonitor));
             _configuration = configuration;
 
-            if (_configuration.Enabled)
+            _cancellationTokenSource = new CancellationTokenSource();
+            _mainWindow = new MainWindow(_cancellationTokenSource);
+            _mainWindowThread = new Thread(_mainWindow.Start)
+            {
+                Priority = ThreadPriority.AboveNormal
+            };
+
+            _serfRxClient = serfRxClient;
+            _serfRxClientStateObserver = serfRxClient.State.Subscribe(
+                clientState =>
+                {
+                    if (_mainWindow != null)
+                    {
+                        _mainWindow.StatusBar.Text = clientState.ToString();
+                    }
+                });
+
+            if (_configuration.Tester.Enabled)
             {
                 try
                 {
@@ -47,20 +74,16 @@ namespace CYPCore.Helper
 
         public bool Start()
         {
-            if (!_configuration.Enabled)
-            {
-                return false;
-            }
+            _mainWindowThread.Start();
 
             return true;
         }
 
         public void Stop()
         {
-            if (!_configuration.Enabled || !_client.Connected) return;
-
             try
             {
+                _cancellationTokenSource.Cancel();
                 _client.Disconnect(true);
             }
             catch (Exception ex)

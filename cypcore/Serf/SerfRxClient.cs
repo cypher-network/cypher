@@ -2,37 +2,28 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Reactive.Concurrency;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Threading;
-using CYPCore.Serf.Message;
-using CYPCore.Serf.Strategies;
+
+using CYPCore.Extensions;
+using CYPCore.Extentions;
 using Dawn;
 using MessagePack;
 using Serilog;
 
+using CYPCore.Models;
+using CYPCore.Serf.Message;
+using CYPCore.Serf.Strategies;
+
 namespace CYPCore.Serf
 {
-    public class SerfRpcClient
+    public interface ISerfRxClient
     {
-        private readonly ILogger _logger;
-
-        private Socket _socket;
-        private readonly IPEndPoint _endpoint;
-
-        private readonly BehaviorSubject<ClientState> _state = new(ClientState.Initializing);
-        private readonly BehaviorSubject<SerfClientState> _serfState = new(SerfClientState.Undefined);
-        private readonly Subject<byte[]> _dataReceived = new();
-
-        public IObservable<ClientState> State => _state;
-        public IObservable<SerfClientState> SerfState => _serfState;
-        public IObservable<IEnumerable<byte>> DataReceived => _dataReceived;
-
-        private readonly IFormatterResolver _messagePackResolver = MessagePack.Resolvers.StandardResolver.Instance;
-
-        public enum ClientState
+        enum ClientState
         {
             Initializing,
             Connecting,
@@ -41,7 +32,7 @@ namespace CYPCore.Serf
             FatalError
         };
 
-        public enum SerfClientState
+        enum SerfClientState
         {
             Undefined,
             Handshaking,
@@ -51,15 +42,42 @@ namespace CYPCore.Serf
             Error
         };
 
-        public SerfRpcClient(IPEndPoint endpoint, ILogger logger)
+        public IObservable<ClientState> State { get; }
+        public IObservable<SerfClientState> SerfState { get; }
+    }
+
+    public class SerfRxClient : ISerfRxClient
+    {
+        private readonly ILogger _logger;
+        private readonly SerfRxConfigurationOptions _configuration;
+
+        private Socket _socket;
+        private readonly IPEndPoint _endPoint;
+
+        private readonly BehaviorSubject<ISerfRxClient.ClientState> _state = new(ISerfRxClient.ClientState.Initializing);
+        private readonly BehaviorSubject<ISerfRxClient.SerfClientState> _serfState = new(ISerfRxClient.SerfClientState.Undefined);
+        private readonly Subject<byte[]> _dataReceived = new();
+
+        public IObservable<ISerfRxClient.ClientState> State => _state;
+        public IObservable<ISerfRxClient.SerfClientState> SerfState => _serfState;
+        public IObservable<IEnumerable<byte>> DataReceived => _dataReceived;
+
+        private readonly IFormatterResolver _messagePackResolver = MessagePack.Resolvers.StandardResolver.Instance;
+
+        public SerfRxClient(SerfRxConfigurationOptions configuration, ILogger logger)
         {
-            Guard.Argument(endpoint, nameof(endpoint)).NotNull();
+            Guard.Argument(configuration, nameof(configuration)).NotNull();
+            Guard.Argument(configuration.Enabled).True();
             Guard.Argument(logger, nameof(logger)).NotNull();
 
-            _endpoint = endpoint;
-            _logger = logger;
+            _configuration = configuration;
 
-            _logger.Debug("SerfRpcClient::SerfRpcClient");
+            var ipAddress = IPAddress.Parse(configuration.RPC.IPAddress);
+            _endPoint = new IPEndPoint(ipAddress, configuration.RPC.Port);
+
+            _logger = logger.ForContext("SourceContext", nameof(SerfRxClient));
+
+            _logger.Here().Debug("Starting SerfRxClient");
 
             var connectionStrategy = new ExponentialBackoffConnectionStrategy(TimeSpan.FromSeconds(2), 10);
 
@@ -67,14 +85,14 @@ namespace CYPCore.Serf
 
             // Serf [Error] -> [Disconnected]
             _serfState
-                .Where(s => s == SerfClientState.Error)
+                .Where(s => s == ISerfRxClient.SerfClientState.Error)
                 .Subscribe(s => Disconnect());
 
             // State [Disconnected] -> DoReconnect
             _state
-                .Where(s => s == ClientState.Disconnected)
+                .Where(s => s == ISerfRxClient.ClientState.Disconnected)
                 .Subscribe(s => connectionStrategy.DoReconnect());
-            
+
             // DoReconnect -> [Connected, Disconnected, FatalError]
             connectionStrategy.Reconnect
                 .ObserveOn(ThreadPoolScheduler.Instance)
@@ -86,16 +104,16 @@ namespace CYPCore.Serf
 
             // State [Connected] -> [Handshaking]
             _state
-                .Where(s => s == ClientState.Connected)
+                .Where(s => s == ISerfRxClient.ClientState.Connected)
                 .Subscribe(s =>
                 {
                     // Initiate receive loop
                     Receive();
-                    
+
                     connectionStrategy.ResetReconnectCounter();
                     Handshake();
                 });
-            
+
             #endregion
 
             #region Data handling
@@ -103,38 +121,38 @@ namespace CYPCore.Serf
             // Serf [Handshaking] -> [HandshakeOk, Error]
             _dataReceived
                 .ObserveOn(ThreadPoolScheduler.Instance)
-                .Where(d => _serfState.Value == SerfClientState.Handshaking)
+                .Where(d => _serfState.Value == ISerfRxClient.SerfClientState.Handshaking)
                 .Select(data =>
                 {
                     Resolve<ResponseHeader>(data, out var responseHeader);
-                    return new {Ok = IsResponseHeaderOk(responseHeader)};
+                    return new { Ok = IsResponseHeaderOk(responseHeader) };
                 })
                 .Subscribe(resolvedData =>
                 {
-                    _logger.Debug("Got handshake response");
+                    _logger.Here().Debug("Got handshake response");
 
                     if (resolvedData.Ok)
                     {
-                        _logger.Debug("HandshakeOk");
-                        _serfState.OnNext(SerfClientState.HandshakeOk);
+                        _logger.Here().Debug("HandshakeOk");
+                        _serfState.OnNext(ISerfRxClient.SerfClientState.HandshakeOk);
                     }
                     else
                     {
-                        _logger.Error("Handshake response not correct");
-                        _serfState.OnNext(SerfClientState.Error);
+                        _logger.Here().Error("Handshake response not correct");
+                        _serfState.OnNext(ISerfRxClient.SerfClientState.Error);
                     }
                 });
 
             // Serf [HandshakeOk] -> [Joining, Error]
             _serfState
                 .ObserveOn(ThreadPoolScheduler.Instance)
-                .Where(d => _serfState.Value == SerfClientState.HandshakeOk)
+                .Where(d => _serfState.Value == ISerfRxClient.SerfClientState.HandshakeOk)
                 .Subscribe(d => Join());
 
             // Serf [Joining] -> [Joined, Error]
             _dataReceived
                 .ObserveOn(ThreadPoolScheduler.Instance)
-                .Where(d => _serfState.Value == SerfClientState.Joining)
+                .Where(d => _serfState.Value == ISerfRxClient.SerfClientState.Joining)
                 .Select(data =>
                 {
                     Resolve<JoinResponse>(
@@ -149,17 +167,17 @@ namespace CYPCore.Serf
                 })
                 .Subscribe(resolvedData =>
                 {
-                    _logger.Debug("Got join response");
+                    _logger.Here().Debug("Got join response");
 
                     if (resolvedData.Ok)
                     {
-                        _logger.Debug($"Joined: {resolvedData.joinResponse.Data.Peers} peers");
-                        _serfState.OnNext(SerfClientState.Joined);
+                        _logger.Here().Debug($"Joined: {resolvedData.joinResponse.Data.Peers} peers");
+                        _serfState.OnNext(ISerfRxClient.SerfClientState.Joined);
                     }
                     else
                     {
-                        _logger.Error("Join response not correct");
-                        _serfState.OnNext(SerfClientState.Error);
+                        _logger.Here().Error("Could not join seed nodes");
+                        _serfState.OnNext(ISerfRxClient.SerfClientState.Error);
                     }
                 });
 
@@ -167,7 +185,7 @@ namespace CYPCore.Serf
 
             // Initial: Disconnected
             // Trigger connection strategy to initiate the connection on a new thread
-            _state.OnNext(ClientState.Disconnected);
+            _state.OnNext(ISerfRxClient.ClientState.Disconnected);
         }
 
         private ulong _seqId;
@@ -178,38 +196,38 @@ namespace CYPCore.Serf
         // State Connecting -> [Connected, Disconnected, FatalError]
         private void Connect()
         {
-            _logger.Debug("SerfRpcClient::Connect");
-            _state.OnNext(ClientState.Connecting);
+            _logger.Here().Debug("SerfRpcClient::Connect");
+            _state.OnNext(ISerfRxClient.ClientState.Connecting);
 
             try
             {
-                _socket = new Socket(_endpoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
-                _socket.Connect(_endpoint);
-                _state.OnNext(ClientState.Connected);
+                _socket = new Socket(_endPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+                _socket.Connect(_endPoint);
+                _state.OnNext(ISerfRxClient.ClientState.Connected);
             }
             catch (SocketException socketException)
             {
-                _logger.Error(socketException, "Error while connecting");
-                _state.OnNext(ClientState.Disconnected);
+                _logger.Here().Error(socketException, "Error while connecting");
+                _state.OnNext(ISerfRxClient.ClientState.Disconnected);
             }
             catch (ObjectDisposedException objectDisposedException)
             {
-                _logger.Fatal(objectDisposedException, "Cannot use TcpClient");
-                _state.OnNext(ClientState.FatalError);
+                _logger.Here().Fatal(objectDisposedException, "Cannot use TcpClient");
+                _state.OnNext(ISerfRxClient.ClientState.FatalError);
             }
         }
 
         private void Disconnect()
         {
-            _logger.Debug("SerfRpcClient::Disconnect");
+            _logger.Here().Debug("SerfRpcClient::Disconnect");
 
             if (_socket.Connected)
             {
                 _socket.Close();
             }
 
-            _serfState.OnNext(SerfClientState.Undefined);
-            _state.OnNext(ClientState.Disconnected);
+            _serfState.OnNext(ISerfRxClient.SerfClientState.Undefined);
+            _state.OnNext(ISerfRxClient.ClientState.Disconnected);
 
             _socket = null;
         }
@@ -225,18 +243,18 @@ namespace CYPCore.Serf
             try
             {
                 var bytesSent = _socket.Send(data.ToArray());
-                _logger.Debug($"Sent {@bytesSent} bytes", bytesSent);
+                _logger.Here().Debug($"Sent {@bytesSent} bytes", bytesSent);
             }
             catch (Exception exception)
             {
-                _logger.Error(exception, "Cannot send");
-                _serfState.OnNext(SerfClientState.Error);
+                _logger.Here().Error(exception, "Cannot send");
+                _serfState.OnNext(ISerfRxClient.SerfClientState.Error);
             }
         }
 
         private void Receive()
         {
-            _logger.Debug("Receiving data");
+            _logger.Here().Debug("Receiving data");
 
             var buffer = new byte[_socket.ReceiveBufferSize];
 
@@ -246,15 +264,14 @@ namespace CYPCore.Serf
             }
             catch (Exception exception)
             {
-                _logger.Error(exception, "Error while reading data");
-                _serfState.OnNext(SerfClientState.Error);
-                return;
+                _logger.Here().Error(exception, "Error while reading data");
+                _serfState.OnNext(ISerfRxClient.SerfClientState.Error);
             }
         }
 
         private void ReceiveCallback(IAsyncResult result)
         {
-            _logger.Debug("Receive callback");
+            _logger.Here().Debug("Receive callback");
 
             var length = 0;
             try
@@ -263,18 +280,18 @@ namespace CYPCore.Serf
             }
             catch (Exception exception)
             {
-                _logger.Error(exception, "ReceiveCallback");
-                _serfState.OnNext(SerfClientState.Error);
+                _logger.Here().Error(exception, "ReceiveCallback");
+                //_serfState.OnNext(SerfClientState.Error);
                 return;
             }
 
             if (length <= 0)
             {
-                _serfState.OnNext(SerfClientState.Error);
+                _serfState.OnNext(ISerfRxClient.SerfClientState.Error);
                 return;
             }
 
-            var buffer = (byte[]) result.AsyncState;
+            var buffer = (byte[])result.AsyncState;
             var data = new byte[length];
             Array.Copy(buffer, data, data.Length);
             _dataReceived.OnNext(data);
@@ -295,14 +312,14 @@ namespace CYPCore.Serf
             };
         }
 
-        private bool IsResponseHeaderOk(ResolvedData<ResponseHeader> responseHeader)
+        private static bool IsResponseHeaderOk(ResolvedData<ResponseHeader> responseHeader)
         {
             return responseHeader.Ok && string.IsNullOrWhiteSpace(responseHeader.Data.Error);
         }
 
         private void Handshake()
         {
-            _serfState.OnNext(SerfClientState.Handshaking);
+            _serfState.OnNext(ISerfRxClient.SerfClientState.Handshaking);
 
             Send(Serialize(
                 GetRequestHeader(SerfCommandLine.Handshake),
@@ -314,15 +331,18 @@ namespace CYPCore.Serf
 
         private void Join()
         {
-            _logger.Debug("Joining");
-            
-            _serfState.OnNext(SerfClientState.Joining);
+            _logger.Here().Debug("Joining");
+
+            _serfState.OnNext(ISerfRxClient.SerfClientState.Joining);
 
             Send(Serialize(
                 GetRequestHeader(SerfCommandLine.Join),
                 new JoinRequest
                 {
-                    Existing = new[] {"67.205.161.184:7946"},
+                    Existing = _configuration.Clusters[0].SeedNodes.Select(
+                        node => string.Format("{0}:{1}", node.IPAddress, node.Port.ToString())
+                    ).ToArray(),
+
                     Replay = false
                 }));
         }
@@ -343,7 +363,7 @@ namespace CYPCore.Serf
             {
                 Ok = true
             };
-            
+
             var enumerable = data as byte[] ?? data.ToArray();
             var readSize = 0;
 
@@ -354,7 +374,7 @@ namespace CYPCore.Serf
             }
             catch (Exception exception)
             {
-                _logger.Error(exception, "Cannot resolve data type");
+                _logger.Here().Error(exception, "Cannot resolve data type");
                 resolvedData.Ok = false;
             }
 
@@ -374,7 +394,7 @@ namespace CYPCore.Serf
             return MessagePackSerializer.Serialize(t1).Concat(
                 MessagePackSerializer.Serialize(t2));
         }
-        
+
         #endregion
 
         #endregion

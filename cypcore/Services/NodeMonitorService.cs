@@ -7,6 +7,7 @@ using Serilog;
 
 using CYPCore.Extensions;
 using CYPCore.Helper;
+using CYPCore.Serf;
 
 namespace CYPCore.Services
 {
@@ -16,10 +17,14 @@ namespace CYPCore.Services
         private readonly INodeMonitor _nodeMonitor;
         private bool _applicationRunning = true;
         private const int ConnectionRetryDelay = 1000; // ms;
+        private readonly CancellationTokenSource _cancellationTokenSource;
+        private Terminal.MainWindow _mainWindow;
+        private Thread _mainWindowThread;
 
         public NodeMonitorService(INodeMonitor nodeMonitor, IHostApplicationLifetime applicationLifetime, ILogger logger)
         {
             _logger = logger.ForContext("SourceContext", nameof(NodeMonitorService));
+
             _nodeMonitor = nodeMonitor;
 
             applicationLifetime.ApplicationStopping.Register(OnApplicationStopping);

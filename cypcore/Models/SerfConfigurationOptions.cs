@@ -18,4 +18,25 @@ namespace CYPCore.Models
         public bool Replay { get; set; }
         public string KeyringFile { get; set; }
     }
+
+    public class SerfRxConfigurationOptionCluster
+    {
+        public string Name { get; set; }
+        public SerfRxConfigurationOptionEndpoint[] SeedNodes { get; set; }
+    }
+
+    public class SerfRxConfigurationOptionEndpoint
+    {
+        public string IPAddress { get; set; }
+        public ushort Port { get; set; }
+
+    }
+
+    public class SerfRxConfigurationOptions
+    {
+        public bool Enabled { get; set; }
+        public string NodeName { get; set; }
+        public SerfRxConfigurationOptionCluster[] Clusters { get; set; }
+        public SerfRxConfigurationOptionEndpoint RPC { get; set; }
+    }
 }

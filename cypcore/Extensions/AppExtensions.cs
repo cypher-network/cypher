@@ -9,7 +9,6 @@ using System.Linq;
 
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Configuration;
 
@@ -171,6 +170,19 @@ namespace CYPCore.Extensions
         /// <returns></returns>
         public static ContainerBuilder AddSwimGossipClient(this ContainerBuilder builder, IConfiguration configuration)
         {
+            var serfRxConfigurationOptions = new SerfRxConfigurationOptions();
+            configuration.Bind("SerfRx", serfRxConfigurationOptions);
+            builder.Register(c =>
+                {
+                    var logger = c.Resolve<Serilog.ILogger>();
+                    var serfClient = new SerfRxClient(serfRxConfigurationOptions, logger);
+
+                    return serfClient;
+                })
+                .As<ISerfRxClient>()
+                .SingleInstance();
+
+
             builder.Register(c =>
             {
                 var serfConfigurationOptions = new SerfConfigurationOptions();
@@ -247,12 +259,13 @@ namespace CYPCore.Extensions
                 var signing = c.Resolve<ISigning>();
                 var lifetime = c.Resolve<IHostApplicationLifetime>();
                 var serfClient = c.Resolve<ISerfClient>();
+                var serfRxClient = c.Resolve<ISerfRxClient>();
                 var logger = c.Resolve<Serilog.ILogger>();
 
                 ISerfService serfService =
-                    nodeMonitorConfigurationOptions.Enabled
+                    nodeMonitorConfigurationOptions.Tester.Enabled
                         ? new SerfServiceTester(serfClient, signing, logger)
-                        : new SerfService(serfClient, signing, logger);
+                        : new SerfService(serfClient, serfRxClient, signing, logger);
 
                 serfService.StartAsync(lifetime).ConfigureAwait(false).GetAwaiter();
 
@@ -322,6 +335,7 @@ namespace CYPCore.Extensions
                     var nodeMonitorProvider =
                         new NodeMonitor(
                             nodeMonitorConfigurationOptions,
+                            c.Resolve<ISerfRxClient>(),
                             c.Resolve<Serilog.ILogger>());
 
                     return nodeMonitorProvider;
@@ -333,6 +347,5 @@ namespace CYPCore.Extensions
 
             return builder;
         }
-
     }
 }
