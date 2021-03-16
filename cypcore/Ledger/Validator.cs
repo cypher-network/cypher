@@ -1,4 +1,4 @@
-// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
@@ -39,7 +39,7 @@ namespace CYPCore.Ledger
 
         Task<VerifyResult> VerifyBlockGraphSignatureNodeRound(BlockGraph blockGraph);
         VerifyResult VerifyBulletProof(TransactionProto transaction);
-        Task<VerifyResult> VerifyCoinbaseTransaction(VoutProto coinbase, ulong solution);
+        VerifyResult VerifyCoinbaseTransaction(VoutProto coinbase, ulong solution, double runningDistribution);
         VerifyResult VerifySolution(byte[] vrfBytes, byte[] kernel, ulong solution);
         Task<VerifyResult> VerifyBlockHeader(BlockHeaderProto blockHeader);
         Task<VerifyResult> VerifyBlockHeaders(BlockHeaderProto[] blockHeaders);
@@ -84,7 +84,7 @@ namespace CYPCore.Ledger
         }
 
         public uint StakeTimestampMask => 0x0000000A;
-        public byte[] BlockZeroMerkel => "4157dd0a13221f2a1b90fef7e4864925389d3107e112c03a267580d3e84d7b49".HexToByte();
+        public byte[] BlockZeroMerkel => "20b4f7c5309fd787d3d2aa90f1b0489400ef64e780fe179754c87b3769e21959".HexToByte();
         public byte[] BlockZeroPreMerkel =>
             "3030303030303030437970686572204e6574776f726b2076742e322e32303231".HexToByte();
 
@@ -320,8 +320,9 @@ namespace CYPCore.Ledger
                 return verifySloth;
             }
 
-            var verifyCoinbase = await VerifyCoinbaseTransaction(blockHeader.Transactions.First().Vout.First(),
-                blockHeader.Solution);
+            var runningDistribution = await CurrentRunningDistribution(blockHeader);
+            var verifyCoinbase = VerifyCoinbaseTransaction(blockHeader.Transactions.First().Vout.First(),
+                blockHeader.Solution, runningDistribution);
             if (verifyCoinbase == VerifyResult.UnableToVerify)
             {
                 _logger.Here().Fatal("Could not verify the block header coinbase transaction");
@@ -350,18 +351,14 @@ namespace CYPCore.Ledger
                 return VerifyResult.UnableToVerify;
             }
 
-            var merkel = blockHeader.MerkelRoot.HexToByte();
-            blockHeader.MerkelRoot = null;
-
-            var tempBlockHeader = _unitOfWork.DeliveredRepository.ToTrie(blockHeader);
-            if (tempBlockHeader == null)
+            var matchBlockHeader = _unitOfWork.DeliveredRepository.ToTrie(blockHeader);
+            if (matchBlockHeader == null)
             {
                 _logger.Here().Fatal("Could not add the block header to merkel");
                 return VerifyResult.UnableToVerify;
             }
 
-            blockHeader.MerkelRoot = merkel.ByteToHex();
-            if (!blockHeader.MerkelRoot.Equals(tempBlockHeader.MerkelRoot))
+            if (!blockHeader.MerkelRoot.Equals(matchBlockHeader.MerkelRoot))
             {
                 _logger.Here().Fatal("Could not verify the block header merkel");
                 return VerifyResult.UnableToVerify;
@@ -511,16 +508,15 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="coinbase"></param>
         /// <param name="solution"></param>
+        /// <param name="runningDistribution"></param>
         /// <returns></returns>
-        public async Task<VerifyResult> VerifyCoinbaseTransaction(VoutProto coinbase, ulong solution)
+        public VerifyResult VerifyCoinbaseTransaction(VoutProto coinbase, ulong solution, double runningDistribution)
         {
             Guard.Argument(coinbase, nameof(coinbase)).NotNull();
             Guard.Argument(solution, nameof(solution)).NotZero().NotNegative();
 
             if (coinbase.Validate().Any()) return VerifyResult.UnableToVerify;
             if (coinbase.T != CoinType.Coinbase) return VerifyResult.UnableToVerify;
-
-            var runningDistribution = await GetRunningDistribution() - coinbase.A.DivWithNaT();
 
             var verifyNetworkShare = VerifyNetworkShare(solution, coinbase.A.DivWithNaT(), runningDistribution);
             if (verifyNetworkShare == VerifyResult.UnableToVerify) return verifyNetworkShare;
@@ -822,6 +818,21 @@ namespace CYPCore.Ledger
         public long GetAdjustedTimeAsUnixTimestamp()
         {
             return Util.GetAdjustedTimeAsUnixTimestamp() & ~StakeTimestampMask;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="blockHeader"></param>
+        /// <returns></returns>
+        private async Task<double> CurrentRunningDistribution(BlockHeaderProto blockHeader)
+        {
+            var runningDistribution =
+                blockHeader.MerkelRoot.HexToByte().Xor(BlockZeroMerkel) &&
+                blockHeader.PrevMerkelRoot.HexToByte().Xor(BlockZeroPreMerkel)
+                    ? await GetRunningDistribution()
+                    : await GetRunningDistribution() - blockHeader.Transactions.First().Vout.First().A.DivWithNaT();
+            return runningDistribution;
         }
 
         /// <summary>
