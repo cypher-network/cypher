@@ -52,7 +52,7 @@ namespace CYPCore.Models
                 results.Add(new ValidationResult("Argument is null", new[] { "VoutProto.N" }));
             }
 
-            if (N != null && N.Length > 241)
+            if (N != null && N.Length > 512)
             {
                 results.Add(new ValidationResult("Range exception", new[] { "VoutProto.N" }));
             }
@@ -76,7 +76,7 @@ namespace CYPCore.Models
             }
 
             if (T != CoinType.Coin && T != CoinType.Coinbase && T != CoinType.Coinstake &&
-                T != CoinType.fee)
+                T != CoinType.Fee)
             {
                 results.Add(new ValidationResult("Argument exception", new[] { "VoutProto.T" }));
             }

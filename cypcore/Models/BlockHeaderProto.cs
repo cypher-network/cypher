@@ -41,11 +41,9 @@ namespace CYPCore.Models
         /// <returns></returns>
         public byte[] ToHash()
         {
-            //TODO: remove .Append(MerkelRoot ?? string.Empty) when we create a new block zero
             using var ts = new Helper.TangramStream();
             ts
                 .Append(Bits)
-                .Append(MerkelRoot ?? string.Empty)
                 .Append(Nonce)
                 .Append(PrevMerkelRoot)
                 .Append(Proof)

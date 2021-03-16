@@ -52,6 +52,10 @@ namespace CYPCore.Persistence
                 .SetVerifyChecksums(false);
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
         public Task<long> CountAsync()
         {
             long count = 0;
@@ -338,6 +342,11 @@ namespace CYPCore.Persistence
             return entries;
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="selector"></param>
+        /// <returns></returns>
         public ValueTask<List<T>> SelectAsync(Func<T, ValueTask<T>> selector)
         {
             ValueTask<List<T>> entries = default;

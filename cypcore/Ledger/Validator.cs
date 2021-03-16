@@ -1,4 +1,4 @@
-﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
@@ -412,7 +412,7 @@ namespace CYPCore.Ledger
                     return verifyTransaction;
                 }
 
-                if (transaction.Vout.First().T == CoinType.fee)
+                if (transaction.Vout.First().T == CoinType.Fee)
                 {
                     var verifyTransactionFee = VerifyTransactionFee(transaction);
                     if (verifyTransactionFee == VerifyResult.Succeed) continue;
@@ -447,7 +447,7 @@ namespace CYPCore.Ledger
             if (verifyBulletProof == VerifyResult.UnableToVerify) return verifyBulletProof;
 
             var transactionTypeArray = transaction.Vout.Select(x => x.T.ToString()).ToArray();
-            if (transactionTypeArray.Contains(CoinType.fee.ToString()) &&
+            if (transactionTypeArray.Contains(CoinType.Fee.ToString()) &&
                 transactionTypeArray.Contains(CoinType.Coin.ToString()))
             {
                 var verifyVOutCommits = await VerifyOutputCommits(transaction);
@@ -485,7 +485,7 @@ namespace CYPCore.Ledger
 
             var vout = transaction.Vout.First();
 
-            if (vout.T != CoinType.fee) return VerifyResult.UnableToVerify;
+            if (vout.T != CoinType.Fee) return VerifyResult.UnableToVerify;
 
             var feeRate = Fee(FeeNByte);
             if (vout.A != feeRate) return VerifyResult.UnableToVerify;
@@ -600,7 +600,7 @@ namespace CYPCore.Ledger
 
 
                 var vouts = blockHeaders.SelectMany(blockHeader => blockHeader.Transactions).SelectMany(x => x.Vout);
-                if (vouts.Where(vout => vout.T == CoinType.Coinbase && vout.T == CoinType.fee)
+                if (vouts.Where(vout => vout.T == CoinType.Coinbase && vout.T == CoinType.Fee)
                     .Select(vout => VerifyLockTime(new LockTime(Utils.UnixTimeToDateTime(vout.L)), vout.S))
                     .Any(verified => verified != VerifyResult.UnableToVerify))
                 {

@@ -5,14 +5,13 @@ using FlatSharp.Attributes;
 
 namespace CYPCore.Models
 {
-    //TODO: Change fee to Fee when we create a new block zero
     [FlatBufferEnum(typeof(sbyte))]
     public enum CoinType : sbyte
     {
         Coin,
         Coinbase,
         Coinstake,
-        fee,
+        Fee,
         Genesis
     }
 }
