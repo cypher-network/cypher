@@ -827,11 +827,13 @@ namespace CYPCore.Ledger
         /// <returns></returns>
         private async Task<double> CurrentRunningDistribution(BlockHeaderProto blockHeader)
         {
-            var runningDistribution =
-                blockHeader.MerkelRoot.HexToByte().Xor(BlockZeroMerkel) &&
-                blockHeader.PrevMerkelRoot.HexToByte().Xor(BlockZeroPreMerkel)
-                    ? await GetRunningDistribution()
-                    : await GetRunningDistribution() - blockHeader.Transactions.First().Vout.First().A.DivWithNaT();
+            if (!blockHeader.MerkelRoot.HexToByte().Xor(BlockZeroMerkel) &&
+                !blockHeader.PrevMerkelRoot.HexToByte().Xor(BlockZeroPreMerkel))
+                return await GetRunningDistribution() - blockHeader.Transactions.First().Vout.First().A.DivWithNaT();
+
+            var runningDistribution = Distribution;
+            runningDistribution -= NetworkShare(blockHeader.Solution, runningDistribution);
+
             return runningDistribution;
         }
 
