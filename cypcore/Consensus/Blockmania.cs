@@ -741,7 +741,7 @@ namespace CYPCore.Consensus
         /// <param name="data"></param>
         public void Add(BlockGraph data)
         {
-            Debug.WriteLine($"Adding block to graph block.id={data.Block}");
+            _logger.Here().Debug("Adding block to graph block.id: {@BlockId}", data.Block);
 
             var task = Task.Factory.StartNew(async () =>
             {
