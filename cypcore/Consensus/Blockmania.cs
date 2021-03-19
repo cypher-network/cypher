@@ -11,6 +11,8 @@ using System.Linq;
 using CYPCore.Consensus.Messages;
 using CYPCore.Consensus.States;
 using CYPCore.Consensus.Models;
+using CYPCore.Extensions;
+using Serilog;
 
 namespace CYPCore.Consensus
 {
@@ -18,6 +20,7 @@ namespace CYPCore.Consensus
 
     public class Blockmania
     {
+        private readonly ILogger _logger;
         private readonly Mutex _graphMutex;
         private readonly Channel<BlockGraph> _entries;
 
@@ -43,8 +46,9 @@ namespace CYPCore.Consensus
         public ulong TotalNodes;
         public List<Reached> Consensus;
 
-        public Blockmania()
+        public Blockmania(ILogger logger)
         {
+            _logger = logger.ForContext("SourceContext", nameof(Blockmania));
             Blocks = new List<BlockInfo>();
             Max = new Dictionary<Block, ulong>();
             Resolved = new Dictionary<ulong, Dictionary<ulong, string>>();
@@ -53,8 +57,9 @@ namespace CYPCore.Consensus
             Consensus = new List<Reached>();
         }
 
-        public Blockmania(Config cfg)
+        public Blockmania(Config cfg, ILogger logger)
         {
+            _logger = logger.ForContext("SourceContext", nameof(Blockmania));
             var f = (cfg.Nodes.Length - 1) / 3;
             Blocks = new List<BlockInfo>();
             Max = new Dictionary<Block, ulong>();
@@ -72,6 +77,10 @@ namespace CYPCore.Consensus
             _entries = Channel.CreateBounded<BlockGraph>(10000);
             Consensus = new List<Reached>();
 
+            _logger.Here().Debug("Blockmania configuration: {@SelfId}, {@Round}, {@NodeCount}, {@Nodes}, {@TotalNodes}, {@f}, {@Quorumf1}, {@Quorum2f}, {@Quorum2f1}",
+                Self, Round, NodeCount, Nodes, TotalNodes,
+                f, Quorumf1, Quorum2f, Quorum2f1);
+
             _ = Task.Factory.StartNew(async () =>
             {
                 await Run(_entries.Reader);
@@ -86,8 +95,10 @@ namespace CYPCore.Consensus
         /// <param name="hash"></param>
         private void Deliver(ulong node, ulong round, string hash)
         {
+            _logger.Here().Debug("Deliver {@Node}, {@Round}, {@Hash}", node, round, hash);
             if (round < Round)
             {
+                _logger.Here().Debug("Abort deliver, {@DeliveredRound} < {@Round}", round, Round);
                 return;
             }
 
@@ -95,18 +106,23 @@ namespace CYPCore.Consensus
 
             if (Resolved.ContainsKey(round))
             {
+                _logger.Here().Debug("Resolved contains key {@Round}", round);
                 hashes = Resolved[round];
                 if (hashes.ContainsKey(node))
                 {
+                    _logger.Here().Debug("Hashes contains key {@Node}", node);
                     var curHash = hashes[node];
                     if (curHash != hash)
                     {
-                        Debug.WriteLine($"Mismatching block hash for delivery, node={node} round={round}");
+                        _logger.Here().Debug("Mismatching block hash for delivery, node: {@Node}, round: {Round}",
+                            node, round);
                     }
                 }
                 else
                 {
-                    Console.WriteLine($"Consensus achieved hash={hash} node={node} round={round}");
+                    _logger.Here().Information("Consensus achieved, hash: {@Hash}, node: {@Node}, round: {@Round}",
+                        hash, node, round);
+
                     Consensus.Add(new Reached(hash, node, round));
                     hashes[node] = hash;
                 }
@@ -118,14 +134,23 @@ namespace CYPCore.Consensus
                     {node, hash}
                 };
 
+                _logger.Here().Debug("Adding {@Hashes} to Resolved[{@Round}]", hashes, round);
                 Resolved[round] = hashes;
             }
             if (round != Round)
             {
+                _logger.Here().Debug("Stop deliver, {@DeliveredRound} != {@Round}", round, Round);
                 return;
             }
+
+            _logger.Here().Debug("Number of hashes: {@HashesCount}, number of nodes: {@NodeCount}",
+                hashes.Count, NodeCount);
+
             if (hashes.Count == NodeCount)
             {
+                _logger.Here().Debug("Finalize deliver round: {@DeliveredRound}, hashes: {@Hashes}",
+                    round, hashes);
+
                 DeliverRound(round, hashes);
             }
         }
@@ -137,14 +162,20 @@ namespace CYPCore.Consensus
         /// <param name="hashes"></param>
         private void DeliverRound(ulong round, Dictionary<ulong, string> hashes)
         {
+            _logger.Here().Debug("DeliverRound {@Resolved}", Resolved);
+
             while (true)
             {
+                _logger.Here().Debug("Round: {@Round}, Hashes: @{Hashes}", round, hashes);
+
                 var blocks = (from item in hashes
                               where !string.IsNullOrEmpty(item.Value)
                               select new Block(item.Value, item.Key, round)).ToList();
 
                 blocks.Sort((x, y) => string.Compare(x.Hash, y.Hash, StringComparison.Ordinal));
                 Resolved.Remove(round);
+
+                _logger.Here().Debug("Sorted blocks: {@Blocks}", blocks);
 
                 _graphMutex.WaitOne();
 
@@ -187,10 +218,15 @@ namespace CYPCore.Consensus
 
                 Round++;
 
-                Debug.WriteLine($"Mem usage: g.max={Max.Count} g.states={Statess.Count} g.blocks={Blocks.Count}");
+                _logger.Here().Debug("Mem usage: g.max: {@MaxCount} g.states={@StatesCount} g.blocks={@BlocksCount}",
+                    Max.Count, Statess.Count, Blocks.Count);
+
                 _graphMutex.ReleaseMutex();
 
                 OnBlockmaniaInterpreted(new Interpreted(blocks, consumed, round));
+
+                _logger.Here().Debug("Resolved: {@Resolved}, {@HashCound}, {@NodeCount}",
+                    Resolved, hashes.Count, NodeCount);
 
                 if (!Resolved.ContainsKey(round + 1) || hashes.Count != NodeCount) return;
 
@@ -224,7 +260,7 @@ namespace CYPCore.Consensus
         /// <param name="entry"></param>
         private void Process(Entry entry)
         {
-            Debug.WriteLine($"Interpreting block block.id={entry.Block}");
+            _logger.Here().Debug("Interpreting block block.id: {@BlockID}", entry.Block);
 
             var state = FindOrCreateState(entry);
             var node = entry.Block.Node;
@@ -324,7 +360,7 @@ namespace CYPCore.Consensus
             outMessages.AddRange(ProcessMessages(state, processed, node, node, entry.Block, outMessages.GetRange(0, idx)));
             foreach (var dep in entry.Deps)
             {
-                Debug.WriteLine($"Processing block dep block.id={dep}");
+                _logger.Here().Debug("Processing block dep block.id: {@BlockID}", dep);
 
                 var output = new List<IMessage>();
                 if (Statess.ContainsKey(dep) && Statess[dep] != null)
@@ -349,14 +385,21 @@ namespace CYPCore.Consensus
         /// <exception cref="Exception"></exception>
         private IMessage ProcessMessage(State s, ulong sender, ulong receiver, Block origin, IMessage msg)
         {
+            _logger.Here().Debug("State: {@State}, Sender: {@Sender}, Receiver: {@Receiver}, Origin: {@Origin}, Message: {@Message}",
+                s, sender.ToString(), receiver.ToString(), origin, msg);
+
             var (node, round) = msg.NodeRound();
             if (s.Data.ContainsKey(new Final(node, round)))
             {
+                _logger.Here().Debug("State contains final, node: {@Node}, round: {@Round}",
+                    node, round);
+
                 return null;
             }
             var v = s.GetView(node, round);
 
-            Debug.WriteLine($"Processing message from block block.id={origin} message={msg}");
+            _logger.Here().Debug("Processing message from block block.id: {@BlockID}, message: {@Message}",
+                origin, msg);
 
             switch (msg)
             {
@@ -383,6 +426,10 @@ namespace CYPCore.Consensus
                     {
                         s.Data[pp] = m;
                     }
+
+                    _logger.Here().Debug("PrePrepare, node: {@Node}, round: {@Round}, sender: {@Sender}, hash: {@Hash}",
+                        node.ToString(), round.ToString(), receiver.ToString(), m.Hash);
+
                     return new Prepare(m.Hash, node, round, receiver, m.View);
                 case Prepare m:
                     if (v > m.View)
@@ -400,7 +447,7 @@ namespace CYPCore.Consensus
                     b = s.GetBitSet((int)sender, m.Pre());
                     b.SetPrepare(m.Sender);
 
-                    Debug.WriteLine($"Prepare count == {b.PrepareCount()}");
+                    _logger.Here().Debug("Prepare count: {@PrepareCount}", b.PrepareCount());
 
                     if (b.PrepareCount() != Quorum2f1)
                     {
@@ -421,6 +468,10 @@ namespace CYPCore.Consensus
                     {
                         s.Data[p] = m.Hash;
                     }
+
+                    _logger.Here().Debug("Prepare, node: {@Node}, round: {@Round}, sender: {@Sender}, hash: {@Hash}",
+                        node.ToString(), round.ToString(), receiver.ToString(), m.Hash);
+
                     return new Commit(m.Hash, node, round, receiver, m.View);
                 case Commit m:
                     if (v < m.View)
@@ -431,7 +482,7 @@ namespace CYPCore.Consensus
                     b = s.GetBitSet((int)sender, m.Pre());
                     b.SetCommit(m.Sender);
 
-                    Debug.WriteLine($"Commit count == {b.CommitCount()}");
+                    _logger.Here().Debug("Commit count: {@CommitCount}", b.CommitCount());
 
                     if (b.CommitCount() != Quorum2f1)
                     {
@@ -450,6 +501,10 @@ namespace CYPCore.Consensus
                     {
                         s.Final[nr] = m.Hash;
                     }
+
+                    _logger.Here().Debug("Deliver, node: {@Node}, round: {@Round}, hash: {@Hash}",
+                        node.ToString(), round.ToString(), m.Hash);
+
                     Deliver(node, round, m.Hash);
                     return null;
                 case ViewChange m:
@@ -487,10 +542,15 @@ namespace CYPCore.Consensus
                     {
                         if (hash != "" && hval != hash)
                         {
-                            Console.WriteLine($"Got multiple hashes in a view change node.id={node} round={round} hash={hash} hash.alt={hval}");
+                            _logger.Here().Debug("Got multiple hashes in a view change node.id: {@Node}, round: {Round}, hash={@Hash} hash.alt={@HashAlt}",
+                                node.ToString(), round.ToString(), hash, hval);
                         }
                         hash = hval;
                     }
+
+                    _logger.Here().Debug("ViewChange, node: {@Node}, round: {@Round}, sender: {@Sender}, hash: {@Hash}",
+                        node.ToString(), round.ToString(), receiver.ToString(), m.Hash);
+
                     return new NewView(hash, node, round, receiver, m.View);
                 case NewView m:
                     if (v > m.View)
@@ -511,6 +571,10 @@ namespace CYPCore.Consensus
                     }
                     s.Timeouts[tval].Add(new Timeout(node, round, m.View));
                     s.Data[viewKey] = true;
+
+                    _logger.Here().Debug("NewView -> PrePrepare, node: {@Node}, round: {@Round}, hash: {@Hash}",
+                        node.ToString(), round.ToString(), m.Hash);
+
                     return new PrePrepare(m.Hash, node, round, m.View);
                 default:
                     throw new Exception($"blockmania: unknown message kind to process: {msg.Kind()}");
@@ -577,7 +641,7 @@ namespace CYPCore.Consensus
                     {
                         var dep = data.Deps[i];
 
-                        Debug.WriteLine($"Dep: block.id={dep.Block}");
+                        _logger.Here().Debug("Dep: block.id: {@BlockID}", dep.Block);
 
                         var depMax = dep.Block.Round;
                         var firstRecheck = false;

@@ -118,7 +118,7 @@ namespace CYPCore.Ledger
 
                 _config = new Config(lastInterpreted, new ulong[totalNodes], _serfClient.ClientId, (ulong)totalNodes);
 
-                _blockmania = new Blockmania(_config);
+                _blockmania = new Blockmania(_config, _logger);
                 _blockmania.Delivered += (sender, e) => Delivered(sender, e).SwallowException();
             }
 
