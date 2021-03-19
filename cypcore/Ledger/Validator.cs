@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
 using System.Threading;
@@ -39,16 +40,16 @@ namespace CYPCore.Ledger
 
         Task<VerifyResult> VerifyBlockGraphSignatureNodeRound(BlockGraph blockGraph);
         VerifyResult VerifyBulletProof(TransactionProto transaction);
-        VerifyResult VerifyCoinbaseTransaction(VoutProto coinbase, ulong solution, double runningDistribution);
+        VerifyResult VerifyCoinbaseTransaction(VoutProto coinbase, ulong solution, decimal runningDistribution);
         VerifyResult VerifySolution(byte[] vrfBytes, byte[] kernel, ulong solution);
         Task<VerifyResult> VerifyBlockHeader(BlockHeaderProto blockHeader);
         Task<VerifyResult> VerifyBlockHeaders(BlockHeaderProto[] blockHeaders);
         Task<VerifyResult> VerifyTransaction(TransactionProto transaction);
         Task<VerifyResult> VerifyTransactions(TransactionProto[] transactions);
         VerifyResult VerifySloth(int bits, byte[] vrfSig, byte[] nonce, byte[] security);
-        int Difficulty(ulong solution, double networkShare);
-        ulong Reward(ulong solution, double runningDistribution);
-        double NetworkShare(ulong solution, double runningDistribution);
+        int Difficulty(ulong solution, decimal networkShare);
+        ulong Reward(ulong solution, decimal runningDistribution);
+        decimal NetworkShare(ulong solution, decimal runningDistribution);
         ulong Solution(byte[] vrfSig, byte[] kernel);
         long GetAdjustedTimeAsUnixTimestamp();
         Task<VerifyResult> VerifyForkRule(BlockHeaderProto[] xChain);
@@ -57,10 +58,10 @@ namespace CYPCore.Ledger
         VerifyResult VerifyTransactionFee(TransactionProto transaction);
         Task<VerifyResult> VerifyKeyImage(TransactionProto transaction);
         Task<VerifyResult> VerifyOutputCommits(TransactionProto transaction);
-        Task<double> GetRunningDistribution();
+        Task<decimal> GetRunningDistribution();
         ulong Fee(int nByte);
-        VerifyResult VerifyNetworkShare(ulong solution, double previousNetworkShare,
-            double runningDistributionTotal);
+        VerifyResult VerifyNetworkShare(ulong solution, decimal previousNetworkShare,
+            decimal runningDistributionTotal);
     }
 
     /// <summary>
@@ -68,7 +69,7 @@ namespace CYPCore.Ledger
     /// </summary>
     public class Validator : IValidator
     {
-        private const double Distribution = 139_000_000;
+        private const decimal Distribution = 139_000_000;
         private const int FeeNByte = 6000;
 
         private readonly IUnitOfWork _unitOfWork;
@@ -499,7 +500,7 @@ namespace CYPCore.Ledger
         /// <returns></returns>
         public ulong Fee(int nByte)
         {
-            return (0.000012 * nByte).ConvertToUInt64();
+            return (0.000012M * nByte).ConvertToUInt64();
         }
 
 
@@ -510,7 +511,7 @@ namespace CYPCore.Ledger
         /// <param name="solution"></param>
         /// <param name="runningDistribution"></param>
         /// <returns></returns>
-        public VerifyResult VerifyCoinbaseTransaction(VoutProto coinbase, ulong solution, double runningDistribution)
+        public VerifyResult VerifyCoinbaseTransaction(VoutProto coinbase, ulong solution, decimal runningDistribution)
         {
             Guard.Argument(coinbase, nameof(coinbase)).NotNull();
             Guard.Argument(solution, nameof(solution)).NotZero().NotNegative();
@@ -650,10 +651,10 @@ namespace CYPCore.Ledger
         /// <param name="solution"></param>
         /// <param name="runningDistribution"></param>
         /// <returns></returns>
-        public ulong Reward(ulong solution, double runningDistribution)
+        public ulong Reward(ulong solution, decimal runningDistribution)
         {
             Guard.Argument(solution, nameof(solution)).NotZero().NotNegative();
-            Guard.Argument(runningDistribution, nameof(runningDistribution)).NotNegative().NotNaN().NotInfinity();
+            Guard.Argument(runningDistribution, nameof(runningDistribution)).NotNegative();
 
             var networkShare = NetworkShare(solution, runningDistribution);
             return networkShare.ConvertToUInt64();
@@ -662,7 +663,7 @@ namespace CYPCore.Ledger
         /// <summary>
         /// </summary>
         /// <returns></returns>
-        public async Task<double> GetRunningDistribution()
+        public async Task<decimal> GetRunningDistribution()
         {
             var runningDistributionTotal = Distribution;
 
@@ -687,16 +688,18 @@ namespace CYPCore.Ledger
         /// <param name="solution"></param>
         /// <param name="runningDistribution"></param>
         /// <returns></returns>
-        public double NetworkShare(ulong solution, double runningDistribution)
+        public decimal NetworkShare(ulong solution, decimal runningDistribution)
         {
             Guard.Argument(solution, nameof(solution)).NotZero().NotNegative();
-            Guard.Argument(runningDistribution, nameof(runningDistribution)).NotNegative().NotNaN().NotInfinity();
+            Guard.Argument(runningDistribution, nameof(runningDistribution)).NotNegative();
 
             var r = (Distribution - runningDistribution).FromExponential(11);
-            var percentage = r / (runningDistribution * 100) == 0 ? 0.1 : r / (runningDistribution * 100);
+            var percentage = r / (runningDistribution * 100) == 0
+                ? 0.1M
+                : r / (runningDistribution * 100);
 
             percentage = percentage.FromExponential(11);
-            return (solution * percentage / Distribution).FromExponential(11); ;
+            return (solution * percentage / Distribution).FromExponential(11);
         }
 
         /// <summary>
@@ -705,7 +708,7 @@ namespace CYPCore.Ledger
         /// <param name="previousNetworkShare"></param>
         /// <param name="runningDistributionTotal"></param>
         /// <returns></returns>
-        public VerifyResult VerifyNetworkShare(ulong solution, double previousNetworkShare, double runningDistributionTotal)
+        public VerifyResult VerifyNetworkShare(ulong solution, decimal previousNetworkShare, decimal runningDistributionTotal)
         {
             Guard.Argument(solution, nameof(solution)).NotZero().NotNegative();
 
@@ -714,7 +717,7 @@ namespace CYPCore.Ledger
 
             var r = (Distribution - previousRunningDistribution).FromExponential(11);
             var percentage = r / (previousRunningDistribution * 100) == 0
-                ? 0.1
+                ? 0.1M
                 : r / (previousRunningDistribution * 100);
 
             percentage = percentage.FromExponential(11);
@@ -728,10 +731,10 @@ namespace CYPCore.Ledger
         /// <param name="solution"></param>
         /// <param name="networkShare"></param>
         /// <returns></returns>
-        public int Difficulty(ulong solution, double networkShare)
+        public int Difficulty(ulong solution, decimal networkShare)
         {
             Guard.Argument(solution, nameof(solution)).NotZero().NotNegative();
-            Guard.Argument(networkShare, nameof(networkShare)).NotNaN().NotInfinity().NotNegative();
+            Guard.Argument(networkShare, nameof(networkShare)).NotNegative();
 
             var diff = Math.Truncate(solution * networkShare / 144);
             diff = diff == 0 ? 1 : diff;
@@ -825,7 +828,7 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="blockHeader"></param>
         /// <returns></returns>
-        private async Task<double> CurrentRunningDistribution(BlockHeaderProto blockHeader)
+        private async Task<decimal> CurrentRunningDistribution(BlockHeaderProto blockHeader)
         {
             if (!blockHeader.MerkelRoot.HexToByte().Xor(BlockZeroMerkel) &&
                 !blockHeader.PrevMerkelRoot.HexToByte().Xor(BlockZeroPreMerkel))

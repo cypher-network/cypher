@@ -18,6 +18,7 @@ using CYPCore.Models;
 using CYPCore.Persistence;
 using CYPCore.Serf;
 using CYPCore.Cryptography;
+using cypcore.Extensions;
 using CYPCore.Extensions;
 using CYPCore.Helper;
 using FlatSharp;
@@ -258,7 +259,7 @@ namespace CYPCore.Ledger
                 var sendPayment = new SendPaymentProto
                 {
                     Address = StakingConfigurationOptions.WalletSettings.Address,
-                    Amount = ((double)bits).ConvertToUInt64(),
+                    Amount = ((decimal)bits).ConvertToUInt64(),
                     Credentials = new CredentialsProto
                     {
                         Identifier = StakingConfigurationOptions.WalletSettings.Identifier,
