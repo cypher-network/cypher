@@ -46,6 +46,5 @@ bld/
 RetainedMessages.json
 
 cypnode/snapshot
-appsettings.Development.json
 
 .idea/.idea.cypher/.idea/riderModule.iml
