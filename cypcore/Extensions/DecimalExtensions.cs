@@ -4,7 +4,7 @@ using System.Linq;
 using CYPCore.Extentions;
 using Dawn;
 
-namespace cypcore.Extensions
+namespace CYPCore.Extensions
 {
     public static class DecimalExtensions
     {
