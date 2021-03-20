@@ -116,7 +116,7 @@ namespace CYPCore.Ledger
             {
                 var lastInterpreted = await LastInterpreted();
 
-                _config = new Config(lastInterpreted, new ulong[totalNodes], _serfClient.ClientId, (ulong)totalNodes);
+                _config = new Config(lastInterpreted, totalNodes, _serfClient.ClientId, (ulong)totalNodes.Length);
 
                 _blockmania = new Blockmania(_config, _logger);
                 _blockmania.Delivered += (sender, e) => Delivered(sender, e).SwallowException();
@@ -129,16 +129,16 @@ namespace CYPCore.Ledger
         /// 
         /// </summary>
         /// <returns></returns>
-        private async Task<ulong> GetTotalNodes()
+        private async Task<ulong[]> GetTotalNodes()
         {
             var peers = await _localNode.GetPeers();
             var totalNodes = (ulong)(peers?.Count ?? 0);
-            if (totalNodes != 0) return totalNodes;
+            if (totalNodes != 0) return peers?.Keys.ToArray();
 
             IsDebug();
             IsRelease();
 
-            return totalNodes;
+            return null;
         }
 
         [Conditional("DEBUG")]
@@ -241,7 +241,7 @@ namespace CYPCore.Ledger
         {
             Guard.Argument(transactionId, nameof(transactionId)).NotNull().MaxCount(32);
 
-            VoutProto[] vouts = null;
+            VoutProto[] outputs = null;
 
             try
             {
@@ -251,7 +251,7 @@ namespace CYPCore.Ledger
                 var found = firstBlockHeader?.Transactions.FirstOrDefault(x => x.TxnId.Xor(transactionId));
                 if (found != null)
                 {
-                    vouts = found.Vout;
+                    outputs = found.Vout;
                 }
             }
             catch (Exception ex)
@@ -259,7 +259,7 @@ namespace CYPCore.Ledger
                 _logger.Here().Error(ex, "Cannot get Vout");
             }
 
-            return vouts;
+            return outputs;
         }
 
         /// <summary>
@@ -388,7 +388,12 @@ namespace CYPCore.Ledger
             {
                 if (_blockmania != null)
                 {
-                    _blockmania.NodeCount = (int)await GetTotalNodes();
+                    var totalNodes = await GetTotalNodes();
+                    _blockmania.NodeCount = totalNodes.Length;
+                    _blockmania.Nodes = totalNodes;
+
+                    _logger.Here().Debug("Blockmania configuration: {@SelfId}, {@Round}, {@NodeCount}, {@Nodes}, {@TotalNodes}",
+                        _blockmania.Self, _blockmania.Round, _blockmania.NodeCount, _blockmania.Nodes, _blockmania.TotalNodes);
                 }
 
                 var staging = await _unitOfWork.StagingRepository.WhereAsync(x =>
@@ -446,6 +451,8 @@ namespace CYPCore.Ledger
                             if (hasInfo != null) continue;
 
                             _blockmania.Add(blockGraph);
+
+                            await Task.Delay(100);
                             await RemoveAndUpdate(blockGraph.Block.Hash.HexToByte(), StagingState.Dequeued);
                         }
                 }, TaskCreationOptions.LongRunning);

@@ -137,22 +137,22 @@ namespace CYPCore.Consensus
                 _logger.Here().Debug("Adding {@Hashes} to Resolved[{@Round}]", hashes, round);
                 Resolved[round] = hashes;
             }
-            if (round != Round)
-            {
-                _logger.Here().Debug("Stop deliver, {@DeliveredRound} != {@Round}", round, Round);
-                return;
-            }
 
-            _logger.Here().Debug("Number of hashes: {@HashesCount}, number of nodes: {@NodeCount}",
-                hashes.Count, NodeCount);
-
-            if (hashes.Count == NodeCount)
+            if (round == Round)
             {
+                _logger.Here().Debug("Number of hashes: {@HashesCount}, number of nodes: {@NodeCount}",
+                    hashes.Count, NodeCount);
+
+                if (hashes.Count != NodeCount) return;
+
                 _logger.Here().Debug("Finalize deliver round: {@DeliveredRound}, hashes: {@Hashes}",
                     round, hashes);
 
                 DeliverRound(round, hashes);
+                return;
             }
+
+            _logger.Here().Debug("Stop deliver, {@DeliveredRound} != {@Round}", round, Round);
         }
 
         /// <summary>
