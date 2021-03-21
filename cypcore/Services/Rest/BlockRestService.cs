@@ -6,6 +6,7 @@ using System.Net.Http;
 using System.Threading.Tasks;
 using Refit;
 using CYPCore.Models;
+using Serilog;
 
 namespace CYPCore.Services.Rest
 {
@@ -31,9 +32,10 @@ namespace CYPCore.Services.Rest
     {
         private readonly IRestBlockService _restBlockService;
 
-        public RestBlockService(Uri baseUrl)
+        public RestBlockService(Uri baseUrl, ILogger logger)
         {
-            HttpClient httpClient = new() { BaseAddress = baseUrl };
+            logger = logger.ForContext("SourceContext", nameof(RestBlockService));
+            HttpClient httpClient = new(new RestLoggingHandler(logger)) { BaseAddress = baseUrl };
             _restBlockService = RestService.For<IRestBlockService>(httpClient);
         }
 

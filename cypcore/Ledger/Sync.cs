@@ -72,7 +72,7 @@ namespace CYPCore.Ledger
                         var local = new BlockHeight { Height = await _unitOfWork.DeliveredRepository.CountAsync() };
                         var uri = new Uri(peer.Value.Host);
 
-                        RestBlockService blockRestApi = new(uri);
+                        RestBlockService blockRestApi = new(uri, _logger);
                         var remote = await blockRestApi.GetHeight();
 
                         _logger.Here().Information("Local node block height ({@LocalHeight}). Network block height ({NetworkHeight})",
@@ -129,7 +129,7 @@ namespace CYPCore.Ledger
                     {
                         try
                         {
-                            var blockRestApi = new RestBlockService(uri);
+                            var blockRestApi = new RestBlockService(uri, _logger);
                             var blockHeaderStream = await blockRestApi.GetBlockHeaders((int)(i1 * skip), BatchSize);
 
                             if (blockHeaderStream.FlatBuffer.Any())

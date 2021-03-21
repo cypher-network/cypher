@@ -6,6 +6,7 @@ using System.Net.Http;
 using System.Threading.Tasks;
 using CYPCore.Models;
 using Refit;
+using Serilog;
 
 namespace CYPCore.Services.Rest
 {
@@ -25,9 +26,10 @@ namespace CYPCore.Services.Rest
     {
         private readonly IBlockGraphRestService _blockGraphRestService;
 
-        public BlockGraphRestService(Uri baseUrl)
+        public BlockGraphRestService(Uri baseUrl, ILogger logger)
         {
-            HttpClient httpClient = new() { BaseAddress = baseUrl };
+            logger = logger.ForContext("SourceContext", nameof(BlockGraphRestService));
+            HttpClient httpClient = new(new RestLoggingHandler(logger)) { BaseAddress = baseUrl };
             _blockGraphRestService = RestService.For<IBlockGraphRestService>(httpClient);
         }
 

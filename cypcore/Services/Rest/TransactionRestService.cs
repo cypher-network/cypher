@@ -6,6 +6,7 @@ using System.Net.Http;
 using System.Threading.Tasks;
 using CYPCore.Models;
 using Refit;
+using Serilog;
 
 namespace CYPCore.Services.Rest
 {
@@ -25,8 +26,9 @@ namespace CYPCore.Services.Rest
     {
         private readonly ITransactionRestService _restTransactionService;
 
-        public TransactionRestService(Uri baseUrl)
+        public TransactionRestService(Uri baseUrl, ILogger logger)
         {
+            logger = logger.ForContext("SourceContext", nameof(TransactionRestService));
             HttpClient httpClient = new() { BaseAddress = baseUrl };
             _restTransactionService = RestService.For<ITransactionRestService>(httpClient);
         }

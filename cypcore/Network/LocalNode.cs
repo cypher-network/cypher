@@ -180,19 +180,19 @@ namespace CYPCore.Network
                     {
                         case TopicType.AddBlock:
                             {
-                                RestBlockService restBlockService = new(uri);
+                                RestBlockService restBlockService = new(uri, _logger);
                                 await restBlockService.AddBlock(data);
                                 return;
                             }
                         case TopicType.AddBlockGraph:
                             {
-                                BlockGraphRestService blockGraphRestService = new(uri);
+                                BlockGraphRestService blockGraphRestService = new(uri, _logger);
                                 await blockGraphRestService.AddBlockGraph(data);
                                 return;
                             }
                         case TopicType.AddTransaction:
                             {
-                                TransactionRestService restTransactionService = new(uri);
+                                TransactionRestService restTransactionService = new(uri, _logger);
                                 await restTransactionService.AddTransaction(data);
                                 return;
                             }
