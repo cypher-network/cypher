@@ -9,7 +9,7 @@ namespace CYPCore.Services.Rest
     public class RestLoggingHandler : DelegatingHandler
     {
         private readonly ILogger _logger;
-        
+
         public RestLoggingHandler(ILogger logger, HttpMessageHandler innerHandler = null)
         : base(innerHandler ?? new HttpClientHandler())
         {
@@ -25,7 +25,7 @@ namespace CYPCore.Services.Rest
                 request.RequestUri?.PathAndQuery);
 
             var response = await base.SendAsync(request, cancellationToken).ConfigureAwait(false);
-            
+
             _logger.Here().Debug("HTTP Response {@StatusCode}", response.StatusCode);
 
             return response;
