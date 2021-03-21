@@ -63,9 +63,9 @@ namespace CYPCore.Ledger
             _signing = signing;
             _logger = logger;
 
-            var channel = Channel.CreateUnbounded<BlockGraph>();
+            /*var channel = Channel.CreateUnbounded<BlockGraph>();
             _reader = channel.Reader;
-            _writer = channel.Writer;
+            _writer = channel.Writer;*/
         }
 
         /// <summary>
@@ -121,7 +121,7 @@ namespace CYPCore.Ledger
                 _blockmania = new Blockmania(_config, _logger);
                 _blockmania.Delivered += (sender, e) => Delivered(sender, e).SwallowException();
 
-                await WaitForReader(2);
+                //await WaitForReader(2);
             }
             else
             {
@@ -401,7 +401,17 @@ namespace CYPCore.Ledger
                 {
                     foreach (var blockGraph in staged.BlockGraphs)
                     {
-                        await _writer.WriteAsync(blockGraph, cancellationToken);
+                        //await _writer.WriteAsync(blockGraph, cancellationToken);
+
+                        var hasInfo = _blockmania.Blocks.FirstOrDefault(x =>
+                            x.Data.Block.Hash.Equals(blockGraph.Block.Hash) &&
+                            x.Data.Block.Node == blockGraph.Block.Node && x.Data.Block.Round == blockGraph.Block.Round);
+
+                        if (hasInfo != null) continue;
+
+                        _blockmania.Add(blockGraph);
+
+                        await RemoveAndUpdate(blockGraph.Block.Hash.HexToByte(), StagingState.Dequeued);
                     }
 
                     staged.Status = StagingState.Running;
