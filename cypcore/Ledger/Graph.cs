@@ -100,7 +100,7 @@ namespace CYPCore.Ledger
 
             return VerifyResult.Succeed;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -116,7 +116,7 @@ namespace CYPCore.Ledger
             if (_blockmania == null)
             {
                 var lastInterpreted = await LastInterpreted();
-                
+
                 _config = new Config(lastInterpreted, totalNodes, _serfClient.ClientId, (ulong)totalNodes.Length);
                 _blockmania = new Blockmania(_config, _logger);
                 _blockmania.Delivered += (sender, e) => Delivered(sender, e).SwallowException();
@@ -391,7 +391,7 @@ namespace CYPCore.Ledger
         public async Task WriteAsync(int take, CancellationToken cancellationToken)
         {
             Guard.Argument(take, nameof(take)).NotNegative();
-            
+
             try
             {
                 var staging = await _unitOfWork.StagingRepository.WhereAsync(x =>

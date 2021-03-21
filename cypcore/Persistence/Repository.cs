@@ -270,13 +270,13 @@ namespace CYPCore.Persistence
                             if (iSkip % skip != 0) continue;
                         }
 
+                        entries.Add(FlatBufferSerializer.Default.Parse<T>(iterator.Value()));
+
                         iTake++;
                         if (iTake % take == 0)
                         {
                             break;
                         }
-
-                        entries.Add(FlatBufferSerializer.Default.Parse<T>(iterator.Value()));
                     }
                 }
             }
