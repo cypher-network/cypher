@@ -12,6 +12,7 @@ using Dawn;
 using Serilog;
 
 using CYPCore.Extensions;
+using CYPCore.Extentions;
 using CYPCore.Serf;
 using CYPCore.Models;
 using CYPCore.Services.Rest;
@@ -137,9 +138,12 @@ namespace CYPCore.Network
             foreach (var member in members.Where(member =>
                 _serfClient.Name != member.Name && member.Status == "alive"))
             {
+                if (_serfClient.ClientId == Helper.Util.HashToId(member.Tags["pubkey"])) continue;
+
                 member.Tags.TryGetValue("rest", out var restEndpoint);
 
                 if (string.IsNullOrEmpty(restEndpoint)) continue;
+
                 if (!Uri.TryCreate($"{restEndpoint}", UriKind.Absolute, out var uri)) continue;
 
                 var peer = new Peer
