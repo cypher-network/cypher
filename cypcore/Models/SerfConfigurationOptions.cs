@@ -15,6 +15,7 @@ namespace CYPCore.Models
         public bool Rejoin { get; set; }
         public string BroadcastTimeout { get; set; }
         public string Loglevel { get; set; }
+        public string Profile { get; set; }
         public bool Replay { get; set; }
         public string KeyringFile { get; set; }
     }

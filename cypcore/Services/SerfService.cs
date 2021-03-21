@@ -128,6 +128,7 @@ namespace CYPCore.Services
                     .Add($"-broadcast-timeout={_serfClient.SerfConfigurationOptions.BroadcastTimeout}")
                     .Add($"-retry-max={_serfClient.SerfConfigurationOptions.RetryMax}")
                     .Add($"-log-level={_serfClient.SerfConfigurationOptions.Loglevel}")
+                    .Add($"-profile={_serfClient.SerfConfigurationOptions.Profile}")
                     .Add("-tag")
                     .Add($"rest={_serfClient.ApiConfigurationOptions.Advertise}")
                     .Add("-tag")
