@@ -149,12 +149,11 @@ namespace CYPCore.Network
                     PublicKey = member.Tags["pubkey"]
                 };
 
+                if (peers.ContainsKey(peer.ClientId)) continue;
                 if (peers.TryAdd(peer.ClientId, peer)) continue;
 
                 _logger.Here().Error("Failed adding or exists in remote nodes: {@Node}",
                     member.Name);
-
-                return null;
             }
 
             return peers;
