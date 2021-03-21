@@ -77,6 +77,8 @@ namespace CYPCore.Ledger
         {
             Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
 
+            _logger.Here().Debug("Adding block graph");
+
             try
             {
                 var exist = await BlockGraphExist(blockGraph);
@@ -92,10 +94,11 @@ namespace CYPCore.Ledger
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, ex.Message);
+                _logger.Here().Error(ex, "Error while adding block graph");
                 return VerifyResult.Invalid;
             }
 
+            _logger.Here().Debug("Prepare block graph for broadcasting");
             PrepareBroadcasting(blockGraph);
 
             return VerifyResult.Succeed;
@@ -329,11 +332,17 @@ namespace CYPCore.Ledger
         {
             Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
 
+            _logger.Here().Debug("Prepare broadcast for blockgraph");
+
             var graph = blockGraph;
             Task.Run(async () =>
             {
                 var signOrVerifyThenSave = await SignOrVerifyThenSave(graph);
-                if (signOrVerifyThenSave == VerifyResult.UnableToVerify) return;
+                if (signOrVerifyThenSave == VerifyResult.UnableToVerify)
+                {
+                    _logger.Here().Error("Cannot verify block graph, aborting");
+                    return;
+                }
 
                 var nextRound = false;
                 nextRound |= graph.Block.Node != _serfClient.ClientId;
@@ -347,11 +356,18 @@ namespace CYPCore.Ledger
                     g.Prev = new Block();
 
                     var signOrVerifyThenSaveNextRound = await SignOrVerifyThenSave(g);
-                    if (signOrVerifyThenSaveNextRound == VerifyResult.UnableToVerify) return;
+                    if (signOrVerifyThenSaveNextRound == VerifyResult.UnableToVerify)
+                    {
+                        _logger.Here().Error("Cannot verify next round, aborting");
+                        return;
+                    }
                 }
 
+                _logger.Here().Debug("Finalizing staging and publishing block graph");
                 await _staging.Ready(graph);
                 await Publish(graph);
+
+                _logger.Here().Debug("Publish sent");
 
             }).ConfigureAwait(false);
         }
@@ -723,12 +739,18 @@ namespace CYPCore.Ledger
         {
             Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
 
+            _logger.Here().Debug("Publishing block graph");
+
             try
             {
                 var staging = await _unitOfWork.StagingRepository.GetAsync(x =>
                     new ValueTask<bool>(x.Hash.Equals(blockGraph.Block.Hash)));
 
-                if (staging == null) return;
+                if (staging == null)
+                {
+                    _logger.Here().Information("Cannot get staging info for block, aborting");
+                    return;
+                }
 
                 if (staging.Status != StagingState.Blockmania
                     && staging.Status != StagingState.Running
@@ -743,9 +765,15 @@ namespace CYPCore.Ledger
                     }
                 }
 
+                _logger.Here().Debug("Staging status: {@StagingStatus}", staging.Status);
+
                 var peers = await _localNode.GetPeers();
 
+                _logger.Here().Debug("Peers: {@Peers}", peers);
+
                 Matrix(peers, staging, out var listMatrix);
+
+                _logger.Here().Debug("ListMatrix: {@Matrix}", listMatrix);
 
                 var tasks = new List<Task>();
                 foreach (var matrix in listMatrix)
@@ -756,12 +784,19 @@ namespace CYPCore.Ledger
                                                 x.Block.Node == _serfClient.ClientId &&
                                                 x.Block.Round == (ulong)matrix.Sending.Last()));
 
-                    if (doesExist == null) continue;
+                    if (doesExist == null)
+                    {
+                        _logger.Here().Information("Matrix {@Matrix} does not exist, skipping", matrix);
+                        continue;
+                    }
 
                     var maxBytesNeeded = FlatBufferSerializer.Default.GetMaxSize(doesExist);
                     var buffer = new byte[maxBytesNeeded];
 
                     FlatBufferSerializer.Default.Serialize(doesExist, buffer);
+
+                    _logger.Here().Debug("Adding broadcast task for node {@Node}, buffer size: {@BufferSize}",
+                        matrix.Peer, buffer.Length);
 
                     tasks.Add(_localNode.Broadcast(buffer, new[] { matrix.Peer },
                         TopicType.AddBlockGraph));

@@ -95,6 +95,8 @@ namespace CYPCore.Network
             Guard.Argument(data, nameof(data)).NotNull();
             Guard.Argument(peers, nameof(peers)).NotNull();
 
+            _logger.Here().Debug("Broadcasting {@TopicType} to nodes {@Nodes}", topicType, peers);
+
             var tasks = new List<Task>();
 
             try
@@ -175,6 +177,8 @@ namespace CYPCore.Network
             Guard.Argument(data, nameof(data)).NotNull();
             Guard.Argument(host, nameof(data)).NotNull().NotEmpty().NotWhiteSpace();
 
+            _logger.Here().Debug("Sending {@TopicType} to {@Node}", topicType, host);
+
             try
             {
                 if (Uri.TryCreate($"{host}", UriKind.Absolute, out var uri))
@@ -201,15 +205,22 @@ namespace CYPCore.Network
                             }
                     }
                 }
+                else
+                {
+                    _logger.Here().Error("Cannot create URI for host {@Host}", host);
+                }
             }
-            catch (HttpRequestException)
+            catch (HttpRequestException ex)
             {
+                _logger.Here().Error(ex, "HttpRequestException for {@Host}", host);
             }
-            catch (TaskCanceledException)
+            catch (TaskCanceledException ex)
             {
+                _logger.Here().Error(ex, "TaskCanceledException for {@Host}", host);
             }
-            catch (Refit.ApiException)
+            catch (Refit.ApiException ex)
             {
+                _logger.Here().Error(ex, "ApiException for {@Host}", host);
             }
         }
     }
