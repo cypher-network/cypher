@@ -48,8 +48,6 @@ namespace CYPCore.Services
         {
             try
             {
-                await _graph.Ready(2);
-
                 while (_applicationRunning)
                 {
                     stoppingToken.ThrowIfCancellationRequested();
@@ -64,6 +62,8 @@ namespace CYPCore.Services
                     var timeSpan = workStart.Subtract(DateTime.Now);
 
                     await Task.Delay((int)Math.Abs(timeSpan.TotalMilliseconds), stoppingToken);
+                    
+                    await _graph.Ready();
                     await _graph.WriteAsync(100, stoppingToken);
                 }
             }

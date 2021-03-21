@@ -25,7 +25,7 @@ namespace CYPCore.Ledger
 {
     public interface IGraph
     {
-        Task Ready(int threads);
+        Task Ready();
         Task WriteAsync(int take, CancellationToken cancellationToken);
         void StopWriter();
         Task<VerifyResult> TryAddBlockGraph(BlockGraph blockGraph);
@@ -100,29 +100,37 @@ namespace CYPCore.Ledger
 
             return VerifyResult.Succeed;
         }
-
+        
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="threads"></param>
         /// <returns></returns>
-        public async Task Ready(int threads)
+        public async Task Ready()
         {
-            Guard.Argument(threads, nameof(threads)).NotNegative();
-
             var totalNodes = await GetTotalNodes();
+            if (totalNodes == null)
+            {
+                return;
+            }
 
             if (_blockmania == null)
             {
                 var lastInterpreted = await LastInterpreted();
-
+                
                 _config = new Config(lastInterpreted, totalNodes, _serfClient.ClientId, (ulong)totalNodes.Length);
-
                 _blockmania = new Blockmania(_config, _logger);
                 _blockmania.Delivered += (sender, e) => Delivered(sender, e).SwallowException();
-            }
 
-            await WaitForReader(threads);
+                await WaitForReader(2);
+            }
+            else
+            {
+                _blockmania.NodeCount = totalNodes.Length;
+                _blockmania.Nodes = totalNodes;
+
+                _logger.Here().Debug("Blockmania configuration: {@SelfId}, {@Round}, {@NodeCount}, {@Nodes}, {@TotalNodes}",
+                    _blockmania.Self, _blockmania.Round, _blockmania.NodeCount, _blockmania.Nodes, _blockmania.TotalNodes);
+            }
         }
 
         /// <summary>
@@ -383,19 +391,9 @@ namespace CYPCore.Ledger
         public async Task WriteAsync(int take, CancellationToken cancellationToken)
         {
             Guard.Argument(take, nameof(take)).NotNegative();
-
+            
             try
             {
-                if (_blockmania != null)
-                {
-                    var totalNodes = await GetTotalNodes();
-                    _blockmania.NodeCount = totalNodes.Length;
-                    _blockmania.Nodes = totalNodes;
-
-                    _logger.Here().Debug("Blockmania configuration: {@SelfId}, {@Round}, {@NodeCount}, {@Nodes}, {@TotalNodes}",
-                        _blockmania.Self, _blockmania.Round, _blockmania.NodeCount, _blockmania.Nodes, _blockmania.TotalNodes);
-                }
-
                 var staging = await _unitOfWork.StagingRepository.WhereAsync(x =>
                     new ValueTask<bool>(x.Status == StagingState.Blockmania));
 
@@ -436,6 +434,11 @@ namespace CYPCore.Ledger
         private async Task WaitForReader(int threads)
         {
             Guard.Argument(threads, nameof(threads)).NotNegative();
+
+            if (_blockmania == null)
+            {
+                return;
+            }
 
             for (var i = 0; i < threads; i++)
             {
