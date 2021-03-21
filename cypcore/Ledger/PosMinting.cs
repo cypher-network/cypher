@@ -258,7 +258,7 @@ namespace CYPCore.Ledger
                 var sendPayment = new SendPaymentProto
                 {
                     Address = StakingConfigurationOptions.WalletSettings.Address,
-                    Amount = ((decimal)bits).ConvertToUInt64(),
+                    Amount = ((double)bits).ConvertToUInt64(),
                     Credentials = new CredentialsProto
                     {
                         Identifier = StakingConfigurationOptions.WalletSettings.Identifier,
