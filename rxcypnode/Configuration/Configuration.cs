@@ -5,7 +5,7 @@ namespace rxcypnode.Configuration
     public class Configuration
     {
         private IUserInterface _userInterface;
-        
+
         public Configuration(IUserInterface userInterface)
         {
             _userInterface = userInterface;

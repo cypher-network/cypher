@@ -10,7 +10,7 @@ namespace rxcypnode.UI
         {
             Text = text;
         }
-        
+
         public string Text { get; }
 
         public override int GetHashCode()
@@ -22,13 +22,13 @@ namespace rxcypnode.UI
         {
             return Equals(obj as UserInterfaceChoice);
         }
-        
+
         public bool Equals(UserInterfaceChoice otherChoice)
         {
             return Text == otherChoice.Text;
         }
     }
-    
+
     public class UserInterfaceSection
     {
         public UserInterfaceSection(string title, string description, UserInterfaceChoice[] choices)

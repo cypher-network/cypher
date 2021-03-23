@@ -6,7 +6,7 @@ namespace rxcypcore.Network
     public interface ILocalNode
     {
     }
-    
+
     public class LocalNode : ILocalNode
     {
         //private readonly ISerfClient _serfClient;
@@ -16,7 +16,7 @@ namespace rxcypcore.Network
         {
             //_serfClient = serfClient;
             //_logger = logger.ForContext("SourceContext", nameof(LocalNode));
-            
+
             //_logger.Information("Initiated local node");
         }
     }

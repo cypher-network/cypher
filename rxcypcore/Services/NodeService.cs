@@ -28,7 +28,7 @@ namespace rxcypcore.Services
                 _serfClient.Stop();
             });
         }
-        
+
         protected override Task ExecuteAsync(CancellationToken stoppingToken) => Task.Run(async () =>
         {
             try

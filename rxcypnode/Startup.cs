@@ -21,7 +21,7 @@ namespace rxcypnode
 
         private IConfiguration Configuration { get; }
         private ILifetimeScope AutofacContainer { get; set; }
-        
+
         // This method gets called by the runtime. Use this method to add services to the container.
         // For more information on how to configure your application, visit https://go.microsoft.com/fwlink/?LinkID=398940
         public void ConfigureServices(IServiceCollection services)
@@ -46,10 +46,10 @@ namespace rxcypnode
         public void ConfigureContainer(ContainerBuilder builder)
         {
             builder.AddSerilog();
-            
+
             // Serf client
             builder.AddSwimGossipClient(Configuration);
-            
+
             // Main node object
             //builder.AddLocalNode();
 

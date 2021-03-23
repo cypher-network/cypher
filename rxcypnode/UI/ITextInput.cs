@@ -8,7 +8,7 @@ namespace rxcypnode.UI
         bool IsValid(string value);
         bool Cast(string input, out T output);
     };
-    
+
     public class TextInput<T> : IUserInterfaceInput<T>
     {
         public string Prompt { get; }

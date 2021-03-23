@@ -9,7 +9,7 @@ namespace rxcypnode.UI
     public class TerminalUserInterface : IUserInterface
     {
         private const int Indent = 4;
-        
+
         public override UserInterfaceChoice Do(UserInterfaceSection section)
         {
             while (true)
@@ -23,7 +23,7 @@ namespace rxcypnode.UI
                 {
                     return null;
                 }
-                
+
                 for (var choiceIndex = 0; choiceIndex < section.Choices.Length; ++choiceIndex)
                 {
                     Print($"{(choiceIndex + 1).ToString()}: {section.Choices[choiceIndex].Text}", 4);

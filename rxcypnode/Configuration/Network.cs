@@ -17,7 +17,7 @@ namespace rxcypnode.Configuration
             new ("my-ip.io", new Uri("https://api4.my-ip.io/ip.txt")),
             new ("seeip.org", new Uri("https://ip4.seeip.org"))
         };
-        
+
         private class IPService
         {
             public IPService(string name, Uri uri)
@@ -54,7 +54,7 @@ namespace rxcypnode.Configuration
         }
 
         public ConfigurationClass Configuration { get; } = new();
-        
+
         public Network(IUserInterface userInterface)
         {
             _userInterface = userInterface;
@@ -92,7 +92,7 @@ namespace rxcypnode.Configuration
             {
                 return StepIpAddressManual();
             }
-            
+
             if (_choiceIpAddress.Equals(_optionIpAddressAuto))
             {
                 return StepIpAddressAuto();
@@ -149,7 +149,7 @@ namespace rxcypnode.Configuration
             return StepApiPortPublic();
         }
         #endregion IP address
-        
+
         #region API
         private readonly UserInterfaceChoice _optionApiPortDefault = new("Use default port");
         private readonly UserInterfaceChoice _optionApiPortSame = new("Use same local API port as public API port");
@@ -175,7 +175,7 @@ namespace rxcypnode.Configuration
             {
                 return StepApiPortLocal();
             }
-            
+
             if (choicePortApi.Equals(_optionApiPortChange))
             {
                 return StepApiPortPublicSet();
@@ -222,7 +222,7 @@ namespace rxcypnode.Configuration
                 Configuration.ApiPortLocal = Configuration.ApiPortPublic;
                 return SerfRPCPort();
             }
-            
+
             if (choicePortApi.Equals(_optionApiPortChange))
             {
                 return StepApiPortLocalSet();
@@ -230,7 +230,7 @@ namespace rxcypnode.Configuration
 
             return false;
         }
-        
+
         private bool StepApiPortLocalSet()
         {
             var section = new TextInput<ushort>(
@@ -248,7 +248,7 @@ namespace rxcypnode.Configuration
             return success;
         }
         #endregion API
-        
+
         #region Serf
         private readonly UserInterfaceChoice _optionPortSerfRpcDefault = new("Use default RPC port");
         private readonly UserInterfaceChoice _optionPortSerfChange = new("Set RPC port");
@@ -272,7 +272,7 @@ namespace rxcypnode.Configuration
             {
                 return true;
             }
-            
+
             if (choicePortApi.Equals(_optionPortSerfChange))
             {
                 return SerfRPCPortSet();
@@ -280,7 +280,7 @@ namespace rxcypnode.Configuration
 
             return false;
         }
-        
+
         private bool SerfRPCPortSet()
         {
             var section = new TextInput<ushort>(

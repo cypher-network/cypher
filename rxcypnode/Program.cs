@@ -22,7 +22,7 @@ namespace rxcypnode
                 var nc = new Configuration.Configuration(ui);
                 return;
             }
-            
+
             var settingsFile = $"appsettings.{Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")}.json";
             var config = new ConfigurationBuilder()
                 .SetBasePath(Directory.GetCurrentDirectory())
@@ -33,7 +33,7 @@ namespace rxcypnode
             Log.Logger = new LoggerConfiguration()
                 .ReadFrom.Configuration(config, "Logging")
                 .CreateLogger();
-            
+
             var host = CreateHostBuilder(args, config).Build();
             host.Run();
             host.WaitForShutdown();
