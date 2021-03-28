@@ -1,8 +1,10 @@
 ﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
+using System;
 using System.Numerics;
-
+using System.Reactive.Linq;
+using System.Threading;
 using CYPCore.Helper;
 
 namespace CYPCore.Cryptography
@@ -21,6 +23,13 @@ namespace CYPCore.Cryptography
         private static readonly BigInteger Three = new(3);
         private static readonly BigInteger Four = new(4);
 
+        private readonly CancellationToken _stoppingToken;
+
+        public Sloth(CancellationToken stoppingToken)
+        {
+            _stoppingToken = stoppingToken;
+        }
+
         /// <summary>
         /// 
         /// </summary>
@@ -31,16 +40,14 @@ namespace CYPCore.Cryptography
         public CipherPair EncodeByte(int t, byte[] m, BigInteger p)
         {
             var encryptedM = new BigInteger(m);
-            for (int x = 0; x < t; x++)
+            for (var x = 0; x < t; x++)
             {
                 encryptedM = Square(encryptedM, p);
             }
-            if (IsQuadraticResidue(new BigInteger(m), p))
-            {
-                return new CipherPair { C = encryptedM, Positive = true };
-            }
 
-            return new CipherPair { C = encryptedM, Positive = false };
+            return !IsQuadraticResidue(new BigInteger(m), p)
+                ? new CipherPair { C = encryptedM, Positive = false }
+                : new CipherPair { C = encryptedM, Positive = true };
         }
 
         /// <summary>
@@ -53,16 +60,14 @@ namespace CYPCore.Cryptography
         public CipherPair Encode32(int t, uint m, BigInteger p)
         {
             var encryptedM = new BigInteger((long)m);
-            for (int x = 0; x < t; x++)
+            for (var x = 0; x < t; x++)
             {
                 encryptedM = Square(encryptedM, p);
             }
-            if (IsQuadraticResidue(new BigInteger((long)m), p))
-            {
-                return new CipherPair { C = encryptedM, Positive = true };
-            }
 
-            return new CipherPair { C = encryptedM, Positive = false };
+            return IsQuadraticResidue(new BigInteger((long)m), p)
+                ? new CipherPair { C = encryptedM, Positive = true }
+                : new CipherPair { C = encryptedM, Positive = false };
         }
 
         /// <summary>
@@ -76,12 +81,8 @@ namespace CYPCore.Cryptography
         {
             var c = cipherPair.C;
             var z = ModSqrtOp(t, c, p);
-            if (cipherPair.Positive)
-            {
-                return z;
-            }
 
-            return Util.Mod(BigInteger.Negate(z), p);
+            return cipherPair.Positive ? z : Util.Mod(BigInteger.Negate(z), p);
         }
 
         /// <summary>
@@ -90,6 +91,7 @@ namespace CYPCore.Cryptography
         /// <param name="t"></param>
         /// <param name="x"></param>
         /// <param name="p"></param>
+        /// <param name="stoppingToken"></param>
         /// <returns></returns>
         public string Eval(int t, BigInteger x, BigInteger p)
         {
@@ -111,7 +113,7 @@ namespace CYPCore.Cryptography
             {
                 x = Util.Mod(BigInteger.Negate(x), p);
             }
-            for (int i = 0; i < t; i++)
+            for (var i = 0; i < t; i++)
             {
                 y = Square(y, p);
             }
@@ -229,10 +231,21 @@ namespace CYPCore.Cryptography
         /// <returns></returns>
         private BigInteger ModSqrtOp(int t, BigInteger x, BigInteger p)
         {
-            BigInteger y = x;
-            for (int i = 0; i < t; i++)
+            var y = Zero;
+
+            try
             {
-                y = ModSqrt(y, p);
+                y = x;
+                for (var i = 0; i < t; i++)
+                {
+                    y = ModSqrt(y, p);
+                    _stoppingToken.ThrowIfCancellationRequested();
+                }
+
+                return y;
+            }
+            catch (OperationCanceledException)
+            {
             }
 
             return y;

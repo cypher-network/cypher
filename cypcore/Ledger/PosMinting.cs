@@ -189,7 +189,8 @@ namespace CYPCore.Ledger
                 x = -x;
             }
 
-            var sloth = new Sloth();
+            var ct = new CancellationTokenSource(TimeSpan.FromSeconds(10)).Token;
+            var sloth = new Sloth(ct);
             var nonce = sloth.Eval(bits, x, p256);
 
             var lockTime = _validator.GetAdjustedTimeAsUnixTimestamp();

@@ -598,7 +598,8 @@ namespace CYPCore.Ledger
 
             try
             {
-                var sloth = new Sloth();
+                var ct = new CancellationTokenSource(TimeSpan.FromSeconds(10)).Token;
+                var sloth = new Sloth(ct);
 
                 var x = System.Numerics.BigInteger.Parse(vrfSig.ByteToHex(),
                     NumberStyles.AllowHexSpecifier);
