@@ -61,7 +61,6 @@ namespace CYPNode
             builder.AddUnitOfWork(Configuration);
             builder.AddGraph();
             builder.AddMemoryPool();
-            builder.AddStaging();
             builder.AddSigning();
             builder.AddValidator();
             builder.AddMembershipService();

@@ -119,17 +119,6 @@ namespace CYPCore.Extensions
         /// </summary>
         /// <param name="builder"></param>
         /// <returns></returns>
-        public static ContainerBuilder AddStaging(this ContainerBuilder builder)
-        {
-            builder.RegisterType<Staging>().As<IStaging>().InstancePerLifetimeScope();
-            return builder;
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="builder"></param>
-        /// <returns></returns>
         public static ContainerBuilder AddGraph(this ContainerBuilder builder)
         {
             builder.RegisterType<Graph>().As<IGraph>().SingleInstance();

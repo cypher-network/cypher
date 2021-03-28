@@ -13,7 +13,6 @@ namespace CYPCore.Persistence
         IStoreDb StoreDb { get; }
         IXmlRepository DataProtectionKeys { get; }
         IDataProtectionRepository DataProtectionPayload { get; }
-        IStagingRepository StagingRepository { get; }
         IDeliveredRepository DeliveredRepository { get; }
         ITransactionRepository TransactionRepository { get; }
         IBlockGraphRepository BlockGraphRepository { get; }
@@ -26,7 +25,6 @@ namespace CYPCore.Persistence
 
         public IXmlRepository DataProtectionKeys { get; }
         public IDataProtectionRepository DataProtectionPayload { get; }
-        public IStagingRepository StagingRepository { get; }
         public IDeliveredRepository DeliveredRepository { get; }
         public ITransactionRepository TransactionRepository { get; }
         public IBlockGraphRepository BlockGraphRepository { get; }
@@ -42,7 +40,6 @@ namespace CYPCore.Persistence
 
             DataProtectionPayload = new DataProtectionRepository(StoreDb, logger);
             DeliveredRepository = new DeliveredRepository(StoreDb, logger);
-            StagingRepository = new StagingRepository(StoreDb, logger);
             TransactionRepository = new TransactionRepository(StoreDb, logger);
             BlockGraphRepository = new BlockGraphRepository(StoreDb, logger);
             KeyImageRepository = new KeyImageRepository(StoreDb, logger);
