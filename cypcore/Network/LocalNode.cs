@@ -30,6 +30,8 @@ namespace CYPCore.Network
         Task Send(byte[] data, TopicType topicType, string host);
         Task<Dictionary<ulong, Peer>> GetPeers();
         void Ready();
+        Task Leave();
+        Task JoinSeedNodes();
     }
 
     /// <summary>
@@ -222,6 +224,53 @@ namespace CYPCore.Network
             {
                 _logger.Here().Error(ex, "ApiException for {@Host}", host);
             }
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        public async Task Leave()
+        {
+            if (_tcpSession == null)
+            {
+                Ready();
+            }
+
+            var tcpSession = _serfClient.GetTcpSession(_tcpSession.SessionId);
+            _ = _serfClient.Connect(tcpSession.SessionId);
+
+            if (!tcpSession.Ready)
+            {
+                _logger.Here().Error("Serf client failed to connect");
+                return;
+            }
+
+            var leaveResult = await _serfClient.Leave(tcpSession.SessionId);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        public async Task JoinSeedNodes()
+        {
+            if (_tcpSession == null)
+            {
+                Ready();
+            }
+
+            var tcpSession = _serfClient.GetTcpSession(_tcpSession.SessionId);
+            _ = _serfClient.Connect(tcpSession.SessionId);
+
+            if (!tcpSession.Ready)
+            {
+                _logger.Here().Error("Serf client failed to connect");
+                return;
+            }
+
+            var seedNodes = new SeedNode(_serfClient.SeedNodes.Seeds.Select(x => x));
+            var joinResult = await _serfClient.Join(seedNodes.Seeds, tcpSession.SessionId);
         }
     }
 }
