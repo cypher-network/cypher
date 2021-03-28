@@ -2,21 +2,18 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
-using System.Collections.Concurrent;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Net.Http;
 using System.Collections.Generic;
-
+using System.Reactive.Linq;
 using Dawn;
 using Serilog;
-
 using CYPCore.Extensions;
-using CYPCore.Extentions;
 using CYPCore.Serf;
 using CYPCore.Models;
+using CYPCore.Persistence;
 using CYPCore.Services.Rest;
-using NBitcoin;
 
 namespace CYPCore.Network
 {
@@ -33,6 +30,8 @@ namespace CYPCore.Network
         Task<NetworkBlockHeight> PeerBlockHeight(Peer peer);
         Task Leave();
         Task JoinSeedNodes();
+        IObservable<Peer> ObservePeers();
+        Task<ulong[]> Nodes();
     }
 
     /// <summary>
@@ -41,12 +40,14 @@ namespace CYPCore.Network
     public class LocalNode : ILocalNode
     {
         private readonly ISerfClient _serfClient;
+        private readonly IUnitOfWork _unitOfWork;
         private readonly ILogger _logger;
         private TcpSession _tcpSession;
 
-        public LocalNode(ISerfClient serfClient, ILogger logger)
+        public LocalNode(ISerfClient serfClient, IUnitOfWork unitOfWork, ILogger logger)
         {
             _serfClient = serfClient;
+            _unitOfWork = unitOfWork;
             _logger = logger.ForContext("SourceContext", nameof(LocalNode));
         }
 
@@ -119,6 +120,32 @@ namespace CYPCore.Network
         /// 
         /// </summary>
         /// <returns></returns>
+        public IObservable<Peer> ObservePeers()
+        {
+            return Observable.Defer(async () =>
+            {
+                var peers = await GetPeers();
+                return peers.Values.ToObservable();
+            });
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        public async Task<ulong[]> Nodes()
+        {
+            var peers = await GetPeers();
+            if (peers == null) return null;
+
+            var totalNodes = (ulong)peers.Count;
+            return totalNodes != 0 ? peers.Keys.ToArray() : null;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
         public async Task<Dictionary<ulong, Peer>> GetPeers()
         {
             var peers = new Dictionary<ulong, Peer>();
@@ -155,7 +182,8 @@ namespace CYPCore.Network
                 {
                     Host = uri.OriginalString,
                     ClientId = Helper.Util.HashToId(member.Tags["pubkey"]),
-                    PublicKey = member.Tags["pubkey"]
+                    PublicKey = member.Tags["pubkey"],
+                    NodeName = member.Name
                 };
 
                 if (peers.ContainsKey(peer.ClientId)) continue;
