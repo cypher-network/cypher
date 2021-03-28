@@ -29,6 +29,7 @@ namespace CYPCore.Persistence
         ValueTask<List<T>> SkipAsync(int skip);
         ValueTask<List<T>> TakeAsync(int take);
         Task<bool> RemoveAsync(byte[] key);
+        public Task<IList<T>> TakeLongAsync(long take);
     }
 
     public class Repository<T> : IRepository<T> where T : class
@@ -370,7 +371,6 @@ namespace CYPCore.Persistence
         /// 
         /// </summary>
         /// <param name="skip"></param>
-        /// <param name="take"></param>
         /// <returns></returns>
         public ValueTask<List<T>> SkipAsync(int skip)
         {
@@ -413,6 +413,45 @@ namespace CYPCore.Persistence
             }
 
             return entries;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="take"></param>
+        /// <returns></returns>
+        public Task<IList<T>> TakeLongAsync(long take)
+        {
+            IList<T> entries = new List<T>();
+
+            try
+            {
+                using (_sync.Read())
+                {
+                    take = take == 0 ? 1 : take;
+                    var iTake = 0;
+
+                    var cf = _storeDb.Rocks.GetColumnFamily(_tableName);
+                    using var iterator = _storeDb.Rocks.NewIterator(cf, _readOptions);
+
+                    for (iterator.SeekToFirst(); iterator.Valid(); iterator.Next())
+                    {
+                        entries.Add(FlatBufferSerializer.Default.Parse<T>(iterator.Value()));
+
+                        iTake++;
+                        if (iTake % take == 0)
+                        {
+                            break;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Here().Error(ex, "Error while reading database");
+            }
+
+            return Task.FromResult(entries);
         }
 
         /// <summary>
