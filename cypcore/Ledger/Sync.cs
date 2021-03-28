@@ -9,7 +9,6 @@ using System.Threading.Tasks;
 using System.Net.Http;
 using CYPCore.Extensions;
 using Serilog;
-
 using CYPCore.Models;
 using CYPCore.Network;
 using CYPCore.Persistence;
@@ -25,11 +24,9 @@ namespace CYPCore.Ledger
     public interface ISync
     {
         bool SyncRunning { get; }
-
-        Task Check();
-        Task Synchronize(Uri uri, long skip, long take);
+        Task Fetch(Uri uri, long skip, long take);
+        Task Synchronize();
     }
-
     /// <summary>
     /// 
     /// </summary>
@@ -56,7 +53,7 @@ namespace CYPCore.Ledger
         /// 
         /// </summary>
         /// <returns></returns>
-        public async Task Check()
+        public async Task Synchronize()
         {
             SyncRunning = true;
 
@@ -65,24 +62,34 @@ namespace CYPCore.Ledger
                 _logger.Here().Information("Checking block height");
 
                 var peers = await _localNode.GetPeers();
-                foreach (var peer in peers)
+                foreach (var (_, peer) in peers)
                 {
                     try
                     {
-                        var local = new BlockHeight { Height = await _unitOfWork.DeliveredRepository.CountAsync() };
-                        var uri = new Uri(peer.Value.Host);
+                        var networkBlockHeight = await _localNode.PeerBlockHeight(peer);
 
-                        RestBlockService blockRestApi = new(uri, _logger);
-                        var remote = await blockRestApi.GetHeight();
+                        _logger.Here()
+                            .Information(
+                                "Local node block height ({@LocalHeight}). Network block height ({NetworkHeight})",
+                                networkBlockHeight.Local.Height, networkBlockHeight.Remote.Height);
 
-                        _logger.Here().Information("Local node block height ({@LocalHeight}). Network block height ({NetworkHeight})",
-                            local.Height,
-                            remote.Height);
-
-                        if (local.Height < remote.Height)
+                        if (networkBlockHeight.Local.Height == networkBlockHeight.Remote.Height)
                         {
-                            await Synchronize(uri, local.Height, remote.Height / peers.Count);
+                            SyncRunning = false;
+                            return;
                         }
+
+                        _logger.Here().Information("Fetching blocks");
+
+                        await Fetch(new Uri(peer.Host), networkBlockHeight.Local.Height,
+                            networkBlockHeight.Remote.Height / peers.Count);
+
+                        var localHeight = await _unitOfWork.DeliveredRepository.CountAsync();
+
+                        _logger.Here()
+                            .Information(
+                                "Local node block height ({@LocalHeight}). Network block height ({NetworkHeight})",
+                                localHeight, networkBlockHeight.Remote.Height);
                     }
                     catch (HttpRequestException)
                     {
@@ -107,7 +114,7 @@ namespace CYPCore.Ledger
         /// 
         /// </summary>
         /// <returns></returns>
-        public async Task Synchronize(Uri uri, long skip, long take)
+        public async Task Fetch(Uri uri, long skip, long take)
         {
             Guard.Argument(uri, nameof(uri)).NotNull();
             Guard.Argument(skip, nameof(skip)).NotNegative();
@@ -152,13 +159,13 @@ namespace CYPCore.Ledger
                                             blockHeader.ToIdentifier(), blockHeader);
                                         if (!saved)
                                         {
-                                            _logger.Here().Error("Unable to save block header: {@MerkleRoot}",
+                                            _logger.Here().Error("Unable to save block: {@MerkleRoot}",
                                                 blockHeader.MerkelRoot);
                                         }
                                     }
                                     catch (Exception ex)
                                     {
-                                        _logger.Here().Error(ex, "Unable to save block header: {@MerkleRoot}",
+                                        _logger.Here().Error(ex, "Unable to save block: {@MerkleRoot}",
                                             blockHeader.MerkelRoot);
                                     }
                                 }
