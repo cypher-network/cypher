@@ -2,7 +2,6 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System.Linq;
-using System.Collections.Generic;
 using CYPCore.Extentions;
 using FlatSharp.Attributes;
 
@@ -39,7 +38,7 @@ namespace CYPCore.Models
         /// 
         /// </summary>
         /// <returns></returns>
-        public byte[] ToHash()
+        public byte[] ToStream()
         {
             using var ts = new Helper.TangramStream();
             ts
@@ -57,7 +56,16 @@ namespace CYPCore.Models
                 .Append(Version)
                 .Append(VrfSig);
 
-            return NBitcoin.Crypto.Hashes.DoubleSHA256(ts.ToArray()).ToBytes(false); ;
+            return ts.ToArray();
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        public byte[] ToHash()
+        {
+            return NBitcoin.Crypto.Hashes.DoubleSHA256(ToStream()).ToBytes(false); ;
         }
     }
 }
