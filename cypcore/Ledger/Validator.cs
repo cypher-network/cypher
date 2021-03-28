@@ -1,4 +1,4 @@
-﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
@@ -109,7 +109,7 @@ namespace CYPCore.Ledger
                 if (!_signingProvider.VerifySignature(blockGraph.Signature,
                     blockGraph.PublicKey, blockGraph.ToHash()))
                 {
-                    _logger.Here().Error("Unable to verify signature for block {@Round} from node {@Node}",
+                    _logger.Here().Error("Unable to verify the signature for block {@Round} from node {@Node}",
                         blockGraph.Block.Round,
                         blockGraph.Block.Node);
 
@@ -120,7 +120,7 @@ namespace CYPCore.Ledger
                 {
                     if (blockGraph.Prev.Node != blockGraph.Block.Node)
                     {
-                        _logger.Here().Error("Previous block node does not match on block {@Round} from node {@Node}",
+                        _logger.Here().Error("Previous block node does not match block {@Round} from node {@Node}",
                             blockGraph.Block.Round,
                             blockGraph.Block.Node);
 
@@ -140,7 +140,7 @@ namespace CYPCore.Ledger
                 if (blockGraph.Deps.Any(dep => dep.Block.Node == blockGraph.Block.Node))
                 {
                     _logger.Here().Error(
-                        "Block references includes a block from same node in block reference {@Round} from node {@Node}",
+                        "Block references includes a block from the same node in block {@Round} from node {@Node}",
                         blockGraph.Block.Round,
                         blockGraph.Block.Node);
 
@@ -149,7 +149,7 @@ namespace CYPCore.Ledger
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, "Cannot verify block graph signature");
+                _logger.Here().Error(ex, "Unable to verify block graph signature");
                 return Task.FromResult(VerifyResult.UnableToVerify);
             }
 
@@ -180,7 +180,7 @@ namespace CYPCore.Ledger
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, "Cannot verify bulletproof");
+                _logger.Here().Error(ex, "Unable to verify the bullet proof");
                 return VerifyResult.UnableToVerify;
             }
 
@@ -217,38 +217,11 @@ namespace CYPCore.Ledger
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, "Cannot verify commit sum");
+                _logger.Here().Error(ex, "Unable to verify the committed sum");
                 return VerifyResult.UnableToVerify;
             }
 
             return VerifyResult.Succeed;
-        }
-
-        /// <summary>
-        /// </summary>
-        /// <param name="poSCommitBlindSwitch"></param>
-        /// <returns></returns>
-        public VerifyResult VerifyCommitBlindSwitch(PoSCommitBlindSwitchProto poSCommitBlindSwitch)
-        {
-            Guard.Argument(poSCommitBlindSwitch, nameof(poSCommitBlindSwitch)).NotNull();
-
-            try
-            {
-                using var pedersen = new Pedersen();
-                var verifyCommitSum = pedersen.VerifyCommitSum(
-                    new List<byte[]> { poSCommitBlindSwitch.Balance.HexToByte() },
-                    new List<byte[]>
-                    {
-                        poSCommitBlindSwitch.Difficulty.HexToByte(), poSCommitBlindSwitch.Difference.HexToByte()
-                    });
-
-                return verifyCommitSum ? VerifyResult.Succeed : VerifyResult.UnableToVerify;
-            }
-            catch (Exception ex)
-            {
-                _logger.Here().Error(ex, "Cannot verify blind switch");
-                return VerifyResult.UnableToVerify;
-            }
         }
 
         /// <summary>
@@ -277,7 +250,7 @@ namespace CYPCore.Ledger
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, "Cannot verify solution");
+                _logger.Here().Error(ex, "Unable to verify the solution");
             }
 
             return isSolution ? VerifyResult.Succeed : VerifyResult.UnableToVerify;
@@ -296,7 +269,7 @@ namespace CYPCore.Ledger
                 var verifyBlockHeader = await VerifyBlockHeader(blockHeader);
                 if (verifyBlockHeader == VerifyResult.Succeed) continue;
 
-                _logger.Here().Fatal("Could not verify block header");
+                _logger.Here().Fatal("Unable to verify the block");
 
                 return VerifyResult.UnableToVerify;
             }
@@ -316,7 +289,7 @@ namespace CYPCore.Ledger
                 blockHeader.Sec.ToBytes());
             if (verifySloth == VerifyResult.UnableToVerify)
             {
-                _logger.Here().Fatal("Could not verify the block header sloth");
+                _logger.Here().Fatal("Unable to verify the Verified Delay Function");
                 return verifySloth;
             }
 
@@ -325,7 +298,7 @@ namespace CYPCore.Ledger
                 blockHeader.Solution, runningDistribution);
             if (verifyCoinbase == VerifyResult.UnableToVerify)
             {
-                _logger.Here().Fatal("Could not verify the block header coinbase transaction");
+                _logger.Here().Fatal("Unable to verify the coinbase transaction");
                 return verifyCoinbase;
             }
 
@@ -340,27 +313,27 @@ namespace CYPCore.Ledger
                 VerifySolution(blockHeader.VrfSig.HexToByte(), hash.ToBytes(false), blockHeader.Solution);
             if (verifySolution == VerifyResult.UnableToVerify)
             {
-                _logger.Here().Fatal("Could not verify the block header solution");
+                _logger.Here().Fatal("Unable to verify the solution");
                 return verifySolution;
             }
 
             var bits = Difficulty(blockHeader.Solution, blockHeader.Transactions.First().Vout.First().A.DivWithNaT());
             if (blockHeader.Bits != bits)
             {
-                _logger.Here().Fatal("Could not verify the block header bits");
+                _logger.Here().Fatal("Unable to verify the bits");
                 return VerifyResult.UnableToVerify;
             }
 
             var matchBlockHeader = _unitOfWork.DeliveredRepository.ToTrie(blockHeader);
             if (matchBlockHeader == null)
             {
-                _logger.Here().Fatal("Could not add the block header to merkel");
+                _logger.Here().Fatal("Unable to add the merkel to thee block");
                 return VerifyResult.UnableToVerify;
             }
 
             if (!blockHeader.MerkelRoot.Equals(matchBlockHeader.MerkelRoot))
             {
-                _logger.Here().Fatal("Could not verify the block header merkel");
+                _logger.Here().Fatal("Unable to verify the merkel");
                 return VerifyResult.UnableToVerify;
             }
 
@@ -368,7 +341,7 @@ namespace CYPCore.Ledger
                 blockHeader.LocktimeScript);
             if (verifyLockTime == VerifyResult.UnableToVerify)
             {
-                _logger.Here().Fatal("Could not verify the block header lock time");
+                _logger.Here().Fatal("Unable to verify the block lock time");
                 return verifyLockTime;
             }
 
@@ -381,14 +354,14 @@ namespace CYPCore.Ledger
 
             if (prevBlock == null)
             {
-                _logger.Here().Fatal("Could not find previous block header");
+                _logger.Here().Fatal("Unable to find the previous block");
                 return VerifyResult.UnableToVerify;
             }
 
             var verifyTransactions = await VerifyTransactions(blockHeader.Transactions);
             if (verifyTransactions == VerifyResult.Succeed) return VerifyResult.Succeed;
 
-            _logger.Here().Fatal("Could not verify block header transactions");
+            _logger.Here().Fatal("Unable to verify the block transactions");
             return VerifyResult.UnableToVerify;
         }
 
@@ -405,7 +378,7 @@ namespace CYPCore.Ledger
                 var verifyTransaction = await VerifyTransaction(transaction);
                 if (verifyTransaction == VerifyResult.UnableToVerify)
                 {
-                    _logger.Here().Fatal("Could not verify transaction");
+                    _logger.Here().Fatal("Unable to verify the transaction");
                     return verifyTransaction;
                 }
 
@@ -419,7 +392,7 @@ namespace CYPCore.Ledger
                     continue;
                 }
 
-                _logger.Here().Fatal("Could not verify transaction fee");
+                _logger.Here().Fatal("Unable to verify the transaction fee");
                 return VerifyResult.UnableToVerify;
             }
 
@@ -464,7 +437,7 @@ namespace CYPCore.Ledger
                     transaction.Vin[i].Key.Image, transaction.Rct[i].P, transaction.Rct[i].S);
                 if (verifyMlsag) continue;
 
-                _logger.Here().Fatal("Could not verify the MLSAG transaction");
+                _logger.Here().Fatal("Unable to verify the Multilayered Linkable Spontaneous Anonymous Group transaction");
 
                 return VerifyResult.UnableToVerify;
             }
@@ -594,10 +567,9 @@ namespace CYPCore.Ledger
 
                 if (!blockHeaders.Any()) return VerifyResult.UnableToVerify;
 
-
-                var vouts = blockHeaders.SelectMany(blockHeader => blockHeader.Transactions).SelectMany(x => x.Vout);
-                if (vouts.Where(vout => vout.T == CoinType.Coinbase && vout.T == CoinType.Fee)
-                    .Select(vout => VerifyLockTime(new LockTime(Utils.UnixTimeToDateTime(vout.L)), vout.S))
+                var outputs = blockHeaders.SelectMany(blockHeader => blockHeader.Transactions).SelectMany(x => x.Vout);
+                if (outputs.Where(output => output.T == CoinType.Coinbase && output.T == CoinType.Fee)
+                    .Select(output => VerifyLockTime(new LockTime(Utils.UnixTimeToDateTime(output.L)), output.S))
                     .Any(verified => verified != VerifyResult.UnableToVerify))
                 {
                     return VerifyResult.UnableToVerify;
@@ -639,7 +611,7 @@ namespace CYPCore.Ledger
             }
             catch (Exception ex)
             {
-                _logger.Here().Fatal(ex, "Could not verify sloth");
+                _logger.Here().Fatal(ex, "Unable to verify the Verified Delay Function");
             }
 
             return verifySloth ? VerifyResult.Succeed : VerifyResult.UnableToVerify;
@@ -864,7 +836,7 @@ namespace CYPCore.Ledger
             var prepareMlsag = mlsag.Prepare(m, null, pcmOut.Length, pcmOut.Length, cols, rows, pcmIn, pcmOut, null);
             if (prepareMlsag) return m;
 
-            _logger.Here().Fatal("Could not verify the MLSAG transaction");
+            _logger.Here().Fatal("Unable to verify the Multilayered Linkable Spontaneous Anonymous Group transaction");
             return null;
         }
     }

@@ -6,7 +6,6 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Channels;
-using System.Diagnostics;
 using System.Linq;
 using CYPCore.Consensus.Messages;
 using CYPCore.Consensus.States;

@@ -1,4 +1,4 @@
-﻿// CYPNode by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+// CYPNode by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
@@ -48,7 +48,7 @@ namespace CYPCore.Controllers
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, "Cannot add block");
+                _logger.Here().Error(ex, "Unable to add the block");
             }
 
             return new StatusCodeResult(StatusCodes.Status500InternalServerError);
@@ -73,7 +73,7 @@ namespace CYPCore.Controllers
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, "Cannot add block graph");
+                _logger.Here().Error(ex, "Unable to add the block graph");
             }
 
             return new StatusCodeResult(StatusCodes.Status500InternalServerError);
@@ -98,7 +98,7 @@ namespace CYPCore.Controllers
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, "Cannot add blocks");
+                _logger.Here().Error(ex, "Unable to add the blocks");
             }
 
             return new StatusCodeResult(StatusCodes.Status500InternalServerError);
@@ -108,7 +108,7 @@ namespace CYPCore.Controllers
         /// 
         /// </summary>
         /// <returns></returns>
-        [HttpGet("safeguardblocks", Name = "GetSafeguardBlocks")]
+        [HttpGet("safeguard", Name = "GetSafeguardBlocks")]
         [ProducesResponseType(typeof(byte[]), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetSafeguardBlocks()
@@ -127,7 +127,7 @@ namespace CYPCore.Controllers
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, "Cannot get safeguard blocks");
+                _logger.Here().Error(ex, "Unable to get the safeguard blocks");
             }
 
             return NotFound();
@@ -149,7 +149,7 @@ namespace CYPCore.Controllers
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, "Cannot get block height");
+                _logger.Here().Error(ex, "Unable to get the block height");
             }
 
             return NotFound();
@@ -179,7 +179,7 @@ namespace CYPCore.Controllers
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, "Cannot get range");
+                _logger.Here().Error(ex, "Unable to get the range");
             }
 
             return NotFound();
@@ -211,7 +211,7 @@ namespace CYPCore.Controllers
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, "Cannot get transaction");
+                _logger.Here().Error(ex, "Unable to get the transaction");
             }
 
             return NotFound();

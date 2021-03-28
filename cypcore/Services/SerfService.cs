@@ -28,7 +28,8 @@ namespace CYPCore.Services
     public interface ISerfService : IStartable
     {
         Task StartAsync(IHostApplicationLifetime applicationLifetime);
-        Task JoinSeedNodes(SeedNode seedNode);
+        Task<bool> JoinSeedNodes(SeedNode seedNode);
+        bool JoinedSeedNodes { get; }
     }
 
     public class SerfService : ISerfService
@@ -164,7 +165,7 @@ namespace CYPCore.Services
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, "Cannot initialize Serf");
+                _logger.Here().Error(ex, "Unable to initialize Serf");
                 applicationLifetime.StopApplication();
             }
         }
@@ -216,7 +217,6 @@ namespace CYPCore.Services
         /// 
         /// </summary>
         /// <param name="cancellationToken"></param>
-        /// <param name="existing"></param>
         /// <returns></returns>
         private async Task<bool> TryReconnect(CancellationTokenSource cancellationToken)
         {
@@ -280,7 +280,7 @@ namespace CYPCore.Services
         /// 
         /// </summary>
         /// <param name="seedNode"></param>
-        public async Task JoinSeedNodes(SeedNode seedNode)
+        public async Task<bool> JoinSeedNodes(SeedNode seedNode)
         {
             try
             {
@@ -292,20 +292,25 @@ namespace CYPCore.Services
                 }
 
                 var joinResult = await _serfClient.Join(seedNode.Seeds, tcpSession.SessionId);
-
                 if (!joinResult.Success)
                 {
                     _logger.Here().Error(((SerfError)joinResult.NonSuccessMessage).Error);
-                    return;
+                    return false;
                 }
 
+                JoinedSeedNodes = true;
+
                 _logger.Here().Information("Serf might still be trying to join the seed nodes. Number of nodes joined: {@NumPeers}", joinResult.Value.Peers.ToString());
+                return true;
             }
             catch (Exception ex)
             {
-                _logger.Here().Fatal(ex, $"Could not create Serf RPC address");
+                _logger.Here().Fatal(ex, $"Unable to create Serf RPC address");
+                return false;
             }
         }
+
+        public bool JoinedSeedNodes { get; private set; }
 
         /// <summary>
         /// 

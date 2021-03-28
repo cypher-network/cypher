@@ -1,4 +1,4 @@
-﻿// CYPNode by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+// CYPNode by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
@@ -44,7 +44,7 @@ namespace CYPCore.Controllers
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, "Cannot add transaction");
+                _logger.Here().Error(ex, "Unable to add the memory pool transaction");
             }
 
             return new StatusCodeResult(StatusCodes.Status500InternalServerError);
@@ -66,7 +66,7 @@ namespace CYPCore.Controllers
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, "Cannot get transaction count");
+                _logger.Here().Error(ex, "Unable to get the memory pool transaction count");
             }
 
             return new StatusCodeResult(StatusCodes.Status500InternalServerError);

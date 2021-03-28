@@ -92,7 +92,7 @@ namespace CYPCore.Services
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, "Cannot get members");
+                _logger.Here().Error(ex, "Unable to get members");
             }
 
             return members;
@@ -111,7 +111,7 @@ namespace CYPCore.Services
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, "Cannot get public key");
+                _logger.Here().Error(ex, "Unable to get the public key");
             }
 
             return publicKey;
@@ -135,7 +135,7 @@ namespace CYPCore.Services
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, "Cannot get member count");
+                _logger.Here().Error(ex, "Unable tp get the member count");
             }
 
             return count;
