@@ -80,6 +80,7 @@ namespace CYPCore.Extensions
                     c.Resolve<IUnitOfWork>(),
                     c.Resolve<ISigning>(),
                     c.Resolve<IValidator>(),
+                    c.Resolve<ISync>(),
                     stakingConfigurationOptions,
                     c.Resolve<Serilog.ILogger>());
 
@@ -87,7 +88,6 @@ namespace CYPCore.Extensions
             })
             .As<IPosMinting>()
             .InstancePerLifetimeScope();
-
 
             builder.RegisterType<PosMintingBackgroundService>().As<IHostedService>().SingleInstance();
 
@@ -134,19 +134,7 @@ namespace CYPCore.Extensions
         /// <returns></returns>
         public static ContainerBuilder AddLocalNode(this ContainerBuilder builder)
         {
-            builder.Register(c =>
-            {
-                var localNode = new LocalNode
-                (
-                     c.Resolve<ISerfClient>(),
-                     c.Resolve<Serilog.ILogger>()
-                );
-
-                return localNode;
-            })
-            .As<ILocalNode>()
-            .SingleInstance();
-
+            builder.RegisterType<LocalNode>().As<ILocalNode>().SingleInstance();
             builder.RegisterType<SyncBackgroundService>().As<IHostedService>();
 
             return builder;
@@ -185,7 +173,6 @@ namespace CYPCore.Extensions
         /// 
         /// </summary>
         /// <param name="builder"></param>
-        /// <param name="configuration"></param>
         /// <returns></returns>
         public static ContainerBuilder AddValidator(this ContainerBuilder builder)
         {

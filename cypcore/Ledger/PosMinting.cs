@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Threading;
 using CYPCore.Consensus.Models;
 using Dawn;
 using libsignal.ecc;
@@ -46,11 +47,12 @@ namespace CYPCore.Ledger
         private readonly IUnitOfWork _unitOfWork;
         private readonly ISigning _signing;
         private readonly IValidator _validator;
+        private readonly ISync _sync;
         private readonly ILogger _logger;
         private readonly KeyPair _keyPair;
 
         public PosMinting(IGraph graph, IMemoryPool memoryPool, ISerfClient serfClient,
-            IUnitOfWork unitOfWork, ISigning signing, IValidator validator,
+            IUnitOfWork unitOfWork, ISigning signing, IValidator validator, ISync sync,
             StakingConfigurationOptions stakingConfigurationOptions, ILogger logger)
         {
             _graph = graph;
@@ -59,9 +61,9 @@ namespace CYPCore.Ledger
             _unitOfWork = unitOfWork;
             _signing = signing;
             _validator = validator;
+            _sync = sync;
             StakingConfigurationOptions = stakingConfigurationOptions;
             _logger = logger.ForContext("SourceContext", nameof(PosMinting));
-
             _keyPair = _signing.GetOrUpsertKeyName(KeyName).ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
@@ -76,88 +78,129 @@ namespace CYPCore.Ledger
         /// <returns></returns>
         public async Task RunBlockStakingAsync()
         {
-            var lastBlockHeader = await _unitOfWork.DeliveredRepository.LastAsync();
-            if (lastBlockHeader == null)
+            if (_sync.SyncRunning) return;
+
+            var height = await _unitOfWork.DeliveredRepository.CountAsync();
+            var topBlockHeader =
+                await _unitOfWork.DeliveredRepository.GetAsync(x => new ValueTask<bool>(x.Height == height - 1));
+            if (topBlockHeader == null)
             {
-                _logger.Here().Information("There is no block header for processing");
+                _logger.Here().Information("There is no block available for processing");
                 return;
             }
 
             var coinStakeTimestamp = _validator.GetAdjustedTimeAsUnixTimestamp();
-            if (coinStakeTimestamp <= lastBlockHeader.Locktime)
+            if (coinStakeTimestamp <= topBlockHeader.Locktime)
             {
                 _logger.Here().Warning(
                     "Current coinstake time {@Timestamp} is not greater than last search timestamp {@Locktime}",
                     coinStakeTimestamp,
-                    lastBlockHeader.Locktime);
-
+                    topBlockHeader.Locktime);
                 return;
             }
 
-            var transactions = await TransactionsAsync().ToListAsync();
-            if (transactions.Any() != true)
+            var transactions = new List<TransactionProto>();
+            var subscribe = _memoryPool.ObserveTake(100)
+                .Subscribe(async x =>
+                {
+                    var verifyTransaction = await _validator.VerifyTransaction(x);
+                    var verifyTransactionFee = _validator.VerifyTransactionFee(x);
+
+                    var removed = _memoryPool.Remove(x.TxnId);
+                    if (removed == VerifyResult.UnableToVerify)
+                    {
+                        _logger.Here().Error("Unable to remove the transaction from the memory pool {@TxnId}",
+                            x.TxnId);
+                    }
+
+                    if (verifyTransaction == VerifyResult.Succeed && verifyTransactionFee == VerifyResult.Succeed)
+                    {
+                        transactions.Add(x);
+                    }
+                }, async () =>
+                {
+                    if (transactions.Any() != true)
+                    {
+                        _logger.Here().Warning("Unable to add zero transactions to the block");
+                        return;
+                    }
+
+                    try
+                    {
+                        uint256 hash;
+                        using (TangramStream ts = new())
+                        {
+                            transactions.ForEach(x => { ts.Append(x.Stream()); });
+                            hash = NBitcoin.Crypto.Hashes.DoubleSHA256(ts.ToArray());
+                        }
+
+                        var signature = _signing.CalculateVrfSignature(Curve.decodePrivatePoint(_keyPair.PrivateKey),
+                            hash.ToBytes(false));
+                        var vrfSig = _signing.VerifyVrfSignature(Curve.decodePoint(_keyPair.PublicKey, 0),
+                            hash.ToBytes(false),
+                            signature);
+
+                        var solution = _validator.Solution(vrfSig, hash.ToBytes(false));
+
+                        var runningDistribution = await _validator.CurrentRunningDistribution(topBlockHeader);
+                        var networkShare = _validator.NetworkShare(solution, runningDistribution);
+                        var reward = _validator.Reward(solution, runningDistribution);
+                        var bits = _validator.Difficulty(solution, networkShare);
+
+                        var coinStakeTransaction = await CoinbaseTransactionAsync(bits, reward);
+                        if (coinStakeTransaction == null)
+                        {
+                            _logger.Here().Error("Unable to create the coinstake transaction");
+                            return;
+                        }
+
+                        transactions.Insert(0, coinStakeTransaction);
+
+                        var blockHeader = CreateBlock(transactions.ToArray(), signature, vrfSig, solution, bits,
+                            topBlockHeader);
+                        if (blockHeader == null) throw new Exception();
+
+                        blockHeader = _unitOfWork.DeliveredRepository.ToTrie(blockHeader);
+                        if (blockHeader == null)
+                        {
+                            _logger.Here().Fatal("Unable to add the merkel to the block");
+                            return;
+                        }
+
+                        var blockGraph = CreateBlockGraph(blockHeader, topBlockHeader);
+                        await _graph.TryAddBlockGraph(blockGraph);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.Here().Error(ex, "PoS minting Failed");
+                    }
+                });
+
+            subscribe.Dispose();
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="blockHeader"></param>
+        /// <param name="prevBlockHeader"></param>
+        /// <returns></returns>
+        private BlockGraph CreateBlockGraph(BlockHeaderProto blockHeader, BlockHeaderProto prevBlockHeader)
+        {
+            var blockGraph = new BlockGraph
             {
-                _logger.Here().Warning("Cannot add zero transactions to the block header");
-                return;
-            }
-
-            try
-            {
-                uint256 hash;
-                using (TangramStream ts = new())
+                Block = new CYPCore.Consensus.Models.Block(blockHeader.MerkelRoot, _serfClient.ClientId,
+                    (ulong)prevBlockHeader.Height + 1, Helper.Util.SerializeFlatBuffer(blockHeader)),
+                Prev = new CYPCore.Consensus.Models.Block
                 {
-                    transactions.ForEach(x => { ts.Append(x.Stream()); });
-                    hash = NBitcoin.Crypto.Hashes.DoubleSHA256(ts.ToArray());
+                    Data = Helper.Util.SerializeFlatBuffer(prevBlockHeader),
+                    Hash = prevBlockHeader.MerkelRoot,
+                    Node = _serfClient.ClientId,
+                    Round = (ulong)prevBlockHeader.Height
                 }
+            };
 
-                var signature = _signing.CalculateVrfSignature(Curve.decodePrivatePoint(_keyPair.PrivateKey),
-                    hash.ToBytes(false));
-                var vrfSig = _signing.VerifyVrfSignature(Curve.decodePoint(_keyPair.PublicKey, 0), hash.ToBytes(false),
-                    signature);
-
-                var solution = _validator.Solution(vrfSig, hash.ToBytes(false));
-
-                var runningDistribution = await _validator.GetRunningDistribution();
-                var networkShare = _validator.NetworkShare(solution, runningDistribution);
-                var reward = _validator.Reward(solution, runningDistribution);
-                var bits = _validator.Difficulty(solution, networkShare);
-
-                var coinStakeTransaction = await CoinbaseTransactionAsync(bits, reward);
-                if (coinStakeTransaction == null)
-                {
-                    _logger.Here().Error("Could not create coin stake transaction");
-                    return;
-                }
-
-                transactions.Insert(0, coinStakeTransaction);
-
-                var blockHeader = CreateBlock(transactions.ToArray(), signature, vrfSig, solution, bits, lastBlockHeader);
-                blockHeader = _unitOfWork.DeliveredRepository.ToTrie(blockHeader);
-                if (blockHeader == null)
-                {
-                    _logger.Here().Fatal("Unable to add the block header to merkel");
-                    return;
-                }
-
-                var maxBytesNeeded = FlatBufferSerializer.Default.GetMaxSize(blockHeader);
-                var buffer = new byte[maxBytesNeeded];
-
-                FlatBufferSerializer.Default.Serialize(blockHeader, buffer);
-
-                var blockGraph = new BlockGraph
-                {
-                    Block = new CYPCore.Consensus.Models.Block(blockHeader.ToHash().ByteToHex(), _serfClient.ClientId,
-                        1, buffer),
-                    Deps = new List<Dep>(),
-                    Prev = new CYPCore.Consensus.Models.Block()
-                };
-
-                await _graph.TryAddBlockGraph(blockGraph);
-            }
-            catch (Exception ex)
-            {
-                _logger.Here().Error(ex, "PoS minting Failed");
-            }
+            return blockGraph;
         }
 
         /// <summary>
@@ -194,13 +237,13 @@ namespace CYPCore.Ledger
             var nonce = sloth.Eval(bits, x, p256);
 
             var lockTime = _validator.GetAdjustedTimeAsUnixTimestamp();
-
             var blockHeader = new BlockHeaderProto
             {
                 Bits = bits,
                 Height = 1 + previous.Height,
                 Locktime = lockTime,
-                LocktimeScript = new Script(Op.GetPushOp(lockTime), OpcodeType.OP_CHECKLOCKTIMEVERIFY).ToString(),
+                LocktimeScript =
+                    new Script(Op.GetPushOp(lockTime), OpcodeType.OP_CHECKLOCKTIMEVERIFY).ToString(),
                 Nonce = nonce,
                 PrevMerkelRoot = previous.MerkelRoot,
                 Proof = signature.ByteToHex(),
@@ -213,29 +256,6 @@ namespace CYPCore.Ledger
             };
 
             return blockHeader;
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <returns></returns>
-        private async IAsyncEnumerable<TransactionProto> TransactionsAsync()
-        {
-            foreach (var transaction in _memoryPool.Range(0, 100))
-            {
-                var verifyTransaction = await _validator.VerifyTransaction(transaction);
-                var verifyTransactionFee = _validator.VerifyTransactionFee(transaction);
-
-                var removed = _memoryPool.Remove(transaction.TxnId);
-                if (removed == VerifyResult.UnableToVerify)
-                {
-                    _logger.Here().Error("Unable to remove the transaction from memory pool {@TxnId}",
-                        transaction.TxnId);
-                }
-
-                if (verifyTransaction == VerifyResult.UnableToVerify) continue;
-                if (verifyTransactionFee == VerifyResult.Succeed) yield return transaction;
-            }
         }
 
         /// <summary>
@@ -301,7 +321,7 @@ namespace CYPCore.Ledger
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, "Cannot create coinstake transaction");
+                _logger.Here().Error(ex, "Unable to create the coinstake transaction");
             }
 
             return transaction;
