@@ -34,15 +34,11 @@ namespace CYPCore.Serf
         string ProcessError { get; set; }
         bool ProcessStarted { get; set; }
         int ProcessId { get; set; }
-
         string Name { get; set; }
-
         SerfConfigurationOptions SerfConfigurationOptions { get; }
-
         ApiConfigurationOptions ApiConfigurationOptions { get; }
-
+        SerfSeedNodes SeedNodes { get; }
         Task<TaskResult<int>> MembersCount(Guid tcpSessionId);
-
         Task<SerfError> Authenticate(string secret, Guid tcpSessionId);
         void Dispose();
         Task<SerfError> Handshake(Guid tcpSessionId);
@@ -58,6 +54,7 @@ namespace CYPCore.Serf
         TcpSession GetTcpSession(Guid sessionId);
         bool RemoveTcpSession(Guid tcpSessionId);
         Task<TaskResult<ulong>> GetClientId();
+        bool JoinedSeedNodes { get; }
     }
 
     /// <summary>
@@ -70,8 +67,10 @@ namespace CYPCore.Serf
         public int ProcessId { get; set; }
         public string Name { get; set; }
 
-        public SerfConfigurationOptions SerfConfigurationOptions { get; private set; }
-        public ApiConfigurationOptions ApiConfigurationOptions { get; private set; }
+        public SerfConfigurationOptions SerfConfigurationOptions { get; }
+        public ApiConfigurationOptions ApiConfigurationOptions { get; }
+
+        public SerfSeedNodes SeedNodes { get; }
 
         private bool _disposed = false;
         private readonly SafeHandle _safeHandle = new SafeFileHandle(IntPtr.Zero, true);
@@ -87,13 +86,14 @@ namespace CYPCore.Serf
         private readonly ILogger _logger;
 
         public SerfClient(ISigning signing, SerfConfigurationOptions serfConfigurationOptions,
-            ApiConfigurationOptions apiConfigurationOptions, ILogger logger)
+            ApiConfigurationOptions apiConfigurationOptions, SerfSeedNodes seedNodes, ILogger logger)
         {
             _signing = signing;
             _logger = logger.ForContext("SourceContext", nameof(SerfClient));
 
             SerfConfigurationOptions = serfConfigurationOptions;
             ApiConfigurationOptions = apiConfigurationOptions;
+            SeedNodes = seedNodes;
 
             TcpSessions = new ConcurrentDictionary<Guid, TcpSession>();
 
@@ -133,6 +133,11 @@ namespace CYPCore.Serf
 
             return TaskResult<ulong>.CreateSuccess(clientId);
         }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public bool JoinedSeedNodes { get; private set; }
 
         /// <summary>
         /// 
@@ -241,6 +246,7 @@ namespace CYPCore.Serf
                 }
 
                 nodesJoined = node.Peers;
+                JoinedSeedNodes = true;
             }
             catch (Exception ex)
             {

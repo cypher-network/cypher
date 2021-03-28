@@ -34,7 +34,7 @@ namespace CYPCore.Services
             _serfClient.ProcessStarted = true;
         }
 
-        public async Task JoinSeedNodes(SeedNode seedNode)
+        public async Task<bool> JoinSeedNodes(SeedNode seedNode)
         {
             _logger.Here().Debug("Joining seed nodes");
             foreach (var node in seedNode.Seeds)
@@ -43,7 +43,11 @@ namespace CYPCore.Services
             }
 
             // TODO: testable configuration, e.g. delays, never-ending connection attempts, etc.
+
+            return true;
         }
+
+        public bool JoinedSeedNodes { get; }
 
         public void Start()
         {

@@ -164,12 +164,14 @@ namespace CYPCore.Extensions
             {
                 var serfConfigurationOptions = new SerfConfigurationOptions();
                 var apiConfigurationOptions = new ApiConfigurationOptions();
+                var serfSeedNodes = new SerfSeedNodes();
 
+                configuration.Bind("SeedNodes", serfSeedNodes);
                 configuration.Bind("Serf", serfConfigurationOptions);
                 configuration.Bind("Api", apiConfigurationOptions);
 
                 var logger = c.Resolve<Serilog.ILogger>();
-                var serfClient = new SerfClient(c.Resolve<ISigning>(), serfConfigurationOptions, apiConfigurationOptions, logger);
+                var serfClient = new SerfClient(c.Resolve<ISigning>(), serfConfigurationOptions, apiConfigurationOptions, serfSeedNodes, logger);
 
                 return serfClient;
             })
