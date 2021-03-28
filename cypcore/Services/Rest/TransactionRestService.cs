@@ -15,7 +15,7 @@ namespace CYPCore.Services.Rest
     /// </summary>
     public interface ITransactionRestService
     {
-        [Post("/transaction")]
+        [Post("/mem/transaction")]
         Task<WebResponse> AddTransaction(byte[] tx);
     }
 

@@ -15,13 +15,13 @@ namespace CYPCore.Services.Rest
     /// </summary>
     public interface IRestBlockService
     {
-        [Get("/header/height")]
+        [Get("/chain/height")]
         Task<BlockHeight> GetHeight();
 
-        [Get("/header/blocks/{skip}/{take}")]
+        [Get("/chain/blocks/{skip}/{take}")]
         Task<FlatBufferStream> GetBlockHeaders(int skip, int take);
 
-        [Post("/header/block")]
+        [Post("/chian/block")]
         Task<WebResponse> AddBlock(byte[] payload);
     }
 

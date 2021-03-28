@@ -15,7 +15,7 @@ namespace CYPCore.Services.Rest
     /// </summary>
     public interface IBlockGraphRestService
     {
-        [Post("/header/blockgraph")]
+        [Post("/chain/blockgraph")]
         Task<WebResponse> AddBlockGraph(byte[] payload);
     }
 

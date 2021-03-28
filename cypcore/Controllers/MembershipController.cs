@@ -12,7 +12,7 @@ using CYPCore.Services;
 
 namespace CYPCore.Controllers
 {
-    [Route("membership")]
+    [Route("member")]
     [ApiController]
     public class MembershipController : Controller
     {

@@ -1,4 +1,4 @@
-// CYPNode by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+﻿// CYPNode by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
@@ -16,7 +16,7 @@ using FlatSharp;
 
 namespace CYPCore.Controllers
 {
-    [Route("header")]
+    [Route("chain")]
     [ApiController]
     public class BlockController : Controller
     {
