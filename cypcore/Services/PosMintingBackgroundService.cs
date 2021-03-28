@@ -52,11 +52,20 @@ namespace CYPCore.Services
                     return;
                 }
 
+                await Task.Yield();
+
                 while (_applicationRunning)
                 {
                     stoppingToken.ThrowIfCancellationRequested();
 
-                    await _posMinting.RunBlockStakingAsync();
+                    try
+                    {
+                        await _posMinting.RunBlockStakingAsync();
+                    }
+                    catch (Exception)
+                    {
+                        // ignored
+                    }
 
                     if (_applicationRunning)
                     {
@@ -70,7 +79,7 @@ namespace CYPCore.Services
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, "Error in minting process");
+                _logger.Here().Error(ex, "Minting process error");
             }
         }
     }

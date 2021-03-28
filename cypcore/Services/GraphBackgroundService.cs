@@ -48,6 +48,8 @@ namespace CYPCore.Services
         {
             try
             {
+                await Task.Yield();
+
                 while (_applicationRunning)
                 {
                     stoppingToken.ThrowIfCancellationRequested();
@@ -63,17 +65,23 @@ namespace CYPCore.Services
 
                     await Task.Delay((int)Math.Abs(timeSpan.TotalMilliseconds), stoppingToken);
 
-                    await _graph.Ready();
-                    await _graph.WriteAsync(100, stoppingToken);
+                    try
+                    {
+                        await _graph.Ready();
+                        await _graph.WriteAsync(100, stoppingToken);
+                    }
+                    catch (Exception)
+                    {
+                        // ignored
+                    }
                 }
             }
             catch (TaskCanceledException)
             {
-                _graph.StopWriter();
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, "Error in graph process");
+                _logger.Here().Error(ex, "Graph process error");
             }
         }
     }

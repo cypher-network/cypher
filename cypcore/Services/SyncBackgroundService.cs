@@ -33,13 +33,21 @@ namespace CYPCore.Services
         {
             try
             {
+                await Task.Yield();
+
                 while (true)
                 {
                     stoppingToken.ThrowIfCancellationRequested();
 
-                    await _sync.Check();
-
-                    await Task.Delay(600000, stoppingToken);
+                    try
+                    {
+                        await _sync.Synchronize();
+                        await Task.Delay(600000, stoppingToken);
+                    }
+                    catch (Exception)
+                    {
+                        // ignored
+                    }
 
                     while (_sync.SyncRunning)
                     {
@@ -51,7 +59,7 @@ namespace CYPCore.Services
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, "Background sync service error");
+                _logger.Here().Error(ex, "Sync process error");
             }
         }
     }
