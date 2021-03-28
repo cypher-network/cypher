@@ -30,6 +30,7 @@ namespace CYPCore.Network
         Task Send(byte[] data, TopicType topicType, string host);
         Task<Dictionary<ulong, Peer>> GetPeers();
         void Ready();
+        Task<NetworkBlockHeight> PeerBlockHeight(Peer peer);
         Task Leave();
         Task JoinSeedNodes();
     }
@@ -165,6 +166,24 @@ namespace CYPCore.Network
             }
 
             return peers;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="peer"></param>
+        /// <returns></returns>
+        public async Task<NetworkBlockHeight> PeerBlockHeight(Peer peer)
+        {
+            var uri = new Uri(peer.Host);
+            var blockRestApi = new RestBlockService(uri, _logger);
+            var networkBlockHeight = new NetworkBlockHeight
+            {
+                Local = new BlockHeight { Height = await _unitOfWork.DeliveredRepository.CountAsync() },
+                Remote = await blockRestApi.GetHeight()
+            };
+
+            return networkBlockHeight;
         }
 
         /// <summary>
