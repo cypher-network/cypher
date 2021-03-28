@@ -1,4 +1,4 @@
-// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
@@ -13,7 +13,6 @@ using CYPCore.Extentions;
 using CYPCore.Models;
 using CYPCore.Extensions;
 using CYPCore.Network;
-using FlatSharp;
 
 namespace CYPCore.Ledger
 {
@@ -61,22 +60,18 @@ namespace CYPCore.Ledger
             try
             {
                 if (transaction.Validate().Any()) return VerifyResult.Invalid;
-
+                
+                var buffer = Helper.Util.SerializeFlatBuffer(transaction);
+                _localNode.Broadcast(buffer, TopicType.AddTransaction);
+                
                 var memoryMax = Count() > MemoryPoolMaxTransactions;
                 if (memoryMax) return VerifyResult.OutOfMemory;
 
-                var adding = GetOrAdd(transaction.TxnId.ByteToHex(), s => transaction);
+                var adding = GetOrAddTransaction(transaction.TxnId.ByteToHex(), s => transaction);
                 if (adding != null)
                 {
                     return VerifyResult.AlreadyExists;
                 }
-
-                var maxBytesNeeded = FlatBufferSerializer.Default.GetMaxSize(transaction);
-                var buffer = new byte[maxBytesNeeded];
-
-                FlatBufferSerializer.Default.Serialize(transaction, buffer);
-
-                _localNode.Broadcast(buffer, TopicType.AddTransaction);
             }
             catch (Exception ex)
             {
@@ -100,7 +95,7 @@ namespace CYPCore.Ledger
 
             try
             {
-                tx = GetOrAdd(transactionId.ByteToHex(), s => null);
+                tx = GetOrAddTransaction(transactionId.ByteToHex(), s => null);
             }
             catch (Exception ex)
             {
@@ -197,7 +192,7 @@ namespace CYPCore.Ledger
         /// <param name="key"></param>
         /// <param name="valueFactory"></param>
         /// <returns></returns>
-        private TransactionProto GetOrAdd(string key, Func<string, TransactionProto> valueFactory)
+        private TransactionProto GetOrAddTransaction(string key, Func<string, TransactionProto> valueFactory)
         {
             Guard.Argument(key, nameof(key)).NotNull().NotEmpty().NotWhiteSpace();
             Guard.Argument(valueFactory, nameof(valueFactory)).NotNull();
