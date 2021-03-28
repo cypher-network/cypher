@@ -1,4 +1,4 @@
-// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
@@ -57,7 +57,7 @@ namespace CYPCore.Ledger
         VerifyResult VerifyTransactionFee(TransactionProto transaction);
         Task<VerifyResult> VerifyKeyImage(TransactionProto transaction);
         Task<VerifyResult> VerifyOutputCommits(TransactionProto transaction);
-        Task<double> GetRunningDistribution();
+        Task<double> CurrentRunningDistribution(BlockHeaderProto blockHeader);
         ulong Fee(int nByte);
         VerifyResult VerifyNetworkShare(ulong solution, double previousNetworkShare,
             double runningDistributionTotal);
@@ -635,21 +635,28 @@ namespace CYPCore.Ledger
         /// <summary>
         /// </summary>
         /// <returns></returns>
-        public async Task<double> GetRunningDistribution()
+        private async Task<double> GetRunningDistribution(long take)
         {
             var runningDistributionTotal = Distribution;
 
             try
             {
-                var blockHeaders = await _unitOfWork.DeliveredRepository.SelectAsync(x =>
-                    new ValueTask<BlockHeaderProto>(x));
+                var blockHeaders = await _unitOfWork.DeliveredRepository.TakeLongAsync(take);
+                var orderedBlockHeaders = blockHeaders.OrderBy(x => x.Height).ToArray();
 
-                for (var i = 0; i < blockHeaders.Count; i++)
-                    runningDistributionTotal -= NetworkShare(blockHeaders.ElementAt(i).Solution, runningDistributionTotal);
+                var length = take > orderedBlockHeaders.Length
+                    ? orderedBlockHeaders.LongLength
+                    : orderedBlockHeaders.Length - 1;
+
+                for (var i = 0; i < length; i++)
+                {
+                    runningDistributionTotal -=
+                        NetworkShare(orderedBlockHeaders.ElementAt(i).Solution, runningDistributionTotal);
+                }
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, "Cannot get running distribution");
+                _logger.Here().Error(ex, "Unable tp get the running distribution");
             }
 
             return runningDistributionTotal;
@@ -745,6 +752,7 @@ namespace CYPCore.Ledger
             return (ulong)itr;
         }
 
+        ///TODO: Change LastAsync as this brings back incorrect data
         /// <summary>
         /// </summary>
         /// <param name="xChain"></param>
@@ -800,11 +808,14 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="blockHeader"></param>
         /// <returns></returns>
-        private async Task<double> CurrentRunningDistribution(BlockHeaderProto blockHeader)
+        public async Task<double> CurrentRunningDistribution(BlockHeaderProto blockHeader)
         {
             if (!blockHeader.MerkelRoot.HexToByte().Xor(BlockZeroMerkel) &&
                 !blockHeader.PrevMerkelRoot.HexToByte().Xor(BlockZeroPreMerkel))
-                return await GetRunningDistribution() - blockHeader.Transactions.First().Vout.First().A.DivWithNaT();
+            {
+                return await GetRunningDistribution(blockHeader.Height + 1) -
+                       blockHeader.Transactions.First().Vout.First().A.DivWithNaT();
+            }
 
             var runningDistribution = Distribution;
             runningDistribution -= NetworkShare(blockHeader.Solution, runningDistribution);
