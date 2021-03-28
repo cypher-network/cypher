@@ -1,10 +1,11 @@
-﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reactive.Linq;
 using System.Threading;
 using Dawn;
 using Serilog;
@@ -25,6 +26,8 @@ namespace CYPCore.Ledger
         TransactionProto Get(byte[] hash);
         TransactionProto[] GetMany();
         TransactionProto[] Range(int skip, int take);
+        IObservable<TransactionProto> ObserveRange(int skip, int take);
+        IObservable<TransactionProto> ObserveTake(int take);
         VerifyResult Remove(byte[] hash);
         int Count();
     }
@@ -125,8 +128,36 @@ namespace CYPCore.Ledger
         public TransactionProto[] Range(int skip, int take)
         {
             Guard.Argument(skip, nameof(skip)).NotNegative();
-
             return _concurrentTransactions.Skip(skip).Take(take).Select(x => x.Value.Value).ToArray();
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="skip"></param>
+        /// <param name="take"></param>
+        /// <returns></returns>
+        public IObservable<TransactionProto> ObserveRange(int skip, int take)
+        {
+            return Observable.Defer(() =>
+            {
+                var transactions = Range(skip, take);
+                return transactions.ToObservable();
+            });
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="take"></param>
+        /// <returns></returns>
+        public IObservable<TransactionProto> ObserveTake(int take)
+        {
+            return Observable.Defer(() =>
+            {
+                var transactions = Range(0, take);
+                return transactions.ToObservable();
+            });
         }
 
         /// <summary>
