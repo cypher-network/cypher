@@ -1,7 +1,75 @@
-<h3>Serf @name</h3>
+@page "/"
+@using Microsoft.AspNetCore.SignalR.Client
+@using rxcypcore.Serf
+@using rxcypcore.Serf.Messages
+@using rxcypnode.Hubs
+@using System.Collections.Concurrent
+@using System.Net
+@using Microsoft.AspNetCore.Http
 
-<button @onclick="@(() => name = name.ToUpper())"></button>
+<h3>Serf @ClientState @Members.Count</h3>
+
+@if (ClientState == ISerfClient.ClientState.Disconnected)
+{
+    <button @onclick="DoJoin">Join</button>
+}
+else if (ClientState == ISerfClient.ClientState.Connected) 
+{
+    <button @onclick="DoLeave">Leave</button>
+}
 
 @code {
-    string name = "razor ui test";
+    private HubConnection _connection;
+
+    [Parameter]
+    public ISerfClient.ClientState ClientState { get; set; } = ISerfClient.ClientState.Initializing;
+
+    [Parameter]
+    public IList<Member> Members { get; set; } = new List<Member>();
+    
+    protected override async Task OnInitializedAsync()
+    {
+        _connection = new HubConnectionBuilder().WithUrl("http://localhost:7000/hubs/serf").Build();
+        _connection.On<ISerfClient.ClientState>("ClientState", ReceiveClientState);
+        _connection.On<MemberEvent>("MemberEvent", ReceiveMemberEvent);
+        _connection.On<IList<Member>>("Members", ReceiveMembers);
+        await _connection.StartAsync();
+    }
+
+    Task ReceiveClientState(ISerfClient.ClientState clientState)
+    {
+        ClientState = clientState;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    Task ReceiveMemberEvent(MemberEvent memberEvent)
+    {
+        if (memberEvent.Type == MemberEvent.EventType.Join)
+        {
+            Members.Add(memberEvent.Member);
+        }
+        
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    Task ReceiveMembers(IList<Member> members)
+    {
+        Members = members;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private async void DoJoin()
+    {
+        Console.WriteLine("Join");
+        await _connection.InvokeAsync("Serf", SerfHub.SerfMethod.Join);
+    }
+
+    private async void DoLeave()
+    {
+        Console.WriteLine("Leave");
+        await _connection.InvokeAsync("Serf", SerfHub.SerfMethod.Leave);
+    }
 }

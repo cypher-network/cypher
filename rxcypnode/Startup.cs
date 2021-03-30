@@ -7,7 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using rxcypcore.Consensus;
 using rxcypcore.Extensions;
-using rxcypnode.Monitor;
+using rxcypnode.Hubs;
 using rxcypnode.StartupExtensions;
 
 namespace rxcypnode
@@ -54,6 +54,7 @@ namespace rxcypnode
             //builder.AddLocalNode();
 
             builder.AddNodeService();
+            builder.RegisterType<SerfHub>().ExternallyOwned();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -72,6 +73,7 @@ namespace rxcypnode
             {
                 endpoints.MapControllers();
                 endpoints.MapRazorPages();
+                endpoints.MapHub<SerfHub>("/hubs/serf");
                 endpoints.MapBlazorHub();
             });
             app.UseSwagger()

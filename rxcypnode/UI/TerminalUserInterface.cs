@@ -66,9 +66,9 @@ namespace rxcypnode.UI
             return true;
         }
 
-        private static void PrintHeader(string header)
+        private void PrintHeader(string header)
         {
-            Console.WriteLine(header);
+            Console.WriteLine($"{_topic} | {header}");
             Console.WriteLine();
         }
 

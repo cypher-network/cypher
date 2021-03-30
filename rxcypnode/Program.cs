@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection.Metadata.Ecma335;
 using Autofac.Extensions.DependencyInjection;
+using Autofac.Integration.SignalR;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
@@ -16,7 +17,7 @@ namespace rxcypnode
     {
         public static void Main(string[] args)
         {
-            //if (args.FirstOrDefault(arg => arg == "-configure") != null)
+            if (args.FirstOrDefault(arg => arg == "-configure") != null)
             {
                 var ui = new TerminalUserInterface();
                 var nc = new Configuration.Configuration(ui);

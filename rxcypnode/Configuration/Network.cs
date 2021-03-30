@@ -10,40 +10,9 @@ namespace rxcypnode.Configuration
 {
     public class Network
     {
-        private IList<IPService> _ipServices = new List<IPService>()
-        {
-            new ("ident.me", new Uri("https://v4.ident.me")),
-            new ("ipify.org", new Uri("https://api.ipify.org")),
-            new ("my-ip.io", new Uri("https://api4.my-ip.io/ip.txt")),
-            new ("seeip.org", new Uri("https://ip4.seeip.org"))
-        };
-
-        private class IPService
-        {
-            public IPService(string name, Uri uri)
-            {
-                _name = name;
-                _uri = uri;
-            }
-
-            private readonly string _name;
-            private readonly Uri _uri;
-
-            public override string ToString()
-            {
-                return $"{_name} ({_uri})";
-            }
-
-            public IPAddress Read()
-            {
-                using var client = new WebClient();
-                var response = client.DownloadString(_uri);
-                return IPAddress.Parse(response);
-            }
-        }
-
         private readonly IUserInterface _userInterface;
         private readonly UserInterfaceChoice _optionCancel = new(string.Empty);
+        private readonly IList<IPService> _ipServices = IPServices.Services;
 
         public class ConfigurationClass
         {
@@ -57,12 +26,22 @@ namespace rxcypnode.Configuration
 
         public Network(IUserInterface userInterface)
         {
-            _userInterface = userInterface;
+            _userInterface = userInterface.SetTopic("Network");
         }
 
         public bool Do()
         {
             return StepIpAddress();
+        }
+
+        private bool SetPort(string prompt, out ushort port)
+        {
+            var section = new TextInput<ushort>(
+                prompt,
+                (string portString) => ushort.TryParse(portString, out _),
+                (string portString) => ushort.Parse(portString));
+
+            return _userInterface.Do(section, out port);
         }
 
         #region IP address
@@ -173,7 +152,8 @@ namespace rxcypnode.Configuration
 
             if (choicePortApi.Equals(_optionApiPortDefault))
             {
-                return StepApiPortLocal();
+                // Skip setting local port when default public port is selected
+                return SerfRPCPort();
             }
 
             if (choicePortApi.Equals(_optionApiPortChange))
@@ -186,19 +166,11 @@ namespace rxcypnode.Configuration
 
         private bool StepApiPortPublicSet()
         {
-            var section = new TextInput<ushort>(
-                "Enter public API port (e.g. 7000)",
-                (string port) => ushort.TryParse(port, out _),
-                (string port) => ushort.Parse(port));
-
-            var success = _userInterface.Do(section, out var port);
-            if (success)
-            {
-                Configuration.ApiPortPublic = port;
-                return StepApiPortLocal();
-            }
-
-            return success;
+            var portSet = SetPort("Enter public API port (e.g. 7000)", out var port);
+            if (!portSet) return false;
+            
+            Configuration.ApiPortPublic = port;
+            return StepApiPortLocal();
         }
 
         private bool StepApiPortLocal()
@@ -233,19 +205,11 @@ namespace rxcypnode.Configuration
 
         private bool StepApiPortLocalSet()
         {
-            var section = new TextInput<ushort>(
-                "Enter local API port (e.g. 7000)",
-                (string port) => ushort.TryParse(port, out _),
-                (string port) => ushort.Parse(port));
-
-            var success = _userInterface.Do(section, out var port);
-            if (success)
-            {
-                Configuration.ApiPortLocal = port;
-                return SerfRPCPort();
-            }
-
-            return success;
+            var portSet = SetPort("Enter local API port (e.g. 7000)", out var port);
+            if (!portSet) return false;
+            
+            Configuration.ApiPortLocal = port;
+            return SerfRPCPort();
         }
         #endregion API
 
@@ -283,19 +247,11 @@ namespace rxcypnode.Configuration
 
         private bool SerfRPCPortSet()
         {
-            var section = new TextInput<ushort>(
-                "Enter Serf API port (e.g. 7373)",
-                (string port) => ushort.TryParse(port, out _),
-                (string port) => ushort.Parse(port));
-
-            var success = _userInterface.Do(section, out var port);
-            if (success)
-            {
-                Configuration.SerfRPCPort = port;
-                return true;
-            }
-
-            return success;
+            var portSet = SetPort("Enter Serf API port (e.g. 7373)", out var port);
+            if (!portSet) return false;
+            
+            Configuration.SerfRPCPort = port;
+            return true;
         }
         #endregion Serf
     }

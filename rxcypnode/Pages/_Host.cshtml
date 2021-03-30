@@ -1,0 +1,31 @@
+@page "/"
+@using rxcypnode.Pages
+@model rxcypnode.Pages._Host
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+
+@using System.Net.Http
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Routing
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.JSInterop
+
+@{
+    Layout = null;
+}
+
+<!DOCTYPE html>
+
+<html>
+<head>
+    <title></title>
+    <base href="~/" />
+</head>
+<body>
+<div>
+    <component type="typeof(Serf)" render-mode="ServerPrerendered" />
+    <script src="_framework/blazor.server.js"></script>
+</div>
+</body>
+</html>
