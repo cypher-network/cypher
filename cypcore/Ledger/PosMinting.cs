@@ -39,8 +39,6 @@ namespace CYPCore.Ledger
     /// </summary>
     public class PosMinting : IPosMinting
     {
-        private const string KeyName = "PosMintingProvider.Key";
-
         private readonly IGraph _graph;
         private readonly IMemoryPool _memoryPool;
         private readonly ISerfClient _serfClient;
@@ -64,7 +62,7 @@ namespace CYPCore.Ledger
             _sync = sync;
             StakingConfigurationOptions = stakingConfigurationOptions;
             _logger = logger.ForContext("SourceContext", nameof(PosMinting));
-            _keyPair = _signing.GetOrUpsertKeyName(KeyName).ConfigureAwait(false).GetAwaiter().GetResult();
+            _keyPair = _signing.GetOrUpsertKeyName(_signing.DefaultSigningKeyName).ConfigureAwait(false).GetAwaiter().GetResult();
         }
 
         /// <summary>
@@ -167,7 +165,18 @@ namespace CYPCore.Ledger
                             return;
                         }
 
-                        var blockGraph = CreateBlockGraph(blockHeader, topBlockHeader);
+                        var signature =
+                            await _signing.Sign(_signing.DefaultSigningKeyName, blockHeader.ToFinalStream());
+                        if (signature == null)
+                        {
+                            _logger.Here().Fatal("Unable to sign the block");
+                            return;
+                        }
+
+                        blockHeader.Signature = signature.ByteToHex();
+                        blockHeader.PublicKey = _keyPair.PublicKey.ByteToHex();
+
+                        var blockGraph = CreateBlockGraph(blockHeader, prevBlock);
                         await _graph.TryAddBlockGraph(blockGraph);
                     }
                     catch (Exception ex)
