@@ -26,10 +26,8 @@ namespace CYPCore.Ledger
         Task Ready();
         Task WriteAsync(int take, CancellationToken cancellationToken);
         Task<VerifyResult> TryAddBlockGraph(BlockGraph blockGraph);
-        Task<VerifyResult> AddBlock(BlockHeaderProto payload);
-        Task AddBlocks(BlockHeaderProto[] payloads);
         Task<VoutProto[]> GetTransaction(byte[] txnId);
-        Task<IEnumerable<BlockHeaderProto>> GetBlockHeaders(int skip, int take);
+        Task<IEnumerable<BlockHeaderProto>> GetBlocks(int skip, int take);
         Task<IEnumerable<BlockHeaderProto>> GetSafeguardBlocks();
         Task<long> GetHeight();
     }
@@ -47,8 +45,8 @@ namespace CYPCore.Ledger
         private Blockmania _blockmania;
         private Config _config;
 
-        public Graph(IUnitOfWork unitOfWork, ILocalNode localNode, ISerfClient serfClient,
-            IValidator validator, ISigning signing, ISync sync, ILogger logger)
+        public Graph(IUnitOfWork unitOfWork, ILocalNode localNode, ISerfClient serfClient, IValidator validator,
+            ISigning signing, ISync sync, ILogger logger)
         {
             _unitOfWork = unitOfWork;
             _localNode = localNode;
@@ -88,14 +86,14 @@ namespace CYPCore.Ledger
                         if (!copy)
                         {
                             var signBlockGraph = await SignBlockGraph(blockGraph);
-                            var saved = await Save(signBlockGraph);
+                            var saved = await SaveBlockGraph(signBlockGraph);
                             if (!saved) return VerifyResult.Invalid;
 
                             await Publish(signBlockGraph);
                         }
                         else
                         {
-                            var saved = await Save(blockGraph);
+                            var saved = await SaveBlockGraph(blockGraph);
                             if (!saved) return VerifyResult.Invalid;
 
                             var block = Helper.Util.DeserializeFlatBuffer<BlockHeaderProto>(blockGraph.Block.Data);
@@ -104,7 +102,7 @@ namespace CYPCore.Ledger
                             var copyBlockGraph = CopyBlockGraph(block, prev);
                             copyBlockGraph = await SignBlockGraph(copyBlockGraph);
 
-                            var savedCopy = await Save(copyBlockGraph);
+                            var savedCopy = await SaveBlockGraph(copyBlockGraph);
                             if (!savedCopy) return VerifyResult.Invalid;
 
                             await Publish(copyBlockGraph);
@@ -188,13 +186,12 @@ namespace CYPCore.Ledger
                     _blockmania.TotalNodes, f, _blockmania.Quorumf1, _blockmania.Quorum2f, _blockmania.Quorum2f1);
         }
 
-
         /// <summary>
         /// 
         /// </summary>
         /// <param name="blockGraph"></param>
         /// <returns></returns>
-        private async Task<bool> Save(BlockGraph blockGraph)
+        private async Task<bool> SaveBlockGraph(BlockGraph blockGraph)
         {
             Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
 
@@ -261,7 +258,7 @@ namespace CYPCore.Ledger
         /// <param name="skip"></param>
         /// <param name="take"></param>
         /// <returns></returns>
-        public async Task<IEnumerable<BlockHeaderProto>> GetBlockHeaders(int skip, int take)
+        public async Task<IEnumerable<BlockHeaderProto>> GetBlocks(int skip, int take)
         {
             Guard.Argument(skip, nameof(skip)).NotNegative();
             Guard.Argument(take, nameof(take)).NotNegative();
