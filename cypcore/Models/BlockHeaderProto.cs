@@ -1,4 +1,4 @@
-﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System.Linq;
@@ -23,7 +23,9 @@ namespace CYPCore.Models
         [FlatBufferItem(10)] public virtual ulong Solution { get; set; }
         [FlatBufferItem(11)] public virtual TransactionProto[] Transactions { get; set; }
         [FlatBufferItem(12)] public virtual int Version { get; set; }
-        [FlatBufferItem(13)] public virtual string VrfSig { get; set; }
+        [FlatBufferItem(13)] public virtual string VrfSignature { get; set; }
+        [FlatBufferItem(14)] public virtual string Signature { get; set; }
+        [FlatBufferItem(15)] public virtual string PublicKey { get; set; }
 
         /// <summary>
         /// 
