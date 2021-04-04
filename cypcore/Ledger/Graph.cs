@@ -432,8 +432,8 @@ namespace CYPCore.Ledger
 
                     await RemoveBlockGraph(blockGraph, next);
 
-                    var blockHeader = Helper.Util.DeserializeFlatBuffer<BlockHeaderProto>(next.Data);
-                    var exists = await BlockHeaderExists(blockHeader);
+                    var block = Helper.Util.DeserializeFlatBuffer<BlockHeaderProto>(next.Data);
+                    var exists = await _validator.BlockExists(block);
                     if (exists == VerifyResult.AlreadyExists)
                     {
                         continue;
@@ -474,19 +474,6 @@ namespace CYPCore.Ledger
                         "Unable to remove the block graph for block - Hash: {@Hash} Round: {@Round} from node {@Node}",
                         next.Hash, next.Round, next.Node);
             }
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="blockHeader"></param>
-        /// <returns></returns>
-        private async Task<VerifyResult> BlockHeaderExists(BlockHeaderProto blockHeader)
-        {
-            Guard.Argument(blockHeader, nameof(blockHeader)).NotNull();
-
-            var hasSeen = await _unitOfWork.DeliveredRepository.GetAsync(blockHeader.ToIdentifier());
-            return hasSeen != null ? VerifyResult.AlreadyExists : VerifyResult.Succeed;
         }
 
         /// <summary>

@@ -98,6 +98,19 @@ namespace CYPCore.Ledger
         /// <summary>
         /// 
         /// </summary>
+        /// <param name="blockHeader"></param>
+        /// <returns></returns>
+        public async Task<VerifyResult> BlockExists(BlockHeaderProto blockHeader)
+        {
+            Guard.Argument(blockHeader, nameof(blockHeader)).NotNull();
+
+            var hasSeen = await _unitOfWork.HashChainRepository.GetAsync(blockHeader.ToIdentifier());
+            return hasSeen != null ? VerifyResult.AlreadyExists : VerifyResult.Succeed;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
         /// <param name="blockGraph"></param>
         /// <returns></returns>
         public Task<VerifyResult> VerifyBlockGraphSignatureNodeRound(BlockGraph blockGraph)
