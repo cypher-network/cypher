@@ -6,13 +6,10 @@ using System.IO;
 using System.Threading.Tasks;
 using System.Threading;
 using System.Linq;
-
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Configuration;
-
 using Autofac;
 using AutofacSerilogIntegration;
 using CYPCore.Models;
@@ -57,6 +54,8 @@ namespace CYPCore.Extensions
         public static ContainerBuilder AddMemoryPool(this ContainerBuilder builder)
         {
             builder.RegisterType<MemoryPool>().As<IMemoryPool>().SingleInstance();
+            builder.RegisterType<MemoryPoolBackgroundService>().As<IHostedService>();
+
             return builder;
         }
 
@@ -89,7 +88,7 @@ namespace CYPCore.Extensions
             .As<IPosMinting>()
             .InstancePerLifetimeScope();
 
-            builder.RegisterType<PosMintingBackgroundService>().As<IHostedService>().SingleInstance();
+            builder.RegisterType<PosMintingBackgroundService>().As<IHostedService>();
 
             return builder;
         }
