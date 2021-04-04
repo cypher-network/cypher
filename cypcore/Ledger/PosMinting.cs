@@ -196,10 +196,13 @@ namespace CYPCore.Ledger
         /// <returns></returns>
         private BlockGraph CreateBlockGraph(BlockHeaderProto blockHeader, BlockHeaderProto prevBlockHeader)
         {
+            Guard.Argument(blockHeader, nameof(blockHeader)).NotNull();
+            Guard.Argument(prevBlockHeader, nameof(prevBlockHeader)).NotNull();
+
             var blockGraph = new BlockGraph
             {
                 Block = new CYPCore.Consensus.Models.Block(blockHeader.MerkelRoot, _serfClient.ClientId,
-                    (ulong)prevBlockHeader.Height + 1, Helper.Util.SerializeFlatBuffer(blockHeader)),
+                    (ulong)blockHeader.Height, Helper.Util.SerializeFlatBuffer(blockHeader)),
                 Prev = new CYPCore.Consensus.Models.Block
                 {
                     Data = Helper.Util.SerializeFlatBuffer(prevBlockHeader),
