@@ -31,7 +31,7 @@ namespace CYPCore.Ledger
     public interface IPosMinting
     {
         StakingConfigurationOptions StakingConfigurationOptions { get; }
-        Task RunBlockStakingAsync();
+        Task RunStakingAsync();
     }
 
     /// <summary>
@@ -49,9 +49,9 @@ namespace CYPCore.Ledger
         private readonly ILogger _logger;
         private readonly KeyPair _keyPair;
 
-        public PosMinting(IGraph graph, IMemoryPool memoryPool, ISerfClient serfClient,
-            IUnitOfWork unitOfWork, ISigning signing, IValidator validator, ISync sync,
-            StakingConfigurationOptions stakingConfigurationOptions, ILogger logger)
+        public PosMinting(IGraph graph, IMemoryPool memoryPool, ISerfClient serfClient, IUnitOfWork unitOfWork,
+            ISigning signing, IValidator validator, ISync sync, StakingConfigurationOptions stakingConfigurationOptions,
+            ILogger logger)
         {
             _graph = graph;
             _memoryPool = memoryPool;
@@ -74,26 +74,27 @@ namespace CYPCore.Ledger
         /// 
         /// </summary>
         /// <returns></returns>
-        public async Task RunBlockStakingAsync()
+        public async Task RunStakingAsync()
         {
             if (_sync.SyncRunning) return;
 
-            var height = await _unitOfWork.DeliveredRepository.CountAsync();
-            var topBlockHeader =
-                await _unitOfWork.DeliveredRepository.GetAsync(x => new ValueTask<bool>(x.Height == height - 1));
-            if (topBlockHeader == null)
+            var height = await _unitOfWork.HashChainRepository.CountAsync() - 1;
+
+            var prevBlock =
+                await _unitOfWork.HashChainRepository.GetAsync(x => new ValueTask<bool>(x.Height == height));
+            if (prevBlock == null)
             {
                 _logger.Here().Information("There is no block available for processing");
                 return;
             }
 
             var coinStakeTimestamp = _validator.GetAdjustedTimeAsUnixTimestamp();
-            if (coinStakeTimestamp <= topBlockHeader.Locktime)
+            if (coinStakeTimestamp <= prevBlock.Locktime)
             {
-                _logger.Here().Warning(
-                    "Current coinstake time {@Timestamp} is not greater than last search timestamp {@Locktime}",
-                    coinStakeTimestamp,
-                    topBlockHeader.Locktime);
+                _logger.Here()
+                    .Warning(
+                        "Current coinstake time {@Timestamp} is not greater than last search timestamp {@Locktime}",
+                        coinStakeTimestamp, prevBlock.Locktime);
                 return;
             }
 
@@ -107,8 +108,7 @@ namespace CYPCore.Ledger
                     var removed = _memoryPool.Remove(x.TxnId);
                     if (removed == VerifyResult.UnableToVerify)
                     {
-                        _logger.Here().Error("Unable to remove the transaction from the memory pool {@TxnId}",
-                            x.TxnId);
+                        _logger.Here().Error("Unable to remove the transaction from the memory pool {@TxnId}", x.TxnId);
                     }
 
                     if (verifyTransaction == VerifyResult.Succeed && verifyTransactionFee == VerifyResult.Succeed)
@@ -132,15 +132,15 @@ namespace CYPCore.Ledger
                             hash = NBitcoin.Crypto.Hashes.DoubleSHA256(ts.ToArray());
                         }
 
-                        var signature = _signing.CalculateVrfSignature(Curve.decodePrivatePoint(_keyPair.PrivateKey),
-                            hash.ToBytes(false));
-                        var vrfSig = _signing.VerifyVrfSignature(Curve.decodePoint(_keyPair.PublicKey, 0),
-                            hash.ToBytes(false),
-                            signature);
+                        var calculateVrfSignature =
+                            _signing.CalculateVrfSignature(Curve.decodePrivatePoint(_keyPair.PrivateKey),
+                                hash.ToBytes(false));
+                        var verifyVrfSignature = _signing.VerifyVrfSignature(Curve.decodePoint(_keyPair.PublicKey, 0),
+                            hash.ToBytes(false), calculateVrfSignature);
 
-                        var solution = _validator.Solution(vrfSig, hash.ToBytes(false));
+                        var solution = _validator.Solution(verifyVrfSignature, hash.ToBytes(false));
 
-                        var runningDistribution = await _validator.CurrentRunningDistribution(topBlockHeader);
+                        var runningDistribution = await _validator.CurrentRunningDistribution(prevBlock);
                         var networkShare = _validator.NetworkShare(solution, runningDistribution);
                         var reward = _validator.Reward(solution, runningDistribution);
                         var bits = _validator.Difficulty(solution, networkShare);
@@ -154,11 +154,11 @@ namespace CYPCore.Ledger
 
                         transactions.Insert(0, coinStakeTransaction);
 
-                        var blockHeader = CreateBlock(transactions.ToArray(), signature, vrfSig, solution, bits,
-                            topBlockHeader);
+                        var blockHeader = CreateBlock(transactions.ToArray(), calculateVrfSignature, verifyVrfSignature,
+                            solution, bits, prevBlock);
                         if (blockHeader == null) throw new Exception();
 
-                        blockHeader = _unitOfWork.DeliveredRepository.ToTrie(blockHeader);
+                        blockHeader = _unitOfWork.HashChainRepository.ToTrie(blockHeader);
                         if (blockHeader == null)
                         {
                             _logger.Here().Fatal("Unable to add the merkel to the block");
@@ -323,9 +323,7 @@ namespace CYPCore.Ledger
                 else
                 {
                     var content = await response.Content.ReadAsStringAsync();
-                    _logger.Here().Error("{@Content}\n StatusCode: {@StatusCode}",
-                        content,
-                        (int)response.StatusCode);
+                    _logger.Here().Error("{@Content}\n StatusCode: {@StatusCode}", content, (int)response.StatusCode);
 
                     throw new Exception(content);
                 }

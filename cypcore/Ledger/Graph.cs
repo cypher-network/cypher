@@ -267,7 +267,7 @@ namespace CYPCore.Ledger
 
             try
             {
-                blockHeaders = await _unitOfWork.DeliveredRepository.RangeAsync(skip, take);
+                blockHeaders = await _unitOfWork.HashChainRepository.RangeAsync(skip, take);
             }
             catch (Exception ex)
             {
@@ -287,10 +287,10 @@ namespace CYPCore.Ledger
 
             try
             {
-                var height = await _unitOfWork.DeliveredRepository.CountAsync() - 147;
+                var height = await _unitOfWork.HashChainRepository.CountAsync() - 147;
                 height = height < 0 ? 0 : height;
 
-                blockHeaders = await _unitOfWork.DeliveredRepository.RangeAsync(height, 147);
+                blockHeaders = await _unitOfWork.HashChainRepository.RangeAsync(height, 147);
             }
             catch (Exception ex)
             {
@@ -310,7 +310,7 @@ namespace CYPCore.Ledger
 
             try
             {
-                height = await _unitOfWork.DeliveredRepository.CountAsync();
+                height = await _unitOfWork.HashChainRepository.CountAsync();
             }
             catch (Exception ex)
             {
@@ -333,7 +333,7 @@ namespace CYPCore.Ledger
 
             try
             {
-                var blockHeaders = await _unitOfWork.DeliveredRepository.WhereAsync(x =>
+                var blockHeaders = await _unitOfWork.HashChainRepository.WhereAsync(x =>
                     new ValueTask<bool>(x.Transactions.Any(t => t.TxnId.Xor(transactionId))));
                 var firstBlockHeader = blockHeaders.FirstOrDefault();
                 var found = firstBlockHeader?.Transactions.FirstOrDefault(x => x.TxnId.Xor(transactionId));
@@ -412,18 +412,16 @@ namespace CYPCore.Ledger
 
             try
             {
-                foreach (var next in deliver.Blocks)
+                foreach (var next in deliver.Blocks.Where(x => x.Data != null))
                 {
-                    if (next.Data == null) continue;
-
                     var blockGraph = await _unitOfWork.BlockGraphRepository.GetAsync(x =>
                         new ValueTask<bool>(x.Block.Hash.Equals(next.Hash) && x.Block.Round == next.Round));
                     if (blockGraph == null)
                     {
                         _logger.Here()
-                            .Error("Unable to find the matching block - Hash: {@Hash} Round: {@Round} from node {@Node}",
+                            .Error(
+                                "Unable to find the matching block - Hash: {@Hash} Round: {@Round} from node {@Node}",
                                 next.Hash, next.Round, next.Node);
-
                         continue;
                     }
 
@@ -440,7 +438,12 @@ namespace CYPCore.Ledger
                         await _validator.VerifyBlockGraphSignatureNodeRound(blockGraph);
                     if (verifyBlockGraphSignatureNodeRound == VerifyResult.Succeed)
                     {
-                        await Process(blockHeader);
+                        var saved = await _unitOfWork.DeliveredRepository.PutAsync(block.ToIdentifier(), block);
+                        if (!saved)
+                        {
+                            _logger.Here().Error("Unable to save the block: {@MerkleRoot}", block.MerkelRoot);
+                        }
+
                         continue;
                     }
 
@@ -451,7 +454,7 @@ namespace CYPCore.Ledger
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, "Blockmania error");
+                _logger.Here().Error(ex, "Delivered error");
             }
         }
 
@@ -483,7 +486,7 @@ namespace CYPCore.Ledger
 
             try
             {
-                var height = await _unitOfWork.DeliveredRepository.CountAsync();
+                var height = await _unitOfWork.HashChainRepository.CountAsync();
                 round = (ulong)height - 1;
             }
             catch (Exception ex)

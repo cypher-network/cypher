@@ -1,4 +1,4 @@
-﻿//CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+//CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
@@ -75,8 +75,7 @@ namespace CYPCore.Ledger
 
                         if (networkBlockHeight.Local.Height == networkBlockHeight.Remote.Height)
                         {
-                            SyncRunning = false;
-                            return;
+                            continue;
                         }
 
                         _logger.Here().Information("Fetching blocks");
@@ -84,7 +83,7 @@ namespace CYPCore.Ledger
                         await Fetch(new Uri(peer.Host), networkBlockHeight.Local.Height,
                             networkBlockHeight.Remote.Height / peers.Count);
 
-                        var localHeight = await _unitOfWork.DeliveredRepository.CountAsync();
+                        var localHeight = await _unitOfWork.HashChainRepository.CountAsync();
 
                         _logger.Here()
                             .Information(
@@ -155,7 +154,7 @@ namespace CYPCore.Ledger
                                             return;
                                         }
 
-                                        var saved = await _unitOfWork.DeliveredRepository.PutAsync(
+                                        var saved = await _unitOfWork.HashChainRepository.PutAsync(
                                             blockHeader.ToIdentifier(), blockHeader);
                                         if (!saved)
                                         {
