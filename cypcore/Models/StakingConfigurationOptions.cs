@@ -6,6 +6,7 @@ namespace CYPCore.Models
     public class StakingConfigurationOptions
     {
         public bool OnOff { get; set; }
+        public int BlockTransactionCount { get; set; }
         public WalletSettings WalletSettings { get; set; }
     }
 }

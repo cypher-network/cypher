@@ -100,7 +100,7 @@ namespace CYPCore.Ledger
             }
 
             var transactions = new List<TransactionProto>();
-            var subscribe = _memoryPool.ObserveTake(100)
+            var subscribe = _memoryPool.ObserveTake(StakingConfigurationOptions.BlockTransactionCount)
                 .Subscribe(async x =>
                 {
                     var verifyTransaction = await _validator.VerifyTransaction(x);
