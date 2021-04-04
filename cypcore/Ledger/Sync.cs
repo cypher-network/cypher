@@ -1,4 +1,4 @@
-//CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+﻿//CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
@@ -143,6 +143,13 @@ namespace CYPCore.Ledger
                                 var blockHeaders =
                                     FlatBufferSerializer.Default.Parse<GenericList<BlockHeaderProto>>(blockHeaderStream
                                         .FlatBuffer);
+
+                                var verifyForkRule = await _validator.VerifyForkRule(blockHeaders.Data.ToArray());
+                                if (verifyForkRule == VerifyResult.UnableToVerify)
+                                {
+                                    _logger.Here().Error("Unable to verify fork rule from: {@Host}", uri.Host);
+                                    return;
+                                }
 
                                 foreach (var blockHeader in blockHeaders.Data.OrderBy(x => x.Height))
                                 {
