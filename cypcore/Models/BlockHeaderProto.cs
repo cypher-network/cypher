@@ -1,4 +1,4 @@
-// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System.Linq;
@@ -56,7 +56,21 @@ namespace CYPCore.Models
                 .Append(NBitcoin.Crypto.Hashes.DoubleSHA256(
                     Helper.Util.Combine(Transactions.Select(x => x.ToHash()).ToArray())).ToBytes(false))
                 .Append(Version)
-                .Append(VrfSig);
+                .Append(VrfSignature);
+
+            return ts.ToArray();
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        public byte[] ToFinalStream()
+        {
+            using var ts = new Helper.TangramStream();
+
+            ts.Append(ToStream());
+            ts.Append(MerkelRoot);
 
             return ts.ToArray();
         }
