@@ -32,6 +32,7 @@ namespace CYPCore.Ledger
     {
         StakingConfigurationOptions StakingConfigurationOptions { get; }
         Task RunStakingAsync();
+        Task RunStakingWinnerAsync();
     }
 
     /// <summary>
@@ -186,6 +187,74 @@ namespace CYPCore.Ledger
                 });
 
             subscribe.Dispose();
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        public async Task RunStakingWinnerAsync()
+        {
+            if (_sync.SyncRunning) return;
+
+            var height = await _unitOfWork.HashChainRepository.CountAsync() - 1;
+
+            var prevBlock = await _unitOfWork.HashChainRepository.GetAsync(x =>
+                new ValueTask<bool>(x.Height == height));
+            if (prevBlock == null) return;
+
+            var deliveredBlocks =
+                await _unitOfWork.DeliveredRepository.WhereAsync(x => new ValueTask<bool>(x.Height == height));
+
+            var blockWinners = deliveredBlocks.Select(deliveredBlock => new BlockWinner
+            {
+                BlockHeader = prevBlock,
+                Finish = new TimeSpan(deliveredBlock.Locktime).Subtract(new TimeSpan(prevBlock.Locktime)).Ticks
+            })
+                .ToList();
+
+            if (blockWinners.Any())
+            {
+                var winners = blockWinners.Where(x => x.Finish <= blockWinners.Select(endTime => endTime.Finish).Min())
+                    .ToArray();
+
+                var blockWinner = winners.Length switch
+                {
+                    > 2 => winners.FirstOrDefault(x =>
+                        x.BlockHeader.Bits >= blockWinners.Select(bits => bits.BlockHeader.Bits).Max()),
+                    _ => winners.First()
+                };
+
+                if (blockWinner != null)
+                {
+                    var exists = await _validator.BlockExists(blockWinner.BlockHeader);
+                    if (exists == VerifyResult.AlreadyExists)
+                    {
+                        return;
+                    }
+
+                    var verifyBlockHeader = await _validator.VerifyBlockHeader(blockWinner.BlockHeader);
+                    if (verifyBlockHeader == VerifyResult.UnableToVerify)
+                    {
+                        _logger.Here().Error("Unable to verify the block");
+                        return;
+                    }
+
+                    var saved = await _unitOfWork.HashChainRepository.PutAsync(blockWinner.BlockHeader.ToIdentifier(),
+                        blockWinner.BlockHeader);
+                }
+
+                foreach (var winner in blockWinners)
+                {
+                    var removed = await _unitOfWork.DeliveredRepository.RemoveAsync(winner.BlockHeader.ToIdentifier());
+                    if (!removed)
+                    {
+                        _logger.Here()
+                            .Error("Unable to remove potential block winner {@MerkelRoot}",
+                                winner.BlockHeader.MerkelRoot);
+                    }
+                }
+            }
         }
 
         /// <summary>

@@ -1,4 +1,4 @@
-// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
@@ -41,7 +41,20 @@ namespace CYPCore.Services
         /// </summary>
         /// <param name="stoppingToken"></param>
         /// <returns></returns>
-        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+        protected override Task ExecuteAsync(CancellationToken stoppingToken)
+        {
+            Run(async () => { await RunStakingAsync(stoppingToken); }, stoppingToken).ConfigureAwait(false);
+            Run(async () => { await RunStakingWinnerAsync(stoppingToken); }, stoppingToken).ConfigureAwait(false);
+
+            return CompletedTask;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="stoppingToken"></param>
+        /// <returns></returns>
+        private async Task RunStakingAsync(CancellationToken stoppingToken)
         {
             try
             {
