@@ -357,57 +357,6 @@ namespace CYPCore.Ledger
         /// 
         /// </summary>
         /// <param name="blockHeader"></param>
-        /// <returns></returns>
-        public async Task<VerifyResult> AddBlock(BlockHeaderProto blockHeader)
-        {
-            Guard.Argument(blockHeader, nameof(blockHeader)).NotNull();
-
-            try
-            {
-                var processed = await Process(blockHeader);
-                if (processed == VerifyResult.Invalid)
-                {
-                    _logger.Here().Error("Unable to process the block");
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.Here().Error(ex, "Unable to add the block");
-            }
-
-            return VerifyResult.Invalid;
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="blockHeaders"></param>
-        /// <returns></returns>
-        public async Task AddBlocks(BlockHeaderProto[] blockHeaders)
-        {
-            Guard.Argument(blockHeaders, nameof(blockHeaders)).NotNull().NotEmpty();
-
-            try
-            {
-                foreach (var blockHeader in blockHeaders)
-                {
-                    var processed = await Process(blockHeader);
-                    if (processed == VerifyResult.Succeed) continue;
-
-                    _logger.Here().Error("Unable to process the block");
-                    break;
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.Here().Error(ex, "Unable to add the blocks");
-            }
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="blockHeader"></param>
         /// <param name="prevBlockHeader"></param>
         /// <returns></returns>
         private BlockGraph CopyBlockGraph(BlockHeaderProto blockHeader, BlockHeaderProto prevBlockHeader)
@@ -426,33 +375,6 @@ namespace CYPCore.Ledger
             };
 
             return blockGraph;
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="blockHeader"></param>
-        /// <returns></returns>
-        private async Task<VerifyResult> Process(BlockHeaderProto blockHeader)
-        {
-            Guard.Argument(blockHeader, nameof(blockHeader)).NotNull();
-
-            var exists = await BlockHeaderExists(blockHeader);
-            if (exists == VerifyResult.AlreadyExists) return VerifyResult.Invalid;
-
-            var verifyBlockHeader = await _validator.VerifyBlockHeader(blockHeader);
-            if (verifyBlockHeader == VerifyResult.UnableToVerify)
-            {
-                _logger.Here().Error("Unable to verify the block");
-                return VerifyResult.Invalid;
-            }
-
-            var saved = await _unitOfWork.DeliveredRepository.PutAsync(blockHeader.ToIdentifier(), blockHeader);
-            if (saved) return VerifyResult.Succeed;
-
-            _logger.Here().Error("Unable to save the block: {@MerkleRoot}", blockHeader.MerkelRoot);
-
-            return VerifyResult.Invalid;
         }
 
         /// <summary>

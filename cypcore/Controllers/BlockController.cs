@@ -32,31 +32,6 @@ namespace CYPCore.Controllers
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="block"></param>
-        /// <returns></returns>
-        [HttpPost("block", Name = "AddBlock")]
-        [ProducesResponseType(typeof(byte[]), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> AddBlock([FromBody] byte[] block)
-        {
-            try
-            {
-                var blockHeader = FlatBufferSerializer.Default.Parse<BlockHeaderProto>(block);
-                var added = await _graph.AddBlock(blockHeader);
-
-                return new ObjectResult(new { code = added == VerifyResult.Succeed ? StatusCodes.Status200OK : StatusCodes.Status500InternalServerError });
-            }
-            catch (Exception ex)
-            {
-                _logger.Here().Error(ex, "Unable to add the block");
-            }
-
-            return new StatusCodeResult(StatusCodes.Status500InternalServerError);
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
         /// <param name="blockGraph"></param>
         /// <returns></returns>
         [HttpPost("blockgraph", Name = "AddBlockGraph")]
@@ -74,31 +49,6 @@ namespace CYPCore.Controllers
             catch (Exception ex)
             {
                 _logger.Here().Error(ex, "Unable to add the block graph");
-            }
-
-            return new StatusCodeResult(StatusCodes.Status500InternalServerError);
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="blocks"></param>
-        /// <returns></returns>
-        [HttpPost("blocks", Name = "AddBlocks")]
-        [ProducesResponseType(typeof(byte[]), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> AddBlocks([FromBody] byte[] blocks)
-        {
-            try
-            {
-                var blockHeaders = FlatBufferSerializer.Default.Parse<BlockHeaderProto[]>(blocks);
-                await _graph.AddBlocks(blockHeaders);
-
-                return new OkResult();
-            }
-            catch (Exception ex)
-            {
-                _logger.Here().Error(ex, "Unable to add the blocks");
             }
 
             return new StatusCodeResult(StatusCodes.Status500InternalServerError);
@@ -161,14 +111,14 @@ namespace CYPCore.Controllers
         /// <param name="skip"></param>
         /// <param name="take"></param>
         /// <returns></returns>
-        [HttpGet("blocks/{skip}/{take}", Name = "GetRange")]
+        [HttpGet("blocks/{skip}/{take}", Name = "GetBlocks")]
         [ProducesResponseType(typeof(byte[]), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> GetRange(int skip, int take)
+        public async Task<IActionResult> GetBlocks(int skip, int take)
         {
             try
             {
-                var blocks = await _graph.GetBlockHeaders(skip, take);
+                var blocks = await _graph.GetBlocks(skip, take);
                 var genericList = new GenericList<BlockHeaderProto> { Data = blocks.ToList() };
                 var maxBytesNeeded = FlatBufferSerializer.Default.GetMaxSize(genericList);
                 var buffer = new byte[maxBytesNeeded];
