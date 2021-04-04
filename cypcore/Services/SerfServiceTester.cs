@@ -1,6 +1,4 @@
-using System.Linq;
 using System.Threading.Tasks;
-using Autofac;
 using CYPCore.Cryptography;
 using CYPCore.Extensions;
 using CYPCore.Models;

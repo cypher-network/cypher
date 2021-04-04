@@ -60,10 +60,7 @@ namespace CYPCore.Ledger
             try
             {
                 if (transaction.Validate().Any()) return VerifyResult.Invalid;
-                
-                var buffer = Helper.Util.SerializeFlatBuffer(transaction);
-                _localNode.Broadcast(buffer, TopicType.AddTransaction);
-                
+
                 var memoryMax = Count() > MemoryPoolMaxTransactions;
                 if (memoryMax) return VerifyResult.OutOfMemory;
 
@@ -72,6 +69,9 @@ namespace CYPCore.Ledger
                 {
                     return VerifyResult.AlreadyExists;
                 }
+
+                var buffer = Helper.Util.SerializeFlatBuffer(transaction);
+                _localNode.Broadcast(buffer, TopicType.AddTransaction);
             }
             catch (Exception ex)
             {

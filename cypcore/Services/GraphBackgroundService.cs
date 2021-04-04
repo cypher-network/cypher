@@ -10,6 +10,7 @@ using CYPCore.Extentions;
 using CYPCore.Ledger;
 using Microsoft.Extensions.Hosting;
 using Serilog;
+using static System.Threading.Tasks.Task;
 
 namespace CYPCore.Services
 {
@@ -48,7 +49,7 @@ namespace CYPCore.Services
         {
             try
             {
-                await Task.Yield();
+                await Yield();
 
                 while (_applicationRunning)
                 {
@@ -63,7 +64,7 @@ namespace CYPCore.Services
                     var workStart = next.Add(new TimeSpan(-workDuration));
                     var timeSpan = workStart.Subtract(DateTime.Now);
 
-                    await Task.Delay((int)Math.Abs(timeSpan.TotalMilliseconds), stoppingToken);
+                    await Delay((int)Math.Abs(timeSpan.TotalMilliseconds), stoppingToken);
 
                     try
                     {

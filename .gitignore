@@ -1,17 +1,15 @@
 # IDE
 /.vscode
 /.vs
+.idea/.idea.cypher/.idea/riderModule.iml
 
 # misc
 /bin
 /obj
-/publish1
-/publish2
 .DS_Store
 
-**/snapshots/
-**/publish/
-**/publish2/
+**/appsettings.Development.json
+**/snapshot
 
 *.Jnrl
 *.rhp
@@ -43,8 +41,4 @@ bld/
 *.sln.docstates
 *.log
 *.db
-RetainedMessages.json
 
-cypnode/snapshot
-
-.idea/.idea.cypher/.idea/riderModule.iml

@@ -5,11 +5,10 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
-
 using Serilog;
-
 using CYPCore.Extensions;
 using CYPCore.Ledger;
+using static System.Threading.Tasks.Task;
 
 namespace CYPCore.Services
 {
@@ -33,7 +32,7 @@ namespace CYPCore.Services
         {
             try
             {
-                await Task.Yield();
+                await Yield();
 
                 while (true)
                 {
@@ -42,7 +41,7 @@ namespace CYPCore.Services
                     try
                     {
                         await _sync.Synchronize();
-                        await Task.Delay(600000, stoppingToken);
+                        await Delay(600000, stoppingToken);
                     }
                     catch (Exception)
                     {
@@ -53,7 +52,7 @@ namespace CYPCore.Services
                     {
                         stoppingToken.ThrowIfCancellationRequested();
 
-                        await Task.Delay(6000, stoppingToken);
+                        await Delay(6000, stoppingToken);
                     }
                 }
             }
