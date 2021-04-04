@@ -1,4 +1,4 @@
-﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
@@ -285,8 +285,16 @@ namespace CYPCore.Ledger
         {
             Guard.Argument(blockHeader, nameof(blockHeader)).NotNull();
 
-            var verifySloth = VerifySloth(blockHeader.Bits, blockHeader.VrfSig.HexToByte(), blockHeader.Nonce.ToBytes(),
-                blockHeader.Sec.ToBytes());
+            var verifySignature = _signing.VerifySignature(blockHeader.Signature.HexToByte(),
+                blockHeader.PublicKey.HexToByte(), blockHeader.ToFinalStream());
+            if (verifySignature == false)
+            {
+                _logger.Here().Fatal("Unable to verify the block signature");
+                return VerifyResult.UnableToVerify;
+            }
+
+            var verifySloth = VerifySloth(blockHeader.Bits, blockHeader.VrfSignature.HexToByte(),
+                blockHeader.Nonce.ToBytes(), blockHeader.Sec.ToBytes());
             if (verifySloth == VerifyResult.UnableToVerify)
             {
                 _logger.Here().Fatal("Unable to verify the Verified Delay Function");
