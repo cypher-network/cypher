@@ -1,4 +1,4 @@
-﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
@@ -24,8 +24,9 @@ namespace CYPCore.Persistence
         public static readonly StoreDb DataProtectionTable = new(2, "DataProtectionTable");
         public static readonly StoreDb DeliveredTable = new(3, "DeliveredTable");
         public static readonly StoreDb KeyImageTable = new(4, "KeyImageTable");
-        public static readonly StoreDb StagingTable = new(5, "StagingTable");
+        private static readonly StoreDb StagingTable = new(5, "StagingTable");
         public static readonly StoreDb TransactionTable = new(6, "TransactionTable");
+        public static readonly StoreDb HashChainTable = new(7, "HashChainTable");
 
         private StoreDb(int value, string name)
         {
@@ -84,7 +85,8 @@ namespace CYPCore.Persistence
                 {DeliveredTable.ToString(), ColumnFamilyOptions(blockBasedTableOptions)},
                 {KeyImageTable.ToString(), ColumnFamilyOptions(blockBasedTableOptions)},
                 {StagingTable.ToString(), ColumnFamilyOptions(blockBasedTableOptions)},
-                {TransactionTable.ToString(), ColumnFamilyOptions(blockBasedTableOptions)}
+                {TransactionTable.ToString(), ColumnFamilyOptions(blockBasedTableOptions)},
+                {HashChainTable.ToString(), ColumnFamilyOptions(blockBasedTableOptions)}
             };
             return columnFamilies;
         }
