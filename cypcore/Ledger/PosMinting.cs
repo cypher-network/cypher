@@ -254,8 +254,7 @@ namespace CYPCore.Ledger
                 Bits = bits,
                 Height = 1 + previous.Height,
                 Locktime = lockTime,
-                LocktimeScript =
-                    new Script(Op.GetPushOp(lockTime), OpcodeType.OP_CHECKLOCKTIMEVERIFY).ToString(),
+                LocktimeScript = new Script(Op.GetPushOp(lockTime), OpcodeType.OP_CHECKLOCKTIMEVERIFY).ToString(),
                 Nonce = nonce,
                 PrevMerkelRoot = previous.MerkelRoot,
                 Proof = signature.ByteToHex(),
@@ -264,7 +263,7 @@ namespace CYPCore.Ledger
                 Solution = solution,
                 Transactions = transactions,
                 Version = 0x1,
-                VrfSig = vrfBytes.ByteToHex(),
+                VrfSignature = vrfBytes.ByteToHex(),
             };
 
             return blockHeader;
