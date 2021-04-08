@@ -40,7 +40,12 @@ namespace CYPCore.Controllers
                 var payload = FlatBufferSerializer.Default.Parse<TransactionProto>(tx);
                 var added = _memoryPool.Add(payload);
 
-                return new ObjectResult(new { code = added == VerifyResult.Succeed ? StatusCodes.Status200OK : StatusCodes.Status500InternalServerError });
+                return added switch
+                {
+                    VerifyResult.Succeed => new ObjectResult(StatusCodes.Status200OK),
+                    VerifyResult.AlreadyExists => new ConflictObjectResult(StatusCodes.Status409Conflict),
+                    _ => new BadRequestObjectResult(StatusCodes.Status500InternalServerError),
+                };
             }
             catch (Exception ex)
             {
