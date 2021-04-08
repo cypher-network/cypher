@@ -52,12 +52,12 @@ namespace CYPCore.Services
                 try
                 {
                     _runStakingWinnerTimer = new Timer(_ => _posMinting.RunStakingWinnerAsync(), null,
-                        TimeSpan.FromSeconds(8), TimeSpan.FromSeconds(1500));
+                        TimeSpan.FromSeconds(8), TimeSpan.FromSeconds(15));
 
                     if (_posMinting.StakingConfigurationOptions.OnOff != true) return;
 
                     _runStakingTimer = new Timer(_ => _posMinting.RunStakingAsync(), null, TimeSpan.FromSeconds(5),
-                        TimeSpan.FromSeconds(1000));
+                        TimeSpan.FromSeconds(10));
                 }
                 catch (Exception)
                 {

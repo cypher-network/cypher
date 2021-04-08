@@ -267,16 +267,16 @@ namespace CYPCore.Ledger
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="winner1"></param>
+        /// <param name="winner"></param>
         /// <returns></returns>
-        private async Task RemoveDeliveredBlock(BlockWinner winner1)
+        private async Task RemoveDeliveredBlock(BlockWinner winner)
         {
-            var removed = await _unitOfWork.DeliveredRepository.RemoveAsync(winner1.BlockHeader.ToIdentifier());
+            var removed = await _unitOfWork.DeliveredRepository.RemoveAsync(winner.BlockHeader.ToIdentifier());
             if (!removed)
             {
                 _logger.Here()
                     .Error("Unable to remove potential block winner {@MerkelRoot}",
-                        winner1.BlockHeader.MerkelRoot);
+                        winner.BlockHeader.MerkelRoot);
             }
         }
 
