@@ -27,6 +27,7 @@ namespace CYPCore.Persistence
         private static readonly StoreDb StagingTable = new(5, "StagingTable");
         public static readonly StoreDb TransactionTable = new(6, "TransactionTable");
         public static readonly StoreDb HashChainTable = new(7, "HashChainTable");
+        public static readonly StoreDb TrieTable = new(8, "TrieTable");
 
         private StoreDb(int value, string name)
         {
@@ -86,7 +87,8 @@ namespace CYPCore.Persistence
                 {KeyImageTable.ToString(), ColumnFamilyOptions(blockBasedTableOptions)},
                 {StagingTable.ToString(), ColumnFamilyOptions(blockBasedTableOptions)},
                 {TransactionTable.ToString(), ColumnFamilyOptions(blockBasedTableOptions)},
-                {HashChainTable.ToString(), ColumnFamilyOptions(blockBasedTableOptions)}
+                {HashChainTable.ToString(), ColumnFamilyOptions(blockBasedTableOptions)},
+                {TrieTable.ToString(), ColumnFamilyOptions(blockBasedTableOptions)}
             };
             return columnFamilies;
         }
