@@ -23,7 +23,10 @@ namespace CYPNode
         /// <returns></returns>
         public static int Main(string[] args)
         {
-            var settingsFile = $"appsettings.{Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")}.json";
+            var settingsFile = string.Empty;
+            settingsFile = System.Diagnostics.Debugger.IsAttached ? "appsettings.Development.json" : "appsettings.Production.json";
+
+            //var settingsFile = $"appsettings.{Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")}.json";
             var config = new ConfigurationBuilder()
                 .SetBasePath(Directory.GetCurrentDirectory())
                 .AddJsonFile(settingsFile, optional: false)
