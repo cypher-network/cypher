@@ -6,11 +6,11 @@ using System.Threading;
 using System.Threading.Tasks;
 using CYPCore.Consensus;
 using CYPCore.Extensions;
-using CYPCore.Extentions;
 using CYPCore.Ledger;
 using Microsoft.Extensions.Hosting;
 using Serilog;
 using static System.Threading.Tasks.Task;
+using Timeout = System.Threading.Timeout;
 
 namespace CYPCore.Services
 {
@@ -20,7 +20,9 @@ namespace CYPCore.Services
         private readonly PbftOptions _pBftOptions;
         private readonly ILogger _logger;
 
-        private bool _applicationRunning = true;
+        private Timer _runGraphReadyTimer;
+        private Timer _runGraphWriteTimer;
+        private Timer _runGraphKeepAliveNodesTimer;
 
         public GraphBackgroundService(IGraph graph, IHostApplicationLifetime applicationLifetime, ILogger logger)
         {
@@ -37,7 +39,9 @@ namespace CYPCore.Services
         private void OnApplicationStopping()
         {
             _logger.Here().Information("Application stopping");
-            _applicationRunning = false;
+            _runGraphReadyTimer?.Change(Timeout.Infinite, 0);
+            _runGraphWriteTimer?.Change(Timeout.Infinite, 0);
+            _runGraphKeepAliveNodesTimer?.Change(Timeout.Infinite, 0);
         }
 
         /// <summary>
@@ -45,45 +49,25 @@ namespace CYPCore.Services
         /// </summary>
         /// <param name="stoppingToken"></param>
         /// <returns></returns>
-        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+        protected override Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            try
+            void Action()
             {
-                await Yield();
-
-                while (_applicationRunning)
+                try
                 {
-                    stoppingToken.ThrowIfCancellationRequested();
-
-                    if (!_applicationRunning) continue;
-
-                    var interval = _pBftOptions.RoundInterval;
-                    var start = DateTime.Now.Truncate(interval);
-                    var workDuration = _pBftOptions.InitialWorkDuration;
-                    var next = start.Add(new TimeSpan(interval));
-                    var workStart = next.Add(new TimeSpan(-workDuration));
-                    var timeSpan = workStart.Subtract(DateTime.Now);
-
-                    await Delay((int)Math.Abs(timeSpan.TotalMilliseconds), stoppingToken);
-
-                    try
-                    {
-                        await _graph.Ready();
-                        await _graph.WriteAsync(100, stoppingToken);
-                    }
-                    catch (Exception)
-                    {
-                        // ignored
-                    }
+                    _runGraphReadyTimer = new Timer(_ => _graph.Ready(), null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(10));
+                    _runGraphWriteTimer = new Timer(_ => _graph.WriteAsync(100), null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(13));
+                    _runGraphKeepAliveNodesTimer = new Timer(_ => _graph.RemoveUnresponsiveNodesAsync(), null, TimeSpan.FromSeconds(20), TimeSpan.FromSeconds(15));
+                }
+                catch (Exception)
+                {
+                    // ignored
                 }
             }
-            catch (TaskCanceledException)
-            {
-            }
-            catch (Exception ex)
-            {
-                _logger.Here().Error(ex, "Graph process error");
-            }
+
+            Run(Action, stoppingToken);
+
+            return CompletedTask;
         }
     }
 }

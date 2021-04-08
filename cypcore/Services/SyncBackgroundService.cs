@@ -17,10 +17,23 @@ namespace CYPCore.Services
         private readonly ISync _sync;
         private readonly ILogger _logger;
 
-        public SyncBackgroundService(ISync sync, ILogger logger)
+        private Timer _runSyncTimer;
+
+        public SyncBackgroundService(ISync sync, IHostApplicationLifetime applicationLifetime, ILogger logger)
         {
             _sync = sync;
             _logger = logger.ForContext("SourceContext", nameof(SyncBackgroundService));
+
+            applicationLifetime.ApplicationStopping.Register(OnApplicationStopping);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        private void OnApplicationStopping()
+        {
+            _logger.Here().Information("Application stopping");
+            _runSyncTimer?.Change(Timeout.Infinite, 0);
         }
 
         /// <summary>
@@ -28,38 +41,23 @@ namespace CYPCore.Services
         /// </summary>
         /// <param name="stoppingToken"></param>
         /// <returns></returns>
-        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+        protected override Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            try
+            void Action()
             {
-                await Yield();
-
-                while (true)
+                try
                 {
-                    stoppingToken.ThrowIfCancellationRequested();
-
-                    try
-                    {
-                        await _sync.Synchronize();
-                        await Delay(600000, stoppingToken);
-                    }
-                    catch (Exception)
-                    {
-                        // ignored
-                    }
-
-                    while (_sync.SyncRunning)
-                    {
-                        stoppingToken.ThrowIfCancellationRequested();
-
-                        await Delay(6000, stoppingToken);
-                    }
+                    _runSyncTimer = new Timer(_ => _sync.Synchronize(), null, TimeSpan.FromSeconds(3), TimeSpan.FromMinutes(10));
+                }
+                catch (Exception)
+                {
+                    // ignored
                 }
             }
-            catch (Exception ex)
-            {
-                _logger.Here().Error(ex, "Sync process error");
-            }
+
+            Run(Action, stoppingToken);
+
+            return CompletedTask;
         }
     }
 }

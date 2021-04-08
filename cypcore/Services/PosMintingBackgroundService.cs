@@ -16,8 +16,10 @@ namespace CYPCore.Services
     public class PosMintingBackgroundService : BackgroundService
     {
         private readonly IPosMinting _posMinting;
-        private bool _applicationRunning = true;
         private readonly ILogger _logger;
+
+        private Timer _runStakingTimer;
+        private Timer _runStakingWinnerTimer;
 
         public PosMintingBackgroundService(IPosMinting posMinting, IHostApplicationLifetime applicationLifetime, ILogger logger)
         {
@@ -33,7 +35,9 @@ namespace CYPCore.Services
         private void OnApplicationStopping()
         {
             _logger.Here().Information("Application stopping");
-            _applicationRunning = false;
+
+            _runStakingTimer?.Change(Timeout.Infinite, 0);
+            _runStakingWinnerTimer?.Change(Timeout.Infinite, 0);
         }
 
         /// <summary>
@@ -43,96 +47,27 @@ namespace CYPCore.Services
         /// <returns></returns>
         protected override Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            Run(async () => { await RunStakingAsync(stoppingToken); }, stoppingToken).ConfigureAwait(false);
-            Run(async () => { await RunStakingWinnerAsync(stoppingToken); }, stoppingToken).ConfigureAwait(false);
+            void Action()
+            {
+                try
+                {
+                    _runStakingWinnerTimer = new Timer(_ => _posMinting.RunStakingWinnerAsync(), null,
+                        TimeSpan.FromSeconds(8), TimeSpan.FromSeconds(1500));
+
+                    if (_posMinting.StakingConfigurationOptions.OnOff != true) return;
+
+                    _runStakingTimer = new Timer(_ => _posMinting.RunStakingAsync(), null, TimeSpan.FromSeconds(5),
+                        TimeSpan.FromSeconds(1000));
+                }
+                catch (Exception)
+                {
+                    // ignored
+                }
+            }
+
+            Run(Action, stoppingToken);
 
             return CompletedTask;
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="stoppingToken"></param>
-        /// <returns></returns>
-        private async Task RunStakingAsync(CancellationToken stoppingToken)
-        {
-            try
-            {
-                if (_posMinting.StakingConfigurationOptions.OnOff != true)
-                {
-                    return;
-                }
-
-                await Yield();
-
-                while (_applicationRunning)
-                {
-                    stoppingToken.ThrowIfCancellationRequested();
-
-                    if (!_applicationRunning) continue;
-
-                    try
-                    {
-                        await _posMinting.RunStakingAsync();
-                    }
-                    catch (Exception)
-                    {
-                        // ignored
-                    }
-
-                    await Delay(10100, stoppingToken);
-                }
-            }
-            catch (TaskCanceledException)
-            {
-            }
-            catch (Exception ex)
-            {
-                _logger.Here().Error(ex, "Pos minting background service error");
-            }
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="stoppingToken"></param>
-        /// <returns></returns>
-        private async Task RunStakingWinnerAsync(CancellationToken stoppingToken)
-        {
-            try
-            {
-                if (_posMinting.StakingConfigurationOptions.OnOff != true)
-                {
-                    return;
-                }
-
-                await Yield();
-
-                while (_applicationRunning)
-                {
-                    stoppingToken.ThrowIfCancellationRequested();
-
-                    if (!_applicationRunning) continue;
-
-                    await Delay(21100, stoppingToken);
-
-                    try
-                    {
-                        await _posMinting.RunStakingWinnerAsync();
-                    }
-                    catch (Exception)
-                    {
-                        // ignored
-                    }
-                }
-            }
-            catch (TaskCanceledException)
-            {
-            }
-            catch (Exception ex)
-            {
-                _logger.Here().Error(ex, "Pos staking winner background service error");
-            }
         }
     }
 }
