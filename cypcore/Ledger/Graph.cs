@@ -5,7 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Threading;
+using System.Reactive.Linq;
 using System.Threading.Tasks;
 using CYPCore.Consensus;
 using CYPCore.Consensus.Models;
@@ -24,12 +24,13 @@ namespace CYPCore.Ledger
     public interface IGraph
     {
         Task Ready();
-        Task WriteAsync(int take, CancellationToken cancellationToken);
+        Task WriteAsync(int take);
         Task<VerifyResult> TryAddBlockGraph(BlockGraph blockGraph);
         Task<VoutProto[]> GetTransaction(byte[] txnId);
         Task<IEnumerable<BlockHeaderProto>> GetBlocks(int skip, int take);
         Task<IEnumerable<BlockHeaderProto>> GetSafeguardBlocks();
         Task<long> GetHeight();
+        Task RemoveUnresponsiveNodesAsync();
     }
 
     public class Graph : IGraph
@@ -127,63 +128,25 @@ namespace CYPCore.Ledger
         /// 
         /// </summary>
         /// <returns></returns>
-        public async Task Ready()
+        public Task Ready()
         {
-            if (_sync.SyncRunning) return;
+            if (_sync.SyncRunning) return Task.CompletedTask;
 
-            var nodes = await _localNode.Nodes();
-            if (nodes == null)
+            var localPeers = _localNode.ObservePeers().Select(peer => peer).ToArray();
+            localPeers.Subscribe(async peers =>
             {
-                IsDebug();
-                IsRelease();
+                if (_blockmania != null) return;
 
-                return;
-            }
-
-            if (_blockmania == null)
-            {
                 var lastInterpreted = await GetRound();
 
-                _config = new Config(lastInterpreted, nodes, _serfClient.ClientId, (ulong)nodes.Length);
+                _config = new Config(lastInterpreted, peers.Select(n => n.ClientId).ToArray(), _serfClient.ClientId,
+                    (ulong)peers.Length);
+
                 _blockmania = new Blockmania(_config, _logger);
                 _blockmania.Delivered += (sender, e) => Delivered(sender, e).SwallowException();
-            }
+            });
 
-            var blockInfos = _blockmania.Blocks.Where(x => !nodes.Contains(x.Data.Block.Node)).ToArray();
-            foreach (var node in blockInfos.Select(x => x.Data.Block.Node))
-            {
-                if (_serfClient.ClientId == node) continue;
-
-                var (_, peer) = (await _localNode.GetPeers()).FirstOrDefault(x => x.Key == node);
-
-                try
-                {
-                    var networkBlockHeight = await _localNode.PeerBlockHeight(peer);
-                    if (networkBlockHeight.Local.Height == networkBlockHeight.Remote.Height) continue;
-
-                    var temp = new List<ulong>(nodes);
-                    temp.Remove(node);
-                    nodes = temp.ToArray();
-                }
-                catch (Exception)
-                {
-                    _logger.Here().Error("Unable to remove an unresponsive node {@NodeName}", peer.NodeName);
-                }
-            }
-
-            var f = (nodes.Length - 1) / 3;
-
-            _blockmania.NodeCount = nodes.Length;
-            _blockmania.Nodes = nodes;
-            _blockmania.Quorumf1 = f + 1;
-            _blockmania.Quorum2f = 2 * f;
-            _blockmania.Quorum2f1 = 2 * f + 1;
-
-            _logger.Here()
-                .Debug(
-                    "Blockmania configuration: {@SelfId}, {@Round}, {@NodeCount}, {@Nodes}, {@TotalNodes}, {@f}, {@Quorumf1}, {@Quorum2f}, {@Quorum2f1}",
-                    _blockmania.Self, _blockmania.Round, _blockmania.NodeCount, _blockmania.Nodes,
-                    _blockmania.TotalNodes, f, _blockmania.Quorumf1, _blockmania.Quorum2f, _blockmania.Quorum2f1);
+            return Task.CompletedTask;
         }
 
         /// <summary>
@@ -378,8 +341,7 @@ namespace CYPCore.Ledger
         /// 
         /// </summary>
         /// <param name="take"></param>
-        /// <param name="cancellationToken"></param>
-        public async Task WriteAsync(int take, CancellationToken cancellationToken)
+        public async Task WriteAsync(int take)
         {
             Guard.Argument(take, nameof(take)).NotNegative();
 
@@ -391,7 +353,7 @@ namespace CYPCore.Ledger
                 foreach (var blockGraph in blockGraphs.Where(blockGraph => _blockmania.Round <= blockGraph.Block.Round))
                 {
                     _blockmania.Add(blockGraph);
-                    await Task.Delay(100, cancellationToken);
+                    await Task.Delay(100);
                 }
             }
             catch (Exception ex)
@@ -458,6 +420,8 @@ namespace CYPCore.Ledger
         {
             Guard.Argument(deliver, nameof(deliver)).NotNull();
 
+            _logger.Here().Information("Delivered");
+
             try
             {
                 foreach (var next in deliver.Blocks.Where(x => x.Data != null))
@@ -491,6 +455,8 @@ namespace CYPCore.Ledger
                         {
                             _logger.Here().Error("Unable to save the block: {@MerkleRoot}", block.MerkelRoot);
                         }
+
+                        _logger.Here().Information("Saved block to Delivered");
 
                         continue;
                     }
