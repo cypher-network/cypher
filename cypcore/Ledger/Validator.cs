@@ -1,4 +1,4 @@
-﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
@@ -784,23 +784,19 @@ namespace CYPCore.Ledger
             {
                 var xBlockHeader = xChain.First();
 
-                var height = await _unitOfWork.HashChainRepository.CountAsync() - 1;
-
                 var lastBlock = await _unitOfWork.HashChainRepository.GetAsync(x =>
-                    new ValueTask<bool>(x.Height == height));
+                    new ValueTask<bool>(x.Height == xBlockHeader.Height));
+
                 if (lastBlock == null) return VerifyResult.Succeed;
 
-                if (lastBlock.MerkelRoot.Equals(xBlockHeader.PrevMerkelRoot)) return VerifyResult.Invalid;
+                if (lastBlock.MerkelRoot.Equals(xBlockHeader.PrevMerkelRoot)) return VerifyResult.UnableToVerify;
 
                 lastBlock = await _unitOfWork.HashChainRepository.GetAsync(x =>
-                    new ValueTask<bool>(x.MerkelRoot.Equals(xBlockHeader.PrevMerkelRoot)));
+                    new ValueTask<bool>(x.MerkelRoot.Equals(xBlockHeader.MerkelRoot)));
 
                 if (lastBlock == null) return VerifyResult.UnableToVerify;
 
-                var blockIndex = (await _unitOfWork.HashChainRepository.WhereAsync(x =>
-                    new ValueTask<bool>(x.MerkelRoot != lastBlock.PrevMerkelRoot))).Count;
-
-                var blockHeaders = await _unitOfWork.HashChainRepository.SkipAsync(blockIndex);
+                var blockHeaders = await _unitOfWork.HashChainRepository.SkipAsync((int)xBlockHeader.Height);
 
                 if (blockHeaders.Any())
                 {
