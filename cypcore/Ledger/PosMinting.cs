@@ -31,7 +31,7 @@ namespace CYPCore.Ledger
     public interface IPosMinting
     {
         StakingConfigurationOptions StakingConfigurationOptions { get; }
-        Task RunStakingAsync();
+        ValueTask RunStakingAsync();
         Task RunStakingWinnerAsync();
     }
 
@@ -75,7 +75,7 @@ namespace CYPCore.Ledger
         /// 
         /// </summary>
         /// <returns></returns>
-        public async Task RunStakingAsync()
+        public async ValueTask RunStakingAsync()
         {
             if (_sync.SyncRunning) return;
 
@@ -159,12 +159,9 @@ namespace CYPCore.Ledger
                             solution, bits, prevBlock);
                         if (blockHeader == null) throw new Exception();
 
-                        blockHeader = _unitOfWork.HashChainRepository.ToTrie(blockHeader);
-                        if (blockHeader == null)
-                        {
-                            _logger.Here().Fatal("Unable to add the merkel to the block");
-                            return;
-                        }
+                        _validator.Trie.Put(blockHeader.ToHash(), blockHeader.ToHash());
+
+                        blockHeader.MerkelRoot = _validator.Trie.GetRootHash().ByteToHex();
 
                         var signature =
                             await _signing.Sign(_signing.DefaultSigningKeyName, blockHeader.ToFinalStream());
@@ -330,7 +327,7 @@ namespace CYPCore.Ledger
             Guard.Argument(bits, nameof(bits)).NotNegative().NotZero();
             Guard.Argument(previous, nameof(previous)).NotNull();
 
-            var p256 = System.Numerics.BigInteger.Parse(_validator.Security256.ToStr());
+            var p256 = System.Numerics.BigInteger.Parse(Validator.Security256);
             var x = System.Numerics.BigInteger.Parse(vrfBytes.ByteToHex(),
                 System.Globalization.NumberStyles.AllowHexSpecifier);
 
@@ -353,8 +350,8 @@ namespace CYPCore.Ledger
                 Nonce = nonce,
                 PrevMerkelRoot = previous.MerkelRoot,
                 Proof = signature.ByteToHex(),
-                Sec = _validator.Security256.ToStr(),
-                Seed = _validator.Seed.ByteToHex(),
+                Sec = Validator.Security256,
+                Seed = Validator.Seed,
                 Solution = solution,
                 Transactions = transactions,
                 Version = 0x1,

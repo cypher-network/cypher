@@ -1,4 +1,4 @@
-// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
@@ -21,6 +21,7 @@ using Serilog;
 using NBitcoin;
 using NBitcoin.BouncyCastle.Math;
 using NBitcoin.Crypto;
+using Stratis.Patricia;
 using Util = CYPCore.Helper.Util;
 
 namespace CYPCore.Ledger
@@ -30,13 +31,6 @@ namespace CYPCore.Ledger
     /// </summary>
     public interface IValidator
     {
-        uint StakeTimestampMask { get; }
-
-        byte[] BlockZeroMerkel { get; }
-        byte[] BlockZeroPreMerkel { get; }
-        byte[] Seed { get; }
-        byte[] Security256 { get; }
-
         Task<VerifyResult> VerifyBlockGraphSignatureNodeRound(BlockGraph blockGraph);
         VerifyResult VerifyBulletProof(TransactionProto transaction);
         VerifyResult VerifyCoinbaseTransaction(VoutProto coinbase, ulong solution, double runningDistribution);
@@ -61,6 +55,7 @@ namespace CYPCore.Ledger
         ulong Fee(int nByte);
         VerifyResult VerifyNetworkShare(ulong solution, double previousNetworkShare, double runningDistributionTotal);
         Task<VerifyResult> BlockExists(BlockHeaderProto blockHeader);
+        PatriciaTrie Trie { get; }
     }
 
     /// <summary>
@@ -75,26 +70,47 @@ namespace CYPCore.Ledger
         private readonly ISigning _signing;
         private readonly ILogger _logger;
         private readonly ReaderWriterLockSlim _sync = new();
+        public PatriciaTrie Trie { get; private set; }
 
         public Validator(IUnitOfWork unitOfWork, ISigning signing, ILogger logger)
         {
             _unitOfWork = unitOfWork;
             _signing = signing;
             _logger = logger.ForContext("SourceContext", nameof(Validator));
+
+            SetupTrie().ConfigureAwait(false);
         }
 
-        public uint StakeTimestampMask => 0x0000000A;
-        public byte[] BlockZeroMerkel => "20b4f7c5309fd787d3d2aa90f1b0489400ef64e780fe179754c87b3769e21959".HexToByte();
+        public const uint StakeTimestampMask = 0x0000000A;
+        public const string BlockZeroMerkel = "20b4f7c5309fd787d3d2aa90f1b0489400ef64e780fe179754c87b3769e21959";
+        public const string BlockZeroPreMerkel = "3030303030303030437970686572204e6574776f726b2076742e322e32303231";
+        public const string Seed = "6b341e59ba355e73b1a8488e75b617fe1caa120aa3b56584a217862840c4f7b5d70cefc0d2b36038d67a35b3cd406d54f8065c1371a17a44c1abb38eea8883b2";
+        public const string Security256 = "60464814417085833675395020742168312237934553084050601624605007846337253615407";
 
-        public byte[] BlockZeroPreMerkel =>
-            "3030303030303030437970686572204e6574776f726b2076742e322e32303231".HexToByte();
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        private async Task SetupTrie()
+        {
+            Trie = new PatriciaTrie(_unitOfWork.TrieRepository);
 
-        public byte[] Seed =>
-            "6b341e59ba355e73b1a8488e75b617fe1caa120aa3b56584a217862840c4f7b5d70cefc0d2b36038d67a35b3cd406d54f8065c1371a17a44c1abb38eea8883b2"
-                .HexToByte();
+            var height = await _unitOfWork.HashChainRepository.CountAsync() - 1;
 
-        public byte[] Security256 =>
-            "60464814417085833675395020742168312237934553084050601624605007846337253615407".ToBytes();
+            var blockHeader = await _unitOfWork.HashChainRepository.GetAsync(x => new ValueTask<bool>(x.Height == height));
+            if (blockHeader == null) return;
+
+            var trieCount = await _unitOfWork.TrieRepository.CountAsync();
+            if (trieCount == 0)
+            {
+                Trie.Put(blockHeader.ToHash(), blockHeader.ToHash());
+                Trie.Flush();
+            }
+            else
+            {
+                Trie.SetRootHash(blockHeader.MerkelRoot.HexToByte());
+            }
+        }
 
         /// <summary>
         /// 
@@ -345,14 +361,9 @@ namespace CYPCore.Ledger
                 return VerifyResult.UnableToVerify;
             }
 
-            var matchBlockHeader = _unitOfWork.HashChainRepository.ToTrie(blockHeader);
-            if (matchBlockHeader == null)
-            {
-                _logger.Here().Fatal("Unable to add the merkel to thee block");
-                return VerifyResult.UnableToVerify;
-            }
+            Trie.Put(blockHeader.ToHash(), blockHeader.ToHash());
 
-            if (!blockHeader.MerkelRoot.Equals(matchBlockHeader.MerkelRoot))
+            if (!blockHeader.MerkelRoot.Equals(Trie.GetRootHash().ByteToHex()))
             {
                 _logger.Here().Fatal("Unable to verify the merkel");
                 return VerifyResult.UnableToVerify;
@@ -366,8 +377,8 @@ namespace CYPCore.Ledger
                 return verifyLockTime;
             }
 
-            if (blockHeader.MerkelRoot.HexToByte().Xor(BlockZeroMerkel) &&
-                blockHeader.PrevMerkelRoot.HexToByte().Xor(BlockZeroPreMerkel))
+            if (blockHeader.MerkelRoot.HexToByte().Xor(BlockZeroMerkel.HexToByte()) &&
+                blockHeader.PrevMerkelRoot.HexToByte().Xor(BlockZeroPreMerkel.HexToByte()))
                 return VerifyResult.Succeed;
 
             var prevBlock = await _unitOfWork.HashChainRepository.GetAsync(x =>
@@ -804,7 +815,8 @@ namespace CYPCore.Ledger
                                     blockHeaders.Last().Locktime.FromUnixTimeSeconds();
                     var xBlockTime = xChain.First().Locktime.FromUnixTimeSeconds() -
                                      xChain.Last().Locktime.FromUnixTimeSeconds();
-                    if (xBlockTime < blockTime) return VerifyResult.Succeed;
+
+                    if (xBlockTime <= blockTime) return VerifyResult.Succeed;
                 }
             }
             catch (Exception ex)
@@ -830,8 +842,8 @@ namespace CYPCore.Ledger
         /// <returns></returns>
         public async Task<double> CurrentRunningDistribution(BlockHeaderProto blockHeader)
         {
-            if (!blockHeader.MerkelRoot.HexToByte().Xor(BlockZeroMerkel) &&
-                !blockHeader.PrevMerkelRoot.HexToByte().Xor(BlockZeroPreMerkel))
+            if (!blockHeader.MerkelRoot.HexToByte().Xor(BlockZeroMerkel.HexToByte()) &&
+                !blockHeader.PrevMerkelRoot.HexToByte().Xor(BlockZeroPreMerkel.HexToByte()))
             {
                 return await GetRunningDistribution(blockHeader.Height + 1) -
                        blockHeader.Transactions.First().Vout.First().A.DivWithNaT();

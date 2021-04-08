@@ -8,16 +8,16 @@ using Stratis.Patricia;
 
 namespace CYPCore.Persistence
 {
-    public interface ITrieRepository: IRepository<TrieModel>, ISource<byte[], byte[]>
+    public interface ITrieRepository : IRepository<TrieModel>, ISource<byte[], byte[]>
     {
     }
-    
-    public class TrieRepository: Repository<TrieModel>, ITrieRepository
+
+    public class TrieRepository : Repository<TrieModel>, ITrieRepository
     {
         private readonly IStoreDb _storeDb;
         private readonly ILogger _logger;
-        
-        public TrieRepository(IStoreDb storeDb, ILogger logger) 
+
+        public TrieRepository(IStoreDb storeDb, ILogger logger)
             : base(storeDb, logger)
         {
             _storeDb = storeDb;
@@ -35,7 +35,7 @@ namespace CYPCore.Persistence
         {
             try
             {
-                var saved = PutAsync(key, new TrieModel {Key = key, Value = val}).GetAwaiter().GetResult();
+                var saved = PutAsync(key, new TrieModel { Key = key, Value = val }).GetAwaiter().GetResult();
                 if (saved == false) throw new Exception("Unable to save trie item");
             }
             catch (Exception ex)
@@ -52,7 +52,7 @@ namespace CYPCore.Persistence
         public byte[] Get(byte[] key)
         {
             byte[] val = null;
-            
+
             try
             {
                 var model = GetAsync(key).GetAwaiter().GetResult();

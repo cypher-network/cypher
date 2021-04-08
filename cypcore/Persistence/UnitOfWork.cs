@@ -32,7 +32,7 @@ namespace CYPCore.Persistence
         public IBlockGraphRepository BlockGraphRepository { get; }
         public IKeyImageRepository KeyImageRepository { get; }
         public IHashChainRepository HashChainRepository { get; }
-        public  ITrieRepository TrieRepository { get; }
+        public ITrieRepository TrieRepository { get; }
 
         private readonly ILogger _logger;
 
