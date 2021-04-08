@@ -204,56 +204,82 @@ namespace CYPCore.Ledger
             if (prevBlock == null) return;
 
             var deliveredBlocks =
-                await _unitOfWork.DeliveredRepository.WhereAsync(x => new ValueTask<bool>(x.Height == height));
+                await _unitOfWork.DeliveredRepository.WhereAsync(x => new ValueTask<bool>(x.Height == height + 1));
 
             var blockWinners = deliveredBlocks.Select(deliveredBlock => new BlockWinner
             {
-                BlockHeader = prevBlock,
+                BlockHeader = deliveredBlock,
                 Finish = new TimeSpan(deliveredBlock.Locktime).Subtract(new TimeSpan(prevBlock.Locktime)).Ticks
             })
                 .ToList();
 
-            if (blockWinners.Any())
+            if (blockWinners.Any() != true) return;
+
+            _logger.Here().Information("RunStakingWinnerAsync");
+
+            var winners = blockWinners.Where(x => x.Finish <= blockWinners.Select(endTime => endTime.Finish).Min())
+                .ToArray();
+
+            var blockWinner = winners.Length switch
             {
-                var winners = blockWinners.Where(x => x.Finish <= blockWinners.Select(endTime => endTime.Finish).Min())
-                    .ToArray();
+                > 2 => winners.FirstOrDefault(x =>
+                    x.BlockHeader.Bits >= blockWinners.Select(bits => bits.BlockHeader.Bits).Max()),
+                _ => winners.First()
+            };
 
-                var blockWinner = winners.Length switch
+            if (blockWinner != null)
+            {
+                _logger.Here().Information("RunStakingWinnerAsync we have a winner");
+
+                var exists = await _validator.BlockExists(blockWinner.BlockHeader);
+                if (exists == VerifyResult.AlreadyExists)
                 {
-                    > 2 => winners.FirstOrDefault(x =>
-                        x.BlockHeader.Bits >= blockWinners.Select(bits => bits.BlockHeader.Bits).Max()),
-                    _ => winners.First()
-                };
+                    _logger.Here().Error("Block winner already exists");
 
-                if (blockWinner != null)
-                {
-                    var exists = await _validator.BlockExists(blockWinner.BlockHeader);
-                    if (exists == VerifyResult.AlreadyExists)
-                    {
-                        return;
-                    }
-
-                    var verifyBlockHeader = await _validator.VerifyBlockHeader(blockWinner.BlockHeader);
-                    if (verifyBlockHeader == VerifyResult.UnableToVerify)
-                    {
-                        _logger.Here().Error("Unable to verify the block");
-                        return;
-                    }
-
-                    var saved = await _unitOfWork.HashChainRepository.PutAsync(blockWinner.BlockHeader.ToIdentifier(),
-                        blockWinner.BlockHeader);
+                    await RemoveDeliveredBlock(blockWinner);
+                    return;
                 }
 
-                foreach (var winner in blockWinners)
+                var verifyBlockHeader = await _validator.VerifyBlockHeader(blockWinner.BlockHeader);
+                if (verifyBlockHeader == VerifyResult.UnableToVerify)
                 {
-                    var removed = await _unitOfWork.DeliveredRepository.RemoveAsync(winner.BlockHeader.ToIdentifier());
-                    if (!removed)
-                    {
-                        _logger.Here()
-                            .Error("Unable to remove potential block winner {@MerkelRoot}",
-                                winner.BlockHeader.MerkelRoot);
-                    }
+                    _logger.Here().Error("Unable to verify the block");
+
+                    await RemoveDeliveredBlock(blockWinner);
+                    return;
                 }
+
+                _logger.Here().Information("RunStakingWinnerAsync saving winner");
+
+                var saved = await _unitOfWork.HashChainRepository.PutAsync(blockWinner.BlockHeader.ToIdentifier(),
+                    blockWinner.BlockHeader);
+
+                if (!saved)
+                {
+                    _logger.Here().Error("Unable to save the block winner");
+                    return;
+                }
+            }
+
+            foreach (var winner in blockWinners)
+            {
+                await RemoveDeliveredBlock(winner);
+            }
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="winner1"></param>
+        /// <returns></returns>
+        private async Task RemoveDeliveredBlock(BlockWinner winner1)
+        {
+            var removed = await _unitOfWork.DeliveredRepository.RemoveAsync(winner1.BlockHeader.ToIdentifier());
+            if (!removed)
+            {
+                _logger.Here()
+                    .Error("Unable to remove potential block winner {@MerkelRoot}",
+                        winner1.BlockHeader.MerkelRoot);
             }
         }
 
