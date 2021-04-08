@@ -100,16 +100,8 @@ namespace CYPCore.Ledger
             var blockHeader = await _unitOfWork.HashChainRepository.GetAsync(x => new ValueTask<bool>(x.Height == height));
             if (blockHeader == null) return;
 
-            var trieCount = await _unitOfWork.TrieRepository.CountAsync();
-            if (trieCount == 0)
-            {
-                Trie.Put(blockHeader.ToHash(), blockHeader.ToHash());
-                Trie.Flush();
-            }
-            else
-            {
-                Trie.SetRootHash(blockHeader.MerkelRoot.HexToByte());
-            }
+            Trie.Put(blockHeader.ToHash(), blockHeader.ToHash());
+            Trie.Flush();
         }
 
         /// <summary>
