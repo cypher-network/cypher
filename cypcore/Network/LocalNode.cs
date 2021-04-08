@@ -6,14 +6,17 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Net.Http;
 using System.Collections.Generic;
+using System.Reactive;
 using System.Reactive.Linq;
 using Dawn;
 using Serilog;
 using CYPCore.Extensions;
+using CYPCore.Extentions;
 using CYPCore.Serf;
 using CYPCore.Models;
 using CYPCore.Persistence;
 using CYPCore.Services.Rest;
+using Rx.Http;
 
 namespace CYPCore.Network
 {
@@ -27,11 +30,11 @@ namespace CYPCore.Network
         Task Send(byte[] data, TopicType topicType, string host);
         Task<Dictionary<ulong, Peer>> GetPeers();
         void Ready();
-        Task<NetworkBlockHeight> PeerBlockHeight(Peer peer);
         Task Leave();
         Task JoinSeedNodes();
         IObservable<Peer> ObservePeers();
         Task<ulong[]> Nodes();
+        IObservable<NetworkBlockHeight> ObservePeerBlockHeight(Peer peer);
     }
 
     /// <summary>
@@ -201,17 +204,26 @@ namespace CYPCore.Network
         /// </summary>
         /// <param name="peer"></param>
         /// <returns></returns>
-        public async Task<NetworkBlockHeight> PeerBlockHeight(Peer peer)
+        public IObservable<NetworkBlockHeight> ObservePeerBlockHeight(Peer peer)
         {
-            var uri = new Uri(peer.Host);
-            var blockRestApi = new RestBlockService(uri, _logger);
-            var networkBlockHeight = new NetworkBlockHeight
+            return Observable.Create<NetworkBlockHeight>(observer =>
             {
-                Local = new BlockHeight { Height = await _unitOfWork.DeliveredRepository.CountAsync() },
-                Remote = await blockRestApi.GetHeight()
-            };
+                var http = new RxHttpClient(new HttpClient(), null);
+                http.Get<BlockHeight>($"{peer.Host}/chain/height")
+                    .Subscribe(async x =>
+                    {
+                        var networkBlockHeight = new NetworkBlockHeight
+                        {
+                            Local = new BlockHeight { Height = await _unitOfWork.HashChainRepository.CountAsync() },
+                            Remote = x
+                        };
 
-            return networkBlockHeight;
+                        observer.OnNext(networkBlockHeight);
+
+                    }, observer.OnError);
+
+                return () => { };
+            });
         }
 
         /// <summary>
@@ -221,12 +233,10 @@ namespace CYPCore.Network
         /// <param name="topicType"></param>
         /// <param name="host"></param>
         /// <returns></returns>
-        public async Task Send(byte[] data, TopicType topicType, string host)
+        public Task Send(byte[] data, TopicType topicType, string host)
         {
             Guard.Argument(data, nameof(data)).NotNull();
             Guard.Argument(host, nameof(data)).NotNull().NotEmpty().NotWhiteSpace();
-
-            _logger.Here().Debug("Sending {@TopicType} to {@Node}", topicType, host);
 
             try
             {
@@ -234,23 +244,27 @@ namespace CYPCore.Network
                 {
                     switch (topicType)
                     {
-                        case TopicType.AddBlock:
-                            {
-                                RestBlockService restBlockService = new(uri, _logger);
-                                await restBlockService.AddBlock(data);
-                                return;
-                            }
                         case TopicType.AddBlockGraph:
                             {
-                                BlockGraphRestService blockGraphRestService = new(uri, _logger);
-                                await blockGraphRestService.AddBlockGraph(data);
-                                return;
+                                var http = new RxHttpClient(new HttpClient(), null);
+                                http.Post($"{host}/chain/blockgraph", data)
+                                    .Subscribe(response => { },
+                                        exception =>
+                                        {
+                                            _logger.Here().Error(exception, "HttpRequestException for {@Host}", host);
+                                        });
+                                break;
                             }
                         case TopicType.AddTransaction:
                             {
-                                TransactionRestService restTransactionService = new(uri, _logger);
-                                await restTransactionService.AddTransaction(data);
-                                return;
+                                var http = new RxHttpClient(new HttpClient(), null);
+                                http.Post($"{host}/mem/transaction", data)
+                                    .Subscribe(response => { },
+                                        exception =>
+                                        {
+                                            _logger.Here().Error(exception, "HttpRequestException for {@Host}", host);
+                                        });
+                                break;
                             }
                     }
                 }
@@ -259,18 +273,12 @@ namespace CYPCore.Network
                     _logger.Here().Error("Cannot create URI for host {@Host}", host);
                 }
             }
-            catch (HttpRequestException ex)
-            {
-                _logger.Here().Error(ex, "HttpRequestException for {@Host}", host);
-            }
             catch (TaskCanceledException ex)
             {
                 _logger.Here().Error(ex, "TaskCanceledException for {@Host}", host);
             }
-            catch (Refit.ApiException ex)
-            {
-                _logger.Here().Error(ex, "ApiException for {@Host}", host);
-            }
+
+            return Task.CompletedTask;
         }
 
         /// <summary>

@@ -7,14 +7,15 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Net.Http;
+using System.Reactive.Linq;
 using CYPCore.Extensions;
 using Serilog;
 using CYPCore.Models;
 using CYPCore.Network;
 using CYPCore.Persistence;
-using CYPCore.Services.Rest;
 using Dawn;
 using FlatSharp;
+using Rx.Http;
 
 namespace CYPCore.Ledger
 {
@@ -24,9 +25,10 @@ namespace CYPCore.Ledger
     public interface ISync
     {
         bool SyncRunning { get; }
-        Task Fetch(Uri uri, long skip, long take);
+        Task Fetch(string host, long skip, long take);
         Task Synchronize();
     }
+
     /// <summary>
     /// 
     /// </summary>
@@ -53,147 +55,128 @@ namespace CYPCore.Ledger
         /// 
         /// </summary>
         /// <returns></returns>
-        public async Task Synchronize()
+        public Task Synchronize()
         {
-            SyncRunning = true;
+            if (SyncRunning) return Task.CompletedTask;
 
             try
             {
-                _logger.Here().Information("Checking block height");
-
-                var peers = await _localNode.GetPeers();
-                foreach (var (_, peer) in peers)
+                var networkPeers = _localNode.ObservePeers().Select(t => t).ToArray();
+                networkPeers.Subscribe(observer =>
                 {
-                    try
+                    foreach (var peer in observer)
                     {
-                        var networkBlockHeight = await _localNode.PeerBlockHeight(peer);
+                        _logger.Here().Information("Looking up block height from {@Host}", peer.Host);
 
-                        _logger.Here()
-                            .Information(
-                                "Local node block height ({@LocalHeight}). Network block height ({NetworkHeight})",
-                                networkBlockHeight.Local.Height, networkBlockHeight.Remote.Height);
+                        var _ = _localNode.ObservePeerBlockHeight(peer)
+                            .Subscribe(async network =>
+                                {
+                                    SyncRunning = true;
 
-                        if (networkBlockHeight.Local.Height == networkBlockHeight.Remote.Height)
-                        {
-                            continue;
-                        }
+                                    _logger.Here()
+                                        .Information(
+                                            "Local node block height ({@LocalHeight}). Network block height ({NetworkHeight})",
+                                            network.Local.Height, network.Remote.Height);
 
-                        _logger.Here().Information("Fetching blocks");
+                                    if (network.Local.Height != network.Remote.Height)
+                                    {
+                                        ;
 
-                        await Fetch(new Uri(peer.Host), networkBlockHeight.Local.Height,
-                            networkBlockHeight.Remote.Height / peers.Count);
+                                        _logger.Here().Information("Fetching blocks");
 
-                        var localHeight = await _unitOfWork.HashChainRepository.CountAsync();
+                                        await Fetch(peer.Host, network.Local.Height, network.Remote.Height / 188);
 
-                        _logger.Here()
-                            .Information(
-                                "Local node block height ({@LocalHeight}). Network block height ({NetworkHeight})",
-                                localHeight, networkBlockHeight.Remote.Height);
+                                        var localHeight = await _unitOfWork.HashChainRepository.CountAsync();
+
+                                        _logger.Here()
+                                            .Information(
+                                                "Local node block height ({@LocalHeight}). Network block height ({NetworkHeight})",
+                                                localHeight, network.Remote.Height);
+
+                                    }
+
+                                    SyncRunning = false;
+                                },
+                                exception =>
+                                {
+                                    _logger.Here().Error(exception, "Error while looking up network block height");
+                                });
                     }
-                    catch (HttpRequestException)
-                    {
-                    }
-                    catch (TaskCanceledException)
-                    {
-                    }
-                    catch (Refit.ApiException)
-                    {
-                    }
-                }
+                });
             }
             catch (Exception ex)
             {
                 _logger.Here().Error(ex, "Error while checking");
             }
 
-            SyncRunning = false;
+            return Task.CompletedTask;
         }
 
         /// <summary>
         /// 
         /// </summary>
         /// <returns></returns>
-        public async Task Fetch(Uri uri, long skip, long take)
+        public Task Fetch(string host, long skip, long take)
         {
-            Guard.Argument(uri, nameof(uri)).NotNull();
+            Guard.Argument(host, nameof(host)).NotNull().NotEmpty().NotWhiteSpace();
             Guard.Argument(skip, nameof(skip)).NotNegative();
             Guard.Argument(take, nameof(take)).NotNegative();
 
-            var throttler = new SemaphoreSlim(int.MaxValue);
-            await throttler.WaitAsync();
-
             try
             {
-                var tasks = new List<Task>();
                 var numberOfBatches = (int)Math.Ceiling((double)take / BatchSize);
                 numberOfBatches = numberOfBatches == 0 ? 1 : numberOfBatches;
 
                 for (var i = 0; i < numberOfBatches; i++)
                 {
-                    var i1 = i;
-                    tasks.Add(Task.Run(async () =>
-                    {
-                        try
+                    var http = new RxHttpClient(new HttpClient(), null);
+                    http.Get<FlatBufferStream>($"{host}/chain/blocks/{(int)(i * skip)}/{BatchSize}")
+                        .Subscribe(async stream =>
                         {
-                            var blockRestApi = new RestBlockService(uri, _logger);
-                            var blockHeaderStream = await blockRestApi.GetBlockHeaders((int)(i1 * skip), BatchSize);
+                            var blockHeaders =
+                                FlatBufferSerializer.Default.Parse<GenericList<BlockHeaderProto>>(stream.FlatBuffer);
 
-                            if (blockHeaderStream.FlatBuffer.Any())
+                            var verifyForkRule = await _validator.VerifyForkRule(blockHeaders.Data.ToArray());
+                            if (verifyForkRule == VerifyResult.UnableToVerify)
                             {
-                                var blockHeaders =
-                                    FlatBufferSerializer.Default.Parse<GenericList<BlockHeaderProto>>(blockHeaderStream
-                                        .FlatBuffer);
+                                _logger.Here().Error("Unable to verify fork rule from: {@host}", host);
+                                return;
+                            }
 
-                                var verifyForkRule = await _validator.VerifyForkRule(blockHeaders.Data.ToArray());
-                                if (verifyForkRule == VerifyResult.UnableToVerify)
+                            foreach (var blockHeader in blockHeaders.Data.OrderBy(x => x.Height))
+                            {
+                                try
                                 {
-                                    _logger.Here().Error("Unable to verify fork rule from: {@Host}", uri.Host);
-                                    return;
+                                    var verifyBlockHeader = await _validator.VerifyBlockHeader(blockHeader);
+                                    if (verifyBlockHeader != VerifyResult.Succeed)
+                                    {
+                                        return;
+                                    }
+
+                                    var saved = await _unitOfWork.HashChainRepository.PutAsync(
+                                        blockHeader.ToIdentifier(),
+                                        blockHeader);
+                                    if (!saved)
+                                    {
+                                        _logger.Here()
+                                            .Error("Unable to save block: {@MerkleRoot}", blockHeader.MerkelRoot);
+                                    }
                                 }
-
-                                foreach (var blockHeader in blockHeaders.Data.OrderBy(x => x.Height))
+                                catch (Exception ex)
                                 {
-                                    try
-                                    {
-                                        var verifyBlockHeader = await _validator.VerifyBlockHeader(blockHeader);
-                                        if (verifyBlockHeader != VerifyResult.Succeed)
-                                        {
-                                            return;
-                                        }
-
-                                        var saved = await _unitOfWork.HashChainRepository.PutAsync(
-                                            blockHeader.ToIdentifier(), blockHeader);
-                                        if (!saved)
-                                        {
-                                            _logger.Here().Error("Unable to save block: {@MerkleRoot}",
-                                                blockHeader.MerkelRoot);
-                                        }
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        _logger.Here().Error(ex, "Unable to save block: {@MerkleRoot}",
-                                            blockHeader.MerkelRoot);
-                                    }
+                                    _logger.Here()
+                                        .Error(ex, "Unable to save block: {@MerkleRoot}", blockHeader.MerkelRoot);
                                 }
                             }
-                        }
-                        finally
-                        {
-                            throttler.Release();
-                        }
-                    }));
+                        });
                 }
-
-                await Task.WhenAll(tasks);
             }
             catch (Exception ex)
             {
                 _logger.Here().Error(ex, "Failed to synchronize node");
             }
-            finally
-            {
-                throttler.Dispose();
-            }
+
+            return Task.CompletedTask;
         }
     }
 }
