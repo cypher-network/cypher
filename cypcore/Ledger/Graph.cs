@@ -403,6 +403,54 @@ namespace CYPCore.Ledger
         /// <summary>
         /// 
         /// </summary>
+        /// <returns></returns>
+        public async Task RemoveUnresponsiveNodesAsync()
+        {
+            var nodes = await _localNode.Nodes();
+            if (nodes == null)
+            {
+                return;
+            }
+
+            if (_blockmania == null) return;
+
+            var groupedNodes = _blockmania.Blocks.GroupBy(x => x.Data.Block.Node).ToArray();
+            var blockInfos = groupedNodes.Where(x => !nodes.Contains(x.Key)).ToArray();
+
+            foreach (var node in blockInfos.Select(x => x.Key))
+            {
+                if (_serfClient.ClientId == node) continue;
+
+                try
+                {
+                    var temp = new List<ulong>(nodes);
+                    temp.Remove(node);
+                    nodes = temp.ToArray();
+                }
+                catch (Exception)
+                {
+                    _logger.Here().Error("Unable to remove an unresponsive node {@node}", node);
+                }
+            }
+
+            var f = (nodes.Length - 1) / 3;
+
+            _blockmania.NodeCount = nodes.Length;
+            _blockmania.Nodes = nodes;
+            _blockmania.Quorumf1 = f + 1;
+            _blockmania.Quorum2f = 2 * f;
+            _blockmania.Quorum2f1 = 2 * f + 1;
+
+            _logger.Here()
+                .Debug(
+                    "Blockmania configuration: {@Self}, {@Round}, {@NodeCount}, {@Nodes}, {@TotalNodes}, {@f}, {@Quorumf1}, {@Quorum2f}, {@Quorum2f1}",
+                    _blockmania.Self, _blockmania.Round, _blockmania.NodeCount, _blockmania.Nodes,
+                    _blockmania.TotalNodes, f, _blockmania.Quorumf1, _blockmania.Quorum2f, _blockmania.Quorum2f1);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
         /// <param name="sender"></param>
         /// <param name="deliver"></param>
         /// <returns></returns>
