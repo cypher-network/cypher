@@ -65,10 +65,10 @@ namespace CYPCore.Ledger
                 if (memoryMax) return VerifyResult.OutOfMemory;
 
                 var adding = GetOrAddTransaction(transaction.TxnId.ByteToHex(), s => transaction);
-                if (adding != null)
-                {
-                    return VerifyResult.AlreadyExists;
-                }
+                //if (adding != null)
+                //{
+                //    return VerifyResult.AlreadyExists;
+                //}
 
                 var buffer = Helper.Util.SerializeFlatBuffer(transaction);
                 _localNode.Broadcast(buffer, TopicType.AddTransaction);
