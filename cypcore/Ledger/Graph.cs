@@ -550,8 +550,8 @@ namespace CYPCore.Ledger
             try
             {
                 var peers = await _localNode.GetPeers();
-                await _localNode.Broadcast(Helper.Util.SerializeFlatBuffer(blockGraph), peers.Values.ToArray(),
-                    TopicType.AddBlockGraph);
+                await _localNode.Broadcast(peers.Values.ToArray(), TopicType.AddBlockGraph,
+                    Helper.Util.SerializeFlatBuffer(blockGraph));
             }
             catch (Exception ex)
             {

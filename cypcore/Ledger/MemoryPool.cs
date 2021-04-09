@@ -38,15 +38,14 @@ namespace CYPCore.Ledger
     {
         private readonly ILocalNode _localNode;
         private readonly ILogger _logger;
-        private readonly ConcurrentDictionary<string, Lazy<TransactionModel>> _concurrentTransactions;
-        private const int MemoryPoolMaxTransactions = 10_000;
         private readonly PooledList<TransactionModel> _pooledList;
+
+        private const int MemoryPoolMaxTransactions = 10_000;
 
         public MemoryPool(ILocalNode localNode, ILogger logger)
         {
             _localNode = localNode;
             _logger = logger.ForContext("SourceContext", nameof(MemoryPool));
-            _concurrentTransactions = new ConcurrentDictionary<string, Lazy<TransactionModel>>();
             _pooledList = new PooledList<TransactionModel>(MemoryPoolMaxTransactions);
         }
 
@@ -109,7 +108,7 @@ namespace CYPCore.Ledger
         /// <returns></returns>
         public TransactionModel[] GetMany()
         {
-            return _concurrentTransactions.Select(x => x.Value.Value).ToArray();
+            return _pooledList.Select(x => x).ToArray();
         }
 
         /// <summary>

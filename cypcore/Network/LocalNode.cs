@@ -6,16 +6,13 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Net.Http;
 using System.Collections.Generic;
-using System.Reactive;
 using System.Reactive.Linq;
 using Dawn;
 using Serilog;
 using CYPCore.Extensions;
-using CYPCore.Extentions;
 using CYPCore.Serf;
 using CYPCore.Models;
 using CYPCore.Persistence;
-using CYPCore.Services.Rest;
 using Rx.Http;
 
 namespace CYPCore.Network
@@ -25,9 +22,8 @@ namespace CYPCore.Network
     /// </summary>
     public interface ILocalNode
     {
-        Task Broadcast(byte[] data, TopicType topicType);
-        Task Broadcast(byte[] data, Peer[] peers, TopicType topicType);
-        Task Send(byte[] data, TopicType topicType, string host);
+        Task Broadcast(TopicType topicType, byte[] data);
+        Task Broadcast(Peer[] peers, TopicType topicType, byte[] data);
         Task<Dictionary<ulong, Peer>> GetPeers();
         void Ready();
         Task Leave();
@@ -45,6 +41,7 @@ namespace CYPCore.Network
         private readonly ISerfClient _serfClient;
         private readonly IUnitOfWork _unitOfWork;
         private readonly ILogger _logger;
+
         private TcpSession _tcpSession;
 
         public LocalNode(ISerfClient serfClient, IUnitOfWork unitOfWork, ILogger logger)
@@ -64,59 +61,52 @@ namespace CYPCore.Network
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="data"></param>
         /// <param name="topicType"></param>
+        /// <param name="data"></param>
         /// <returns></returns>
-        public async Task Broadcast(byte[] data, TopicType topicType)
+        public Task Broadcast(TopicType topicType, byte[] data)
         {
-            Guard.Argument(data, nameof(data)).NotNull();
-
-            try
+            var localPeers = ObservePeers().Select(peer => peer).ToArray();
+            localPeers.Subscribe(async peers =>
             {
-                var tasks = new List<Task>();
+                await Broadcast(peers, topicType, data);
+            });
 
-                var peers = await GetPeers();
-                if (peers == null) return;
-
-                var broadcastPeers = peers.Select(p => p).ToList();
-                broadcastPeers.ForEach(x => { tasks.Add(Send(data, topicType, x.Value.Host)); });
-
-                await Task.WhenAll(tasks);
-            }
-            catch (Exception ex)
-            {
-                _logger.Here().Error(ex, "Error while broadcasting to clients");
-            }
+            return Task.CompletedTask;
         }
 
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="data"></param>
         /// <param name="peers"></param>
         /// <param name="topicType"></param>
+        /// <param name="data"></param>
         /// <returns></returns>
-        /// <exception cref="NotImplementedException"></exception>
-        public async Task Broadcast(byte[] data, Peer[] peers, TopicType topicType)
+        public Task Broadcast(Peer[] peers, TopicType topicType, byte[] data)
         {
             Guard.Argument(data, nameof(data)).NotNull();
             Guard.Argument(peers, nameof(peers)).NotNull();
 
-            _logger.Here().Debug("Broadcasting {@TopicType} to nodes {@Nodes}", topicType, peers);
-
-            var tasks = new List<Task>();
+            _logger.Here().Information("Broadcasting {@TopicType} to nodes {@Nodes}", topicType, peers);
 
             try
             {
                 var broadcastPeers = peers.Select(p => p).ToList();
-                broadcastPeers.ForEach(peer => { tasks.Add(Send(data, topicType, peer.Host)); });
-
-                await Task.WhenAll(tasks);
+                if (broadcastPeers.Any())
+                {
+                    var broadcast = new Broadcast(_logger, 4);
+                    foreach (var t in broadcastPeers)
+                    {
+                        Task.Run(async () => { await broadcast.Send(data, topicType, t.Host); }).ConfigureAwait(false);
+                    }
+                }
             }
             catch (Exception ex)
             {
                 _logger.Here().Error(ex, "Error while bootstrapping clients");
             }
+
+            return Task.CompletedTask;
         }
 
         /// <summary>
@@ -224,61 +214,6 @@ namespace CYPCore.Network
 
                 return () => { };
             });
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="data"></param>
-        /// <param name="topicType"></param>
-        /// <param name="host"></param>
-        /// <returns></returns>
-        public Task Send(byte[] data, TopicType topicType, string host)
-        {
-            Guard.Argument(data, nameof(data)).NotNull();
-            Guard.Argument(host, nameof(data)).NotNull().NotEmpty().NotWhiteSpace();
-
-            try
-            {
-                if (Uri.TryCreate($"{host}", UriKind.Absolute, out var uri))
-                {
-                    switch (topicType)
-                    {
-                        case TopicType.AddBlockGraph:
-                            {
-                                var http = new RxHttpClient(new HttpClient(), null);
-                                http.Post($"{host}/chain/blockgraph", data)
-                                    .Subscribe(response => { },
-                                        exception =>
-                                        {
-                                            _logger.Here().Error(exception, "HttpRequestException for {@Host}", host);
-                                        });
-                                break;
-                            }
-                        case TopicType.AddTransaction:
-                            {
-                                var http = new RxHttpClient(new HttpClient(), null);
-                                http.Post($"{host}/mem/transaction", data)
-                                    .Subscribe(response => { },
-                                        exception =>
-                                        {
-                                            _logger.Here().Error(exception, "HttpRequestException for {@Host}", host);
-                                        });
-                                break;
-                            }
-                    }
-                }
-                else
-                {
-                    _logger.Here().Error("Cannot create URI for host {@Host}", host);
-                }
-            }
-            catch (TaskCanceledException ex)
-            {
-                _logger.Here().Error(ex, "TaskCanceledException for {@Host}", host);
-            }
-
-            return Task.CompletedTask;
         }
 
         /// <summary>
