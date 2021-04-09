@@ -38,15 +38,26 @@ namespace CYPCore.Ledger
     {
         private readonly ILocalNode _localNode;
         private readonly ILogger _logger;
-        private readonly PooledList<TransactionModel> _pooledList;
+        private readonly PooledList<TransactionModel> _pooledTransactions;
+        private readonly PooledList<byte[]> _pooledSeenTransactions;
 
-        private const int MemoryPoolMaxTransactions = 10_000;
+        private const int MaxMemoryPoolTransactions = 10_000;
+        private const int MaxMemoryPoolSeenTransactions = 50_000;
 
         public MemoryPool(ILocalNode localNode, ILogger logger)
         {
             _localNode = localNode;
             _logger = logger.ForContext("SourceContext", nameof(MemoryPool));
-            _pooledList = new PooledList<TransactionModel>(MemoryPoolMaxTransactions);
+            _pooledTransactions = new PooledList<TransactionModel>(MaxMemoryPoolTransactions);
+            _pooledSeenTransactions = new PooledList<byte[]>(MaxMemoryPoolSeenTransactions);
+
+            Observable
+                .Timer(TimeSpan.Zero, TimeSpan.FromHours(1))
+                .Subscribe(
+                    x =>
+                    {
+                        _pooledSeenTransactions.RemoveRange(0, Count());
+                    });
         }
 
         /// <summary>
@@ -63,9 +74,10 @@ namespace CYPCore.Ledger
                 var transaction = Helper.Util.DeserializeFlatBuffer<TransactionModel>(transactionModel);
                 if (transaction.Validate().Any()) return VerifyResult.Invalid;
 
-                if (!_pooledList.Contains(transaction))
+                if (!_pooledSeenTransactions.Contains(transaction.TxnId))
                 {
-                    _pooledList.Add(transaction);
+                    _pooledSeenTransactions.Add(transaction.TxnId);
+                    _pooledTransactions.Add(transaction);
                 }
 
                 _localNode.Broadcast(TopicType.AddTransaction, transactionModel);
@@ -92,7 +104,7 @@ namespace CYPCore.Ledger
 
             try
             {
-                transaction = _pooledList.FirstOrDefault(x => x.TxnId == transactionId.HexToByte());
+                transaction = _pooledTransactions.FirstOrDefault(x => x.TxnId == transactionId.HexToByte());
             }
             catch (Exception ex)
             {
@@ -108,7 +120,7 @@ namespace CYPCore.Ledger
         /// <returns></returns>
         public TransactionModel[] GetMany()
         {
-            return _pooledList.Select(x => x).ToArray();
+            return _pooledTransactions.Select(x => x).ToArray();
         }
 
         /// <summary>
@@ -120,7 +132,7 @@ namespace CYPCore.Ledger
         public TransactionModel[] Range(int skip, int take)
         {
             Guard.Argument(skip, nameof(skip)).NotNegative();
-            return _pooledList.Skip(skip).Take(take).Select(x => x).ToArray();
+            return _pooledTransactions.Skip(skip).Take(take).Select(x => x).ToArray();
         }
 
         /// <summary>
@@ -165,7 +177,7 @@ namespace CYPCore.Ledger
 
             try
             {
-                removed = _pooledList.Remove(transaction);
+                removed = _pooledTransactions.Remove(transaction);
             }
             catch (Exception ex)
             {
@@ -181,7 +193,7 @@ namespace CYPCore.Ledger
         /// <returns></returns>
         public int Count()
         {
-            return _pooledList.Count;
+            return _pooledTransactions.Count;
         }
     }
 }
