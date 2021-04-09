@@ -2,8 +2,6 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Linq;
 using System.Reactive.Linq;
 using Collections.Pooled;
@@ -39,7 +37,7 @@ namespace CYPCore.Ledger
         private readonly ILocalNode _localNode;
         private readonly ILogger _logger;
         private readonly PooledList<TransactionModel> _pooledTransactions;
-        private readonly PooledList<byte[]> _pooledSeenTransactions;
+        private readonly PooledList<string> _pooledSeenTransactions;
 
         private const int MaxMemoryPoolTransactions = 10_000;
         private const int MaxMemoryPoolSeenTransactions = 50_000;
@@ -49,7 +47,7 @@ namespace CYPCore.Ledger
             _localNode = localNode;
             _logger = logger.ForContext("SourceContext", nameof(MemoryPool));
             _pooledTransactions = new PooledList<TransactionModel>(MaxMemoryPoolTransactions);
-            _pooledSeenTransactions = new PooledList<byte[]>(MaxMemoryPoolSeenTransactions);
+            _pooledSeenTransactions = new PooledList<string>(MaxMemoryPoolSeenTransactions);
 
             Observable
                 .Timer(TimeSpan.Zero, TimeSpan.FromHours(1))
@@ -74,9 +72,9 @@ namespace CYPCore.Ledger
                 var transaction = Helper.Util.DeserializeFlatBuffer<TransactionModel>(transactionModel);
                 if (transaction.Validate().Any()) return VerifyResult.Invalid;
 
-                if (!_pooledSeenTransactions.Contains(transaction.TxnId))
+                if (!_pooledSeenTransactions.Contains(transaction.TxnId.ByteToHex()))
                 {
-                    _pooledSeenTransactions.Add(transaction.TxnId);
+                    _pooledSeenTransactions.Add(transaction.TxnId.ByteToHex());
                     _pooledTransactions.Add(transaction);
                 }
 

@@ -532,6 +532,8 @@ namespace CYPCore.Ledger
         /// <returns></returns>
         private async Task RemoveBlockGraph(BlockGraph blockGraph, Block next)
         {
+            _pooledBlockGraphs.Remove(blockGraph);
+
             var removed = await _unitOfWork.BlockGraphRepository.RemoveAsync(blockGraph.ToIdentifier());
             if (!removed)
             {
