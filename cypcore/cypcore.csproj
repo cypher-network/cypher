@@ -28,6 +28,7 @@
     <PackageReference Include="Autofac.Extensions.DependencyInjection" Version="7.1.0" />
     <PackageReference Include="AutofacSerilogIntegration" Version="5.0.0" />
     <PackageReference Include="CliWrap" Version="3.3.2" />
+    <PackageReference Include="Collections.Pooled" Version="1.0.82" />
     <PackageReference Include="Dawn.Guard" Version="1.12.0" />
     <PackageReference Include="FlatSharp" Version="5.1.0" />
     <PackageReference Include="libsecp256k1Zkp.Net" Version="1.1.9" />

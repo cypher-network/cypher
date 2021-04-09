@@ -99,14 +99,14 @@ namespace CYPCore.Ledger
                 return;
             }
 
-            var transactions = new List<TransactionProto>();
+            var transactions = new List<TransactionModel>();
             var subscribe = _memoryPool.ObserveTake(StakingConfigurationOptions.BlockTransactionCount)
                 .Subscribe(async x =>
                 {
                     var verifyTransaction = await _validator.VerifyTransaction(x);
                     var verifyTransactionFee = _validator.VerifyTransactionFee(x);
 
-                    var removed = _memoryPool.Remove(x.TxnId);
+                    var removed = _memoryPool.Remove(x);
                     if (removed == VerifyResult.UnableToVerify)
                     {
                         _logger.Here().Error("Unable to remove the transaction from the memory pool {@TxnId}", x.TxnId);
@@ -317,7 +317,7 @@ namespace CYPCore.Ledger
         /// <param name="bits"></param>
         /// <param name="previous"></param>
         /// <returns></returns>
-        private BlockHeaderProto CreateBlock(TransactionProto[] transactions, byte[] signature, byte[] vrfBytes,
+        private BlockHeaderProto CreateBlock(TransactionModel[] transactions, byte[] signature, byte[] vrfBytes,
             ulong solution, int bits, BlockHeaderProto previous)
         {
             Guard.Argument(transactions, nameof(transactions)).NotNull();
@@ -367,12 +367,12 @@ namespace CYPCore.Ledger
         /// <param name="bits"></param>
         /// <param name="reward"></param>
         /// <returns></returns>
-        private async Task<TransactionProto> CoinbaseTransactionAsync(int bits, ulong reward)
+        private async Task<TransactionModel> CoinbaseTransactionAsync(int bits, ulong reward)
         {
             Guard.Argument(bits, nameof(bits)).NotNegative();
             Guard.Argument(reward, nameof(reward)).NotNegative();
 
-            TransactionProto transaction = null;
+            TransactionModel transaction = null;
 
             using var client = new HttpClient { BaseAddress = new Uri(StakingConfigurationOptions.WalletSettings.Url) };
 
@@ -411,7 +411,7 @@ namespace CYPCore.Ledger
                     Convert.FromBase64String((jToken ?? throw new InvalidOperationException()).Value<string>());
 
                 if (response.IsSuccessStatusCode)
-                    transaction = FlatBufferSerializer.Default.Parse<TransactionProto>(byteArray);
+                    transaction = FlatBufferSerializer.Default.Parse<TransactionModel>(byteArray);
                 else
                 {
                     var content = await response.Content.ReadAsStringAsync();

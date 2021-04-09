@@ -61,7 +61,7 @@ namespace CYPCore.Services
                             .ObserveTake(_posMinting.StakingConfigurationOptions.BlockTransactionCount)
                             .Subscribe(async x =>
                             {
-                                var removed = _memoryPool.Remove(x.TxnId);
+                                var removed = _memoryPool.Remove(x);
                                 if (removed == VerifyResult.UnableToVerify)
                                 {
                                     _logger.Here()

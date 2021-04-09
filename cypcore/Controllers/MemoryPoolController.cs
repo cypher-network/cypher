@@ -28,18 +28,16 @@ namespace CYPCore.Controllers
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="tx"></param>
+        /// <param name="transactionModel"></param>
         /// <returns></returns>
         [HttpPost("transaction", Name = "AddTransaction")]
         [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public IActionResult AddTransaction([FromBody] byte[] tx)
+        public IActionResult AddTransaction([FromBody] byte[] transactionModel)
         {
             try
             {
-                var payload = FlatBufferSerializer.Default.Parse<TransactionProto>(tx);
-                var added = _memoryPool.Add(payload);
-
+                var added = _memoryPool.Add(transactionModel);
                 return added switch
                 {
                     VerifyResult.Succeed => new ObjectResult(StatusCodes.Status200OK),

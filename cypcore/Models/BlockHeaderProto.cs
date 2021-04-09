@@ -21,7 +21,7 @@ namespace CYPCore.Models
         [FlatBufferItem(8)] public virtual string Sec { get; set; }
         [FlatBufferItem(9)] public virtual string Seed { get; set; }
         [FlatBufferItem(10)] public virtual ulong Solution { get; set; }
-        [FlatBufferItem(11)] public virtual TransactionProto[] Transactions { get; set; }
+        [FlatBufferItem(11)] public virtual TransactionModel[] Transactions { get; set; }
         [FlatBufferItem(12)] public virtual int Version { get; set; }
         [FlatBufferItem(13)] public virtual string VrfSignature { get; set; }
         [FlatBufferItem(14)] public virtual string Signature { get; set; }

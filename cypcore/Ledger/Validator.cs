@@ -32,13 +32,13 @@ namespace CYPCore.Ledger
     public interface IValidator
     {
         Task<VerifyResult> VerifyBlockGraphSignatureNodeRound(BlockGraph blockGraph);
-        VerifyResult VerifyBulletProof(TransactionProto transaction);
+        VerifyResult VerifyBulletProof(TransactionModel transaction);
         VerifyResult VerifyCoinbaseTransaction(VoutProto coinbase, ulong solution, double runningDistribution);
         VerifyResult VerifySolution(byte[] vrfBytes, byte[] kernel, ulong solution);
         Task<VerifyResult> VerifyBlockHeader(BlockHeaderProto blockHeader);
         Task<VerifyResult> VerifyBlockHeaders(BlockHeaderProto[] blockHeaders);
-        Task<VerifyResult> VerifyTransaction(TransactionProto transaction);
-        Task<VerifyResult> VerifyTransactions(TransactionProto[] transactions);
+        Task<VerifyResult> VerifyTransaction(TransactionModel transaction);
+        Task<VerifyResult> VerifyTransactions(TransactionModel[] transactions);
         VerifyResult VerifySloth(int bits, byte[] vrfSig, byte[] nonce, byte[] security);
         int Difficulty(ulong solution, double networkShare);
         ulong Reward(ulong solution, double runningDistribution);
@@ -47,10 +47,10 @@ namespace CYPCore.Ledger
         long GetAdjustedTimeAsUnixTimestamp();
         Task<VerifyResult> VerifyForkRule(BlockHeaderProto[] xChain);
         VerifyResult VerifyLockTime(LockTime target, string script);
-        VerifyResult VerifyCommitSum(TransactionProto transaction);
-        VerifyResult VerifyTransactionFee(TransactionProto transaction);
-        Task<VerifyResult> VerifyKeyImage(TransactionProto transaction);
-        Task<VerifyResult> VerifyOutputCommits(TransactionProto transaction);
+        VerifyResult VerifyCommitSum(TransactionModel transaction);
+        VerifyResult VerifyTransactionFee(TransactionModel transaction);
+        Task<VerifyResult> VerifyKeyImage(TransactionModel transaction);
+        Task<VerifyResult> VerifyOutputCommits(TransactionModel transaction);
         Task<double> CurrentRunningDistribution(BlockHeaderProto blockHeader);
         ulong Fee(int nByte);
         VerifyResult VerifyNetworkShare(ulong solution, double previousNetworkShare, double runningDistributionTotal);
@@ -181,7 +181,7 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="transaction"></param>
         /// <returns></returns>
-        public VerifyResult VerifyBulletProof(TransactionProto transaction)
+        public VerifyResult VerifyBulletProof(TransactionModel transaction)
         {
             Guard.Argument(transaction, nameof(transaction)).NotNull();
             Guard.Argument(transaction.Vout, nameof(transaction)).NotNull();
@@ -212,7 +212,7 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="transaction"></param>
         /// <returns></returns>
-        public VerifyResult VerifyCommitSum(TransactionProto transaction)
+        public VerifyResult VerifyCommitSum(TransactionModel transaction)
         {
             Guard.Argument(transaction, nameof(transaction)).NotNull();
 
@@ -393,7 +393,7 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="transactions"></param>
         /// <returns></returns>
-        public async Task<VerifyResult> VerifyTransactions(TransactionProto[] transactions)
+        public async Task<VerifyResult> VerifyTransactions(TransactionModel[] transactions)
         {
             Guard.Argument(transactions, nameof(transactions)).NotNull();
 
@@ -428,7 +428,7 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="transaction"></param>
         /// <returns></returns>
-        public async Task<VerifyResult> VerifyTransaction(TransactionProto transaction)
+        public async Task<VerifyResult> VerifyTransaction(TransactionModel transaction)
         {
             Guard.Argument(transaction, nameof(transaction)).NotNull();
 
@@ -474,7 +474,7 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="transaction"></param>
         /// <returns></returns>
-        public VerifyResult VerifyTransactionFee(TransactionProto transaction)
+        public VerifyResult VerifyTransactionFee(TransactionModel transaction)
         {
             Guard.Argument(transaction, nameof(transaction)).NotNull();
 
@@ -556,7 +556,7 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="transaction"></param>
         /// <returns></returns>
-        public async Task<VerifyResult> VerifyKeyImage(TransactionProto transaction)
+        public async Task<VerifyResult> VerifyKeyImage(TransactionModel transaction)
         {
             Guard.Argument(transaction, nameof(transaction)).NotNull();
 
@@ -577,7 +577,7 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="transaction"></param>
         /// <returns></returns>
-        public async Task<VerifyResult> VerifyOutputCommits(TransactionProto transaction)
+        public async Task<VerifyResult> VerifyOutputCommits(TransactionModel transaction)
         {
             Guard.Argument(transaction, nameof(transaction)).NotNull();
 

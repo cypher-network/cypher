@@ -1,6 +1,7 @@
 ﻿// TGMNode by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
+using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using Newtonsoft.Json;
@@ -9,7 +10,7 @@ using FlatSharp.Attributes;
 
 namespace CYPCore.Models
 {
-    public interface ITransactionProto
+    public interface ITransactionModel
     {
         byte[] TxnId { get; set; }
         BpProto[] Bp { get; set; }
@@ -52,7 +53,7 @@ namespace CYPCore.Models
     }
 
     [FlatBufferTable]
-    public class TransactionProto : object, ITransactionProto
+    public class TransactionModel : object, IEquatable<TransactionModel>, ITransactionModel
     {
         [FlatBufferItem(0)] public virtual byte[] TxnId { get; set; }
         [FlatBufferItem(1)] public virtual BpProto[] Bp { get; set; }
@@ -193,6 +194,22 @@ namespace CYPCore.Models
             }
 
             return ts.ToArray(); ;
+        }
+
+        public static bool operator ==(TransactionModel left, TransactionModel right) => Equals(left, right);
+
+        public static bool operator !=(TransactionModel left, TransactionModel right) => !Equals(left, right);
+
+        public override bool Equals(object obj) => (obj is TransactionModel transactionModel) && Equals(transactionModel);
+
+        public bool Equals(TransactionModel other)
+        {
+            return TxnId.Xor(other.TxnId);
+        }
+
+        public override int GetHashCode()
+        {
+            return HashCode.Combine(TxnId);
         }
 
         /// <summary>
