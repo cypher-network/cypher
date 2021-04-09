@@ -55,6 +55,8 @@ namespace CYPCore.Services
             {
                 try
                 {
+                    var subscriber = _graph.StartProcessing().GetAwaiter().GetResult();
+
                     _runGraphReadyTimer = new Timer(_ => _graph.Ready(), null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(10));
                     _runGraphWriteTimer = new Timer(_ => _graph.WriteAsync(100), null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(13));
                     _runGraphKeepAliveNodesTimer = new Timer(_ => _graph.RemoveUnresponsiveNodesAsync(), null, TimeSpan.FromSeconds(20), TimeSpan.FromSeconds(15));

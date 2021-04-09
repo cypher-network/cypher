@@ -120,7 +120,6 @@ namespace CYPCore.Ledger
                 {
                     if (transactions.Any() != true)
                     {
-                        _logger.Here().Warning("Unable to add zero transactions to the block");
                         return;
                     }
 

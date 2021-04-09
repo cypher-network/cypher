@@ -32,18 +32,16 @@ namespace CYPCore.Controllers
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="blockGraph"></param>
+        /// <param name="blockGraphModel"></param>
         /// <returns></returns>
         [HttpPost("blockgraph", Name = "AddBlockGraph")]
         [ProducesResponseType(typeof(byte[]), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> AddBlockGraph([FromBody] byte[] blockGraph)
+        public async Task<IActionResult> AddBlockGraph([FromBody] byte[] blockGraphModel)
         {
             try
             {
-                var payload = FlatBufferSerializer.Default.Parse<BlockGraph>(blockGraph);
-                var added = await _graph.TryAddBlockGraph(payload);
-
+                var added = await _graph.TryAddBlockGraph(blockGraphModel);
                 return new ObjectResult(new { code = added == VerifyResult.Succeed ? StatusCodes.Status200OK : StatusCodes.Status500InternalServerError });
             }
             catch (Exception ex)

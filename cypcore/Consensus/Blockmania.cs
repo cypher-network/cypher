@@ -76,7 +76,7 @@ namespace CYPCore.Consensus
             _entries = Channel.CreateBounded<BlockGraph>(10000);
             Consensus = new List<Reached>();
 
-            _logger.Here().Debug("Blockmania configuration: {@SelfId}, {@Round}, {@NodeCount}, {@Nodes}, {@TotalNodes}, {@f}, {@Quorumf1}, {@Quorum2f}, {@Quorum2f1}",
+            _logger.Here().Debug("Blockmania configuration: {@Self}, {@Round}, {@NodeCount}, {@Nodes}, {@TotalNodes}, {@f}, {@Quorumf1}, {@Quorum2f}, {@Quorum2f1}",
                 Self, Round, NodeCount, Nodes, TotalNodes,
                 f, Quorumf1, Quorum2f, Quorum2f1);
 
