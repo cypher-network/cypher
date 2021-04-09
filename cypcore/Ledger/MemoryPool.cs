@@ -76,9 +76,8 @@ namespace CYPCore.Ledger
                 {
                     _pooledSeenTransactions.Add(transaction.TxnId.ByteToHex());
                     _pooledTransactions.Add(transaction);
+                    _localNode.Broadcast(TopicType.AddTransaction, transactionModel);
                 }
-
-                _localNode.Broadcast(TopicType.AddTransaction, transactionModel);
             }
             catch (Exception ex)
             {
