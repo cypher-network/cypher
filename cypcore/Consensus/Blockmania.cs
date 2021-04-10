@@ -7,6 +7,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Channels;
 using System.Linq;
+using System.Reactive;
+using System.Reactive.Linq;
 using CYPCore.Consensus.Messages;
 using CYPCore.Consensus.States;
 using CYPCore.Consensus.Models;
@@ -19,16 +21,30 @@ namespace CYPCore.Consensus
 
     public class Blockmania
     {
+        public class InterpretedEventArgs : EventArgs
+        {
+            public Interpreted Interpreted { get; }
+            public ulong Round { get; }
+
+            public InterpretedEventArgs(Interpreted interpreted)
+            {
+                Interpreted = interpreted;
+                Round = Interpreted.Round;
+            }
+        }
+
         private readonly ILogger _logger;
         private readonly Mutex _graphMutex;
         private readonly Channel<BlockGraph> _entries;
 
-        protected virtual void OnBlockmaniaInterpreted(Interpreted e)
+        public readonly IObservable<EventPattern<InterpretedEventArgs>> TrackingDelivered;
+
+        protected virtual void OnBlockmaniaDelivered(InterpretedEventArgs e)
         {
-            Delivered?.Invoke(this, e);
+            DeliveredEventHandler?.Invoke(this, e);
         }
 
-        public event EventHandler<Interpreted> Delivered;
+        public event EventHandler<InterpretedEventArgs> DeliveredEventHandler;
 
         public List<BlockInfo> Blocks;
         public Func<Task<Interpreted>> Action;
@@ -75,6 +91,11 @@ namespace CYPCore.Consensus
             _graphMutex = new Mutex();
             _entries = Channel.CreateBounded<BlockGraph>(10000);
             Consensus = new List<Reached>();
+
+
+            TrackingDelivered = Observable.FromEventPattern<InterpretedEventArgs>(
+                ev => DeliveredEventHandler += ev, ev => DeliveredEventHandler -= ev);
+
 
             _logger.Here().Debug("Blockmania configuration: {@Self}, {@Round}, {@NodeCount}, {@Nodes}, {@TotalNodes}, {@f}, {@Quorumf1}, {@Quorum2f}, {@Quorum2f1}",
                 Self, Round, NodeCount, Nodes, TotalNodes,
@@ -222,7 +243,7 @@ namespace CYPCore.Consensus
 
                 _graphMutex.ReleaseMutex();
 
-                OnBlockmaniaInterpreted(new Interpreted(blocks, consumed, round));
+                OnBlockmaniaDelivered(new InterpretedEventArgs(new Interpreted(blocks, consumed, round)));
 
                 _logger.Here().Debug("Resolved: {@Resolved}, {@HashCound}, {@NodeCount}",
                     Resolved, hashes.Count, NodeCount);

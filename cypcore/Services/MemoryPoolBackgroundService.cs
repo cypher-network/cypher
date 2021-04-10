@@ -24,7 +24,7 @@ namespace CYPCore.Services
         {
             _memoryPool = memoryPool;
             _posMinting = posMinting;
-            _logger = logger.ForContext("SourceContext", nameof(GraphBackgroundService));
+            _logger = logger.ForContext("SourceContext", nameof(MemoryPoolBackgroundService));
 
             applicationLifetime.ApplicationStopping.Register(OnApplicationStopping);
         }
@@ -59,7 +59,7 @@ namespace CYPCore.Services
                     {
                         var subscribe = _memoryPool
                             .ObserveTake(_posMinting.StakingConfigurationOptions.BlockTransactionCount)
-                            .Subscribe(async x =>
+                            .Subscribe(x =>
                             {
                                 var removed = _memoryPool.Remove(x);
                                 if (removed == VerifyResult.UnableToVerify)

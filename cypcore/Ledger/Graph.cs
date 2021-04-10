@@ -3,7 +3,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Reactive;
 using System.Reactive.Linq;
@@ -25,16 +24,12 @@ namespace CYPCore.Ledger
 {
     public interface IGraph
     {
-        Task Ready();
-        Task<IDisposable> StartProcessing();
-        Task WriteAsync(int take);
         Task<VerifyResult> TryAddBlockGraph(BlockGraph blockGraph);
         Task<VerifyResult> TryAddBlockGraph(byte[] blockGraphModel);
         Task<VoutProto[]> GetTransaction(byte[] txnId);
         Task<IEnumerable<BlockHeaderProto>> GetBlocks(int skip, int take);
         Task<IEnumerable<BlockHeaderProto>> GetSafeguardBlocks();
         Task<long> GetHeight();
-        Task RemoveUnresponsiveNodesAsync();
     }
 
     public class Graph : IGraph
@@ -47,11 +42,10 @@ namespace CYPCore.Ledger
         private readonly ISync _sync;
         private readonly ILogger _logger;
         private readonly PooledList<BlockGraph> _pooledBlockGraphs;
-        private readonly IObservable<EventPattern<BlockGraphEventArgs>> _trackingBlockGraphs;
-        private const int MaxBlockGraphs = 10_000;
+        private readonly IObservable<EventPattern<BlockGraphEventArgs>> _trackingBlockGraphAdded;
+        private readonly IObservable<EventPattern<BlockGraphEventArgs>> _trackingBlockGraphCompleted;
 
-        private Blockmania _blockmania;
-        private Config _config;
+        private const int MaxBlockGraphs = 10_000;
 
         protected class BlockGraphEventArgs : EventArgs
         {
@@ -66,6 +60,7 @@ namespace CYPCore.Ledger
         }
 
         private EventHandler<BlockGraphEventArgs> _blockGraphAddedEventHandler;
+        private EventHandler<BlockGraphEventArgs> _blockGraphAddCompletedEventHandler;
 
         public Graph(IUnitOfWork unitOfWork, ILocalNode localNode, ISerfClient serfClient, IValidator validator,
             ISigning signing, ISync sync, ILogger logger)
@@ -78,8 +73,14 @@ namespace CYPCore.Ledger
             _sync = sync;
             _logger = logger;
             _pooledBlockGraphs = new PooledList<BlockGraph>(MaxBlockGraphs);
-            _trackingBlockGraphs = Observable.FromEventPattern<BlockGraphEventArgs>(
+
+            _trackingBlockGraphAdded = Observable.FromEventPattern<BlockGraphEventArgs>(
                 ev => _blockGraphAddedEventHandler += ev, ev => _blockGraphAddedEventHandler -= ev);
+            _trackingBlockGraphCompleted = Observable.FromEventPattern<BlockGraphEventArgs>(
+                ev => _blockGraphAddCompletedEventHandler += ev, ev => _blockGraphAddCompletedEventHandler -= ev);
+
+            TryAddBlockGraphsListener();
+            TryAddBlockmaniaListener();
         }
 
         /// <summary>
@@ -89,6 +90,16 @@ namespace CYPCore.Ledger
         protected virtual void OnBlockGraphAdd(BlockGraphEventArgs e)
         {
             var handler = _blockGraphAddedEventHandler;
+            handler?.Invoke(this, e);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="e"></param>
+        protected virtual void OnBlockGraphAddComplete(BlockGraphEventArgs e)
+        {
+            var handler = _blockGraphAddCompletedEventHandler;
             handler?.Invoke(this, e);
         }
 
@@ -131,90 +142,6 @@ namespace CYPCore.Ledger
             }
 
             return Task.FromResult(VerifyResult.Succeed);
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <returns></returns>
-        public Task Ready()
-        {
-            if (_sync.SyncRunning) return Task.CompletedTask;
-
-            var localPeers = _localNode.ObservePeers().Select(peer => peer).ToArray();
-            localPeers.Subscribe(async peers =>
-            {
-                if (_blockmania != null) return;
-
-                var lastInterpreted = await GetRoundAsync();
-
-                _config = new Config(lastInterpreted, peers.Select(n => n.ClientId).ToArray(), _serfClient.ClientId,
-                    (ulong)peers.Length);
-
-                _blockmania = new Blockmania(_config, _logger);
-                _blockmania.Delivered += (sender, e) => Delivered(sender, e).SwallowException();
-            });
-
-            return Task.CompletedTask;
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <returns></returns>s
-        public Task<IDisposable> StartProcessing()
-        {
-            var activityTrackSubscription = _trackingBlockGraphs
-                .Where(data => data.EventArgs.BlockGraph.Block.Round == GetRound() + 1)
-                .GroupByUntil(item => item.EventArgs.Hash, g => g.Throttle(TimeSpan.FromSeconds(20)).Take(1))
-                .SelectMany(group => group.Buffer(TimeSpan.FromSeconds(1), 500))
-                .Subscribe(async blockGraphs =>
-                {
-                    foreach (var data in blockGraphs)
-                    {
-                        var blockGraph = data.EventArgs.BlockGraph;
-
-                        try
-                        {
-                            var copy = false;
-
-                            copy |= blockGraph.Block.Node != _serfClient.ClientId;
-
-                            if (!copy)
-                            {
-                                var signBlockGraph = await SignBlockGraph(blockGraph);
-                                var saved = await SaveBlockGraph(signBlockGraph);
-                                if (!saved) return;
-
-                                await Publish(signBlockGraph);
-                            }
-                            else
-                            {
-                                var saved = await SaveBlockGraph(blockGraph);
-                                if (!saved) return;
-
-                                var block = Helper.Util.DeserializeFlatBuffer<BlockHeaderProto>(blockGraph.Block.Data);
-                                var prev = Helper.Util.DeserializeFlatBuffer<BlockHeaderProto>(blockGraph.Prev.Data);
-
-                                var copyBlockGraph = CopyBlockGraph(block, prev);
-                                copyBlockGraph = await SignBlockGraph(copyBlockGraph);
-
-                                var savedCopy = await SaveBlockGraph(copyBlockGraph);
-                                if (!savedCopy) return;
-
-                                await Publish(copyBlockGraph);
-                            }
-                        }
-                        catch (Exception)
-                        {
-                            _logger.Here()
-                                .Error("Unable to add block for {@Node} and round {@Round}", blockGraph.Block.Node,
-                                    blockGraph.Block.Round);
-                        }
-                    }
-                });
-
-            return Task.FromResult(activityTrackSubscription);
         }
 
         /// <summary>
@@ -390,85 +317,116 @@ namespace CYPCore.Ledger
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="take"></param>
-        public async Task WriteAsync(int take)
+        /// <returns></returns>s
+        private IDisposable TryAddBlockGraphsListener()
         {
-            Guard.Argument(take, nameof(take)).NotNegative();
-
-            if (_blockmania == null) return;
-
-            try
-            {
-                (await _unitOfWork.BlockGraphRepository.WhereAsync(x =>
-                        new ValueTask<bool>(x.Block.Round <= _blockmania.Round))).Take(take)
-                    .ToObservable()
-                    .Delay(TimeSpan.FromMilliseconds(100))
-                    .Subscribe(blockGraph =>
+            var activityTrackSubscription = _trackingBlockGraphAdded
+                .Where(data => data.EventArgs.BlockGraph.Block.Round == GetRound() + 1)
+                .GroupByUntil(item => item.EventArgs.Hash, g => g.Throttle(TimeSpan.FromSeconds(10)).Take(1))
+                .SelectMany(group => group.Buffer(TimeSpan.FromSeconds(1), 500))
+                .Subscribe(async blockGraphs =>
+                {
+                    foreach (var data in blockGraphs)
                     {
-                        _blockmania.Add(blockGraph);
-                    });
-            }
-            catch (Exception ex)
-            {
-                _logger.Here().Error(ex, "Queue exception");
-            }
+                        var blockGraph = data.EventArgs.BlockGraph;
+
+                        try
+                        {
+                            var copy = false;
+
+                            copy |= blockGraph.Block.Node != _serfClient.ClientId;
+
+                            if (!copy)
+                            {
+                                var signBlockGraph = await SignBlockGraph(blockGraph);
+                                var saved = await SaveBlockGraph(signBlockGraph);
+                                if (!saved) return;
+
+                                await Publish(signBlockGraph);
+                            }
+                            else
+                            {
+                                var saved = await SaveBlockGraph(blockGraph);
+                                if (!saved) return;
+
+                                var block = Helper.Util.DeserializeFlatBuffer<BlockHeaderProto>(blockGraph.Block.Data);
+                                var prev = Helper.Util.DeserializeFlatBuffer<BlockHeaderProto>(blockGraph.Prev.Data);
+
+                                var copyBlockGraph = CopyBlockGraph(block, prev);
+                                copyBlockGraph = await SignBlockGraph(copyBlockGraph);
+
+                                var savedCopy = await SaveBlockGraph(copyBlockGraph);
+                                if (!savedCopy) return;
+
+                                await Publish(copyBlockGraph);
+                            }
+
+                            OnBlockGraphAddComplete(new BlockGraphEventArgs(blockGraph));
+                        }
+                        catch (Exception)
+                        {
+                            _logger.Here()
+                                .Error("Unable to add block for {@Node} and round {@Round}", blockGraph.Block.Node,
+                                    blockGraph.Block.Round);
+                        }
+                    }
+                });
+
+            return Task.FromResult(activityTrackSubscription);
         }
 
         /// <summary>
         /// 
         /// </summary>
-        /// <returns></returns>
-        public async Task RemoveUnresponsiveNodesAsync()
+        private IDisposable TryAddBlockmaniaListener()
         {
-            var nodes = await _localNode.Nodes();
-            if (nodes == null)
-            {
-                return;
-            }
-
-            if (_blockmania == null) return;
-
-            var groupedNodes = _blockmania.Blocks.GroupBy(x => x.Data.Block.Node).ToArray();
-            var blockInfos = groupedNodes.Where(x => !nodes.Contains(x.Key)).ToArray();
-
-            foreach (var node in blockInfos.Select(x => x.Key))
-            {
-                if (_serfClient.ClientId == node) continue;
-
-                try
+            var activityTrackSubscription = _trackingBlockGraphCompleted
+                .Delay(TimeSpan.FromSeconds(10))
+                .GroupBy(g => g.EventArgs.Hash)
+                .SelectMany(blockGraph => Observable.FromAsync(async () => await _unitOfWork.BlockGraphRepository.WhereAsync(
+                    x =>
+                        new ValueTask<bool>(x.Block.Round == GetRound() + 1 && x.Block.Hash.Equals(blockGraph.Key)))))
+                .Subscribe(blockgraphs =>
                 {
-                    var temp = new List<ulong>(nodes);
-                    temp.Remove(node);
-                    nodes = temp.ToArray();
-                }
-                catch (Exception)
-                {
-                    _logger.Here().Error("Unable to remove an unresponsive node {@node}", node);
-                }
-            }
+                    try
+                    {
+                        var nodeCount = blockgraphs.Select(n => n.Block.Node).Count();
+                        var nodes = blockgraphs.Select(n => n.Block.Node).ToArray();
+                        var f = (nodeCount - 1) / 3;
+                        var quorum2F1 = 2 * f + 1;
 
-            var f = (nodes.Length - 1) / 3;
+                        if (nodeCount < quorum2F1) return;
 
-            _blockmania.NodeCount = nodes.Length;
-            _blockmania.Nodes = nodes;
-            _blockmania.Quorumf1 = f + 1;
-            _blockmania.Quorum2f = 2 * f;
-            _blockmania.Quorum2f1 = 2 * f + 1;
+                        var lastInterpreted = GetRound();
 
-            _logger.Here()
-                .Debug(
-                    "Blockmania configuration: {@Self}, {@Round}, {@NodeCount}, {@Nodes}, {@TotalNodes}, {@f}, {@Quorumf1}, {@Quorum2f}, {@Quorum2f1}",
-                    _blockmania.Self, _blockmania.Round, _blockmania.NodeCount, _blockmania.Nodes,
-                    _blockmania.TotalNodes, f, _blockmania.Quorumf1, _blockmania.Quorum2f, _blockmania.Quorum2f1);
+                        var config = new Config(lastInterpreted, nodes, _serfClient.ClientId, (ulong)nodeCount);
+                        var blockmania = new Blockmania(config, _logger);
+
+                        blockmania.TrackingDelivered.Subscribe(x =>
+                        {
+                            Delivered(x.EventArgs.Interpreted).ConfigureAwait(false);
+                        });
+
+                        foreach (var next in blockgraphs)
+                        {
+                            blockmania.Add(next);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.Here().Error(ex, "Process add blockmania error");
+                    }
+                });
+
+            return activityTrackSubscription;
         }
 
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="sender"></param>
         /// <param name="deliver"></param>
         /// <returns></returns>
-        private async Task Delivered(object sender, Interpreted deliver)
+        private async Task Delivered(Interpreted deliver)
         {
             Guard.Argument(deliver, nameof(deliver)).NotNull();
 

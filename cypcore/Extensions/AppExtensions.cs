@@ -121,8 +121,6 @@ namespace CYPCore.Extensions
         public static ContainerBuilder AddGraph(this ContainerBuilder builder)
         {
             builder.RegisterType<Graph>().As<IGraph>().SingleInstance();
-            builder.RegisterType<GraphBackgroundService>().As<IHostedService>();
-
             return builder;
         }
 

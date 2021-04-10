@@ -38,7 +38,7 @@ namespace CYPCore.Persistence
                 var saved = PutAsync(key, new TrieModel { Key = key, Value = val }).GetAwaiter().GetResult();
                 if (saved == false) throw new Exception("Unable to save trie item");
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 throw;
             }
@@ -61,7 +61,7 @@ namespace CYPCore.Persistence
                     val = model.Value;
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 throw;
             }
@@ -80,7 +80,7 @@ namespace CYPCore.Persistence
                 var removed = RemoveAsync(key).GetAwaiter().GetResult();
                 if (removed == false) throw new Exception("Unable to remove trie item");
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 throw;
             }
