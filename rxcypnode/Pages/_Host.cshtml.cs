@@ -6,7 +6,7 @@ namespace rxcypnode.Pages
     {
         public void OnGet()
         {
-            
+
         }
     }
 }

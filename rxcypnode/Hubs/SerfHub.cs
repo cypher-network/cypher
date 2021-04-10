@@ -1,13 +1,15 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reactive.Linq;
+using System.Net;
 using System.Threading.Tasks;
 using Autofac;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.SignalR;
+using rxcypcore.Extensions;
 using rxcypcore.Serf;
 using rxcypcore.Serf.Messages;
+using Serilog;
 
 namespace rxcypnode.Hubs
 {
@@ -17,12 +19,15 @@ namespace rxcypnode.Hubs
         private readonly IDisposable _serfClientStateSubscription;
         private readonly IDisposable _serfMemberEventSubscription;
         private ISerfClient.ClientState _clientState;
+        private readonly ILogger _logger;
 
-        private ISerfClient _serfClient;
+        private readonly ISerfClient _serfClient;
 
-        public SerfHub(ILifetimeScope lifetimeScope)
+        public SerfHub(ILifetimeScope lifetimeScope, ILogger logger)
         {
             _lifetimeScope = lifetimeScope;
+            _logger = logger.ForContext("SourceContext", nameof(SerfHub));
+            _logger.Here().Information("Registering hub for member events");
             _serfClient = _lifetimeScope.Resolve<ISerfClient>();
 
             _serfClientStateSubscription = _serfClient.State.Subscribe(
@@ -32,36 +37,43 @@ namespace rxcypnode.Hubs
                     Send(state);
                 });
 
-            _serfMemberEventSubscription = _serfClient.MemberEvents
+            _serfMemberEventSubscription = _serfClient.Members.MemberEvents
                 .Subscribe(Send);
-            
+
             Init();
         }
 
-        private void Send(ISerfClient.ClientState clientState)
+        private async void Send(ISerfClient.ClientState clientState)
         {
-            Clients?.All?.SendAsync("ClientState", clientState);
+            if (Clients == null) return;
+            _logger.Here().Information("Sending client state");
+            await Clients.All.SendAsync("ClientState", clientState);
         }
 
-        private void Init()
+        private async void Init()
         {
-            Clients?.All?.SendAsync("Members", _serfClient.Members);
+            if (Clients == null) return;
+            await Clients.All.SendAsync("Members", _serfClient.Members);
         }
 
-        private void Send(MemberEvent memberEvent)
+        private async void Send(MemberEvent memberEvent)
         {
-            Clients?.All.SendAsync("MemberEvent", memberEvent);
+            if (Clients == null) return;
+            _logger.Here().Information("Sending member event");
+            await Clients.All.SendAsync("MemberEvent", memberEvent);
         }
 
-        private void Send(IList<Member> members)
+        private async void Send(MemberList members)
         {
-            Clients?.All.SendAsync("Members", members);
+            if (Clients == null) return;
+            _logger.Here().Information("Sending members");
+            await Clients.All.SendAsync("Members", members);
         }
 
         public override Task OnConnectedAsync()
         {
             Send(_clientState);
-            Send(_serfClient.Members.Values.ToList());
+            Send(_serfClient.Members);
             return base.OnConnectedAsync();
         }
 
@@ -73,7 +85,7 @@ namespace rxcypnode.Hubs
                 _serfMemberEventSubscription?.Dispose();
                 _lifetimeScope?.Dispose();
             }
-        
+
             base.Dispose(disposing);
         }
 

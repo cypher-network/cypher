@@ -168,7 +168,7 @@ namespace rxcypnode.Configuration
         {
             var portSet = SetPort("Enter public API port (e.g. 7000)", out var port);
             if (!portSet) return false;
-            
+
             Configuration.ApiPortPublic = port;
             return StepApiPortLocal();
         }
@@ -207,7 +207,7 @@ namespace rxcypnode.Configuration
         {
             var portSet = SetPort("Enter local API port (e.g. 7000)", out var port);
             if (!portSet) return false;
-            
+
             Configuration.ApiPortLocal = port;
             return SerfRPCPort();
         }
@@ -249,7 +249,7 @@ namespace rxcypnode.Configuration
         {
             var portSet = SetPort("Enter Serf API port (e.g. 7373)", out var port);
             if (!portSet) return false;
-            
+
             Configuration.SerfRPCPort = port;
             return true;
         }

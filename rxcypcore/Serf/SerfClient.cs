@@ -1,7 +1,5 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
@@ -23,8 +21,13 @@ using Stream = rxcypcore.Serf.Messages.Stream;
 
 namespace rxcypcore.Serf
 {
+    [MessagePackObject]
     public class MemberEvent
     {
+        public MemberEvent()
+        {
+        }
+
         public MemberEvent(EventType eventType, Member member)
         {
             Type = eventType;
@@ -37,7 +40,10 @@ namespace rxcypcore.Serf
             Leave
         };
 
+        [Key("Type")]
         public EventType Type { get; }
+
+        [Key("Member")]
         public Member Member { get; }
     }
 
@@ -65,8 +71,7 @@ namespace rxcypcore.Serf
 
         public IObservable<ClientState> State { get; }
         public IObservable<SerfClientState> SerfState { get; }
-        public IObservable<MemberEvent> MemberEvents { get; }
-        public ConcurrentDictionary<EndPoint, Member> Members { get; }
+        public MemberList Members { get; }
 
         public void Start();
         public void Stop();
@@ -95,7 +100,7 @@ namespace rxcypcore.Serf
             Command = command;
             Payload = payload;
         }
-        
+
         public ulong Seq { get; }
         public CommandData Command { get; }
         public IEnumerable<byte> Payload { get; }
@@ -113,15 +118,13 @@ namespace rxcypcore.Serf
         private readonly BehaviorSubject<ISerfClient.SerfClientState> _serfState = new(ISerfClient.SerfClientState.Undefined);
         private readonly Subject<byte[]> _dataReceived = new();
         private readonly Subject<ProcessedData> _processedData = new();
-        private readonly Subject<MemberEvent> _memberEvents = new();
-        private readonly ConcurrentDictionary<EndPoint, Member> _members = new();
+        private readonly MemberList _members = new();
         private readonly IDictionary<ulong, CommandData> _commands = new Dictionary<ulong, CommandData>();
 
         public IObservable<ISerfClient.ClientState> State => _state;
         public IObservable<ISerfClient.SerfClientState> SerfState => _serfState;
-        public IObservable<MemberEvent> MemberEvents => _memberEvents;
         public IObservable<IEnumerable<byte>> DataReceived => _dataReceived;
-        public ConcurrentDictionary<EndPoint, Member> Members => _members;
+        public MemberList Members => _members;
 
         public SerfClient(SerfConfigurationOptions configuration, ILogger logger)
         {
@@ -193,14 +196,14 @@ namespace rxcypcore.Serf
                     var payload = Resolve<ResponseHeader>(data, out var responseHeader);
 
                     if (!responseHeader.Ok) return null;
-                    
+
                     _logger.Here().Debug("Received response for sequence {@SeqId}", responseHeader.Data.Seq);
 
                     return new ProcessedData(
                         responseHeader.Data.Seq,
                         GetCommand(responseHeader.Data.Seq),
                         payload);
-                    
+
 
                 })
                 .Subscribe(processedData =>
@@ -226,7 +229,7 @@ namespace rxcypcore.Serf
                     if (_serfState.Value == ISerfClient.SerfClientState.Handshaking)
                     {
                         DeleteCommand(data.Seq);
-                        
+
                         _logger.Here().Information("Response valid");
                         _serfState.OnNext(ISerfClient.SerfClientState.HandshakeOk);
                         Join();
@@ -249,11 +252,13 @@ namespace rxcypcore.Serf
                     if (_serfState.Value == ISerfClient.SerfClientState.Joining)
                     {
                         DeleteCommand(data.Seq);
-                        
+
                         _logger.Here().Debug("Response valid");
                         _serfState.OnNext(ISerfClient.SerfClientState.Joined);
                         RegisterStream("member-join");
                         RegisterStream("member-leave");
+
+                        GetMembers();
                     }
                     else
                     {
@@ -272,15 +277,15 @@ namespace rxcypcore.Serf
                     if (_serfState.Value == ISerfClient.SerfClientState.Joined)
                     {
                         DeleteCommand(data.Seq);
-                        
+
                         var _ = Resolve<MembersResponse>(data.Payload, out var members);
 
                         if (members.Ok)
                         {
-                            ClearMembers();
+                            Members.Clear();
                             foreach (var member in members.Data.Members)
                             {
-                                AddMember(member);
+                                Members.Add(member);
                             }
                         }
                         else
@@ -293,7 +298,7 @@ namespace rxcypcore.Serf
                         _logger.Here().Error("Received unexpected members response");
                     }
                 });
-            
+
             // member-join event
             _processedData
                 .ObserveOn(ThreadPoolScheduler.Instance)
@@ -301,16 +306,17 @@ namespace rxcypcore.Serf
                 .Subscribe(data =>
                 {
                     _logger.Here().Information("Got member join data");
-                    
+
                     if (data.Payload.Any())
                     {
                         var _ = Resolve<MembersResponse>(data.Payload, out var members);
 
-                        if (members.Ok)
+                        if (members.Ok && members.Data != null)
                         {
                             foreach (var member in members.Data.Members)
                             {
-                                _logger.Here().Information("Got member over stream! {@Member}", member);
+                                _logger.Here().Information("Got member-join over stream: {@Member}", member);
+                                Members.Add(member);
                             }
                         }
                     }
@@ -327,6 +333,24 @@ namespace rxcypcore.Serf
                 .Subscribe(data =>
                 {
                     _logger.Here().Information("Got member leave data");
+
+                    if (data.Payload.Any())
+                    {
+                        var _ = Resolve<MembersResponse>(data.Payload, out var members);
+
+                        if (members.Ok)
+                        {
+                            foreach (var member in members.Data.Members)
+                            {
+                                _logger.Here().Information("Got member-leave over stream: {@Member}", member);
+                                Members.Remove(member);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        _logger.Here().Debug("Successfully registered on stream");
+                    }
                 });
 
             #endregion
@@ -350,7 +374,7 @@ namespace rxcypcore.Serf
             Interlocked.Exchange(ref _seqId, 0);
             _commands.Clear();
         }
-        
+
         private void AddCommand(ulong seq, CommandData command)
         {
             _commands.Add(seq, command);
@@ -372,31 +396,6 @@ namespace rxcypcore.Serf
             {
                 _commands.Remove(seq);
             }
-        }
-
-        private void ClearMembers()
-        {
-            _members.Clear();
-        }
-        
-        private bool AddMember(Member member)
-        {
-            var success = false;
-            
-            _logger.Here().Debug("Adding member {@MemberName}", member.Name);
-            try
-            {
-                var endPoint = new IPEndPoint(new IPAddress(member.Address), member.Port);
-                _members[endPoint] = member;
-                _memberEvents.OnNext(new MemberEvent(MemberEvent.EventType.Join, member));
-                success = true;
-            }
-            catch (Exception ex)
-            {
-                _logger.Here().Error(ex, "Error while adding member {@Name}", member.Name);
-            }
-
-            return success;
         }
 
         private ulong _seqId;
@@ -516,21 +515,16 @@ namespace rxcypcore.Serf
         private RequestHeader GetRequestHeader(CommandData command)
         {
             var seq = SeqId;
-            
+
             _logger.Here().Debug("Using seq {@Seq}", seq);
-            
+
             AddCommand(seq, command);
-            
+
             return new()
             {
                 Command = Commands.SerfCommandString(command.Command),
                 Sequence = seq
             };
-        }
-
-        private static bool IsResponseHeaderOk(ResolvedData<ResponseHeader> responseHeader)
-        {
-            return responseHeader.Ok && string.IsNullOrWhiteSpace(responseHeader.Data.Error);
         }
 
         private void Handshake()
@@ -575,13 +569,20 @@ namespace rxcypcore.Serf
         private void RegisterStream(string eventType)
         {
             _logger.Here().Debug("Registering for stream event {@Event}", eventType);
-            
+
             Send(Serialize(
                 GetRequestHeader(new CommandData(Commands.SerfCommand.Stream, eventType)),
                 new Stream.StreamRequest
                 {
                     Type = eventType
                 }));
+        }
+
+        private void GetMembers()
+        {
+            _logger.Here().Debug("Getting members");
+
+            Send(Serialize((GetRequestHeader(new CommandData(Commands.SerfCommand.Members)))));
         }
 
         #endregion
@@ -625,7 +626,7 @@ namespace rxcypcore.Serf
         {
             if (t == null)
             {
-                throw new Exception("Cannot serialize null object");                
+                throw new Exception("Cannot serialize null object");
             }
 
             return MessagePackSerializer.Serialize(t);

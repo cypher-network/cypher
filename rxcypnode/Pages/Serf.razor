@@ -6,8 +6,11 @@
 @using System.Collections.Concurrent
 @using System.Net
 @using Microsoft.AspNetCore.Http
+@using Microsoft.Extensions.DependencyInjection
 
-<h3>Serf @ClientState @Members.Count</h3>
+<h3>Serf @ClientState @Members.Keys.Count</h3>
+
+<span>@DebugText</span>
 
 @if (ClientState == ISerfClient.ClientState.Disconnected)
 {
@@ -25,19 +28,26 @@ else if (ClientState == ISerfClient.ClientState.Connected)
     public ISerfClient.ClientState ClientState { get; set; } = ISerfClient.ClientState.Initializing;
 
     [Parameter]
-    public IList<Member> Members { get; set; } = new List<Member>();
+    public MemberList Members { get; set; } = new();
+
+    [Parameter]
+    public string DebugText { get; set; } = string.Empty;
     
     protected override async Task OnInitializedAsync()
     {
-        _connection = new HubConnectionBuilder().WithUrl("http://localhost:7000/hubs/serf").Build();
+        _connection = new HubConnectionBuilder()
+            .WithUrl("http://localhost:7000/hubs/serf")
+            .AddMessagePackProtocol()
+            .Build();
         _connection.On<ISerfClient.ClientState>("ClientState", ReceiveClientState);
         _connection.On<MemberEvent>("MemberEvent", ReceiveMemberEvent);
-        _connection.On<IList<Member>>("Members", ReceiveMembers);
+        _connection.On<MemberList>("Members", ReceiveMembers);
         await _connection.StartAsync();
     }
 
     Task ReceiveClientState(ISerfClient.ClientState clientState)
     {
+        Console.WriteLine("Received client state");
         ClientState = clientState;
         StateHasChanged();
         return Task.CompletedTask;
@@ -45,17 +55,27 @@ else if (ClientState == ISerfClient.ClientState.Connected)
 
     Task ReceiveMemberEvent(MemberEvent memberEvent)
     {
+        Console.WriteLine("Received member event");
+        DebugText = "Received member event";
+
         if (memberEvent.Type == MemberEvent.EventType.Join)
         {
-            Members.Add(memberEvent.Member);
+            DebugText += "Add member";
+            //Members.Add(memberEvent.Member);
         }
-        
+        else if (memberEvent.Type == MemberEvent.EventType.Leave)
+        {
+            DebugText += "Remove member";
+            //Members.Remove(memberEvent.Member);
+        }
+
         StateHasChanged();
         return Task.CompletedTask;
     }
 
-    Task ReceiveMembers(IList<Member> members)
+    Task ReceiveMembers(MemberList members)
     {
+        Console.WriteLine("Received members");
         Members = members;
         StateHasChanged();
         return Task.CompletedTask;
@@ -63,13 +83,13 @@ else if (ClientState == ISerfClient.ClientState.Connected)
 
     private async void DoJoin()
     {
-        Console.WriteLine("Join");
+        DebugText += "Join";
         await _connection.InvokeAsync("Serf", SerfHub.SerfMethod.Join);
     }
 
     private async void DoLeave()
     {
-        Console.WriteLine("Leave");
+        DebugText += "Leave";
         await _connection.InvokeAsync("Serf", SerfHub.SerfMethod.Leave);
     }
 }

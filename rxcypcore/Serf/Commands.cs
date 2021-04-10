@@ -23,6 +23,7 @@ namespace rxcypcore.Serf
                 SerfCommand.Handshake => "handshake",
                 SerfCommand.Join => "join",
                 SerfCommand.Leave => "leave",
+                SerfCommand.Members => "members",
                 SerfCommand.Stream => "stream"
             };
         }

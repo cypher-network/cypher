@@ -37,7 +37,8 @@ namespace rxcypnode
 
             // Enable web monitor client
             services.AddRazorPages();
-            services.AddSignalR();
+            services.AddSignalR()
+                .AddMessagePackProtocol();
 
             services.AddServerSideBlazor();
             services.AddControllersWithViews();
