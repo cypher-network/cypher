@@ -65,5 +65,10 @@ namespace CYPCore.Extentions
             var amount = (ulong)(value * 1000_000_000);
             return amount;
         }
+
+        public static string ShorterString(this string value, int front = 4, int back = 4)
+        {
+            return $"{value.Substring(0, front)}...{value.Substring(value.Length - back, back)}";
+        }
     }
 }

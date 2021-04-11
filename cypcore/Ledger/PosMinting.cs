@@ -388,7 +388,7 @@ namespace CYPCore.Ledger
                         Passphrase = StakingConfigurationOptions.WalletSettings.Passphrase
                     },
                     Fee = reward,
-                    Memo = $"Coinstake {_serfClient.SerfConfigurationOptions.NodeName}: {pub.ByteToHex()}",
+                    Memo = $"Coinstake {_serfClient.SerfConfigurationOptions.NodeName}: {pub.ByteToHex().ShorterString()}",
                     SessionType = SessionType.Coinstake
                 };
 
