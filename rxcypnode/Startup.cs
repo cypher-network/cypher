@@ -1,5 +1,6 @@
 using Autofac;
 using Autofac.Extensions.DependencyInjection;
+using MessagePack;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
@@ -38,7 +39,13 @@ namespace rxcypnode
             // Enable web monitor client
             services.AddRazorPages();
             services.AddSignalR()
-                .AddMessagePackProtocol();
+                .AddMessagePackProtocol(options =>
+                {
+                    options.SerializerOptions = MessagePackSerializerOptions
+                        .Standard
+                        .WithResolver(rxcypcore.Helper.MessagePack.Resolver.Get())
+                        .WithSecurity(MessagePackSecurity.UntrustedData);
+                });
 
             services.AddServerSideBlazor();
             services.AddControllersWithViews();

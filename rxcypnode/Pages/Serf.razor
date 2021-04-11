@@ -1,16 +1,11 @@
 @page "/"
 @using Microsoft.AspNetCore.SignalR.Client
 @using rxcypcore.Serf
-@using rxcypcore.Serf.Messages
 @using rxcypnode.Hubs
-@using System.Collections.Concurrent
-@using System.Net
-@using Microsoft.AspNetCore.Http
+@using MessagePack
 @using Microsoft.Extensions.DependencyInjection
 
-<h3>Serf @ClientState @Members.Keys.Count</h3>
-
-<span>@DebugText</span>
+<h3>Serf @ClientState @Members.Data.Keys.Count</h3>
 
 @if (ClientState == ISerfClient.ClientState.Disconnected)
 {
@@ -21,6 +16,26 @@ else if (ClientState == ISerfClient.ClientState.Connected)
     <button @onclick="DoLeave">Leave</button>
 }
 
+<table>
+    @foreach (var (key, value) in Members.Data)
+    {
+        @foreach (var endpoint in value)
+        {
+            <tr>
+                <td>
+                    @key
+                </td>
+                <td>
+                    @endpoint.Address
+                </td>
+                <td>
+                    @endpoint.Port.ToString()
+                </td>
+            </tr>
+        }
+    }
+</table>
+
 @code {
     private HubConnection _connection;
 
@@ -30,15 +45,19 @@ else if (ClientState == ISerfClient.ClientState.Connected)
     [Parameter]
     public MemberList Members { get; set; } = new();
 
-    [Parameter]
-    public string DebugText { get; set; } = string.Empty;
-    
     protected override async Task OnInitializedAsync()
     {
         _connection = new HubConnectionBuilder()
             .WithUrl("http://localhost:7000/hubs/serf")
-            .AddMessagePackProtocol()
+            .AddMessagePackProtocol(options =>
+            {
+                options.SerializerOptions = MessagePackSerializerOptions
+                    .Standard
+                    .WithResolver(rxcypcore.Helper.MessagePack.Resolver.Get())
+                    .WithSecurity(MessagePackSecurity.UntrustedData);
+            })
             .Build();
+        
         _connection.On<ISerfClient.ClientState>("ClientState", ReceiveClientState);
         _connection.On<MemberEvent>("MemberEvent", ReceiveMemberEvent);
         _connection.On<MemberList>("Members", ReceiveMembers);
@@ -47,7 +66,6 @@ else if (ClientState == ISerfClient.ClientState.Connected)
 
     Task ReceiveClientState(ISerfClient.ClientState clientState)
     {
-        Console.WriteLine("Received client state");
         ClientState = clientState;
         StateHasChanged();
         return Task.CompletedTask;
@@ -55,18 +73,15 @@ else if (ClientState == ISerfClient.ClientState.Connected)
 
     Task ReceiveMemberEvent(MemberEvent memberEvent)
     {
-        Console.WriteLine("Received member event");
-        DebugText = "Received member event";
-
+        Console.WriteLine("Member " + memberEvent.Type + " for " + memberEvent.Member.Name);
+        
         if (memberEvent.Type == MemberEvent.EventType.Join)
         {
-            DebugText += "Add member";
-            //Members.Add(memberEvent.Member);
+            Members.Add(memberEvent.Member);
         }
         else if (memberEvent.Type == MemberEvent.EventType.Leave)
         {
-            DebugText += "Remove member";
-            //Members.Remove(memberEvent.Member);
+           Members.Remove(memberEvent.Member);
         }
 
         StateHasChanged();
@@ -75,7 +90,6 @@ else if (ClientState == ISerfClient.ClientState.Connected)
 
     Task ReceiveMembers(MemberList members)
     {
-        Console.WriteLine("Received members");
         Members = members;
         StateHasChanged();
         return Task.CompletedTask;
@@ -83,13 +97,11 @@ else if (ClientState == ISerfClient.ClientState.Connected)
 
     private async void DoJoin()
     {
-        DebugText += "Join";
         await _connection.InvokeAsync("Serf", SerfHub.SerfMethod.Join);
     }
 
     private async void DoLeave()
     {
-        DebugText += "Leave";
         await _connection.InvokeAsync("Serf", SerfHub.SerfMethod.Leave);
     }
 }

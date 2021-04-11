@@ -4,22 +4,24 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Reactive.Subjects;
+using MessagePack;
 using rxcypcore.Serf.Messages;
 
 namespace rxcypcore.Serf
 {
-    public class MemberList : ConcurrentDictionary<string, List<IPEndPoint>>
+    [MessagePackObject]
+    public class MemberList
     {
         public bool Add(Member member)
         {
-            if (!ContainsKey(member.Name))
+            if (!Data.ContainsKey(member.Name))
             {
-                TryAdd(member.Name, new List<IPEndPoint>());
+                Data.TryAdd(member.Name, new List<MemberEndpoint>());
             }
 
-            if (TryGetValue(member.Name, out var endPoints))
+            if (Data.TryGetValue(member.Name, out var endPoints))
             {
-                var endPoint = GetEndpoint(member);
+                var endPoint = new MemberEndpoint(member);
 
                 if (endPoints.FirstOrDefault(e => e.Equals(endPoint)) == null)
                 {
@@ -34,14 +36,14 @@ namespace rxcypcore.Serf
 
         public bool Remove(Member member)
         {
-            if (TryGetValue(member.Name, out var endPoints))
+            if (Data.TryGetValue(member.Name, out var endPoints))
             {
-                var endPoint = GetEndpoint(member);
+                var endPoint = new MemberEndpoint(member);
 
                 endPoints.Remove(endPoint);
                 if (!endPoints.Any())
                 {
-                    TryRemove(member.Name, out _);
+                    Data.TryRemove(member.Name, out _);
                 }
 
                 _memberEvents.OnNext(new MemberEvent(MemberEvent.EventType.Leave, member));
@@ -51,15 +53,11 @@ namespace rxcypcore.Serf
             return false;
         }
 
-        private IPEndPoint GetEndpoint(Member member)
-        {
-            // TODO: Find out why some IPv4 member addresses contain more than 4 bytes
-            // TODO: Add IPv6 peers
-            member.Address = member.Address.TakeLast(4).ToArray();
-            return new IPEndPoint(new IPAddress(member.Address), member.Port);
-        }
+        public void Clear() => Data.Clear();
+
+        [Key("Data")] public ConcurrentDictionary<string, List<MemberEndpoint>> Data { get; set; } = new();
 
         private readonly Subject<MemberEvent> _memberEvents = new();
-        public IObservable<MemberEvent> MemberEvents => _memberEvents;
+        public IObservable<MemberEvent> MemberEvents() => _memberEvents;
     }
 }

@@ -1,14 +1,11 @@
 using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net;
 using System.Threading.Tasks;
 using Autofac;
+using MessagePack;
+using Microsoft.AspNetCore.Mvc.Razor;
 using Microsoft.AspNetCore.SignalR;
 using rxcypcore.Extensions;
 using rxcypcore.Serf;
-using rxcypcore.Serf.Messages;
 using Serilog;
 
 namespace rxcypnode.Hubs
@@ -37,7 +34,7 @@ namespace rxcypnode.Hubs
                     Send(state);
                 });
 
-            _serfMemberEventSubscription = _serfClient.Members.MemberEvents
+            _serfMemberEventSubscription = _serfClient.Members.MemberEvents()
                 .Subscribe(Send);
 
             Init();

@@ -41,10 +41,10 @@ namespace rxcypcore.Serf
         };
 
         [Key("Type")]
-        public EventType Type { get; }
+        public EventType Type { get; set; }
 
         [Key("Member")]
-        public Member Member { get; }
+        public Member Member { get; set; }
     }
 
     public interface ISerfClient
