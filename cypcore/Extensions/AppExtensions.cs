@@ -231,6 +231,9 @@ namespace CYPCore.Extensions
 
                 serfService.StartAsync(lifetime).ConfigureAwait(false).GetAwaiter();
 
+                if (serfService.Disabled)
+                    return serfService;
+
                 ct.CancelAfter(30000);
 
                 while (!ct.IsCancellationRequested && !serfClient.ProcessStarted)

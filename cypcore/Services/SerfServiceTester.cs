@@ -47,6 +47,8 @@ namespace CYPCore.Services
 
         public bool JoinedSeedNodes { get; }
 
+        public bool Disabled { get; }
+
         public void Start()
         {
             _logger.Here().Debug("Starting");

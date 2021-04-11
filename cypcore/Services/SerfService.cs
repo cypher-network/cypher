@@ -30,6 +30,7 @@ namespace CYPCore.Services
         Task StartAsync(IHostApplicationLifetime applicationLifetime);
         Task<bool> JoinSeedNodes(SeedNode seedNode);
         bool JoinedSeedNodes { get; }
+        bool Disabled { get; }
     }
 
     public class SerfService : ISerfService
@@ -38,6 +39,8 @@ namespace CYPCore.Services
         private readonly ISigning _signing;
         private readonly ILogger _logger;
         private readonly TcpSession _tcpSession;
+
+        public bool Disabled { get; private set; }
 
         public SerfService(ISerfClient serfClient, ISigning signing, ILogger logger)
         {
@@ -66,6 +69,12 @@ namespace CYPCore.Services
         {
             if (_serfClient.ProcessStarted)
                 return;
+
+            if (_serfClient.SerfConfigurationOptions.Disabled)
+            {
+                Disabled = true;
+                return;
+            }
 
             if (IsRunning())
             {

@@ -18,5 +18,6 @@ namespace CYPCore.Models
         public string Profile { get; set; }
         public bool Replay { get; set; }
         public string KeyringFile { get; set; }
+        public bool Disabled { get; set; }
     }
 }
