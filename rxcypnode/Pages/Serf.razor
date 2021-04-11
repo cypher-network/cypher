@@ -1,22 +1,47 @@
-@page "/"
+@page "/serf"
 @using Microsoft.AspNetCore.SignalR.Client
 @using rxcypcore.Serf
 @using rxcypnode.Hubs
 @using MessagePack
 @using Microsoft.Extensions.DependencyInjection
 
-<h3>Serf @ClientState @Members.Data.Keys.Count</h3>
+@if (ClientState == ISerfClient.ClientState.Disconnected)
+{
+    <h6><span class="badge rounded-pill bg-dark">&nbsp;</span>&nbsp;<span>@ClientState</span></h6>
+}
+else if (ClientState == ISerfClient.ClientState.Connected)
+{
+    <h6><span class="badge rounded-pill bg-success">&nbsp;</span>&nbsp;<span>@ClientState</span></h6>
+}
+else
+{
+    <h6><span class="badge rounded-pill bg-warning">&nbsp;</span>&nbsp;<span>@ClientState</span></h6>
+}
 
 @if (ClientState == ISerfClient.ClientState.Disconnected)
 {
-    <button @onclick="DoJoin">Join</button>
+    <button type="button" class="btn btn-primary" @onclick="DoJoin">Join</button><br />
 }
 else if (ClientState == ISerfClient.ClientState.Connected) 
 {
-    <button @onclick="DoLeave">Leave</button>
+    <button type="button" class="btn btn-primary" @onclick="DoLeave">Leave</button><br />
 }
 
-<table>
+<table class="table table-striped">
+    <thead class="thead=light">
+    <tr>
+        <th scope="col">
+            Name
+        </th>
+        <th scope="col">
+            Address
+        </th>
+        <th scope="col">
+            Port
+        </th>
+    </tr>
+    </thead>
+    <tbody>
     @foreach (var (key, value) in Members.Data)
     {
         @foreach (var endpoint in value)
@@ -34,6 +59,7 @@ else if (ClientState == ISerfClient.ClientState.Connected)
             </tr>
         }
     }
+    </tbody>
 </table>
 
 @code {

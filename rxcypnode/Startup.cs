@@ -83,6 +83,7 @@ namespace rxcypnode
                 endpoints.MapRazorPages();
                 endpoints.MapHub<SerfHub>("/hubs/serf");
                 endpoints.MapBlazorHub();
+                endpoints.MapFallbackToPage("/_Host");
             });
             app.UseSwagger()
                 .UseSwaggerUI(option =>
