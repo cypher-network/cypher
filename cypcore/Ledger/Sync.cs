@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using System.Net.Http;
 using System.Reactive.Linq;
 using CYPCore.Extensions;
+using CYPCore.Extentions;
 using Serilog;
 using CYPCore.Models;
 using CYPCore.Network;
@@ -35,9 +36,7 @@ namespace CYPCore.Ledger
     public class Sync : ISync
     {
         public bool SyncRunning { get; private set; }
-
         private const int BatchSize = 20;
-
         private readonly IUnitOfWork _unitOfWork;
         private readonly IValidator _validator;
         private readonly ILocalNode _localNode;
@@ -58,7 +57,6 @@ namespace CYPCore.Ledger
         public Task Synchronize()
         {
             if (SyncRunning) return Task.CompletedTask;
-
             try
             {
                 var networkPeers = _localNode.ObservePeers().Select(t => t).ToArray();
@@ -67,40 +65,20 @@ namespace CYPCore.Ledger
                     foreach (var peer in observer)
                     {
                         _logger.Here().Information("Looking up block height from {@Host}", peer.Host);
-
-                        var _ = _localNode.ObservePeerBlockHeight(peer)
-                            .Subscribe(async network =>
-                                {
-                                    SyncRunning = true;
-
-                                    _logger.Here()
-                                        .Information(
-                                            "Local node block height ({@LocalHeight}). Network block height ({NetworkHeight})",
-                                            network.Local.Height, network.Remote.Height);
-
-                                    if (network.Local.Height != network.Remote.Height)
-                                    {
-                                        ;
-
-                                        _logger.Here().Information("Fetching blocks");
-
-                                        await Fetch(peer.Host, network.Local.Height, network.Remote.Height / 188);
-
-                                        var localHeight = await _unitOfWork.HashChainRepository.CountAsync();
-
-                                        _logger.Here()
-                                            .Information(
-                                                "Local node block height ({@LocalHeight}). Network block height ({NetworkHeight})",
-                                                localHeight, network.Remote.Height);
-
-                                    }
-
-                                    SyncRunning = false;
-                                },
-                                exception =>
-                                {
-                                    _logger.Here().Error(exception, "Error while looking up network block height");
-                                });
+                        var _ = _localNode.ObservePeerBlockHeight(peer).Subscribe(async network =>
+                            {
+                                _logger.Here()
+                                    .Information(
+                                        "Local node block height ({@LocalHeight}). Network block height ({NetworkHeight})",
+                                        network.Local.Height, network.Remote.Height);
+                                if (network.Local.Height == network.Remote.Height) return;
+                                _logger.Here().Information("Fetching blocks");
+                                await Fetch(peer.Host, network.Local.Height, network.Remote.Height / 188);
+                            },
+                            exception =>
+                            {
+                                _logger.Here().Error(exception, "Error while looking up network block height");
+                            });
                     }
                 });
             }
@@ -121,21 +99,19 @@ namespace CYPCore.Ledger
             Guard.Argument(host, nameof(host)).NotNull().NotEmpty().NotWhiteSpace();
             Guard.Argument(skip, nameof(skip)).NotNegative();
             Guard.Argument(take, nameof(take)).NotNegative();
-
             try
             {
                 var numberOfBatches = (int)Math.Ceiling((double)take / BatchSize);
                 numberOfBatches = numberOfBatches == 0 ? 1 : numberOfBatches;
-
                 for (var i = 0; i < numberOfBatches; i++)
                 {
+                    SyncRunning = true;
                     var http = new RxHttpClient(new HttpClient(), null);
-                    http.Get<FlatBufferStream>($"{host}/chain/blocks/{(int)(i * skip)}/{BatchSize}")
-                        .Subscribe(async stream =>
+                    http.Get<FlatBufferStream>($"{host}/chain/blocks/{(int)(i * skip)}/{BatchSize}").Subscribe(
+                        async stream =>
                         {
                             var blockHeaders =
                                 FlatBufferSerializer.Default.Parse<GenericList<BlockHeaderProto>>(stream.FlatBuffer);
-
                             var verifyForkRule = await _validator.VerifyForkRule(blockHeaders.Data.ToArray());
                             if (verifyForkRule == VerifyResult.UnableToVerify)
                             {
@@ -154,20 +130,23 @@ namespace CYPCore.Ledger
                                     }
 
                                     var saved = await _unitOfWork.HashChainRepository.PutAsync(
-                                        blockHeader.ToIdentifier(),
-                                        blockHeader);
+                                        blockHeader.ToIdentifier(), blockHeader);
                                     if (!saved)
                                     {
-                                        _logger.Here()
-                                            .Error("Unable to save block: {@MerkleRoot}", blockHeader.MerkelRoot);
+                                        _logger.Here().Error("Unable to save block: {@MerkleRoot}",
+                                            blockHeader.MerkelRoot);
                                     }
                                 }
                                 catch (Exception ex)
                                 {
-                                    _logger.Here()
-                                        .Error(ex, "Unable to save block: {@MerkleRoot}", blockHeader.MerkelRoot);
+                                    _logger.Here().Error(ex, "Unable to save block: {@MerkleRoot}",
+                                        blockHeader.MerkelRoot);
                                 }
                             }
+
+                            var localHeight = await _unitOfWork.HashChainRepository.CountAsync();
+                            _logger.Here().Information("Local node block height increased to ({@LocalHeight})",
+                                localHeight);
                         });
                 }
             }
@@ -176,6 +155,7 @@ namespace CYPCore.Ledger
                 _logger.Here().Error(ex, "Failed to synchronize node");
             }
 
+            SyncRunning = false;
             return Task.CompletedTask;
         }
     }
