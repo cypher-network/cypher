@@ -44,7 +44,6 @@ namespace CYPCore.Ledger
         private readonly PooledList<BlockGraph> _pooledBlockGraphs;
         private readonly IObservable<EventPattern<BlockGraphEventArgs>> _trackingBlockGraphAdded;
         private readonly IObservable<EventPattern<BlockGraphEventArgs>> _trackingBlockGraphCompleted;
-
         private const int MaxBlockGraphs = 10_000;
 
         protected class BlockGraphEventArgs : EventArgs
@@ -73,12 +72,10 @@ namespace CYPCore.Ledger
             _sync = sync;
             _logger = logger;
             _pooledBlockGraphs = new PooledList<BlockGraph>(MaxBlockGraphs);
-
             _trackingBlockGraphAdded = Observable.FromEventPattern<BlockGraphEventArgs>(
                 ev => _blockGraphAddedEventHandler += ev, ev => _blockGraphAddedEventHandler -= ev);
             _trackingBlockGraphCompleted = Observable.FromEventPattern<BlockGraphEventArgs>(
                 ev => _blockGraphAddCompletedEventHandler += ev, ev => _blockGraphAddCompletedEventHandler -= ev);
-
             TryAddBlockGraphsListener();
             TryAddBlockmaniaListener();
             ReplayLastRound().SafeFireAndForget(exception => { _logger.Here().Error(exception, "Replay error"); });
@@ -127,7 +124,6 @@ namespace CYPCore.Ledger
         {
             var blockGraph = Helper.Util.DeserializeFlatBuffer<BlockGraph>(blockGraphModel);
             await TryAddBlockGraph(blockGraph);
-
             return VerifyResult.Succeed;
         }
 
@@ -139,7 +135,6 @@ namespace CYPCore.Ledger
         public Task<VerifyResult> TryAddBlockGraph(BlockGraph blockGraph)
         {
             Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
-
             try
             {
                 if (_pooledBlockGraphs.Contains(blockGraph))
@@ -167,23 +162,18 @@ namespace CYPCore.Ledger
         private async Task<bool> SaveBlockGraph(BlockGraph blockGraph)
         {
             Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
-
             var verified = await _validator.VerifyBlockGraphSignatureNodeRound(blockGraph);
             if (verified == VerifyResult.UnableToVerify)
             {
-                _logger.Here()
-                    .Error("Unable to verify block for {@Node} and round {@Round}", blockGraph.Block.Node,
-                        blockGraph.Block.Round);
+                _logger.Here().Error("Unable to verify block for {@Node} and round {@Round}", blockGraph.Block.Node,
+                    blockGraph.Block.Round);
                 return false;
             }
 
             var saved = await _unitOfWork.BlockGraphRepository.PutAsync(blockGraph.ToIdentifier(), blockGraph);
             if (saved) return true;
-
-            _logger.Here()
-                .Error("Unable to save block for {@Node} and round {@Round}", blockGraph.Block.Node,
-                    blockGraph.Block.Round);
-
+            _logger.Here().Error("Unable to save block for {@Node} and round {@Round}", blockGraph.Block.Node,
+                blockGraph.Block.Round);
             return false;
         }
 
@@ -195,15 +185,11 @@ namespace CYPCore.Ledger
         private async Task<BlockGraph> SignBlockGraph(BlockGraph blockGraph)
         {
             Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
-
             await _signing.GetOrUpsertKeyName(_signing.DefaultSigningKeyName);
-
             var signature = await _signing.Sign(_signing.DefaultSigningKeyName, blockGraph.ToHash());
             var pubKey = await _signing.GetPublicKey(_signing.DefaultSigningKeyName);
-
             blockGraph.PublicKey = pubKey;
             blockGraph.Signature = signature;
-
             return blockGraph;
         }
 
@@ -217,9 +203,7 @@ namespace CYPCore.Ledger
         {
             Guard.Argument(skip, nameof(skip)).NotNegative();
             Guard.Argument(take, nameof(take)).NotNegative();
-
             var blockHeaders = Enumerable.Empty<BlockHeaderProto>();
-
             try
             {
                 blockHeaders = await _unitOfWork.HashChainRepository.RangeAsync(skip, take);
@@ -239,12 +223,10 @@ namespace CYPCore.Ledger
         public async Task<IEnumerable<BlockHeaderProto>> GetSafeguardBlocks()
         {
             var blockHeaders = Enumerable.Empty<BlockHeaderProto>();
-
             try
             {
                 var height = await _unitOfWork.HashChainRepository.CountAsync() - 147;
                 height = height < 0 ? 0 : height;
-
                 blockHeaders = await _unitOfWork.HashChainRepository.RangeAsync(height, 147);
             }
             catch (Exception ex)
@@ -262,7 +244,6 @@ namespace CYPCore.Ledger
         public async Task<long> GetHeight()
         {
             long height = 0;
-
             try
             {
                 height = await _unitOfWork.HashChainRepository.CountAsync();
@@ -283,9 +264,7 @@ namespace CYPCore.Ledger
         public async Task<VoutProto[]> GetTransaction(byte[] transactionId)
         {
             Guard.Argument(transactionId, nameof(transactionId)).NotNull().MaxCount(32);
-
             VoutProto[] outputs = null;
-
             try
             {
                 var blockHeaders = await _unitOfWork.HashChainRepository.WhereAsync(x =>
@@ -325,7 +304,6 @@ namespace CYPCore.Ledger
                     Round = (ulong)prevBlockHeader.Height
                 }
             };
-
             return blockGraph;
         }
 
@@ -338,41 +316,32 @@ namespace CYPCore.Ledger
             var activityTrackSubscription = _trackingBlockGraphAdded
                 .Where(data => data.EventArgs.BlockGraph.Block.Round == GetRound() + 1)
                 .GroupByUntil(item => item.EventArgs.Hash, g => g.Throttle(TimeSpan.FromSeconds(10)).Take(1))
-                .SelectMany(group => group.Buffer(TimeSpan.FromSeconds(1), 500))
-                .Subscribe(async blockGraphs =>
+                .SelectMany(group => group.Buffer(TimeSpan.FromSeconds(1), 500)).Subscribe(async blockGraphs =>
                 {
                     foreach (var data in blockGraphs)
                     {
                         var blockGraph = data.EventArgs.BlockGraph;
-
                         try
                         {
                             var copy = false;
-
                             copy |= blockGraph.Block.Node != _serfClient.ClientId;
-
                             if (!copy)
                             {
                                 var signBlockGraph = await SignBlockGraph(blockGraph);
                                 var saved = await SaveBlockGraph(signBlockGraph);
                                 if (!saved) return;
-
                                 await Publish(signBlockGraph);
                             }
                             else
                             {
                                 var saved = await SaveBlockGraph(blockGraph);
                                 if (!saved) return;
-
                                 var block = Helper.Util.DeserializeFlatBuffer<BlockHeaderProto>(blockGraph.Block.Data);
                                 var prev = Helper.Util.DeserializeFlatBuffer<BlockHeaderProto>(blockGraph.Prev.Data);
-
                                 var copyBlockGraph = CopyBlockGraph(block, prev);
                                 copyBlockGraph = await SignBlockGraph(copyBlockGraph);
-
                                 var savedCopy = await SaveBlockGraph(copyBlockGraph);
                                 if (!savedCopy) return;
-
                                 await Publish(copyBlockGraph);
                             }
 
@@ -380,13 +349,11 @@ namespace CYPCore.Ledger
                         }
                         catch (Exception)
                         {
-                            _logger.Here()
-                                .Error("Unable to add block for {@Node} and round {@Round}", blockGraph.Block.Node,
-                                    blockGraph.Block.Round);
+                            _logger.Here().Error("Unable to add block for {@Node} and round {@Round}",
+                                blockGraph.Block.Node, blockGraph.Block.Round);
                         }
                     }
-                });
-
+                }, exception => { _logger.Here().Error(exception, "Subscribe try add block graphs listener error"); });
             return Task.FromResult(activityTrackSubscription);
         }
 
@@ -395,11 +362,9 @@ namespace CYPCore.Ledger
         /// </summary>
         private IDisposable TryAddBlockmaniaListener()
         {
-            var activityTrackSubscription = _trackingBlockGraphCompleted
-                .Delay(TimeSpan.FromSeconds(10))
-                .GroupBy(g => g.EventArgs.Hash)
-                .SelectMany(blockGraph => Observable.FromAsync(async () => await _unitOfWork.BlockGraphRepository.WhereAsync(
-                    x =>
+            var activityTrackSubscription = _trackingBlockGraphCompleted.Delay(TimeSpan.FromSeconds(10))
+                .GroupBy(g => g.EventArgs.Hash).SelectMany(blockGraph => Observable.FromAsync(async () =>
+                    await _unitOfWork.BlockGraphRepository.WhereAsync(x =>
                         new ValueTask<bool>(x.Block.Round == GetRound() + 1 && x.Block.Hash.Equals(blockGraph.Key)))))
                 .Subscribe(blockgraphs =>
                 {
@@ -409,19 +374,15 @@ namespace CYPCore.Ledger
                         var nodes = blockgraphs.Select(n => n.Block.Node).ToArray();
                         var f = (nodeCount - 1) / 3;
                         var quorum2F1 = 2 * f + 1;
-
                         if (nodeCount < quorum2F1) return;
-
                         var lastInterpreted = GetRound();
-
-                        var config = new Config(lastInterpreted, nodes, _serfClient.ClientId, (ulong)nodeCount);
-                        var blockmania = new Blockmania(config, _logger);
-
+                        var config = new Config(lastInterpreted, Array.Empty<ulong>(), _serfClient.ClientId,
+                            (ulong)nodeCount);
+                        var blockmania = new Blockmania(config, _logger) { NodeCount = nodeCount };
                         blockmania.TrackingDelivered.Subscribe(x =>
                         {
                             Delivered(x.EventArgs.Interpreted).ConfigureAwait(false);
                         });
-
                         foreach (var next in blockgraphs)
                         {
                             blockmania.Add(next);
@@ -431,8 +392,7 @@ namespace CYPCore.Ledger
                     {
                         _logger.Here().Error(ex, "Process add blockmania error");
                     }
-                });
-
+                }, exception => { _logger.Here().Error(exception, "Subscribe try add blockmania listener error"); });
             return activityTrackSubscription;
         }
 
@@ -444,9 +404,7 @@ namespace CYPCore.Ledger
         private async Task Delivered(Interpreted deliver)
         {
             Guard.Argument(deliver, nameof(deliver)).NotNull();
-
             _logger.Here().Information("Delivered");
-
             try
             {
                 foreach (var next in deliver.Blocks.Where(x => x.Data != null))
@@ -463,7 +421,6 @@ namespace CYPCore.Ledger
                     }
 
                     await RemoveBlockGraph(blockGraph, next);
-
                     var block = Helper.Util.DeserializeFlatBuffer<BlockHeaderProto>(next.Data);
                     var exists = await _validator.BlockExists(block);
                     if (exists == VerifyResult.AlreadyExists)
@@ -482,7 +439,6 @@ namespace CYPCore.Ledger
                         }
 
                         _logger.Here().Information("Saved block to Delivered");
-
                         continue;
                     }
 
@@ -506,7 +462,6 @@ namespace CYPCore.Ledger
         private async Task RemoveBlockGraph(BlockGraph blockGraph, Block next)
         {
             _pooledBlockGraphs.Remove(blockGraph);
-
             var removed = await _unitOfWork.BlockGraphRepository.RemoveAsync(blockGraph.ToIdentifier());
             if (!removed)
             {
@@ -534,7 +489,6 @@ namespace CYPCore.Ledger
         private async Task<ulong> GetRoundAsync()
         {
             ulong round = 0;
-
             try
             {
                 var height = await _unitOfWork.HashChainRepository.CountAsync();
@@ -556,9 +510,7 @@ namespace CYPCore.Ledger
         private async Task<VerifyResult> BlockGraphExist(BlockGraph blockGraph)
         {
             Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
-
             BlockGraph existBlockGraph;
-
             try
             {
                 existBlockGraph = await _unitOfWork.BlockGraphRepository.GetAsync(x =>
@@ -583,7 +535,6 @@ namespace CYPCore.Ledger
         private async Task Publish(BlockGraph blockGraph)
         {
             Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
-
             try
             {
                 var peers = await _localNode.GetPeers();
