@@ -198,7 +198,8 @@ namespace CYPCore.Network
         {
             return Observable.Create<NetworkBlockHeight>(observer =>
             {
-                var http = new RxHttpClient(new HttpClient(), null);
+                var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+                var http = new RxHttpClient(client, null);
                 http.Get<BlockHeight>($"{peer.Host}/chain/height")
                     .Subscribe(async x =>
                     {
