@@ -120,7 +120,7 @@ namespace CYPCore.Cryptography
         /// 
         /// </summary>
         /// <returns></returns>
-        private static KeyPair GenerateKeyPair()
+        public static KeyPair GenerateKeyPair()
         {
             var keys = Curve.generateKeyPair();
             return new KeyPair(keys.getPrivateKey().serialize(), keys.getPublicKey().serialize());

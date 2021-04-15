@@ -37,9 +37,9 @@ namespace CYPCore.Extentions
             }
         }
 
-        public static ulong MulWithNaT(this ulong value) => value * 1000_000_000;
-
-        public static double DivWithNaT(this ulong value) => Convert.ToDouble(value) / 1000_000_000;
+        public static ulong MulWithNanoTan(this ulong value) => value * 1000_000_000;
+        public static decimal DivWithNanoTan(this ulong value) => Convert.ToDecimal(value) / 1000_000_000;
+        public static decimal DivWithAttoTan(this ulong value) => Convert.ToDecimal(value) / 1000_000_000_000_000_000;
 
         // public static ulong ConvertToUInt64(this double value)
         // {
@@ -59,7 +59,7 @@ namespace CYPCore.Extentions
         //     return amount;
         // }
 
-        public static ulong ConvertToUInt64(this double value)
+        public static ulong ConvertToUInt64(this decimal value)
         {
             Guard.Argument(value, nameof(value)).NotZero().NotNegative();
             var amount = (ulong)(value * 1000_000_000);
@@ -68,7 +68,7 @@ namespace CYPCore.Extentions
 
         public static string ShorterString(this string value, int front = 4, int back = 4)
         {
-            return $"{value.Substring(0, front)}...{value.Substring(value.Length - back, back)}";
+            return $"{value[..front]}...{value.Substring(value.Length - back, back)}";
         }
     }
 }

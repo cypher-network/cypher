@@ -35,6 +35,7 @@ namespace CYPCore.Extensions
             builder.RegisterLogger();
             return builder;
         }
+
         /// <summary>
         /// 
         /// </summary>
@@ -54,8 +55,6 @@ namespace CYPCore.Extensions
         public static ContainerBuilder AddMemoryPool(this ContainerBuilder builder)
         {
             builder.RegisterType<MemoryPool>().As<IMemoryPool>().SingleInstance();
-            builder.RegisterType<MemoryPoolBackgroundService>().As<IHostedService>();
-
             return builder;
         }
 
@@ -71,25 +70,11 @@ namespace CYPCore.Extensions
             {
                 var stakingConfigurationOptions = new StakingConfigurationOptions();
                 configuration.Bind("Staking", stakingConfigurationOptions);
-
-                var posMintingProvider = new PosMinting(
-                    c.Resolve<IGraph>(),
-                    c.Resolve<IMemoryPool>(),
-                    c.Resolve<ISerfClient>(),
-                    c.Resolve<IUnitOfWork>(),
-                    c.Resolve<ISigning>(),
-                    c.Resolve<IValidator>(),
-                    c.Resolve<ISync>(),
-                    stakingConfigurationOptions,
-                    c.Resolve<Serilog.ILogger>());
-
+                var posMintingProvider = new PosMinting(c.Resolve<IGraph>(), c.Resolve<IMemoryPool>(),
+                    c.Resolve<ISerfClient>(), c.Resolve<IUnitOfWork>(), c.Resolve<ISigning>(), c.Resolve<IValidator>(),
+                    c.Resolve<ISync>(), stakingConfigurationOptions, c.Resolve<Serilog.ILogger>());
                 return posMintingProvider;
-            })
-            .As<IPosMinting>()
-            .InstancePerLifetimeScope();
-
-            builder.RegisterType<PosMintingBackgroundService>().As<IHostedService>();
-
+            }).As<IStartable>().SingleInstance();
             return builder;
         }
 
@@ -106,10 +91,7 @@ namespace CYPCore.Extensions
             {
                 UnitOfWork unitOfWork = new(dataFolder.Value, c.Resolve<Serilog.ILogger>());
                 return unitOfWork;
-            })
-            .As<IUnitOfWork>()
-            .SingleInstance();
-
+            }).As<IUnitOfWork>().SingleInstance();
             return builder;
         }
 
@@ -133,7 +115,6 @@ namespace CYPCore.Extensions
         {
             builder.RegisterType<LocalNode>().As<ILocalNode>().SingleInstance();
             builder.RegisterType<SyncBackgroundService>().As<IHostedService>();
-
             return builder;
         }
 
@@ -150,19 +131,14 @@ namespace CYPCore.Extensions
                 var serfConfigurationOptions = new SerfConfigurationOptions();
                 var apiConfigurationOptions = new ApiConfigurationOptions();
                 var serfSeedNodes = new SerfSeedNodes();
-
                 configuration.Bind("SeedNodes", serfSeedNodes);
                 configuration.Bind("Serf", serfConfigurationOptions);
                 configuration.Bind("Api", apiConfigurationOptions);
-
                 var logger = c.Resolve<Serilog.ILogger>();
-                var serfClient = new SerfClient(c.Resolve<ISigning>(), serfConfigurationOptions, apiConfigurationOptions, serfSeedNodes, logger);
-
+                var serfClient = new SerfClient(c.Resolve<ISigning>(), serfConfigurationOptions,
+                    apiConfigurationOptions, serfSeedNodes, logger);
                 return serfClient;
-            })
-            .As<ISerfClient>()
-            .SingleInstance();
-
+            }).As<ISerfClient>().SingleInstance();
             return builder;
         }
 
@@ -175,12 +151,10 @@ namespace CYPCore.Extensions
         {
             builder.Register(c =>
             {
-                Validator validator = new Validator(c.Resolve<IUnitOfWork>(), c.Resolve<ISigning>(), c.Resolve<Serilog.ILogger>());
+                Validator validator = new Validator(c.Resolve<IUnitOfWork>(), c.Resolve<ISigning>(),
+                    c.Resolve<Serilog.ILogger>());
                 return validator;
-            })
-            .As<IValidator>()
-            .SingleInstance();
-
+            }).As<IValidator>().SingleInstance();
             return builder;
         }
 
@@ -190,16 +164,12 @@ namespace CYPCore.Extensions
         /// <param name="services"></param>
         /// <param name="configuration"></param>
         /// <returns></returns>
-        public static IServiceCollection AddDataKeysProtection(this IServiceCollection services, IConfiguration configuration)
+        public static IServiceCollection AddDataKeysProtection(this IServiceCollection services,
+            IConfiguration configuration)
         {
             var dataProtection = configuration.GetSection("DataProtectionPath");
-
-            services
-                .AddDataProtection()
-                .PersistKeysToFileSystem(new DirectoryInfo(dataProtection.Value))
-                .SetApplicationName("cypher")
-                .SetDefaultKeyLifetime(TimeSpan.FromDays(3650));
-
+            services.AddDataProtection().PersistKeysToFileSystem(new DirectoryInfo(dataProtection.Value))
+                .SetApplicationName("cypher").SetDefaultKeyLifetime(TimeSpan.FromDays(3650));
             return services;
         }
 
@@ -209,62 +179,68 @@ namespace CYPCore.Extensions
         /// <param name="builder"></param>
         /// <param name="configuration"></param>
         /// <returns></returns>
-        public static ContainerBuilder AddSerfProcessService(this ContainerBuilder builder, IConfiguration configuration)
+        public static ContainerBuilder AddSerfProcessService(this ContainerBuilder builder,
+            IConfiguration configuration)
         {
             // Do not start Serf when NodeMonitor is active
             var nodeMonitorConfigurationOptions = new NodeMonitorConfigurationOptions();
-            configuration.Bind(NodeMonitorConfigurationOptions.ConfigurationSectionName, nodeMonitorConfigurationOptions);
-
+            configuration.Bind(NodeMonitorConfigurationOptions.ConfigurationSectionName,
+                nodeMonitorConfigurationOptions);
             builder.Register(c =>
             {
-                var ct = new CancellationTokenSource();
-                var localNode = c.Resolve<ILocalNode>();
-                var signing = c.Resolve<ISigning>();
-                var lifetime = c.Resolve<IHostApplicationLifetime>();
-                var serfClient = c.Resolve<ISerfClient>();
+                ISerfService serfService = null;
                 var logger = c.Resolve<Serilog.ILogger>();
-
-                ISerfService serfService =
-                    nodeMonitorConfigurationOptions.Enabled
+                try
+                {
+                    var ct = new CancellationTokenSource();
+                    var localNode = c.Resolve<ILocalNode>();
+                    var signing = c.Resolve<ISigning>();
+                    var lifetime = c.Resolve<IHostApplicationLifetime>();
+                    var serfClient = c.Resolve<ISerfClient>();
+                    serfService = nodeMonitorConfigurationOptions.Enabled
                         ? new SerfServiceTester(serfClient, signing, logger)
                         : new SerfService(serfClient, signing, logger);
+                    serfService.StartAsync(lifetime).GetAwaiter();
+                    if (serfService.Disabled) return serfService;
+                    ct.CancelAfter(100000);
+                    while (!ct.IsCancellationRequested && !serfClient.ProcessStarted)
+                    {
+                        Task.Delay(100, ct.Token);
+                    }
 
-                serfService.StartAsync(lifetime).ConfigureAwait(false).GetAwaiter();
+                    var tcpSession = serfClient.TcpSessionsAddOrUpdate(
+                        new TcpSession(serfClient.SerfConfigurationOptions.Listening).Connect(serfClient
+                            .SerfConfigurationOptions.RPC));
+                    var connectResult = serfClient.Connect(tcpSession.SessionId).GetAwaiter().GetResult();
+                    if (connectResult.Success)
+                    {
+                        var seedNodesSection = configuration.GetSection("SeedNodes").GetChildren().ToList();
+                        if (!seedNodesSection.Any()) return serfService;
+                        var seedNodes = new SeedNode(seedNodesSection.Select(x => x.Value));
+                        serfService.JoinSeedNodes(seedNodes).GetAwaiter();
+                    }
+                    else
+                    {
+                        logger.Here().Error("{@Error}", ((SerfError)connectResult.NonSuccessMessage).Error);
+                    }
 
-                if (serfService.Disabled)
-                    return serfService;
-
-                ct.CancelAfter(30000);
-
-                while (!ct.IsCancellationRequested && !serfClient.ProcessStarted)
-                {
-                    Task.Delay(100, ct.Token);
+                    localNode.Ready();
                 }
-
-                var tcpSession = serfClient.TcpSessionsAddOrUpdate(new TcpSession
-                    (serfClient.SerfConfigurationOptions.Listening).Connect(serfClient.SerfConfigurationOptions.RPC));
-
-                var connectResult = serfClient.Connect(tcpSession.SessionId).ConfigureAwait(false).GetAwaiter().GetResult();
-                if (connectResult.Success)
+                catch (TaskCanceledException ex)
                 {
-                    var seedNodesSection = configuration.GetSection("SeedNodes").GetChildren().ToList();
-                    if (!seedNodesSection.Any()) return serfService;
-
-                    var seedNodes = new SeedNode(seedNodesSection.Select(x => x.Value));
-                    serfService.JoinSeedNodes(seedNodes).ConfigureAwait(false).GetAwaiter();
+                    logger.Here().Error(ex, "Starting serf timeout error");
                 }
-                else
+                catch (OperationCanceledException ex)
                 {
-                    logger.Here().Error("{@Error}", ((SerfError)connectResult.NonSuccessMessage).Error);
+                    logger.Here().Error(ex, "Starting serf operation canceled error");
                 }
-
-                localNode.Ready();
+                catch (Exception ex)
+                {
+                    logger.Here().Error(ex, "Starting serf error");
+                }
 
                 return serfService;
-            })
-            .As<IStartable>()
-            .SingleInstance();
-
+            }).As<IStartable>().SingleInstance();
             return builder;
         }
 
@@ -290,27 +266,20 @@ namespace CYPCore.Extensions
             return builder;
         }
 
-        public static ContainerBuilder AddNodeMonitorService(this ContainerBuilder builder, IConfiguration configuration)
+        public static ContainerBuilder AddNodeMonitorService(this ContainerBuilder builder,
+            IConfiguration configuration)
         {
             builder.Register(c =>
-                {
-                    var nodeMonitorConfigurationOptions = new NodeMonitorConfigurationOptions();
-                    configuration.Bind(NodeMonitorConfigurationOptions.ConfigurationSectionName, nodeMonitorConfigurationOptions);
-
-                    var nodeMonitorProvider =
-                        new NodeMonitor(
-                            nodeMonitorConfigurationOptions,
-                            c.Resolve<Serilog.ILogger>());
-
-                    return nodeMonitorProvider;
-                })
-                .As<INodeMonitor>()
-                .InstancePerLifetimeScope();
-
+            {
+                var nodeMonitorConfigurationOptions = new NodeMonitorConfigurationOptions();
+                configuration.Bind(NodeMonitorConfigurationOptions.ConfigurationSectionName,
+                    nodeMonitorConfigurationOptions);
+                var nodeMonitorProvider =
+                    new NodeMonitor(nodeMonitorConfigurationOptions, c.Resolve<Serilog.ILogger>());
+                return nodeMonitorProvider;
+            }).As<INodeMonitor>().InstancePerLifetimeScope();
             builder.RegisterType<NodeMonitorService>().As<IHostedService>();
-
             return builder;
         }
-
     }
 }

@@ -238,8 +238,8 @@ namespace CYPCore.Cryptography
                 y = x;
                 for (var i = 0; i < t; i++)
                 {
-                    y = ModSqrt(y, p);
                     _stoppingToken.ThrowIfCancellationRequested();
+                    y = ModSqrt(y, p);
                 }
 
                 return y;
