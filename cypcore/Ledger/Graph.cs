@@ -81,6 +81,21 @@ namespace CYPCore.Ledger
 
             TryAddBlockGraphsListener();
             TryAddBlockmaniaListener();
+            ReplayLastRound().SafeFireAndForget(exception => { _logger.Here().Error(exception, "Replay error"); });
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        private async Task ReplayLastRound()
+        {
+            var blockGraphs =
+                await _unitOfWork.BlockGraphRepository.WhereAsync(x =>
+                    new ValueTask<bool>(x.Block.Round == GetRound() + 1));
+            foreach (var blockGraph in blockGraphs)
+            {
+                OnBlockGraphAddComplete(new BlockGraphEventArgs(blockGraph));
+            }
         }
 
         /// <summary>
