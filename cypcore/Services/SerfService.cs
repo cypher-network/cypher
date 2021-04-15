@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Diagnostics;
 using System.IO;
+using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -144,8 +145,7 @@ namespace CYPCore.Services
                     .Add("-tag")
                     .Add($"pubkey={pubKey.ByteToHex()}"));
 
-
-                await foreach (var cmdEvent in cmd.ListenAsync(applicationLifetime.ApplicationStopping))
+                await cmd.Observe().ForEachAsync(cmdEvent =>
                 {
                     switch (cmdEvent)
                     {
@@ -159,7 +159,7 @@ namespace CYPCore.Services
                                 _logger.Here().Information("Serf has started!");
                                 _serfClient.ProcessStarted = true;
                             }
-                            _logger.Here().Information("Out> {@StdOut}", stdOut.Text);
+                            _logger.Here().Debug("Out> {@StdOut}", stdOut.Text);
                             break;
                         case StandardErrorCommandEvent stdErr:
                             _logger.Here().Error("Err> {@StdErr}", stdErr.Text);
@@ -170,7 +170,7 @@ namespace CYPCore.Services
                             applicationLifetime.StopApplication();
                             break;
                     }
-                }
+                }, applicationLifetime.ApplicationStopping).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
