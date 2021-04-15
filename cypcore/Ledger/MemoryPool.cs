@@ -38,7 +38,6 @@ namespace CYPCore.Ledger
         private readonly ILogger _logger;
         private readonly PooledList<TransactionModel> _pooledTransactions;
         private readonly PooledList<string> _pooledSeenTransactions;
-
         private const int MaxMemoryPoolTransactions = 10_000;
         private const int MaxMemoryPoolSeenTransactions = 50_000;
 
@@ -48,14 +47,10 @@ namespace CYPCore.Ledger
             _logger = logger.ForContext("SourceContext", nameof(MemoryPool));
             _pooledTransactions = new PooledList<TransactionModel>(MaxMemoryPoolTransactions);
             _pooledSeenTransactions = new PooledList<string>(MaxMemoryPoolSeenTransactions);
-
-            Observable
-                .Timer(TimeSpan.Zero, TimeSpan.FromHours(1))
-                .Subscribe(
-                    x =>
-                    {
-                        _pooledSeenTransactions.RemoveRange(0, Count());
-                    });
+            Observable.Timer(TimeSpan.Zero, TimeSpan.FromHours(1)).Subscribe(x =>
+            {
+                _pooledSeenTransactions.RemoveRange(0, Count());
+            });
         }
 
         /// <summary>
@@ -66,12 +61,10 @@ namespace CYPCore.Ledger
         public VerifyResult Add(byte[] transactionModel)
         {
             Guard.Argument(transactionModel, nameof(transactionModel)).NotNull();
-
             try
             {
                 var transaction = Helper.Util.DeserializeFlatBuffer<TransactionModel>(transactionModel);
                 if (transaction.Validate().Any()) return VerifyResult.Invalid;
-
                 if (!_pooledSeenTransactions.Contains(transaction.TxnId.ByteToHex()))
                 {
                     _pooledSeenTransactions.Add(transaction.TxnId.ByteToHex());
@@ -96,9 +89,7 @@ namespace CYPCore.Ledger
         public TransactionModel Get(byte[] transactionId)
         {
             Guard.Argument(transactionId, nameof(transactionId)).NotNull().MaxCount(32);
-
             TransactionModel transaction = null;
-
             try
             {
                 transaction = _pooledTransactions.FirstOrDefault(x => x.TxnId == transactionId.HexToByte());
@@ -169,9 +160,7 @@ namespace CYPCore.Ledger
         public VerifyResult Remove(TransactionModel transaction)
         {
             Guard.Argument(transaction, nameof(transaction)).NotNull();
-
             var removed = false;
-
             try
             {
                 removed = _pooledTransactions.Remove(transaction);
