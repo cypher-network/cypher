@@ -3,7 +3,7 @@ using MessagePack;
 namespace rxcypcore.Serf.Messages
 {
     [MessagePackObject]
-    public struct ResponseHeader
+    public class ResponseHeader
     {
         [Key("Seq")]
         public ulong Seq;

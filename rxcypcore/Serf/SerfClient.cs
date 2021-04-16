@@ -37,7 +37,8 @@ namespace rxcypcore.Serf
         public enum EventType
         {
             Join,
-            Leave
+            Leave,
+            Failed
         };
 
         [Key("Type")]
@@ -195,15 +196,17 @@ namespace rxcypcore.Serf
                 {
                     var payload = Resolve<ResponseHeader>(data, out var responseHeader);
 
-                    if (!responseHeader.Ok) return null;
+                    if (responseHeader == null)
+                    {
+                        return null;
+                    }
 
-                    _logger.Here().Debug("Received response for sequence {@SeqId}", responseHeader.Data.Seq);
+                    _logger.Here().Debug("Received response for sequence {@SeqId}", responseHeader.Seq);
 
                     return new ProcessedData(
-                        responseHeader.Data.Seq,
-                        GetCommand(responseHeader.Data.Seq),
+                        responseHeader.Seq,
+                        GetCommand(responseHeader.Seq),
                         payload);
-
 
                 })
                 .Subscribe(processedData =>
@@ -257,6 +260,7 @@ namespace rxcypcore.Serf
                         _serfState.OnNext(ISerfClient.SerfClientState.Joined);
                         RegisterStream("member-join");
                         RegisterStream("member-leave");
+                        RegisterStream("member-failed");
 
                         GetMembers();
                     }
@@ -278,12 +282,12 @@ namespace rxcypcore.Serf
                     {
                         DeleteCommand(data.Seq);
 
-                        var _ = Resolve<MembersResponse>(data.Payload, out var members);
+                        var _ = Resolve<MembersResponse>(data.Payload, out var memberData);
 
-                        if (members.Ok)
+                        if (memberData != null)
                         {
                             Members.Clear();
-                            foreach (var member in members.Data.Members)
+                            foreach (var member in memberData?.Members)
                             {
                                 Members.Add(member);
                             }
@@ -309,11 +313,11 @@ namespace rxcypcore.Serf
 
                     if (data.Payload.Any())
                     {
-                        var _ = Resolve<MembersResponse>(data.Payload, out var members);
+                        var _ = Resolve<MembersResponse>(data.Payload, out var memberData);
 
-                        if (members.Ok && members.Data != null)
+                        if (memberData != null)
                         {
-                            foreach (var member in members.Data.Members)
+                            foreach (var member in memberData?.Members)
                             {
                                 _logger.Here().Information("Got member-join over stream: {@Member}", member);
                                 Members.Add(member);
@@ -326,7 +330,7 @@ namespace rxcypcore.Serf
                     }
                 });
 
-            // member-join event
+            // member-leave event
             _processedData
                 .ObserveOn(ThreadPoolScheduler.Instance)
                 .Where(data => data.Command.Command == Commands.SerfCommand.Stream && data.Command.Metadata == "member-leave")
@@ -336,14 +340,41 @@ namespace rxcypcore.Serf
 
                     if (data.Payload.Any())
                     {
-                        var _ = Resolve<MembersResponse>(data.Payload, out var members);
+                        var _ = Resolve<MembersResponse>(data.Payload, out var memberData);
 
-                        if (members.Ok)
+                        if (memberData != null)
                         {
-                            foreach (var member in members.Data.Members)
+                            foreach (var member in memberData?.Members)
                             {
                                 _logger.Here().Information("Got member-leave over stream: {@Member}", member);
                                 Members.Remove(member);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        _logger.Here().Debug("Successfully registered on stream");
+                    }
+                });
+
+            // member-failed event
+            _processedData
+                .ObserveOn(ThreadPoolScheduler.Instance)
+                .Where(data => data.Command.Command == Commands.SerfCommand.Stream && data.Command.Metadata == "member-failed")
+                .Subscribe(data =>
+                {
+                    _logger.Here().Information("Got member failed data");
+
+                    if (data.Payload.Any())
+                    {
+                        var _ = Resolve<MembersResponse>(data.Payload, out var memberData);
+
+                        if (memberData != null)
+                        {
+                            foreach (var member in memberData?.Members)
+                            {
+                                _logger.Here().Information("Got member-failed over stream: {@Member}", member);
+                                Members.Failed(member);
                             }
                         }
                     }
@@ -589,19 +620,8 @@ namespace rxcypcore.Serf
 
         #region MessagePack
 
-        private struct ResolvedData<T>
+        private IEnumerable<byte> Resolve<T>(IEnumerable<byte> data, out T resolved) where T : class?
         {
-            public bool Ok { get; set; }
-            public T Data { get; set; }
-        }
-
-        private IEnumerable<byte> Resolve<T>(IEnumerable<byte> data, out ResolvedData<T> resolved)
-        {
-            var resolvedData = new ResolvedData<T>
-            {
-                Ok = true
-            };
-
             var enumerable = data as byte[] ?? data.ToArray();
 
             var bytesRead = 0;
@@ -609,15 +629,13 @@ namespace rxcypcore.Serf
             {
                 var resolver = CompositeResolver.Create(StandardResolver.Instance);
                 var options = MessagePackSerializerOptions.Standard.WithResolver(resolver);
-                resolvedData.Data = MessagePackSerializer.Deserialize<T>(data.ToArray(), options, out bytesRead);
+                resolved = MessagePackSerializer.Deserialize<T>(data.ToArray(), options, out bytesRead);
             }
             catch (Exception exception)
             {
                 _logger.Here().Error(exception, "Cannot resolve data type");
-                resolvedData.Ok = false;
+                resolved = null;
             }
-
-            resolved = resolvedData;
 
             return enumerable.Skip(bytesRead);
         }

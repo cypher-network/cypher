@@ -1,4 +1,4 @@
-@import url('open-iconic/font/css/open-iconic-bootstrap.min.css');
+@import url("https://cdn.jsdelivr.net/npm/bootstrap-icons@1.4.1/font/bootstrap-icons.css");
 
 html, body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
@@ -27,6 +27,30 @@ a, .btn-link {
 }
 
 .validation-message {
+    color: red;
+}
+
+.serf-alive {
+    color: green;
+}
+
+.serf-fail {
+    color: red;
+}
+
+.serf-left {
+    color: lightgrey;
+}
+
+.client-connected {
+    color: green;
+}
+
+.client-connecting {
+    color: darkorange;
+}
+
+.client-disconnected {
     color: red;
 }
 

@@ -23,12 +23,18 @@ namespace rxcypcore.Serf
             {
                 var endPoint = new MemberEndpoint(member);
 
-                if (endPoints.FirstOrDefault(e => e.Equals(endPoint)) == null)
+                var memberEndpoint = endPoints.FirstOrDefault(e => e.Equals(endPoint));
+                if (memberEndpoint == null)
                 {
                     endPoints.Add(endPoint);
-                    _memberEvents.OnNext(new MemberEvent(MemberEvent.EventType.Join, member));
-                    return true;
                 }
+                else
+                {
+                    memberEndpoint.Status = member.Status;
+                }
+
+                _memberEvents.OnNext(new MemberEvent(MemberEvent.EventType.Join, member));
+                return true;
             }
 
             return false;
@@ -51,6 +57,23 @@ namespace rxcypcore.Serf
             }
 
             return false;
+        }
+
+        public bool Failed(Member member)
+        {
+            if (Data.TryGetValue(member.Name, out var endpoints))
+            {
+                var endPoint = new MemberEndpoint(member);
+
+                var memberEndpoint = endpoints.FirstOrDefault(e => e.Equals(endPoint));
+                if (memberEndpoint != null)
+                {
+                    memberEndpoint.Status = member.Status;
+                }
+            }
+
+            _memberEvents.OnNext(new MemberEvent(MemberEvent.EventType.Failed, member));
+            return true;
         }
 
         public void Clear() => Data.Clear();

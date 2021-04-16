@@ -27,6 +27,8 @@ namespace rxcypcore.Serf
             var ipv4Address = member.Address.TakeLast(4).ToArray();
             Address = new IPAddress(ipv4Address);
             Port = (ushort)member.Port;
+
+            Status = member.Status;
         }
 
         [Key("IPAddress")]
@@ -34,6 +36,9 @@ namespace rxcypcore.Serf
 
         [Key("Port")]
         public ushort Port { get; set; }
+
+        [Key("Status")]
+        public string Status { get; set; }
 
         public IPEndPoint GetEndPoint()
         {
