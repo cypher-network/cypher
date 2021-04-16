@@ -112,6 +112,9 @@ namespace CYPCore.Ledger
                         {
                             var blockHeaders =
                                 FlatBufferSerializer.Default.Parse<GenericList<BlockHeaderProto>>(stream.FlatBuffer);
+
+                            if (blockHeaders.Data.Any() != true) return;
+                            
                             var verifyForkRule = await _validator.VerifyForkRule(blockHeaders.Data.ToArray());
                             if (verifyForkRule == VerifyResult.UnableToVerify)
                             {
