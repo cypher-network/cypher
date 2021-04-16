@@ -751,8 +751,14 @@ namespace CYPCore.Ledger
             var runningDistribution = await GetRunningDistribution();
             if (runningDistribution == Distribution)
             {
+                // TODO: FIX as this is completely wrong.
+                //runningDistribution -= NetworkShare(solution, runningDistribution);
                 runningDistribution -= NetworkShare(solution, runningDistribution);
+                runningDistribution -= NetworkShare(solution, runningDistribution);
+                runningDistribution -= NetworkShare(solution, runningDistribution);
+                return runningDistribution;
             }
+
             var networkShare = NetworkShare(solution, runningDistribution);
             runningDistribution -= networkShare.ConvertToUInt64().DivWithNanoTan();
             return runningDistribution;
