@@ -10,59 +10,58 @@
         <div class="col">
             <span style="margin-right: 12px;"><i title="@ClientState" class="bi bi-broadcast client-@ClientState.ToString().ToLower()"></i> @ClientState</span>
             
-            @if (ClientState == ISerfClient.ClientState.Disconnected)
-            {
-                <button type="button" class="btn btn-sm btn-primary" @onclick="DoJoin">Join</button><br/>
-            }
-            else if (ClientState == ISerfClient.ClientState.Connected)
+            @if (ClientState == ISerfClient.ClientState.Connected)
             {
                 <button type="button" class="btn btn-sm btn-primary" @onclick="DoLeave">Leave</button><br/>
             }
         </div>
     </div>
 
-    <div class="row">
-        <div class="col">
-            <table class="table table-striped table-hover">
-                <thead class="thead=light">
-                <tr>
-                    <th scope="col"/>
-                    <th scope="col">
-                        Name
-                    </th>
-                    <th scope="col" class="text-right">
-                        Address
-                    </th>
-                    <th scope="col" class="text-right">
-                        Port
-                    </th>
-                </tr>
-                </thead>
-                <tbody>
-                @foreach (var (key, value) in Members.Data)
-                {
-                    @foreach (var endpoint in value)
+    @if (@ClientState == ISerfClient.ClientState.Connected)
+    {
+        <div class="row">
+            <div class="col">
+                <table class="table table-striped table-hover">
+                    <thead class="thead=light">
+                    <tr>
+                        <th scope="col"/>
+                        <th scope="col">
+                            Name
+                        </th>
+                        <th scope="col" class="text-right">
+                            Address
+                        </th>
+                        <th scope="col" class="text-right">
+                            Port
+                        </th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var (key, value) in Members.Data)
                     {
-                        <tr>
-                            <td>
-                                <span><i title="@endpoint.Status" class="bi bi-broadcast serf-@endpoint.Status"></i></span>
-                            </td>
-                            <td>
-                                @key
-                            </td>
-                            <td align="right">
-                                @endpoint.Address
-                            </td>
-                            <td align="right">
-                                @endpoint.Port.ToString()
-                            </td>
-                        </tr>
+                        @foreach (var endpoint in value)
+                        {
+                            <tr>
+                                <td>
+                                    <span><i title="@endpoint.Status" class="bi bi-broadcast serf-@endpoint.Status"></i></span>
+                                </td>
+                                <td>
+                                    @key
+                                </td>
+                                <td align="right">
+                                    @endpoint.Address
+                                </td>
+                                <td align="right">
+                                    @endpoint.Port.ToString()
+                                </td>
+                            </tr>
+                        }
                     }
-                }
-                </tbody>
-            </table>
+                    </tbody>
+                </table>
+            </div>
         </div>
-    </div>
+    }
 </div>
 
 @code {
