@@ -5,10 +5,10 @@ namespace rxcypcore.Serf.Messages
 {
     public class Stream
     {
-        [MessagePackObject]
+        [MessagePackObject(true)]
         public class StreamRequest
         {
-            [Key("Type")] public string Type { get; set; }
+            public string Type { get; set; }
         }
     }
 }

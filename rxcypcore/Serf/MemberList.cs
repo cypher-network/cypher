@@ -76,6 +76,32 @@ namespace rxcypcore.Serf
             return true;
         }
 
+        public void HandleMemberEvent(MemberEvent.EventType eventType, MembersResponse memberData)
+        {
+            if (memberData == null)
+            {
+                return;
+            }
+
+            foreach (var member in memberData.Members)
+            {
+                switch (eventType)
+                {
+                    case MemberEvent.EventType.Join:
+                        Add(member);
+                        break;
+
+                    case MemberEvent.EventType.Leave:
+                        Remove(member);
+                        break;
+
+                    case MemberEvent.EventType.Failed:
+                        Failed(member);
+                        break;
+                }
+            }
+        }
+
         public void Clear() => Data.Clear();
 
         [Key("Data")] public ConcurrentDictionary<string, List<MemberEndpoint>> Data { get; set; } = new();

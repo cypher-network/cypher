@@ -331,7 +331,7 @@ namespace rxcypcore.Serf
                     if (data.Payload.Any())
                     {
                         var _ = Resolve<MembersResponse>(data.Payload, out var memberData);
-                        HandleMemberEvent(MemberEvent.FromString(data.Command.Metadata), memberData);
+                        Members.HandleMemberEvent(MemberEvent.FromString(data.Command.Metadata), memberData);
                     }
                     else
                     {
@@ -508,7 +508,7 @@ namespace rxcypcore.Serf
             return new()
             {
                 Command = Commands.SerfCommandString(command.Command),
-                Sequence = seq
+                Seq = seq
             };
         }
 
@@ -568,32 +568,6 @@ namespace rxcypcore.Serf
             _logger.Here().Debug("Getting members");
 
             Send(Serialize((GetRequestHeader(new CommandData(Commands.SerfCommand.Members)))));
-        }
-
-        private void HandleMemberEvent(MemberEvent.EventType eventType, MembersResponse memberData)
-        {
-            if (memberData == null)
-            {
-                return;
-            }
-
-            foreach (var member in memberData.Members)
-            {
-                switch (eventType)
-                {
-                    case MemberEvent.EventType.Join:
-                        Members.Add(member);
-                        break;
-
-                    case MemberEvent.EventType.Leave:
-                        Members.Remove(member);
-                        break;
-
-                    case MemberEvent.EventType.Failed:
-                        Members.Failed(member);
-                        break;
-                }
-            }
         }
 
         #endregion

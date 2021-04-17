@@ -19,12 +19,12 @@ namespace rxcypcore.Serf
         public MemberEndpoint(Member member)
         {
             Guard.Argument(member, nameof(member)).NotNull();
-            Guard.Argument(member.Address.Length, nameof(member.Address)).Min(4);
+            Guard.Argument(member.Addr.Length, nameof(member.Addr)).Min(4);
             Guard.Argument(member.Port, nameof(member.Port)).InRange(1, ushort.MaxValue);
 
             // TODO: Find out why some IPv4 member addresses contain more than 4 bytes
             // TODO: Add IPv6 peers
-            var ipv4Address = member.Address.TakeLast(4).ToArray();
+            var ipv4Address = member.Addr.TakeLast(4).ToArray();
             Address = new IPAddress(ipv4Address);
             Port = (ushort)member.Port;
 

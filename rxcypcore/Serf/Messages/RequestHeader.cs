@@ -2,13 +2,10 @@ using MessagePack;
 
 namespace rxcypcore.Serf.Messages
 {
-    [MessagePackObject]
+    [MessagePackObject(true)]
     public class RequestHeader
     {
-        [Key("Command")]
         public string Command { get; set; }
-
-        [Key("Seq")]
-        public ulong Sequence { get; set; }
+        public ulong Seq { get; set; }
     }
 }

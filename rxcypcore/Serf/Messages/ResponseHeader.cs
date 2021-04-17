@@ -2,13 +2,10 @@ using MessagePack;
 
 namespace rxcypcore.Serf.Messages
 {
-    [MessagePackObject]
+    [MessagePackObject(true)]
     public class ResponseHeader
     {
-        [Key("Seq")]
         public ulong Seq;
-
-        [Key("Error")]
         public string Error;
     }
 }
