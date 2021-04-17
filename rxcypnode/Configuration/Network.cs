@@ -129,9 +129,14 @@ namespace rxcypnode.Configuration
                     optionContinue
                 });
 
-            _userInterface.Do(section);
+            var choice = _userInterface.Do(section);
 
-            return StepNodeName();
+            if (choice.Equals(optionContinue))
+            {
+                return StepNodeName();
+            }
+
+            return false;
         }
 
         private bool StepNodeName()
