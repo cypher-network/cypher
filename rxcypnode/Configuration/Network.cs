@@ -174,10 +174,13 @@ namespace rxcypnode.Configuration
         private bool StepNodeNameManual()
         {
             var section = new TextInput<string>(
-                "Enter node name (allowed characters: a-z, A-Z, 0-9, \"_\" and \"-\")",
-                nodeName => nodeName.Length > 0 &&
-                            nodeName.All(character => char.IsLetterOrDigit(character) ||
-                                                      character.Equals('_') || character.Equals('-')),
+                "Enter node name (1 - 32 characters, allowed characters: a-z, A-Z, 0-9, \"_\" and \"-\")",
+                nodeName =>
+                    nodeName.Length >= 1 &&
+                    nodeName.Length <= 32 &&
+                    nodeName.All(character => char.IsLetterOrDigit(character) ||
+                                                      character.Equals('_') ||
+                                                      character.Equals('-')),
                 nodeName => nodeName);
 
             var success = _userInterface.Do(section, out var nodeName);
