@@ -32,7 +32,10 @@
                             Address
                         </th>
                         <th scope="col" class="text-right">
-                            Port
+                            Node port
+                        </th>
+                        <th scope="col" class="text-right">
+                            API port
                         </th>
                     </tr>
                     </thead>
@@ -53,6 +56,9 @@
                                 </td>
                                 <td align="right">
                                     @endpoint.Port.ToString()
+                                </td>
+                                <td align="right">
+                                    @endpoint.APIPort.ToString()
                                 </td>
                             </tr>
                         }

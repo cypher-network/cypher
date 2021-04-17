@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,7 +10,7 @@ using rxcypcore.Serf.Messages;
 namespace rxcypcore.Serf
 {
     [MessagePackObject]
-    public class MemberList
+    public class MemberListBase<T> where T : IDictionary<string, IList<MemberEndpoint>>, new()
     {
         public bool Add(Member member)
         {
@@ -48,7 +49,7 @@ namespace rxcypcore.Serf
                 endPoints.Remove(endPoint);
                 if (!endPoints.Any())
                 {
-                    Data.TryRemove(member.Name, out _);
+                    Data.Remove(member.Name, out _);
                 }
 
                 _memberEvents.OnNext(new MemberEvent(MemberEvent.EventType.Leave, member));
@@ -111,9 +112,17 @@ namespace rxcypcore.Serf
 
         public void Clear() => Data.Clear();
 
-        [Key("Data")] public ConcurrentDictionary<string, List<MemberEndpoint>> Data { get; set; } = new();
+        [Key("Data")] public T Data { get; set; } = new();
 
         private readonly Subject<MemberEvent> _memberEvents = new();
         public IObservable<MemberEvent> MemberEvents() => _memberEvents;
+    }
+
+    public class MemberListConcurrent : MemberListBase<ConcurrentDictionary<string, IList<MemberEndpoint>>>
+    {
+    }
+
+    public class MemberList : MemberListBase<Dictionary<string, IList<MemberEndpoint>>>
+    {
     }
 }

@@ -90,7 +90,7 @@ namespace rxcypcore.Serf
 
         public IObservable<ClientState> State { get; }
         public IObservable<SerfClientState> SerfState { get; }
-        public MemberList Members { get; }
+        public MemberListConcurrent Members { get; }
 
         public void Start();
         public void Stop();
@@ -137,13 +137,13 @@ namespace rxcypcore.Serf
         private readonly BehaviorSubject<ISerfClient.SerfClientState> _serfState = new(ISerfClient.SerfClientState.Undefined);
         private readonly Subject<byte[]> _dataReceived = new();
         private readonly Subject<ProcessedData> _processedData = new();
-        private readonly MemberList _members = new();
+        private readonly MemberListConcurrent _members = new();
         private readonly IDictionary<ulong, CommandData> _commands = new Dictionary<ulong, CommandData>();
 
         public IObservable<ISerfClient.ClientState> State => _state;
         public IObservable<ISerfClient.SerfClientState> SerfState => _serfState;
         public IObservable<IEnumerable<byte>> DataReceived => _dataReceived;
-        public MemberList Members => _members;
+        public MemberListConcurrent Members => _members;
 
         public SerfClient(SerfConfigurationOptions configuration, ILogger logger)
         {

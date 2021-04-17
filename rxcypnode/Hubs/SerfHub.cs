@@ -60,7 +60,7 @@ namespace rxcypnode.Hubs
             await Clients.All.SendAsync("MemberEvent", memberEvent);
         }
 
-        private async void Send(MemberList members)
+        private async void Send(MemberListConcurrent members)
         {
             if (Clients == null) return;
             _logger.Here().Information("Sending {@NumMembers} member(s)", members.Data.Keys.Count);
