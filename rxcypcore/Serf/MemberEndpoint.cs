@@ -24,8 +24,11 @@ namespace rxcypcore.Serf
             var ipv4Address = member.Addr.TakeLast(4).ToArray();
             Address = new IPAddress(ipv4Address);
             Port = (ushort)member.Port;
-
             Status = member.Status;
+
+            if (!member.Tags.TryGetValue("api.port", out var apiPortText)) return;
+            if (!ushort.TryParse(apiPortText, out var apiPort)) return;
+            APIPort = apiPort;
         }
 
         [Key("IPAddress")]
@@ -34,12 +37,25 @@ namespace rxcypcore.Serf
         [Key("Port")]
         public ushort Port { get; set; }
 
+        [Key("APIPort")]
+        public ushort? APIPort { get; set; } = null;
+
         [Key("Status")]
         public string Status { get; set; }
 
         public IPEndPoint GetEndPoint()
         {
             return new(Address, Port);
+        }
+
+        public IPEndPoint GetAPIEndPoint()
+        {
+            if (APIPort != null)
+            {
+                return new(Address, (ushort)APIPort);
+            }
+
+            return null;
         }
 
         public override bool Equals(object? obj)
