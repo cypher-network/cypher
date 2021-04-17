@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Diagnostics.Eventing.Reader;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -74,11 +75,23 @@ namespace rxcypnode.UI
 
         private static void Print(string text, int indent = 0)
         {
-            var pattern = $@"(?<line>.{{1,{(Console.WindowWidth - indent).ToString()}}})(?<!\s)(\s+|$)|(?<line>.+?)(\s+|$)";
-            var lines = Regex.Matches(text, pattern).Select(m => m.Groups["line"].Value);
-            foreach (var line in lines)
+            var lineWidth = Console.WindowWidth - indent;
+            foreach (var line in text.Split(Environment.NewLine))
             {
-                Console.Out.WriteLine($"{GetIndentString(Indent)}{line}");
+                var pattern = $@"(?<line>.{{1,{(Console.WindowWidth - indent).ToString()}}})(?<!\s)(\s+|$)|(?<line>.+?)(\s+|$)";
+                var lines = Regex.Matches(line, pattern).Select(m => m.Groups["line"].Value);
+                if (lines.Any())
+                {
+                    foreach (var indentLine in lines)
+                    {
+                        Console.WriteLine($"{GetIndentString(Indent)}{indentLine}");
+
+                    }
+                }
+                else
+                {
+                    Console.WriteLine();
+                }
             }
         }
 

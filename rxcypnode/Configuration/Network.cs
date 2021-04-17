@@ -2,10 +2,30 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Security.Cryptography;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Newtonsoft.Json;
 using rxcypnode.UI;
 
 namespace rxcypnode.Configuration
 {
+    public class SerfConfigurationTags
+    {
+        public string IPv;
+        public string APIPort;
+    }
+
+    public class SerfConfiguration
+    {
+        public string node_name;
+        public bool disable_coordinates;
+        public SerfConfigurationTags tags = new();
+        public string bind;
+        public string advertise;
+        public string profile;
+        public string rpc_addr;
+    }
+
     public class Network
     {
         private readonly IUserInterface _userInterface;
@@ -14,10 +34,32 @@ namespace rxcypnode.Configuration
 
         public class ConfigurationClass
         {
+            public string NodeName { get; set; }
             public IPAddress IPAddress { get; set; }
             public ushort ApiPortPublic { get; set; } = 7000;
             public ushort ApiPortLocal { get; set; }
-            public ushort SerfRPCPort { get; set; } = 7373;
+            public ushort SerfPortRpc { get; set; } = 7373;
+            public ushort SerfPortPublic { get; set; } = 7946;
+
+            public string GetSerfConfiguration()
+            {
+                var config = new SerfConfiguration
+                {
+                    node_name = NodeName,
+                    disable_coordinates = true,
+                    tags =
+                    {
+                        IPv = "4",
+                        APIPort = ApiPortPublic.ToString()
+                    },
+                    bind = $"0.0.0.0:{SerfPortPublic}",
+                    advertise = $"{IPAddress}:{SerfPortPublic}",
+                    profile = "wan",
+                    rpc_addr = $"127.0.0.0:{SerfPortRpc}"
+                };
+
+                return JsonConvert.SerializeObject(config, Formatting.Indented);
+            }
         }
 
         public ConfigurationClass Configuration { get; } = new();
@@ -29,7 +71,7 @@ namespace rxcypnode.Configuration
 
         public bool Do()
         {
-            return StepIpAddress();
+            return StepIntroduction();
         }
 
         private bool SetPort(string prompt, out ushort port)
@@ -41,6 +83,109 @@ namespace rxcypnode.Configuration
 
             return _userInterface.Do(section, out port);
         }
+
+        #region Introduction
+
+        private bool StepIntroduction()
+        {
+            UserInterfaceChoice optionContinue = new("Continue network setup");
+
+            var section = new UserInterfaceSection(
+                "Network configuration",
+                "Cypher nodes communicate with each other directly over an API interface. In order for nodes " +
+                "to form a cluster, an application called \"Serf\" is used. For a proper node setup, the following " +
+                "components need to be configured:" + Environment.NewLine +
+                Environment.NewLine +
+                "- A Serf agent is running. In most cases this agent runs on the same instance as cypnode" + Environment.NewLine +
+                "- The Serf agent can communicate with remote Serf instances (IPv4, using both TCP and UDP)" + Environment.NewLine +
+                "- Your cypnode can communicate with this Serf agent over its RPC port (TCP)" + Environment.NewLine +
+                "- Your cypnode can communicate with remote nodes over their API ports (TCP)" + Environment.NewLine +
+                "- Remove cypnodes can communicate with your cypnode over your API port (TCP)" + Environment.NewLine +
+                "- Your cypnode can communicate with this Serf instance over its RPC port (TCP)" + Environment.NewLine +
+                Environment.NewLine +
+                Environment.NewLine +
+                "      your node                              remote nodes       " + Environment.NewLine +
+                "     ┌───────────────────────────┐          ┌──────────────────┐" + Environment.NewLine +
+                "     │  ┌───────────┐            │          │   ┌───────────┐  │" + Environment.NewLine +
+                "     │  │  cypnode  ◄────────────┼───────0──┼───►  cypnode  │  │" + Environment.NewLine +
+                "     │  │           │<api port>  │       │  │   │           │  │" + Environment.NewLine +
+                "     │  └─────┬─────┘            │       │  │   └─────┬─────┘  │" + Environment.NewLine +
+                "     │        │<rpc port>        │       │  │         │        │" + Environment.NewLine +
+                "     │  ┌─────▼─────┐            │       │  │   ┌─────▼─────┐  │" + Environment.NewLine +
+                "     │  │   serf    ◄────────────┼────0──┼──┼───►   serf    │  │" + Environment.NewLine +
+                "     │  │           │<serf port> │    │  │  │   └───────────┘  │" + Environment.NewLine +
+                "     │  └───────────┘            │    │  │  └──────────────────┘" + Environment.NewLine +
+                "     └───────────────────────────┘    │  │  ┌──────────────────┐" + Environment.NewLine +
+                "                                      │  │  │   ┌───────────┐  │" + Environment.NewLine +
+                "                                      │  └──┼───►  cypnode  │  │" + Environment.NewLine +
+                "                                      │     │   └─────┬─────┘  │" + Environment.NewLine +
+                "                                      │     │         │        │" + Environment.NewLine +
+                "                                      │     │   ┌─────▼─────┐  │" + Environment.NewLine +
+                "                                      └─────┼───►   serf    │  │" + Environment.NewLine +
+                "                                            │   └───────────┘  │" + Environment.NewLine +
+                "                                            └──────────────────┘" + Environment.NewLine,
+                new[]
+                {
+                    optionContinue
+                });
+
+            _userInterface.Do(section);
+
+            return StepNodeName();
+        }
+
+        private bool StepNodeName()
+        {
+            UserInterfaceChoice optionManualNodeName = new("Manually enter node name");
+            UserInterfaceChoice optionGenerateNodeName = new("Automatically generate a node name");
+
+            var section = new UserInterfaceSection(
+                "Node name",
+                "Your node is identified by a name, which can be a human-readable name or a randomly generated name. The node name must be unique in the network.",
+                new[]
+                {
+                    optionManualNodeName,
+                    optionGenerateNodeName
+                });
+
+            var choiceNodeName = _userInterface.Do(section);
+
+            if (choiceNodeName.Equals(optionManualNodeName))
+            {
+                return StepNodeNameManual();
+            }
+
+            if (choiceNodeName.Equals(optionGenerateNodeName))
+            {
+                var bytes = new byte[10];
+                new RNGCryptoServiceProvider().GetBytes(bytes);
+                Configuration.NodeName = $"cypher-{BitConverter.ToString(bytes).Replace("-", "").ToLower()}";
+                return StepIpAddress();
+            }
+
+            return false;
+        }
+
+        private bool StepNodeNameManual()
+        {
+            var section = new TextInput<string>(
+                "Enter node name (allowed characters: a-z, A-Z, 0-9, \"_\" and \"-\")",
+                nodeName => nodeName.Length > 0 &&
+                            nodeName.All(character => char.IsLetterOrDigit(character) ||
+                                                      character.Equals('_') || character.Equals('-')),
+                nodeName => nodeName);
+
+            var success = _userInterface.Do(section, out var nodeName);
+            if (success)
+            {
+                Configuration.NodeName = nodeName;
+                return StepIpAddress();
+            }
+
+            return success;
+        }
+
+        #endregion
 
         #region IP address
         private readonly UserInterfaceChoice _optionIpAddressManual = new("Manually enter IP address");
@@ -82,8 +227,8 @@ namespace rxcypnode.Configuration
         {
             var section = new TextInput<IPAddress>(
                 "Enter IP address (e.g. 123.1.23.123)",
-                (ipAddress) => IPAddress.TryParse(ipAddress, out _),
-                (ipAddress) => IPAddress.Parse(ipAddress));
+                ipAddress => IPAddress.TryParse(ipAddress, out _),
+                ipAddress => IPAddress.Parse(ipAddress));
 
             var success = _userInterface.Do(section, out var ipAddress);
             if (success)
@@ -151,7 +296,8 @@ namespace rxcypnode.Configuration
             if (choicePortApi.Equals(_optionApiPortDefault))
             {
                 // Skip setting local port when default public port is selected
-                return SerfRPCPort();
+                Configuration.ApiPortLocal = Configuration.ApiPortPublic;
+                return SerfPortRpc();
             }
 
             if (choicePortApi.Equals(_optionApiPortChange))
@@ -190,7 +336,7 @@ namespace rxcypnode.Configuration
             if (choicePortApi.Equals(_optionApiPortSame))
             {
                 Configuration.ApiPortLocal = Configuration.ApiPortPublic;
-                return SerfRPCPort();
+                return SerfPortPublic();
             }
 
             if (choicePortApi.Equals(_optionApiPortChange))
@@ -207,48 +353,85 @@ namespace rxcypnode.Configuration
             if (!portSet) return false;
 
             Configuration.ApiPortLocal = port;
-            return SerfRPCPort();
+            return SerfPortPublic();
         }
         #endregion API
 
         #region Serf
-        private readonly UserInterfaceChoice _optionPortSerfRpcDefault = new("Use default RPC port");
-        private readonly UserInterfaceChoice _optionPortSerfChange = new("Set RPC port");
-
-        private bool SerfRPCPort()
+        private readonly UserInterfaceChoice _optionPortSerfPublicDefault = new("Use default public Serf port");
+        private readonly UserInterfaceChoice _optionPortSerfPublicChange = new("Set public Serf port");
+        private bool SerfPortPublic()
         {
             var section = new UserInterfaceSection(
-                "Serf RPC Port",
-                "Node clusters communicate using HashiCorp Serf. Your node communicates with a local Serf " +
-                "instance over its Remote Procedure Call (RPC) TCP port. This port does not need to be accessible to " +
-                $"other nodes. By default, Serf uses port {Configuration.SerfRPCPort.ToString()}.",
+                "Serf Public Port",
+                "Node clusters communicate using HashiCorp Serf. Serf agent communicate with other Serf " +
+                $"agents over a publicly accessible port. By default, Serf uses port {Configuration.SerfPortPublic.ToString()}.",
                 new[]
                 {
-                    _optionPortSerfRpcDefault,
-                    _optionPortSerfChange
+                    _optionPortSerfPublicDefault,
+                    _optionPortSerfPublicChange
                 });
 
-            var choicePortApi = _userInterface.Do(section);
+            var choicePortPublic = _userInterface.Do(section);
 
-            if (choicePortApi.Equals(_optionPortSerfRpcDefault))
+            if (choicePortPublic.Equals(_optionPortSerfPublicDefault))
             {
-                return true;
+                return SerfPortRpc();
             }
 
-            if (choicePortApi.Equals(_optionPortSerfChange))
+            if (choicePortPublic.Equals(_optionPortSerfPublicChange))
             {
-                return SerfRPCPortSet();
+                return SerfPortPublicSet();
             }
 
             return false;
         }
 
-        private bool SerfRPCPortSet()
+        private bool SerfPortPublicSet()
         {
-            var portSet = SetPort("Enter Serf API port (e.g. 7373)", out var port);
+            var portSet = SetPort($"Enter public Serf port (e.g. {Configuration.SerfPortPublic.ToString()})", out var port);
             if (!portSet) return false;
 
-            Configuration.SerfRPCPort = port;
+            Configuration.SerfPortPublic = port;
+            return true;
+        }
+
+        private readonly UserInterfaceChoice _optionPortSerfRpcDefault = new("Use default RPC port");
+        private readonly UserInterfaceChoice _optionPortSerfRpcChange = new("Set RPC port");
+        private bool SerfPortRpc()
+        {
+            var section = new UserInterfaceSection(
+                "Serf RPC Port",
+                "Node clusters communicate using HashiCorp Serf. Your node communicates with a local Serf " +
+                "instance over its Remote Procedure Call (RPC) TCP port. This port does not need to be accessible to " +
+                $"other nodes. By default, Serf uses port {Configuration.SerfPortRpc.ToString()}.",
+                new[]
+                {
+                    _optionPortSerfRpcDefault,
+                    _optionPortSerfRpcChange
+                });
+
+            var choicePortRpc = _userInterface.Do(section);
+
+            if (choicePortRpc.Equals(_optionPortSerfRpcDefault))
+            {
+                return true;
+            }
+
+            if (choicePortRpc.Equals(_optionPortSerfRpcChange))
+            {
+                return SerfPortRpcSet();
+            }
+
+            return false;
+        }
+
+        private bool SerfPortRpcSet()
+        {
+            var portSet = SetPort($"Enter Serf API port (e.g. {Configuration.SerfPortRpc.ToString()})", out var port);
+            if (!portSet) return false;
+
+            Configuration.SerfPortRpc = port;
             return true;
         }
         #endregion Serf

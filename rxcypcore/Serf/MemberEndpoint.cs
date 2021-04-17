@@ -1,5 +1,6 @@
 using System.Linq;
 using System.Net;
+using Autofac.Core;
 using Dawn;
 using MessagePack;
 using rxcypcore.Serf.Messages;
@@ -26,7 +27,11 @@ namespace rxcypcore.Serf
             Port = (ushort)member.Port;
             Status = member.Status;
 
-            if (!member.Tags.TryGetValue("api.port", out var apiPortText)) return;
+            if (!member.Tags.TryGetValue("IPv", out var ipvText)) return;
+            if (!ushort.TryParse(ipvText, out var ipv)) return;
+            IPv = ipv;
+
+            if (!member.Tags.TryGetValue("APIPort", out var apiPortText)) return;
             if (!ushort.TryParse(apiPortText, out var apiPort)) return;
             APIPort = apiPort;
         }
@@ -39,6 +44,9 @@ namespace rxcypcore.Serf
 
         [Key("APIPort")]
         public ushort? APIPort { get; set; } = null;
+
+        [Key("IPv")]
+        public ushort IPv { get; set; }
 
         [Key("Status")]
         public string Status { get; set; }
