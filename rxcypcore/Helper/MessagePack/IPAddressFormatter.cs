@@ -1,4 +1,3 @@
-using System;
 using System.Net;
 using MessagePack;
 using MessagePack.Formatters;

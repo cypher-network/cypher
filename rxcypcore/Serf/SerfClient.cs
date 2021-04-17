@@ -331,7 +331,10 @@ namespace rxcypcore.Serf
                     if (data.Payload.Any())
                     {
                         var _ = Resolve<MembersResponse>(data.Payload, out var memberData);
-                        Members.HandleMemberEvent(MemberEvent.FromString(data.Command.Metadata), memberData);
+                        if (!Members.HandleMemberEvent(MemberEvent.FromString(data.Command.Metadata), memberData))
+                        {
+                            _logger.Here().Error("Could not process all member events");
+                        }
                     }
                     else
                     {

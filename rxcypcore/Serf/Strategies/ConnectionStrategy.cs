@@ -6,11 +6,10 @@ namespace rxcypcore.Serf.Strategies
 {
     public abstract class ConnectionStrategy
     {
-        private readonly Subject<bool> _reconnect = new();
         public int? MaxNumberOfAttempts { get; }
         public int AttemptCounter { get; private set; }
 
-        public Subject<bool> Reconnect => _reconnect;
+        public Subject<bool> Reconnect { get; } = new();
 
         protected ConnectionStrategy(int? maxNumberOfAttempts)
         {

@@ -122,6 +122,7 @@
 
     Task ReceiveMembers(MemberList members)
     {
+        Console.WriteLine("Receiving members " + members.Data.Keys.Count);
         Members = members;
         StateHasChanged();
         return Task.CompletedTask;

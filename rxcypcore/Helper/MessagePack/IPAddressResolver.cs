@@ -39,12 +39,7 @@ namespace rxcypcore.Helper.MessagePack
 
         internal static object GetFormatter(Type t)
         {
-            if (FormatterMap.TryGetValue(t, out var formatter))
-            {
-                return formatter;
-            }
-
-            return null;
+            return FormatterMap.TryGetValue(t, out var formatter) ? formatter : null;
         }
     }
 }

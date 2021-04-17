@@ -1,8 +1,6 @@
 using System;
 using System.Threading.Tasks;
 using Autofac;
-using MessagePack;
-using Microsoft.AspNetCore.Mvc.Razor;
 using Microsoft.AspNetCore.SignalR;
 using rxcypcore.Extensions;
 using rxcypcore.Serf;
@@ -35,7 +33,9 @@ namespace rxcypnode.Hubs
                 });
 
             _serfMemberEventSubscription = _serfClient.Members.MemberEvents()
-                .Subscribe(Send);
+                .Subscribe(
+                    Send,
+                    error => _logger.Here().Error(error, "Cannot send member list"));
 
             Init();
         }
@@ -63,7 +63,7 @@ namespace rxcypnode.Hubs
         private async void Send(MemberList members)
         {
             if (Clients == null) return;
-            _logger.Here().Information("Sending members");
+            _logger.Here().Information("Sending {@NumMembers} member(s)", members.Data.Keys.Count);
             await Clients.All.SendAsync("Members", members);
         }
 

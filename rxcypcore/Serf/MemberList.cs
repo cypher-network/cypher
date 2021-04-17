@@ -2,7 +2,6 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net;
 using System.Reactive.Subjects;
 using MessagePack;
 using rxcypcore.Serf.Messages;
@@ -76,30 +75,38 @@ namespace rxcypcore.Serf
             return true;
         }
 
-        public void HandleMemberEvent(MemberEvent.EventType eventType, MembersResponse memberData)
+        public bool HandleMemberEvent(MemberEvent.EventType eventType, MembersResponse memberData)
         {
             if (memberData == null)
             {
-                return;
+                return false;
             }
 
-            foreach (var member in memberData.Members)
+            var success = true;
+
+            foreach (var member in memberData?.Members)
             {
                 switch (eventType)
                 {
                     case MemberEvent.EventType.Join:
-                        Add(member);
+                        success &= Add(member);
                         break;
 
                     case MemberEvent.EventType.Leave:
-                        Remove(member);
+                        success &= Remove(member);
                         break;
 
                     case MemberEvent.EventType.Failed:
-                        Failed(member);
+                        success &= Failed(member);
+                        break;
+
+                    default:
+                        success = false;
                         break;
                 }
             }
+
+            return success;
         }
 
         public void Clear() => Data.Clear();
