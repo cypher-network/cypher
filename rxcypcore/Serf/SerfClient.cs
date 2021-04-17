@@ -38,8 +38,26 @@ namespace rxcypcore.Serf
         {
             Join,
             Leave,
-            Failed
+            Failed,
+            Unknown,
         };
+
+        private static readonly Dictionary<string, EventType> EventTypeText = new()
+        {
+            { "member-join", EventType.Join },
+            { "member-leave", EventType.Leave },
+            { "member-failed", EventType.Failed }
+        };
+
+        public static EventType FromString(string text)
+        {
+            if (EventTypeText.TryGetValue(text, out var eventType))
+            {
+                return eventType;
+            }
+
+            return EventType.Unknown;
+        }
 
         [Key("Type")]
         public EventType Type { get; set; }
@@ -287,7 +305,7 @@ namespace rxcypcore.Serf
                         if (memberData != null)
                         {
                             Members.Clear();
-                            foreach (var member in memberData?.Members)
+                            foreach (var member in memberData.Members)
                             {
                                 Members.Add(member);
                             }
@@ -303,89 +321,25 @@ namespace rxcypcore.Serf
                     }
                 });
 
-            // member-join event
+            // member event
             _processedData
                 .ObserveOn(ThreadPoolScheduler.Instance)
-                .Where(data => data.Command.Command == Commands.SerfCommand.Stream && data.Command.Metadata == "member-join")
+                .Where(data => data.Command.Command == Commands.SerfCommand.Stream && data.Command.Metadata != null &&
+                               data.Command.Metadata.StartsWith("member-"))
                 .Subscribe(data =>
                 {
-                    _logger.Here().Information("Got member join data");
-
                     if (data.Payload.Any())
                     {
                         var _ = Resolve<MembersResponse>(data.Payload, out var memberData);
-
-                        if (memberData != null)
-                        {
-                            foreach (var member in memberData?.Members)
-                            {
-                                _logger.Here().Information("Got member-join over stream: {@Member}", member);
-                                Members.Add(member);
-                            }
-                        }
+                        HandleMemberEvent(MemberEvent.FromString(data.Command.Metadata), memberData);
                     }
                     else
                     {
-                        _logger.Here().Debug("Successfully registered on stream");
-                    }
-                });
-
-            // member-leave event
-            _processedData
-                .ObserveOn(ThreadPoolScheduler.Instance)
-                .Where(data => data.Command.Command == Commands.SerfCommand.Stream && data.Command.Metadata == "member-leave")
-                .Subscribe(data =>
-                {
-                    _logger.Here().Information("Got member leave data");
-
-                    if (data.Payload.Any())
-                    {
-                        var _ = Resolve<MembersResponse>(data.Payload, out var memberData);
-
-                        if (memberData != null)
-                        {
-                            foreach (var member in memberData?.Members)
-                            {
-                                _logger.Here().Information("Got member-leave over stream: {@Member}", member);
-                                Members.Remove(member);
-                            }
-                        }
-                    }
-                    else
-                    {
-                        _logger.Here().Debug("Successfully registered on stream");
-                    }
-                });
-
-            // member-failed event
-            _processedData
-                .ObserveOn(ThreadPoolScheduler.Instance)
-                .Where(data => data.Command.Command == Commands.SerfCommand.Stream && data.Command.Metadata == "member-failed")
-                .Subscribe(data =>
-                {
-                    _logger.Here().Information("Got member failed data");
-
-                    if (data.Payload.Any())
-                    {
-                        var _ = Resolve<MembersResponse>(data.Payload, out var memberData);
-
-                        if (memberData != null)
-                        {
-                            foreach (var member in memberData?.Members)
-                            {
-                                _logger.Here().Information("Got member-failed over stream: {@Member}", member);
-                                Members.Failed(member);
-                            }
-                        }
-                    }
-                    else
-                    {
-                        _logger.Here().Debug("Successfully registered on stream");
+                        _logger.Here().Debug("Successfully registered on stream {@Event}", data.Command.Metadata);
                     }
                 });
 
             #endregion
-
         }
 
         public void Start()
@@ -614,6 +568,32 @@ namespace rxcypcore.Serf
             _logger.Here().Debug("Getting members");
 
             Send(Serialize((GetRequestHeader(new CommandData(Commands.SerfCommand.Members)))));
+        }
+
+        private void HandleMemberEvent(MemberEvent.EventType eventType, MembersResponse memberData)
+        {
+            if (memberData == null)
+            {
+                return;
+            }
+
+            foreach (var member in memberData.Members)
+            {
+                switch (eventType)
+                {
+                    case MemberEvent.EventType.Join:
+                        Members.Add(member);
+                        break;
+
+                    case MemberEvent.EventType.Leave:
+                        Members.Remove(member);
+                        break;
+
+                    case MemberEvent.EventType.Failed:
+                        Members.Failed(member);
+                        break;
+                }
+            }
         }
 
         #endregion
