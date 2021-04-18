@@ -8,6 +8,7 @@ using Microsoft.Extensions.Hosting;
 using Serilog;
 using CYPCore.Extensions;
 using CYPCore.Ledger;
+using CYPCore.Serf;
 using static System.Threading.Tasks.Task;
 
 namespace CYPCore.Services
@@ -15,13 +16,15 @@ namespace CYPCore.Services
     public class SyncBackgroundService : BackgroundService
     {
         private readonly ISync _sync;
+        private readonly ISerfClient _serfClient;
         private readonly ILogger _logger;
 
         private Timer _runSyncTimer;
 
-        public SyncBackgroundService(ISync sync, IHostApplicationLifetime applicationLifetime, ILogger logger)
+        public SyncBackgroundService(ISync sync, ISerfClient serfClient, IHostApplicationLifetime applicationLifetime, ILogger logger)
         {
             _sync = sync;
+            _serfClient = serfClient;
             _logger = logger.ForContext("SourceContext", nameof(SyncBackgroundService));
 
             applicationLifetime.ApplicationStopping.Register(OnApplicationStopping);
@@ -43,11 +46,21 @@ namespace CYPCore.Services
         /// <returns></returns>
         protected override Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            void Action()
+            async Task Action()
             {
+                while (!stoppingToken.IsCancellationRequested)
+                {
+                    stoppingToken.ThrowIfCancellationRequested();
+                    if (_serfClient.ProcessStarted)
+                    {
+                        break;
+                    }
+                    await Delay(100, stoppingToken);
+                }
+                
                 try
                 {
-                    _runSyncTimer = new Timer(_ => _sync.Synchronize(), null, TimeSpan.FromSeconds(3), TimeSpan.FromMinutes(10));
+                    _runSyncTimer = new Timer(_ => _sync.Synchronize(), null, TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(10));
                 }
                 catch (Exception)
                 {
