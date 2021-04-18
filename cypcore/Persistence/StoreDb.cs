@@ -105,6 +105,7 @@ namespace CYPCore.Persistence
                 .SetCreateIfMissing()
                 .SetMaxBackgroundFlushes(2)
                 .SetMaxBackgroundCompactions(Environment.ProcessorCount)
+                .SetKeepLogFileNum(10)
                 .SetMaxOpenFiles(-1);
             return options;
         }
