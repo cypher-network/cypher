@@ -684,17 +684,30 @@ namespace CYPCore.Ledger
         {
             Guard.Argument(vrfSig, nameof(vrfSig)).NotNull().MaxCount(32);
             Guard.Argument(kernel, nameof(kernel)).NotNull().MaxCount(32);
-            var calculating = true;
+
             long itr = 0;
-            var target = new BigInteger(1, vrfSig);
-            var hashTarget = new BigInteger(1, kernel);
-            var hashTargetValue = new BigInteger((target.IntValue / hashTarget.BitCount).ToString()).Abs();
-            var hashWeightedTarget = new BigInteger(1, kernel).Multiply(hashTargetValue);
-            while (calculating)
+            
+            try
             {
-                var weightedTarget = target.Multiply(BigInteger.ValueOf(itr));
-                if (hashWeightedTarget.CompareTo(weightedTarget) <= 0) calculating = false;
-                itr++;
+                var ct = new CancellationTokenSource(TimeSpan.FromSeconds(30)).Token;
+                var calculating = true;
+
+                var target = new BigInteger(1, vrfSig);
+                var hashTarget = new BigInteger(1, kernel);
+                var hashTargetValue = new BigInteger((target.IntValue / hashTarget.BitCount).ToString()).Abs();
+                var hashWeightedTarget = new BigInteger(1, kernel).Multiply(hashTargetValue);
+                while (calculating)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    var weightedTarget = target.Multiply(BigInteger.ValueOf(itr));
+                    if (hashWeightedTarget.CompareTo(weightedTarget) <= 0) calculating = false;
+                    itr++;
+                }
+            }
+            catch (Exception ex)
+            {
+                itr = 0;
+                _logger.Here().Fatal(ex, "Unable to calculate solution");
             }
 
             return (ulong)itr;
