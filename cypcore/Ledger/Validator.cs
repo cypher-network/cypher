@@ -1,4 +1,4 @@
-﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
@@ -707,6 +707,8 @@ namespace CYPCore.Ledger
             Guard.Argument(xChain, nameof(xChain)).NotNull().NotEmpty();
             try
             {
+                xChain = xChain.OrderBy(x => x.Height).ToArray();
+                
                 var xBlockHeader = xChain.First();
                 var lastBlock = await _unitOfWork.HashChainRepository.GetAsync(x =>
                     new ValueTask<bool>(x.Height == xBlockHeader.Height));
@@ -715,7 +717,10 @@ namespace CYPCore.Ledger
                 lastBlock = await _unitOfWork.HashChainRepository.GetAsync(x =>
                     new ValueTask<bool>(x.MerkelRoot.Equals(xBlockHeader.MerkelRoot)));
                 if (lastBlock == null) return VerifyResult.UnableToVerify;
-                var blockHeaders = await _unitOfWork.HashChainRepository.SkipAsync((int)xBlockHeader.Height);
+                var blockHeaders = await _unitOfWork.HashChainRepository.SkipAsync((int)xBlockHeader.Height + 1);
+
+                blockHeaders = blockHeaders.OrderBy(x => x.Height).ToList();
+                
                 if (blockHeaders.Any())
                 {
                     var blockTime = blockHeaders.First().Locktime.FromUnixTimeSeconds() -
