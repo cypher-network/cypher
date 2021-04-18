@@ -62,7 +62,7 @@ namespace CYPCore.Ledger
         private EventHandler<BlockGraphEventArgs> _blockGraphAddCompletedEventHandler;
 
         public Graph(IUnitOfWork unitOfWork, ILocalNode localNode, ISerfClient serfClient, IValidator validator,
-            ISigning signing, ISync sync, ILogger logger)
+            ISigning signing, ISync sync, NetworkClient networkClient, ILogger logger)
         {
             _unitOfWork = unitOfWork;
             _localNode = localNode;
@@ -137,11 +137,8 @@ namespace CYPCore.Ledger
             Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
             try
             {
-                if (_pooledBlockGraphs.Contains(blockGraph))
-                {
-                    return Task.FromResult(VerifyResult.AlreadyExists);
-                }
-
+                if (_pooledBlockGraphs.Contains(blockGraph)) return Task.FromResult(VerifyResult.AlreadyExists);
+                
                 _pooledBlockGraphs.Add(blockGraph);
                 OnBlockGraphAdd(new BlockGraphEventArgs(blockGraph));
             }
@@ -318,41 +315,44 @@ namespace CYPCore.Ledger
                 .GroupByUntil(item => item.EventArgs.Hash, g => g.Throttle(TimeSpan.FromSeconds(10)).Take(1))
                 .SelectMany(group => group.Buffer(TimeSpan.FromSeconds(1), 500)).Subscribe(async blockGraphs =>
                 {
-                    foreach (var data in blockGraphs)
+                    await Task.Run(async () =>
                     {
-                        var blockGraph = data.EventArgs.BlockGraph;
-                        try
+                        foreach (var data in blockGraphs)
                         {
-                            var copy = false;
-                            copy |= blockGraph.Block.Node != _serfClient.ClientId;
-                            if (!copy)
+                            var blockGraph = data.EventArgs.BlockGraph;
+                            try
                             {
-                                var signBlockGraph = await SignBlockGraph(blockGraph);
-                                var saved = await SaveBlockGraph(signBlockGraph);
-                                if (!saved) return;
-                                await Publish(signBlockGraph);
-                            }
-                            else
-                            {
-                                var saved = await SaveBlockGraph(blockGraph);
-                                if (!saved) return;
-                                var block = Helper.Util.DeserializeFlatBuffer<BlockHeaderProto>(blockGraph.Block.Data);
-                                var prev = Helper.Util.DeserializeFlatBuffer<BlockHeaderProto>(blockGraph.Prev.Data);
-                                var copyBlockGraph = CopyBlockGraph(block, prev);
-                                copyBlockGraph = await SignBlockGraph(copyBlockGraph);
-                                var savedCopy = await SaveBlockGraph(copyBlockGraph);
-                                if (!savedCopy) return;
-                                await Publish(copyBlockGraph);
-                            }
+                                var copy = false;
+                                copy |= blockGraph.Block.Node != _serfClient.ClientId;
+                                if (!copy)
+                                {
+                                    var signBlockGraph = await SignBlockGraph(blockGraph);
+                                    var saved = await SaveBlockGraph(signBlockGraph);
+                                    if (!saved) return;
+                                    await Publish(signBlockGraph);
+                                }
+                                else
+                                {
+                                    var saved = await SaveBlockGraph(blockGraph);
+                                    if (!saved) return;
+                                    var block = Helper.Util.DeserializeFlatBuffer<BlockHeaderProto>(blockGraph.Block.Data);
+                                    var prev = Helper.Util.DeserializeFlatBuffer<BlockHeaderProto>(blockGraph.Prev.Data);
+                                    var copyBlockGraph = CopyBlockGraph(block, prev);
+                                    copyBlockGraph = await SignBlockGraph(copyBlockGraph);
+                                    var savedCopy = await SaveBlockGraph(copyBlockGraph);
+                                    if (!savedCopy) return;
+                                    await Publish(copyBlockGraph);
+                                }
 
-                            OnBlockGraphAddComplete(new BlockGraphEventArgs(blockGraph));
+                                OnBlockGraphAddComplete(new BlockGraphEventArgs(blockGraph));
+                            }
+                            catch (Exception)
+                            {
+                                _logger.Here().Error("Unable to add block for {@Node} and round {@Round}",
+                                    blockGraph.Block.Node, blockGraph.Block.Round);
+                            }
                         }
-                        catch (Exception)
-                        {
-                            _logger.Here().Error("Unable to add block for {@Node} and round {@Round}",
-                                blockGraph.Block.Node, blockGraph.Block.Round);
-                        }
-                    }
+                    }).ConfigureAwait(false);
                 }, exception => { _logger.Here().Error(exception, "Subscribe try add block graphs listener error"); });
             return Task.FromResult(activityTrackSubscription);
         }
@@ -381,7 +381,7 @@ namespace CYPCore.Ledger
                         var blockmania = new Blockmania(config, _logger) { NodeCount = nodeCount };
                         blockmania.TrackingDelivered.Subscribe(x =>
                         {
-                            Delivered(x.EventArgs.Interpreted).ConfigureAwait(false);
+                            Delivered(x.EventArgs.Interpreted).SafeFireAndForget();
                         });
                         foreach (var next in blockgraphs)
                         {
@@ -500,31 +500,6 @@ namespace CYPCore.Ledger
             }
 
             return round;
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="blockGraph"></param>
-        /// <returns></returns>
-        private async Task<VerifyResult> BlockGraphExist(BlockGraph blockGraph)
-        {
-            Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
-            BlockGraph existBlockGraph;
-            try
-            {
-                existBlockGraph = await _unitOfWork.BlockGraphRepository.GetAsync(x =>
-                    new ValueTask<bool>(x.Block.Hash.Equals(blockGraph.Block.Hash) &&
-                                        x.Block.Node == blockGraph.Block.Node &&
-                                        x.Block.Round == blockGraph.Block.Round));
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e);
-                throw;
-            }
-
-            return existBlockGraph == null ? VerifyResult.Unknown : VerifyResult.AlreadyExists;
         }
 
         /// <summary>

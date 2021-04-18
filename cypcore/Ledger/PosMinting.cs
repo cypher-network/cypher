@@ -31,7 +31,6 @@ namespace CYPCore.Ledger
     /// </summary>
     public interface IPosMinting : IStartable
     {
-
     }
 
     /// <summary>
@@ -76,20 +75,23 @@ namespace CYPCore.Ledger
         private void Staking()
         {
             Observable.Timer(TimeSpan.FromSeconds(35), TimeSpan.FromSeconds(10))
-                .Select(t => _memoryPool.Range(0, _stakingConfigurationOptions.BlockTransactionCount))
-                .Where(x => x.Length != 0).Subscribe(memPoolTransactions =>
+                .Select(r => _memoryPool.Range(0, _stakingConfigurationOptions.BlockTransactionCount))
+                .Where(x => x.Length != 0).Subscribe(async memPoolTransactions =>
                 {
                     if (_stakingConfigurationOptions.OnOff != true)
                     {
                         memPoolTransactions.ForEach(x => { _memoryPool.Remove(x); });
                         return;
                     }
-
+                    
+                    _logger.Here().Information("SyncRunning:{@}", _sync.SyncRunning);
+                    
                     if (_sync.SyncRunning) return;
-                    var transactionTasks = memPoolTransactions.Select(GetValidTransactionAsync);
-                    Task.WhenAll(transactionTasks).ContinueWith(async task =>
+
+                    await Task.Run(async () =>
                     {
-                        var transactions = task.Result.Select(x => x).ToList();
+                        var transactionTasks = memPoolTransactions.Select(GetValidTransactionAsync).ToArray();
+                        var transactions = await Task.WhenAll(transactionTasks);
                         var height = await _unitOfWork.HashChainRepository.CountAsync() - 1;
                         var prevBlock =
                             await _unitOfWork.HashChainRepository.GetAsync(x =>
@@ -115,7 +117,13 @@ namespace CYPCore.Ledger
                             uint256 hash;
                             using (TangramStream ts = new())
                             {
-                                transactions.ForEach(x => { ts.Append(x.Stream()); });
+                                transactions.ForEach(x =>
+                                {
+                                    if (x != null)
+                                    {
+                                        ts.Append(x.Stream());
+                                    }
+                                });
                                 hash = NBitcoin.Crypto.Hashes.DoubleSHA256(ts.ToArray());
                             }
 
@@ -136,10 +144,14 @@ namespace CYPCore.Ledger
                                 return;
                             }
 
-                            transactions.Insert(0, coinStakeTransaction);
+                            transactions.TryInsert(0, coinStakeTransaction);
                             var blockHeader = CreateBlock(transactions.ToArray(), calculateVrfSignature,
                                 verifyVrfSignature, solution, bits, prevBlock);
-                            if (blockHeader == null) throw new Exception();
+                            if (blockHeader == null)
+                            {
+                                _logger.Here().Fatal("Unable to create the block");
+                                return;
+                            }
                             _validator.Trie.Put(blockHeader.ToHash(), blockHeader.ToHash());
                             blockHeader.MerkelRoot = _validator.Trie.GetRootHash().ByteToHex();
                             var signature = await _signing.Sign(_signing.DefaultSigningKeyName,
@@ -159,7 +171,7 @@ namespace CYPCore.Ledger
                         {
                             _logger.Here().Error(ex, "PoS minting Failed");
                         }
-                    }).Wait();
+                    }).ConfigureAwait(false);
                 });
         }
 
@@ -197,20 +209,20 @@ namespace CYPCore.Ledger
         /// <returns></returns>
         private void DecideWinner()
         {
-            Observable.Timer(TimeSpan.FromSeconds(40), TimeSpan.FromSeconds(20)).Subscribe(x =>
+            Observable.Timer(TimeSpan.FromSeconds(40), TimeSpan.FromSeconds(20)).Subscribe(async x =>
             {
                 if (_sync.SyncRunning) return;
                 try
                 {
-                    _unitOfWork.HashChainRepository.CountAsync().ContinueWith(async count =>
+                    await Task.Run(async () =>
                     {
-                        var height = count.Result - 1;
-                        var prevBlock = await _unitOfWork.HashChainRepository.GetAsync(x =>
-                            new ValueTask<bool>(x.Height == height));
+                        var height = await _unitOfWork.HashChainRepository.CountAsync() - 1;
+                        var prevBlock = await _unitOfWork.HashChainRepository.GetAsync(block =>
+                            new ValueTask<bool>(block.Height == height));
                         if (prevBlock == null) return;
                         var deliveredBlocks =
-                            await _unitOfWork.DeliveredRepository.WhereAsync(x =>
-                                new ValueTask<bool>(x.Height == height + 1));
+                            await _unitOfWork.DeliveredRepository.WhereAsync(block =>
+                                new ValueTask<bool>(block.Height == height + 1));
                         var blockWinners = deliveredBlocks.Select(deliveredBlock => new BlockWinner
                         {
                             BlockHeader = deliveredBlock,
@@ -219,12 +231,12 @@ namespace CYPCore.Ledger
                         }).ToList();
                         if (blockWinners.Any() != true) return;
                         _logger.Here().Information("RunStakingWinnerAsync");
-                        var winners = blockWinners
-                            .Where(x => x.Finish <= blockWinners.Select(endTime => endTime.Finish).Min()).ToArray();
+                        var winners = blockWinners.Where(winner =>
+                            winner.Finish <= blockWinners.Select(endTime => endTime.Finish).Min()).ToArray();
                         var blockWinner = winners.Length switch
                         {
-                            > 2 => winners.FirstOrDefault(x =>
-                                x.BlockHeader.Bits >= blockWinners.Select(bits => bits.BlockHeader.Bits).Max()),
+                            > 2 => winners.FirstOrDefault(winner =>
+                                winner.BlockHeader.Bits >= blockWinners.Select(bits => bits.BlockHeader.Bits).Max()),
                             _ => winners.First()
                         };
                         if (blockWinner != null)
@@ -260,7 +272,7 @@ namespace CYPCore.Ledger
                         {
                             await RemoveDeliveredBlock(winner);
                         }
-                    });
+                    }).ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
@@ -297,10 +309,10 @@ namespace CYPCore.Ledger
             var blockGraph = new BlockGraph
             {
                 Block = new CYPCore.Consensus.Models.Block(blockHeader.MerkelRoot, _serfClient.ClientId,
-                    (ulong)blockHeader.Height, Helper.Util.SerializeFlatBuffer(blockHeader)),
+                    (ulong)blockHeader.Height, Util.SerializeFlatBuffer(blockHeader)),
                 Prev = new CYPCore.Consensus.Models.Block
                 {
-                    Data = Helper.Util.SerializeFlatBuffer(prevBlockHeader),
+                    Data = Util.SerializeFlatBuffer(prevBlockHeader),
                     Hash = prevBlockHeader.MerkelRoot,
                     Node = _serfClient.ClientId,
                     Round = (ulong)prevBlockHeader.Height
@@ -395,7 +407,7 @@ namespace CYPCore.Ledger
                 byteArrayContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
                 using var response = await client.PostAsync(
                     _stakingConfigurationOptions.WalletSettings.SendPaymentEndpoint, byteArrayContent,
-                    new System.Threading.CancellationToken());
+                    new CancellationToken());
                 var read = response.Content.ReadAsStringAsync().Result;
                 var jObject = JObject.Parse(read);
                 var jToken = jObject.GetValue("flatbuffer");
