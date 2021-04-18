@@ -2,7 +2,7 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
-
+using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CYPNode.StartupExtensions
@@ -26,7 +26,7 @@ namespace CYPNode.StartupExtensions
                         Url = new Uri("https://raw.githubusercontent.com/tangramproject/Tangram.Cypher/initial/LICENSE")
                     },
                     Title = "CYPNode API",
-                    Version = "v1",
+                    Version = CYPCore.Helper.Util.GetAssemblyVersion(),
                     Description = "Node.",
                     TermsOfService = new Uri("https://tangrams.io/legal/"),
                     Contact = new Microsoft.OpenApi.Models.OpenApiContact

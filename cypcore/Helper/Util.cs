@@ -34,6 +34,11 @@ namespace CYPCore.Helper
             return bytes;
         }
 
+        public static string GetAssemblyVersion()
+        {
+            return Assembly.GetExecutingAssembly().GetName().Version.ToString();
+        }
+        
         public static string EntryAssemblyPath()
         {
             return Path.GetDirectoryName(Assembly.GetEntryAssembly()?.Location);

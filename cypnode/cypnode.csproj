@@ -1,7 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup> 
-    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <ServerGarbageCollection>true</ServerGarbageCollection> 
+    <AssemblyVersion>0.0.0.36</AssemblyVersion> 
+    <NeutralLanguage>en</NeutralLanguage>
   </PropertyGroup>
   <PropertyGroup>
     <OutputType>Exe</OutputType>

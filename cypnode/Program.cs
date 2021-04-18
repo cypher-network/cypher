@@ -62,6 +62,7 @@ namespace CYPNode
             try
             {
                 Log.Information("Starting web host");
+                Log.Information($"Version: {Util.GetAssemblyVersion()}");
                 var builder = CreateWebHostBuilder(args, config);
 
                 var platform = Util.GetOperatingSystemPlatform();
