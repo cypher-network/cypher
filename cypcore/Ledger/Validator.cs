@@ -1,4 +1,4 @@
-// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
@@ -68,7 +68,6 @@ namespace CYPCore.Ledger
         private readonly IUnitOfWork _unitOfWork;
         private readonly ISigning _signing;
         private readonly ILogger _logger;
-        private readonly ReaderWriterLockSlim _sync = new();
         public PatriciaTrie Trie { get; private set; }
 
         public Validator(IUnitOfWork unitOfWork, ISigning signing, ILogger logger)
@@ -76,11 +75,15 @@ namespace CYPCore.Ledger
             _unitOfWork = unitOfWork;
             _signing = signing;
             _logger = logger.ForContext("SourceContext", nameof(Validator));
-            SetupTrie().ConfigureAwait(false);
+            
+            SetupTrie().SafeFireAndForget(exception =>
+            {
+                _logger.Here().Fatal(exception, "Unable to setup patricia trie");
+            });
         }
 
         public const uint StakeTimestampMask = 0x0000000A;
-        public const string BlockZeroMerkel = "c9d38a9c9de7cb83d34eb901a82f1ac74b3072dad6b6b3a536fa9874701f62f0";
+        public const string BlockZeroMerkel = "95ffdcc129740ae6b535c4274e4ea251501cebc00a90898a4e7265ffe494a895";
         public const string BlockZeroPreMerkel = "3030303030303030437970686572204e6574776f726b2076742e322e32303231";
 
         public const string Seed =
@@ -564,7 +567,7 @@ namespace CYPCore.Ledger
             var verifySloth = false;
             try
             {
-                var ct = new CancellationTokenSource(TimeSpan.Zero).Token;
+                var ct = new CancellationTokenSource(TimeSpan.FromSeconds(1)).Token;
                 var sloth = new Sloth(ct);
                 var x = System.Numerics.BigInteger.Parse(vrfSig.ByteToHex(), NumberStyles.AllowHexSpecifier);
                 var y = System.Numerics.BigInteger.Parse(nonce.ToStr());
