@@ -57,7 +57,7 @@ namespace CYPCore.Services
                     }
                     await Delay(100, stoppingToken);
                 }
-                
+
                 try
                 {
                     _runSyncTimer = new Timer(_ => _sync.Synchronize(), null, TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(10));

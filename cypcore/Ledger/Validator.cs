@@ -75,7 +75,7 @@ namespace CYPCore.Ledger
             _unitOfWork = unitOfWork;
             _signing = signing;
             _logger = logger.ForContext("SourceContext", nameof(Validator));
-            
+
             SetupTrie().SafeFireAndForget(exception =>
             {
                 _logger.Here().Fatal(exception, "Unable to setup patricia trie");
@@ -711,7 +711,7 @@ namespace CYPCore.Ledger
             try
             {
                 xChain = xChain.OrderBy(x => x.Height).ToArray();
-                
+
                 var xBlockHeader = xChain.First();
                 var lastBlock = await _unitOfWork.HashChainRepository.GetAsync(x =>
                     new ValueTask<bool>(x.Height == xBlockHeader.Height));
@@ -723,7 +723,7 @@ namespace CYPCore.Ledger
                 var blockHeaders = await _unitOfWork.HashChainRepository.SkipAsync((int)xBlockHeader.Height + 1);
 
                 blockHeaders = blockHeaders.OrderBy(x => x.Height).ToList();
-                
+
                 if (blockHeaders.Any())
                 {
                     var blockTime = blockHeaders.First().Locktime.FromUnixTimeSeconds() -

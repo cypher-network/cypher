@@ -83,9 +83,9 @@ namespace CYPCore.Ledger
                         memPoolTransactions.ForEach(x => { _memoryPool.Remove(x); });
                         return;
                     }
-                    
+
                     _logger.Here().Information("SyncRunning:{@}", _sync.SyncRunning);
-                    
+
                     if (_sync.SyncRunning) return;
 
                     await Task.Run(async () =>

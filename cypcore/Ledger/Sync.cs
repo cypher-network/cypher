@@ -38,7 +38,7 @@ namespace CYPCore.Ledger
         private readonly ILocalNode _localNode;
         private readonly NetworkClient _networkClient;
         private readonly ILogger _logger;
-        
+
         public Sync(IUnitOfWork unitOfWork, IValidator validator, ILocalNode localNode, NetworkClient networkClient,
             ILogger logger)
         {
@@ -64,7 +64,7 @@ namespace CYPCore.Ledger
                 const int retryCount = 5;
                 var currentRetry = 0;
                 var jitterer = new Random();
-                for (;;)
+                for (; ; )
                 {
                     peers = await _localNode.GetPeers();
                     if (peers.Count == 0)
@@ -82,7 +82,7 @@ namespace CYPCore.Ledger
                                      TimeSpan.FromMilliseconds(jitterer.Next(0, 1000));
                     await Task.Delay(retryDelay);
                 }
-                
+
                 var networkPeerTasks =
                     peers.Values.Select(peer => _networkClient.GetPeerBlockHeightAsync(peer)).ToArray();
                 var networkBlockHeights = await Task.WhenAll(networkPeerTasks);
@@ -122,7 +122,7 @@ namespace CYPCore.Ledger
             Guard.Argument(take, nameof(take)).NotNegative();
             try
             {
-                var numberOfBatches = (int) Math.Ceiling((double) take / BatchSize);
+                var numberOfBatches = (int)Math.Ceiling((double)take / BatchSize);
                 numberOfBatches = numberOfBatches == 0 ? 1 : numberOfBatches;
                 var networkBlockTasks = new List<Task<IList<BlockHeaderProto>>>();
                 for (var i = 0; i < numberOfBatches; i++)

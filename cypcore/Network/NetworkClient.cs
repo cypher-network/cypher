@@ -16,7 +16,7 @@ namespace CYPCore.Network
     public class NetworkClient
     {
         private readonly SemaphoreSlim _semaphore;
-        
+
         private readonly HttpClient _httpClient;
         private readonly IUnitOfWork _unitOfWork;
         private readonly ILogger _logger;
@@ -28,7 +28,7 @@ namespace CYPCore.Network
             _logger = logger;
             _semaphore = new SemaphoreSlim(6);
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -46,7 +46,7 @@ namespace CYPCore.Network
                 var blockHeight = Newtonsoft.Json.JsonConvert.DeserializeObject<BlockHeight>(content);
                 networkBlockHeight = new NetworkBlockHeight
                 {
-                    Local = new BlockHeight {Height = await _unitOfWork.HashChainRepository.CountAsync(), Host = "local"},
+                    Local = new BlockHeight { Height = await _unitOfWork.HashChainRepository.CountAsync(), Host = "local" },
                     Remote = new BlockHeight { Height = blockHeight.Height, Host = peer.Host }
                 };
             }
@@ -57,7 +57,7 @@ namespace CYPCore.Network
 
             return networkBlockHeight;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -112,7 +112,7 @@ namespace CYPCore.Network
             IList<BlockHeaderProto> blockHeaders = null;
             try
             {
-                var httpResponseMessage = await _httpClient.GetAsync($"{host}/chain/blocks/{(int) skip}/{take}");
+                var httpResponseMessage = await _httpClient.GetAsync($"{host}/chain/blocks/{(int)skip}/{take}");
                 httpResponseMessage.EnsureSuccessStatusCode();
                 var content = await httpResponseMessage.Content.ReadAsStringAsync();
                 var flatBufferStream = Newtonsoft.Json.JsonConvert.DeserializeObject<FlatBufferStream>(content);

@@ -138,7 +138,7 @@ namespace CYPCore.Ledger
             try
             {
                 if (_pooledBlockGraphs.Contains(blockGraph)) return Task.FromResult(VerifyResult.AlreadyExists);
-                
+
                 _pooledBlockGraphs.Add(blockGraph);
                 OnBlockGraphAdd(new BlockGraphEventArgs(blockGraph));
             }

@@ -104,7 +104,7 @@ namespace CYPCore.Network
         {
             var peers = await GetPeers();
             if (peers == null) return null;
-            var totalNodes = (ulong) peers.Count;
+            var totalNodes = (ulong)peers.Count;
             return totalNodes != 0 ? peers.Keys.ToArray() : null;
         }
 

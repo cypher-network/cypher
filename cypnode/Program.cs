@@ -52,10 +52,10 @@ namespace CYPNode
                     Log.Error(e.Exception, e.Exception.Message);
                 };
             }
-            
+
             AppDomain.CurrentDomain.UnhandledException += (sender, e) =>
             {
-                var ex = (Exception) e.ExceptionObject;
+                var ex = (Exception)e.ExceptionObject;
                 Log.Error(ex, ex.Message);
             };
 
