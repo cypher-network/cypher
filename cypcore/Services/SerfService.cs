@@ -260,8 +260,10 @@ namespace CYPCore.Services
                     {
                         try
                         {
-                            if (null != membersResult.Value.Members.FirstOrDefault(x =>
-                                x.Tags["pubkey"] == pubkey.ByteToHex()))
+                            if (null != membersResult.Value.Members
+                                .Where(member =>
+                                    _serfClient.Name != member.Name && member.Status == "alive" && member.Tags.Count != 0)
+                                .FirstOrDefault(x => x.Tags["pubkey"] == pubkey.ByteToHex()))
                             {
                                 connect = true;
                             }
