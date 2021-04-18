@@ -1,7 +1,12 @@
+using System;
+using System.Linq;
+using System.Net.Http;
 using Autofac;
 using Autofac.Extensions.DependencyInjection;
+using MatBlazor;
 using MessagePack;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -38,6 +43,7 @@ namespace rxcypnode
 
             // Enable web monitor client
             services.AddRazorPages();
+            services.AddMatBlazor();
             services.AddSignalR()
                 .AddMessagePackProtocol(options =>
                 {
@@ -49,6 +55,19 @@ namespace rxcypnode
 
             services.AddServerSideBlazor();
             services.AddControllersWithViews();
+
+            if (services.All(x => x.ServiceType != typeof(HttpClient)))
+            {
+                services.AddScoped(
+                    s =>
+                    {
+                        var navigationManager = s.GetRequiredService<NavigationManager>();
+                        return new HttpClient
+                        {
+                            BaseAddress = new Uri(navigationManager.BaseUri)
+                        };
+                    });
+            }
         }
 
         public void ConfigureContainer(ContainerBuilder builder)

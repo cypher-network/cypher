@@ -1,37 +1,20 @@
-﻿<div class="top-row pl-4 navbar navbar-dark">
-    <a class="navbar-brand" href="">cypnode</a>
-    <button class="navbar-toggler" @onclick="ToggleNavMenu">
-        <span class="navbar-toggler-icon"></span>
-    </button>
-</div>
+﻿<div class="top-row" />
 
-<div class="@NavMenuCssClass" @onclick="ToggleNavMenu">
-    <ul class="nav flex-column">
-        <li class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span><i class="bi bi-house"></i> Home</span>
-            </NavLink>
-        </li>
-        <li class="nav-item px-3">
-            <NavLink class="nav-link" href="serf">
-                <span><i class="bi bi-diagram-2"></i> Nodes</span>
-            </NavLink>
-        </li>
-        <li class="nav-item px-3">
-            <NavLink class="nav-link" href="mempool">
-                <span><i class="bi bi-server"></i> Mempool</span>
-            </NavLink>
-        </li>
-    </ul>
-</div>
+<MatNavMenu>
+    <MatNavItem Title="home" Href="/"><MatIcon Icon="home"></MatIcon>&nbsp;Home</MatNavItem>
+    <MatNavSubMenu @bind-Expanded="@navSubMenuNetworkOpenState">
+        <MatNavSubMenuHeader>
+            <MatNavItem AllowSelection="false"><MatIcon Icon="devices"></MatIcon>&nbsp; Network</MatNavItem>
+        </MatNavSubMenuHeader>
+        <MatNavSubMenuList>
+            <MatNavItem Title="serf" Href="/serf"><MatIcon Icon="device_hub"></MatIcon>&nbsp; Serf</MatNavItem>
+        </MatNavSubMenuList>
+    </MatNavSubMenu>
+</MatNavMenu>
 
-@code {
-    private bool collapseNavMenu = true;
+@code
+{
+    [Inject] IJSRuntime JS { get; set; }
 
-    private string NavMenuCssClass => collapseNavMenu ? "collapse" : null;
-
-    private void ToggleNavMenu()
-    {
-        collapseNavMenu = !collapseNavMenu;
-    }
+    bool navSubMenuNetworkOpenState;
 }

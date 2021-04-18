@@ -10,6 +10,7 @@
 
 .sidebar {
     background-color: #4392cc;
+    color: white;
 }
 
 .top-row {
@@ -21,16 +22,6 @@
     align-items: center;
 }
 
-    .top-row ::deep a, .top-row .btn-link {
-        white-space: nowrap;
-        margin-left: 1.5rem;
-    }
-
-    .top-row a:first-child {
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
 a {
     color: #d22c70;
 }
@@ -40,11 +31,7 @@ a {
         display: none;
     }
 
-    .top-row.auth {
-        justify-content: space-between;
-    }
-
-    .top-row a, .top-row .btn-link {
+    .top-row a, .top-row {
         margin-left: 0;
     }
 }
