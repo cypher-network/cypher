@@ -760,6 +760,8 @@ namespace CYPCore.Ledger
             if (runningDistribution == Distribution)
             {
                 runningDistribution -= NetworkShare(solution, runningDistribution);
+                var share = NetworkShare(solution, runningDistribution);
+                runningDistribution -= share.ConvertToUInt64().DivWithNanoTan();
                 return runningDistribution;
             }
 
