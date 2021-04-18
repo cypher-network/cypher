@@ -132,25 +132,32 @@ namespace CYPCore.Network
             var members = membersResult.Value.Members.ToList();
             foreach (var member in members.Where(member => _serfClient.Name != member.Name && member.Status == "alive"))
             {
-                if (_serfClient.ClientId == Helper.Util.HashToId(member.Tags["pubkey"])) continue;
-                member.Tags.TryGetValue("rest", out var restEndpoint);
-                if (string.IsNullOrEmpty(restEndpoint)) continue;
-                if (!Uri.TryCreate($"{restEndpoint}", UriKind.Absolute, out var uri)) continue;
-                if (uri.Host is "0.0.0.0" or "::0")
+                try
                 {
-                    continue;
-                }
+                    if (_serfClient.ClientId == Helper.Util.HashToId(member.Tags["pubkey"])) continue;
+                    member.Tags.TryGetValue("rest", out var restEndpoint);
+                    if (string.IsNullOrEmpty(restEndpoint)) continue;
+                    if (!Uri.TryCreate($"{restEndpoint}", UriKind.Absolute, out var uri)) continue;
+                    if (uri.Host is "0.0.0.0" or "::0")
+                    {
+                        continue;
+                    }
 
-                var peer = new Peer
+                    var peer = new Peer
+                    {
+                        Host = uri.OriginalString,
+                        ClientId = Helper.Util.HashToId(member.Tags["pubkey"]),
+                        PublicKey = member.Tags["pubkey"],
+                        NodeName = member.Name
+                    };
+                    if (peers.ContainsKey(peer.ClientId)) continue;
+                    if (peers.TryAdd(peer.ClientId, peer)) continue;
+                    _logger.Here().Error("Failed adding or exists in remote nodes: {@Node}", member.Name);
+                }
+                catch (Exception ex)
                 {
-                    Host = uri.OriginalString,
-                    ClientId = Helper.Util.HashToId(member.Tags["pubkey"]),
-                    PublicKey = member.Tags["pubkey"],
-                    NodeName = member.Name
-                };
-                if (peers.ContainsKey(peer.ClientId)) continue;
-                if (peers.TryAdd(peer.ClientId, peer)) continue;
-                _logger.Here().Error("Failed adding or exists in remote nodes: {@Node}", member.Name);
+                    _logger.Here().Error(ex, "Error reading members");
+                }
             }
 
             return peers;
