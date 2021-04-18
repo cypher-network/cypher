@@ -2,11 +2,11 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Net.Http;
 using System.Net.Http.Headers;
-using System.Reactive.Linq;
 using System.Threading;
 using Autofac;
 using CYPCore.Consensus.Models;
@@ -23,6 +23,7 @@ using CYPCore.Cryptography;
 using CYPCore.Extensions;
 using CYPCore.Helper;
 using FlatSharp;
+using Microsoft.Extensions.Hosting;
 
 namespace CYPCore.Ledger
 {
@@ -48,10 +49,12 @@ namespace CYPCore.Ledger
         private readonly ILogger _logger;
         private readonly KeyPair _keyPair;
         private readonly StakingConfigurationOptions _stakingConfigurationOptions;
-
+        private readonly Timer _stakingTimer;
+        private readonly Timer _decideWinnerTimer;
+        
         public PosMinting(IGraph graph, IMemoryPool memoryPool, ISerfClient serfClient, IUnitOfWork unitOfWork,
             ISigning signing, IValidator validator, ISync sync, StakingConfigurationOptions stakingConfigurationOptions,
-            ILogger logger)
+            ILogger logger, IHostApplicationLifetime applicationLifetime)
         {
             _graph = graph;
             _memoryPool = memoryPool;
@@ -63,116 +66,191 @@ namespace CYPCore.Ledger
             _stakingConfigurationOptions = stakingConfigurationOptions;
             _logger = logger.ForContext("SourceContext", nameof(PosMinting));
             _keyPair = _signing.GetOrUpsertKeyName(_signing.DefaultSigningKeyName).GetAwaiter().GetResult();
+            
+            _stakingTimer = new Timer(async _ => await Staking(), null, TimeSpan.FromSeconds(35), TimeSpan.FromSeconds(10));
+            _decideWinnerTimer = new Timer(async _ => await DecideWinner(), null, TimeSpan.FromSeconds(40), TimeSpan.FromSeconds(20));
+            
+            applicationLifetime.ApplicationStopping.Register(OnApplicationStopping);
+        }
 
-            Staking();
-            DecideWinner();
+        /// <summary>
+        /// 
+        /// </summary>
+        private void OnApplicationStopping()
+        {
+            _logger.Here().Information("Application stopping");
+            _stakingTimer?.Change(Timeout.Infinite, 0);
+            _decideWinnerTimer?.Change(Timeout.Infinite, 0);
+        }
+        
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        private async Task Staking()
+        {
+            if (_sync.SyncRunning) return;
+            var transactionModels = _memoryPool.Range(0, _stakingConfigurationOptions.BlockTransactionCount);
+            if (_stakingConfigurationOptions.OnOff != true)
+            {
+                transactionModels.ForEach(x => { _memoryPool.Remove(x); });
+                return;
+            }
+
+            var transactionTasks = transactionModels.Select(GetValidTransactionAsync);
+            transactionModels = await Task.WhenAll(transactionTasks);
+
+            if (transactionModels.Length == 0) return;
+            
+            var transactions = transactionModels.ToList();
+            var height = await _unitOfWork.HashChainRepository.CountAsync() - 1;
+            var prevBlock =
+                await _unitOfWork.HashChainRepository.GetAsync(x => new ValueTask<bool>(x.Height == height));
+            if (prevBlock == null)
+            {
+                _logger.Here().Information("There is no block available for processing");
+                return;
+            }
+
+            var coinStakeTimestamp = _validator.GetAdjustedTimeAsUnixTimestamp();
+            if (coinStakeTimestamp <= prevBlock.Locktime)
+            {
+                _logger.Here()
+                    .Warning(
+                        "Current coinstake time {@Timestamp} is not greater than last search timestamp {@Locktime}",
+                        coinStakeTimestamp, prevBlock.Locktime);
+                return;
+            }
+
+            try
+            {
+                uint256 hash;
+                using (TangramStream ts = new())
+                {
+                    transactions.ForEach(x =>
+                    {
+                        if (x != null)
+                        {
+                            ts.Append(x.Stream());
+                        }
+                    });
+                    hash = NBitcoin.Crypto.Hashes.DoubleSHA256(ts.ToArray());
+                }
+
+                var calculateVrfSignature =
+                    _signing.CalculateVrfSignature(Curve.decodePrivatePoint(_keyPair.PrivateKey), hash.ToBytes(false));
+                var verifyVrfSignature = _signing.VerifyVrfSignature(Curve.decodePoint(_keyPair.PublicKey, 0),
+                    hash.ToBytes(false), calculateVrfSignature);
+                var runningDistribution = await _validator.GetRunningDistribution();
+                var solution = _validator.Solution(verifyVrfSignature, hash.ToBytes(false));
+                if (solution == 0) return;
+                var networkShare = _validator.NetworkShare(solution, runningDistribution);
+                var reward = _validator.Reward(solution, runningDistribution);
+                var bits = _validator.Difficulty(solution, networkShare);
+                var coinStakeTransaction = await CoinbaseTransactionAsync(bits, reward);
+                if (coinStakeTransaction == null)
+                {
+                    _logger.Here().Error("Unable to create the coinstake transaction");
+                    return;
+                }
+
+                transactions.Insert(0, coinStakeTransaction);
+                var blockHeader = CreateBlock(transactions.ToArray(), calculateVrfSignature, verifyVrfSignature,
+                    solution, bits, prevBlock);
+                if (blockHeader == null)
+                {
+                    _logger.Here().Fatal("Unable to create the block");
+                    return;
+                }
+
+                _validator.Trie.Put(blockHeader.ToHash(), blockHeader.ToHash());
+                blockHeader.MerkelRoot = _validator.Trie.GetRootHash().ByteToHex();
+                var signature = await _signing.Sign(_signing.DefaultSigningKeyName, blockHeader.ToFinalStream());
+                if (signature == null)
+                {
+                    _logger.Here().Fatal("Unable to sign the block");
+                    return;
+                }
+
+                blockHeader.Signature = signature.ByteToHex();
+                blockHeader.PublicKey = _keyPair.PublicKey.ByteToHex();
+                var blockGraph = CreateBlockGraph(blockHeader, prevBlock);
+                await _graph.TryAddBlockGraph(blockGraph);
+            }
+            catch (Exception ex)
+            {
+                _logger.Here().Error(ex, "PoS minting Failed");
+            }
         }
 
         /// <summary>
         /// 
         /// </summary>
         /// <returns></returns>
-        private void Staking()
+        private async Task DecideWinner()
         {
-            Observable.Timer(TimeSpan.FromSeconds(35), TimeSpan.FromSeconds(10))
-                .Select(r => _memoryPool.Range(0, _stakingConfigurationOptions.BlockTransactionCount))
-                .Where(x => x.Length != 0).Subscribe(async memPoolTransactions =>
+            if (_sync.SyncRunning) return;
+            try
+            {
+                var height = await _unitOfWork.HashChainRepository.CountAsync() - 1;
+                var prevBlock = await _unitOfWork.HashChainRepository.GetAsync(block =>
+                    new ValueTask<bool>(block.Height == height));
+                if (prevBlock == null) return;
+                var deliveredBlocks =
+                    await _unitOfWork.DeliveredRepository.WhereAsync(block =>
+                        new ValueTask<bool>(block.Height == height + 1));
+                var blockWinners = deliveredBlocks.Select(deliveredBlock => new BlockWinner
                 {
-                    if (_stakingConfigurationOptions.OnOff != true)
+                    BlockHeader = deliveredBlock,
+                    Finish = new TimeSpan(deliveredBlock.Locktime).Subtract(new TimeSpan(prevBlock.Locktime)).Ticks
+                }).ToList();
+                if (blockWinners.Any() != true) return;
+                _logger.Here().Information("RunStakingWinnerAsync");
+                var winners = blockWinners.Where(winner =>
+                    winner.Finish <= blockWinners.Select(endTime => endTime.Finish).Min()).ToArray();
+                var blockWinner = winners.Length switch
+                {
+                    > 2 => winners.FirstOrDefault(winner =>
+                        winner.BlockHeader.Bits >= blockWinners.Select(bits => bits.BlockHeader.Bits).Max()),
+                    _ => winners.First()
+                };
+                if (blockWinner != null)
+                {
+                    _logger.Here().Information("RunStakingWinnerAsync we have a winner");
+                    var exists = await _validator.BlockExists(blockWinner.BlockHeader);
+                    if (exists == VerifyResult.AlreadyExists)
                     {
-                        memPoolTransactions.ForEach(x => { _memoryPool.Remove(x); });
+                        _logger.Here().Error("Block winner already exists");
+                        await RemoveDeliveredBlock(blockWinner);
                         return;
                     }
 
-                    _logger.Here().Information("SyncRunning:{@}", _sync.SyncRunning);
-
-                    if (_sync.SyncRunning) return;
-
-                    await Task.Run(async () =>
+                    var verifyBlockHeader = await _validator.VerifyBlockHeader(blockWinner.BlockHeader);
+                    if (verifyBlockHeader == VerifyResult.UnableToVerify)
                     {
-                        var transactionTasks = memPoolTransactions.Select(GetValidTransactionAsync).ToArray();
-                        var transactions = await Task.WhenAll(transactionTasks);
-                        var height = await _unitOfWork.HashChainRepository.CountAsync() - 1;
-                        var prevBlock =
-                            await _unitOfWork.HashChainRepository.GetAsync(x =>
-                                new ValueTask<bool>(x.Height == height));
-                        if (prevBlock == null)
-                        {
-                            _logger.Here().Information("There is no block available for processing");
-                            return;
-                        }
+                        _logger.Here().Error("Unable to verify the block");
+                        await RemoveDeliveredBlock(blockWinner);
+                        return;
+                    }
 
-                        var coinStakeTimestamp = _validator.GetAdjustedTimeAsUnixTimestamp();
-                        if (coinStakeTimestamp <= prevBlock.Locktime)
-                        {
-                            _logger.Here()
-                                .Warning(
-                                    "Current coinstake time {@Timestamp} is not greater than last search timestamp {@Locktime}",
-                                    coinStakeTimestamp, prevBlock.Locktime);
-                            return;
-                        }
+                    _logger.Here().Information("RunStakingWinnerAsync saving winner");
+                    var saved = await _unitOfWork.HashChainRepository.PutAsync(blockWinner.BlockHeader.ToIdentifier(),
+                        blockWinner.BlockHeader);
+                    if (!saved)
+                    {
+                        _logger.Here().Error("Unable to save the block winner");
+                        return;
+                    }
+                }
 
-                        try
-                        {
-                            uint256 hash;
-                            using (TangramStream ts = new())
-                            {
-                                transactions.ForEach(x =>
-                                {
-                                    if (x != null)
-                                    {
-                                        ts.Append(x.Stream());
-                                    }
-                                });
-                                hash = NBitcoin.Crypto.Hashes.DoubleSHA256(ts.ToArray());
-                            }
-
-                            var calculateVrfSignature =
-                                _signing.CalculateVrfSignature(Curve.decodePrivatePoint(_keyPair.PrivateKey),
-                                    hash.ToBytes(false));
-                            var verifyVrfSignature = _signing.VerifyVrfSignature(
-                                Curve.decodePoint(_keyPair.PublicKey, 0), hash.ToBytes(false), calculateVrfSignature);
-                            var runningDistribution = await _validator.GetRunningDistribution();
-                            var solution = _validator.Solution(verifyVrfSignature, hash.ToBytes(false));
-                            var networkShare = _validator.NetworkShare(solution, runningDistribution);
-                            var reward = _validator.Reward(solution, runningDistribution);
-                            var bits = _validator.Difficulty(solution, networkShare);
-                            var coinStakeTransaction = await CoinbaseTransactionAsync(bits, reward);
-                            if (coinStakeTransaction == null)
-                            {
-                                _logger.Here().Error("Unable to create the coinstake transaction");
-                                return;
-                            }
-
-                            transactions.TryInsert(0, coinStakeTransaction);
-                            var blockHeader = CreateBlock(transactions.ToArray(), calculateVrfSignature,
-                                verifyVrfSignature, solution, bits, prevBlock);
-                            if (blockHeader == null)
-                            {
-                                _logger.Here().Fatal("Unable to create the block");
-                                return;
-                            }
-                            _validator.Trie.Put(blockHeader.ToHash(), blockHeader.ToHash());
-                            blockHeader.MerkelRoot = _validator.Trie.GetRootHash().ByteToHex();
-                            var signature = await _signing.Sign(_signing.DefaultSigningKeyName,
-                                blockHeader.ToFinalStream());
-                            if (signature == null)
-                            {
-                                _logger.Here().Fatal("Unable to sign the block");
-                                return;
-                            }
-
-                            blockHeader.Signature = signature.ByteToHex();
-                            blockHeader.PublicKey = _keyPair.PublicKey.ByteToHex();
-                            var blockGraph = CreateBlockGraph(blockHeader, prevBlock);
-                            await _graph.TryAddBlockGraph(blockGraph);
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.Here().Error(ex, "PoS minting Failed");
-                        }
-                    }).ConfigureAwait(false);
-                });
+                var removeDeliveredBlockTasks = new List<Task>();
+                blockWinners.ForEach(winner => { removeDeliveredBlockTasks.Add(RemoveDeliveredBlock(winner)); });
+                await Task.WhenAll(removeDeliveredBlockTasks);
+            }
+            catch (Exception ex)
+            {
+                _logger.Here().Error(ex, "Decide stake winner Failed");
+            }
         }
 
         /// <summary>
@@ -182,105 +260,36 @@ namespace CYPCore.Ledger
         /// <returns></returns>
         private async Task<TransactionModel> GetValidTransactionAsync(TransactionModel transaction)
         {
-            _logger.Here().Information("Transaction {@TxnId}", transaction.TxnId.ByteToHex());
-            var verifyTransaction = await _validator.VerifyTransaction(transaction);
-            var verifyTransactionFee = _validator.VerifyTransactionFee(transaction);
-            _logger.Here().Information("Transaction verifyTransaction {@verifyTransaction}", verifyTransaction);
-            _logger.Here().Information("Transaction verifyTransactionFee {@verifyTransactionFee}",
-                verifyTransactionFee);
-            var removed = _memoryPool.Remove(transaction);
-            if (removed == VerifyResult.UnableToVerify)
+            try
             {
-                _logger.Here().Error("Unable to remove the transaction from the memory pool {@TxnId}", transaction.TxnId);
+                _logger.Here().Information("Transaction {@TxnId}", transaction.TxnId.ByteToHex());
+                var verifyTransaction = await _validator.VerifyTransaction(transaction);
+                var verifyTransactionFee = _validator.VerifyTransactionFee(transaction);
+                _logger.Here().Information("Transaction verifyTransaction {@verifyTransaction}", verifyTransaction);
+                _logger.Here().Information("Transaction verifyTransactionFee {@verifyTransactionFee}",
+                    verifyTransactionFee);
+                var removed = _memoryPool.Remove(transaction);
+                if (removed == VerifyResult.UnableToVerify)
+                {
+                    _logger.Here().Error("Unable to remove the transaction from the memory pool {@TxnId}",
+                        transaction.TxnId);
+                }
+
+                if (verifyTransaction == VerifyResult.Succeed && verifyTransactionFee == VerifyResult.Succeed)
+                {
+                    return transaction;
+                }
+
+                _logger.Here().Information("Transaction failed {@TxnId}", transaction.TxnId.ByteToHex());
+            }
+            catch (Exception ex)
+            {
+                _logger.Here().Error(ex, "Unable to verify the transaction");
             }
 
-            if (verifyTransaction == VerifyResult.Succeed && verifyTransactionFee == VerifyResult.Succeed)
-            {
-                return transaction;
-            }
-
-            _logger.Here().Information("Transaction failed {@TxnId}", transaction.TxnId.ByteToHex());
             return null;
         }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <returns></returns>
-        private void DecideWinner()
-        {
-            Observable.Timer(TimeSpan.FromSeconds(40), TimeSpan.FromSeconds(20)).Subscribe(async x =>
-            {
-                if (_sync.SyncRunning) return;
-                try
-                {
-                    await Task.Run(async () =>
-                    {
-                        var height = await _unitOfWork.HashChainRepository.CountAsync() - 1;
-                        var prevBlock = await _unitOfWork.HashChainRepository.GetAsync(block =>
-                            new ValueTask<bool>(block.Height == height));
-                        if (prevBlock == null) return;
-                        var deliveredBlocks =
-                            await _unitOfWork.DeliveredRepository.WhereAsync(block =>
-                                new ValueTask<bool>(block.Height == height + 1));
-                        var blockWinners = deliveredBlocks.Select(deliveredBlock => new BlockWinner
-                        {
-                            BlockHeader = deliveredBlock,
-                            Finish = new TimeSpan(deliveredBlock.Locktime)
-                                .Subtract(new TimeSpan(prevBlock.Locktime)).Ticks
-                        }).ToList();
-                        if (blockWinners.Any() != true) return;
-                        _logger.Here().Information("RunStakingWinnerAsync");
-                        var winners = blockWinners.Where(winner =>
-                            winner.Finish <= blockWinners.Select(endTime => endTime.Finish).Min()).ToArray();
-                        var blockWinner = winners.Length switch
-                        {
-                            > 2 => winners.FirstOrDefault(winner =>
-                                winner.BlockHeader.Bits >= blockWinners.Select(bits => bits.BlockHeader.Bits).Max()),
-                            _ => winners.First()
-                        };
-                        if (blockWinner != null)
-                        {
-                            _logger.Here().Information("RunStakingWinnerAsync we have a winner");
-                            var exists = await _validator.BlockExists(blockWinner.BlockHeader);
-                            if (exists == VerifyResult.AlreadyExists)
-                            {
-                                _logger.Here().Error("Block winner already exists");
-                                await RemoveDeliveredBlock(blockWinner);
-                                return;
-                            }
-
-                            var verifyBlockHeader = await _validator.VerifyBlockHeader(blockWinner.BlockHeader);
-                            if (verifyBlockHeader == VerifyResult.UnableToVerify)
-                            {
-                                _logger.Here().Error("Unable to verify the block");
-                                await RemoveDeliveredBlock(blockWinner);
-                                return;
-                            }
-
-                            _logger.Here().Information("RunStakingWinnerAsync saving winner");
-                            var saved = await _unitOfWork.HashChainRepository.PutAsync(
-                                blockWinner.BlockHeader.ToIdentifier(), blockWinner.BlockHeader);
-                            if (!saved)
-                            {
-                                _logger.Here().Error("Unable to save the block winner");
-                                return;
-                            }
-                        }
-
-                        foreach (var winner in blockWinners)
-                        {
-                            await RemoveDeliveredBlock(winner);
-                        }
-                    }).ConfigureAwait(false);
-                }
-                catch (Exception ex)
-                {
-                    _logger.Here().Error(ex, "Decide stake winner Failed");
-                }
-            });
-        }
-
+        
         /// <summary>
         /// 
         /// </summary>
@@ -351,6 +360,7 @@ namespace CYPCore.Ledger
             var ct = new CancellationTokenSource(TimeSpan.FromSeconds(30)).Token;
             var sloth = new Sloth(ct);
             var nonce = sloth.Eval(bits, x, p256);
+            if (ct.IsCancellationRequested) return null;
             var lockTime = _validator.GetAdjustedTimeAsUnixTimestamp();
             var blockHeader = new BlockHeaderProto
             {

@@ -72,7 +72,7 @@ namespace CYPCore.Extensions
                 configuration.Bind("Staking", stakingConfigurationOptions);
                 var posMintingProvider = new PosMinting(c.Resolve<IGraph>(), c.Resolve<IMemoryPool>(),
                     c.Resolve<ISerfClient>(), c.Resolve<IUnitOfWork>(), c.Resolve<ISigning>(), c.Resolve<IValidator>(),
-                    c.Resolve<ISync>(), stakingConfigurationOptions, c.Resolve<Serilog.ILogger>());
+                    c.Resolve<ISync>(), stakingConfigurationOptions, c.Resolve<Serilog.ILogger>(), c.Resolve<IHostApplicationLifetime>());
                 return posMintingProvider;
             }).As<IStartable>().SingleInstance();
             return builder;
