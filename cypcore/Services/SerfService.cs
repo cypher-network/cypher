@@ -101,7 +101,7 @@ namespace CYPCore.Services
                     }
                     catch (Exception)
                     {
-
+                        // ignored
                     }
                 });
 

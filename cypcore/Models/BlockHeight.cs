@@ -6,5 +6,6 @@ namespace CYPCore.Models
     public class BlockHeight
     {
         public long Height { get; set; }
+        public string Host { get; set; }
     }
 }

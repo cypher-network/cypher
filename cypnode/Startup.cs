@@ -1,6 +1,7 @@
 // CYPNode by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
+using System.Net.Http;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
@@ -14,6 +15,8 @@ using Autofac;
 using CYPNode.StartupExtensions;
 using CYPCore.Consensus;
 using CYPCore.Extensions;
+using CYPCore.Network;
+using Polly;
 
 namespace CYPNode
 {
@@ -38,6 +41,7 @@ namespace CYPNode
         /// <param name="services"></param>
         public void ConfigureServices(IServiceCollection services)
         {
+            services.AddHttpClient<NetworkClient>().AddPolicyHandler(Policy.TimeoutAsync<HttpResponseMessage>(5));
             services.AddResponseCompression();
             services.AddMvc(option => option.EnableEndpointRouting = false).SetCompatibilityVersion(CompatibilityVersion.Version_3_0);
             services.AddControllers();

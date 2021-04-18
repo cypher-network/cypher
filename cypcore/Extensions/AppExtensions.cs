@@ -114,7 +114,6 @@ namespace CYPCore.Extensions
         public static ContainerBuilder AddLocalNode(this ContainerBuilder builder)
         {
             builder.RegisterType<LocalNode>().As<ILocalNode>().SingleInstance();
-            builder.RegisterType<SyncBackgroundService>().As<IHostedService>();
             return builder;
         }
 
@@ -252,6 +251,7 @@ namespace CYPCore.Extensions
         public static ContainerBuilder AddSync(this ContainerBuilder builder)
         {
             builder.RegisterType<Sync>().As<ISync>().SingleInstance();
+            builder.RegisterType<SyncBackgroundService>().As<IHostedService>();
             return builder;
         }
 
