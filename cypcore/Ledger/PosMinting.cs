@@ -51,7 +51,7 @@ namespace CYPCore.Ledger
         private readonly StakingConfigurationOptions _stakingConfigurationOptions;
         private readonly Timer _stakingTimer;
         private readonly Timer _decideWinnerTimer;
-        
+
         public PosMinting(IGraph graph, IMemoryPool memoryPool, ISerfClient serfClient, IUnitOfWork unitOfWork,
             ISigning signing, IValidator validator, ISync sync, StakingConfigurationOptions stakingConfigurationOptions,
             ILogger logger, IHostApplicationLifetime applicationLifetime)
@@ -66,10 +66,10 @@ namespace CYPCore.Ledger
             _stakingConfigurationOptions = stakingConfigurationOptions;
             _logger = logger.ForContext("SourceContext", nameof(PosMinting));
             _keyPair = _signing.GetOrUpsertKeyName(_signing.DefaultSigningKeyName).GetAwaiter().GetResult();
-            
+
             _stakingTimer = new Timer(async _ => await Staking(), null, TimeSpan.FromSeconds(35), TimeSpan.FromSeconds(10));
             _decideWinnerTimer = new Timer(async _ => await DecideWinner(), null, TimeSpan.FromSeconds(40), TimeSpan.FromSeconds(20));
-            
+
             applicationLifetime.ApplicationStopping.Register(OnApplicationStopping);
         }
 
@@ -82,7 +82,7 @@ namespace CYPCore.Ledger
             _stakingTimer?.Change(Timeout.Infinite, 0);
             _decideWinnerTimer?.Change(Timeout.Infinite, 0);
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -101,7 +101,7 @@ namespace CYPCore.Ledger
             transactionModels = await Task.WhenAll(transactionTasks);
 
             if (transactionModels.Length == 0) return;
-            
+
             var transactions = transactionModels.ToList();
             var height = await _unitOfWork.HashChainRepository.CountAsync() - 1;
             var prevBlock =
@@ -289,7 +289,7 @@ namespace CYPCore.Ledger
 
             return null;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>

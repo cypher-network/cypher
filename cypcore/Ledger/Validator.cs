@@ -686,7 +686,7 @@ namespace CYPCore.Ledger
             Guard.Argument(kernel, nameof(kernel)).NotNull().MaxCount(32);
 
             long itr = 0;
-            
+
             try
             {
                 var ct = new CancellationTokenSource(TimeSpan.FromSeconds(30)).Token;
