@@ -733,7 +733,7 @@ namespace CYPCore.Ledger
                 lastBlock = await _unitOfWork.HashChainRepository.GetAsync(x =>
                     new ValueTask<bool>(x.MerkelRoot.Equals(xBlockHeader.MerkelRoot)));
                 if (lastBlock == null) return VerifyResult.UnableToVerify;
-                var blockHeaders = await _unitOfWork.HashChainRepository.SkipAsync((int)xBlockHeader.Height + 1);
+                var blockHeaders = await _unitOfWork.HashChainRepository.SkipAsync((int)xBlockHeader.Height);
 
                 blockHeaders = blockHeaders.OrderBy(x => x.Height).ToList();
 
@@ -744,6 +744,10 @@ namespace CYPCore.Ledger
                     var xBlockTime = xChain.First().Locktime.FromUnixTimeSeconds() -
                                      xChain.Last().Locktime.FromUnixTimeSeconds();
                     if (xBlockTime <= blockTime) return VerifyResult.Succeed;
+                }
+                else
+                {
+                    return VerifyResult.Succeed;
                 }
             }
             catch (Exception ex)
