@@ -351,6 +351,15 @@ namespace CYPCore.Ledger
 
             if (blockHeader.MerkelRoot.HexToByte().Xor(BlockZeroMerkel.HexToByte()) &&
                 blockHeader.PrevMerkelRoot.HexToByte().Xor(BlockZeroPreMerkel.HexToByte())) return VerifyResult.Succeed;
+            if (blockHeader.Height == 0)
+            {
+                if (!blockHeader.MerkelRoot.HexToByte().Xor(BlockZeroMerkel.HexToByte()) &&
+                    !blockHeader.PrevMerkelRoot.HexToByte().Xor(BlockZeroPreMerkel.HexToByte()))
+                {
+                    return VerifyResult.UnableToVerify;
+                }
+            }
+
             var prevBlock = await _unitOfWork.HashChainRepository.GetAsync(x =>
                 new ValueTask<bool>(x.MerkelRoot.Equals(blockHeader.PrevMerkelRoot)));
             if (prevBlock == null)

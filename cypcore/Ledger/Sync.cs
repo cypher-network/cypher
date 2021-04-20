@@ -148,7 +148,7 @@ namespace CYPCore.Ledger
                             var verifyBlockHeader = await _validator.VerifyBlockHeader(blockHeader);
                             if (verifyBlockHeader != VerifyResult.Succeed)
                             {
-                                return;
+                                continue;
                             }
 
                             var saved = await _unitOfWork.HashChainRepository.PutAsync(blockHeader.ToIdentifier(),
