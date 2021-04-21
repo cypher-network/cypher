@@ -29,7 +29,8 @@ namespace CYPCore.Persistence
         ValueTask<List<T>> SkipAsync(int skip);
         ValueTask<List<T>> TakeAsync(int take);
         Task<bool> RemoveAsync(byte[] key);
-        public Task<IList<T>> TakeLongAsync(long take);
+        Task<IList<T>> TakeLongAsync(long take);
+        IAsyncEnumerable<T> Iterate();
     }
 
     public class Repository<T> : IRepository<T> where T : class
@@ -459,7 +460,7 @@ namespace CYPCore.Persistence
         /// </summary>
         /// <returns></returns>
 #pragma warning disable 1998
-        private async IAsyncEnumerable<T> Iterate()
+        public async IAsyncEnumerable<T> Iterate()
 #pragma warning restore 1998
         {
             var cf = _storeDb.Rocks.GetColumnFamily(_tableName);

@@ -82,6 +82,26 @@ namespace CYPCore.Controllers
         /// <summary>
         /// 
         /// </summary>
+        /// <param name="skip"></param>
+        /// <param name="take"></param>
+        /// <returns></returns>
+        [HttpGet("hashchainsbyheight", Name = "GetHashChainsOrderByHeight")]
+        [ProducesResponseType(typeof(byte[]), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetHashChainsOrderByHeight(int skip = 0, int take = 100)
+        {
+            var limitTake = take > 100 ? 100 : take;
+            var hashChains = await _unitOfWork.HashChainRepository.OrderByRangeAsync(x => x.Height, skip, limitTake);
+            return new ObjectResult(new
+            {
+                total = hashChains.Count,
+                hashChains
+            });
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
         /// <returns></returns>
         [HttpGet("tries", Name = "GetTries")]
         [ProducesResponseType(typeof(byte[]), StatusCodes.Status200OK)]
