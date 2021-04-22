@@ -130,7 +130,11 @@ namespace CYPCore.Network
 
             var membersResult = await _serfClient.Members(tcpSession.SessionId);
             var members = membersResult.Value.Members.ToList();
-            foreach (var member in members.Where(member => _serfClient.Name != member.Name && member.Status == "alive" && member.Tags.Count != 0))
+            foreach (var member in members.Where(member =>
+                _serfClient.Name != member.Name &&
+                member.Status == "alive" &&
+                member.Tags.ContainsKey("pubkey") &&
+                member.Tags.ContainsKey("rest")))
             {
                 try
                 {
