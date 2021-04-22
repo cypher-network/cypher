@@ -14,16 +14,34 @@ well as our review and merge procedures quick and simple.
 
 ## Coding guidelines
 
-Please make sure your contributions adhere to our coding guidelines:
+Please make sure your contributions adhere to our coding guidelines as
+described in https://github.com/cypher-network/cypher/wiki/Development:
+
+* All code is written using the coding guidelines of the .NET runtime:
+  https://github.com/dotnet/runtime/blob/master/docs/coding-guidelines/coding-style.md,
+  unless stated otherwise in this document.
+
+* The following deviations from the .NET runtime coding guidelines shall be used:
+  * (none)
+
+* The following additions to the .NET runtime coding guidelines apply:
+  * (none)
 
  * Code must adhere to the official C# 
 [formatting](...) guidelines 
 
  * Code must be documented adhering to the official C# 
 [commentary](...) guidelines.
+
+ * Commit messages must follow the Conventional Commits specification v1.0.0 and be
+   lower-case unless it contains a word commonly only written with upper-case.
+   * E.g. `fix(serf): handle alive nodes only`
+
  * Pull requests need to be based on and opened against the `master` branch.
- * Commit messages should be prefixed with the package(s) they modify.
-   * E.g. "..."
+
+ * Pull request titles must follow the following scheme: `<type_scope-commit_message`>,
+   where the commit message has spaces replaced by underscores.
+   * E.g. `fix_serf-handle_alive_nodes`
 
 ## Configuration, dependencies, and tests
 
