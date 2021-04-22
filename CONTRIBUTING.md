@@ -39,7 +39,7 @@ described in https://github.com/cypher-network/cypher/wiki/Development:
 
  * Pull requests need to be based on and opened against the `master` branch.
 
- * Pull request titles must follow the following scheme: `<type_scope-commit_message`>,
+ * Pull request titles must follow the following scheme: `<type_scope-commit_message>`,
    where the commit message has spaces replaced by underscores.
    * E.g. `fix_serf-handle_alive_nodes`
 
