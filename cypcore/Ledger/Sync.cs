@@ -11,6 +11,7 @@ using CYPCore.Models;
 using CYPCore.Network;
 using CYPCore.Persistence;
 using Dawn;
+using Microsoft.CodeAnalysis.FlowAnalysis;
 
 namespace CYPCore.Ledger
 {
@@ -21,7 +22,7 @@ namespace CYPCore.Ledger
     {
         bool IsSynchronized { get; }
         bool SyncRunning { get; }
-        Task Fetch(string host, long skip, long take);
+        Task<bool> Synchronize(string host, long skip, long take);
         Task Synchronize();
     }
 
@@ -83,24 +84,72 @@ namespace CYPCore.Ledger
                     await Task.Delay(retryDelay);
                 }
 
+                var localBlockHeight = await _unitOfWork.HashChainRepository.CountAsync();
+                var localLastBlock = await _unitOfWork.HashChainRepository.GetAsync(b =>
+                    new ValueTask<bool>(b.Height == localBlockHeight));
+                var localLastBlockHash = localLastBlock?.ToHash();
+
                 var networkPeerTasks =
-                    peers.Values.Select(peer => _networkClient.GetPeerBlockHeightAsync(peer)).ToArray();
-                var networkBlockHeights = await Task.WhenAll(networkPeerTasks);
-                var fetchTasks = new List<Task>();
-                foreach (var networkBlockHeight in networkBlockHeights)
-                {
-                    if (networkBlockHeight == null) continue;
-                    _logger.Here()
-                        .Information("Local node block height ({@LocalHeight}). Network block height ({NetworkHeight})",
-                            networkBlockHeight.Local.Height, networkBlockHeight.Remote.Height);
-                    if (networkBlockHeight.Local.Height != networkBlockHeight.Remote.Height)
+                    peers.Values.Select(peer => _networkClient.GetPeerLastBlockHashAsync(peer)).ToArray();
+
+
+                var networkBlockHashes = new List<BlockHashPeer>(await Task.WhenAll(networkPeerTasks));
+
+                var networkBlockHashesGrouped = new List<BlockHashPeer>(await Task.WhenAll(networkPeerTasks))
+                    .GroupBy(hash => hash)
+                    .Select(hash => new
                     {
-                        fetchTasks.Add(Fetch(networkBlockHeight.Remote.Host, networkBlockHeight.Local.Height,
-                            networkBlockHeight.Remote.Height / 188));
+                        Hash = hash.Key.BlockHash.Hash,
+                        Count = hash.Count()
+                    });
+
+                var blockHashes = networkBlockHashesGrouped.ToList();
+                var numPeersWithSameHash = blockHashes
+                    .FirstOrDefault(element => element.Hash == localLastBlockHash)?
+                    .Count ?? 0;
+
+                if (blockHashes.Count == 0)
+                {
+                    _logger.Here().Information("No remote block hashes found");
+                }
+                else if (numPeersWithSameHash > peers.Count / 2.0)
+                {
+                    _logger.Here().Information("Local node has same hash (@Hash} as majority of the network ({@NumSameHash} / {@NumPeers})",
+                        localLastBlockHash, numPeersWithSameHash, peers.Count);
+                }
+                else
+                {
+                    _logger.Here().Information(
+                        "Local node does not have same hash {@Hash} as majority of the network ({@NumSameHash} / {@NumPeers})",
+                        localLastBlockHash, numPeersWithSameHash, peers.Count);
+
+                    foreach (var hash in blockHashes)
+                    {
+                        _logger.Here().Debug("Hash {@Hash} found {@Count} times", hash.Hash, hash.Count);
+                    }
+
+                    var synchronized = false;
+                    var majorityHash = blockHashes.OrderByDescending(hash => hash.Count).First();
+                    foreach (var blockHash in networkBlockHashes.Where(element => element.BlockHash.Hash == majorityHash.Hash))
+                    {
+                        _logger.Here().Debug("Synchronizing chain with last block hash {@Hash} from {@Peer} {@Host}",
+                            majorityHash, blockHash.Peer.NodeName, blockHash.Peer.Host);
+
+                        synchronized = await Synchronize(blockHash.Peer.Host, localBlockHeight, blockHash.BlockHash.Height);
+                        if (synchronized)
+                        {
+                            _logger.Here().Information("Successfully synchronized with {@Peer} {@Host}",
+                                blockHash.Peer.NodeName, blockHash.Peer.Host);
+
+                            break;
+                        }
+                    }
+
+                    if (!synchronized)
+                    {
+                        _logger.Here().Error("Unable to synchronize with remote peers");
                     }
                 }
-
-                await Task.WhenAll(fetchTasks);
             }
             catch (Exception ex)
             {
@@ -114,12 +163,16 @@ namespace CYPCore.Ledger
         /// <summary>
         /// 
         /// </summary>
+        /// <param name="host"></param>
+        /// <param name="skip"></param>
+        /// <param name="take"></param>
         /// <returns></returns>
-        public async Task Fetch(string host, long skip, long take)
+        public async Task<bool> Synchronize(string host, long skip, long take)
         {
             Guard.Argument(host, nameof(host)).NotNull().NotEmpty().NotWhiteSpace();
             Guard.Argument(skip, nameof(skip)).NotNegative();
             Guard.Argument(take, nameof(take)).NotNegative();
+
             try
             {
                 var numberOfBatches = (int)Math.Ceiling((double)take / BatchSize);
@@ -137,8 +190,8 @@ namespace CYPCore.Ledger
                     var verifyForkRule = await _validator.VerifyForkRule(blocks.ToArray());
                     if (verifyForkRule == VerifyResult.UnableToVerify)
                     {
-                        _logger.Here().Error("Unable to verify fork rule for: {@host}", host);
-                        return;
+                        _logger.Here().Error("Unable to verify fork rule for: {@Host}", host);
+                        return false;
                     }
 
                     foreach (var blockHeader in blocks.OrderBy(x => x.Height))
@@ -148,7 +201,7 @@ namespace CYPCore.Ledger
                             var verifyBlockHeader = await _validator.VerifyBlockHeader(blockHeader);
                             if (verifyBlockHeader != VerifyResult.Succeed)
                             {
-                                continue;
+                                return false;
                             }
 
                             var saved = await _unitOfWork.HashChainRepository.PutAsync(blockHeader.ToIdentifier(),
@@ -156,22 +209,27 @@ namespace CYPCore.Ledger
                             if (!saved)
                             {
                                 _logger.Here().Error("Unable to save block: {@MerkleRoot}", blockHeader.MerkelRoot);
+                                return false;
                             }
                         }
                         catch (Exception ex)
                         {
                             _logger.Here().Error(ex, "Unable to save block: {@MerkleRoot}", blockHeader.MerkelRoot);
+                            return false;
                         }
                     }
 
                     var localHeight = await _unitOfWork.HashChainRepository.CountAsync();
-                    _logger.Here().Information("Local node block height increased to ({@LocalHeight})", localHeight);
+                    _logger.Here().Information("Local node block height set to ({@LocalHeight})", localHeight);
                 }
             }
             catch (Exception ex)
             {
                 _logger.Here().Error(ex, "Failed to synchronize node");
+                return false;
             }
+
+            return true;
         }
     }
 }

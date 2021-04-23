@@ -34,28 +34,29 @@ namespace CYPCore.Network
         /// </summary>
         /// <param name="peer"></param>
         /// <returns></returns>
-        public async Task<NetworkBlockHeight> GetPeerBlockHeightAsync(Peer peer)
+        public async Task<BlockHashPeer> GetPeerLastBlockHashAsync(Peer peer)
         {
-            NetworkBlockHeight networkBlockHeight = null;
-
             try
             {
-                var httpResponseMessage = await _httpClient.GetAsync($"{peer.Host}/chain/height");
+                // block height 0 retrieves the last block hash (highest height)
+                var httpResponseMessage = await _httpClient.GetAsync($"{peer.Host}/chain/hash/0");
                 httpResponseMessage.EnsureSuccessStatusCode();
                 var content = await httpResponseMessage.Content.ReadAsStringAsync();
-                var blockHeight = Newtonsoft.Json.JsonConvert.DeserializeObject<BlockHeight>(content);
-                networkBlockHeight = new NetworkBlockHeight
+                return new()
                 {
-                    Local = new BlockHeight { Height = await _unitOfWork.HashChainRepository.CountAsync(), Host = "local" },
-                    Remote = new BlockHeight { Height = blockHeight.Height, Host = peer.Host }
+                    Peer = peer,
+                    BlockHash =
+                    {
+                        Hash = Newtonsoft.Json.JsonConvert.DeserializeObject<byte[]>(content)
+                    }
                 };
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex.Message);
+                _logger.Here().Error(ex, "Error getting last block hash");
             }
 
-            return networkBlockHeight;
+            return null;
         }
 
         /// <summary>

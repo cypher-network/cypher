@@ -104,6 +104,28 @@ namespace CYPCore.Controllers
         }
 
         /// <summary>
+        ///
+        /// </summary>
+        /// <returns></returns>
+        [HttpGet("hash/{height}", Name = "GetHash")]
+        [ProducesResponseType(typeof(BlockHash), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetHash(long height)
+        {
+            try
+            {
+                var hash = await _graph.GetHash(height);
+                return new ObjectResult(new { hash });
+            }
+            catch (Exception ex)
+            {
+                _logger.Here().Error(ex, "Unable to get the block hash for height {@Height}", height);
+            }
+
+            return NotFound();
+        }
+
+        /// <summary>
         /// 
         /// </summary>
         /// <param name="skip"></param>
