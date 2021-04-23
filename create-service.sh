@@ -8,7 +8,7 @@ Description=cypnode
 [Service]
 WorkingDirectory=$HOME/.cypher/dist
 Environment="ASPNETCORE_ENVIRONMENT=Production"
-ExecStart=dotnet $HOME/.cypher/dist/cypnode.dll
+ExecStart=/usr/bin/dotnet $HOME/.cypher/dist/cypnode.dll
 Restart=always
 RestartSec=10
 KillSignal=SIGINT
