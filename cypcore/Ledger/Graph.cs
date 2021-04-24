@@ -30,6 +30,7 @@ namespace CYPCore.Ledger
         Task<IEnumerable<BlockHeaderProto>> GetBlocks(int skip, int take);
         Task<IEnumerable<BlockHeaderProto>> GetSafeguardBlocks();
         Task<long> GetHeight();
+        Task<BlockHash> GetHash(long height);
     }
 
     public class Graph : IGraph
@@ -254,6 +255,37 @@ namespace CYPCore.Ledger
         }
 
         /// <summary>
+        ///
+        /// </summary>
+        /// <returns></returns>
+        public async Task<BlockHash> GetHash(long height)
+        {
+            try
+            {
+                if (height == 0)
+                {
+                    // Get last block hash when no height is given
+                    height = await _unitOfWork.HashChainRepository.CountAsync();
+                }
+
+                var block = await _unitOfWork.HashChainRepository.GetAsync(b =>
+                    new ValueTask<bool>(b.Height == height));
+
+                return new()
+                {
+                    Height = height,
+                    Hash = block.ToHash()
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.Here().Error(ex, "Cannot get last block hash");
+            }
+
+            return null;
+        }
+
+        /// <summary>
         /// 
         /// </summary>
         /// <param name="transactionId"></param>
@@ -282,7 +314,7 @@ namespace CYPCore.Ledger
         }
 
         /// <summary>
-        /// 
+        ///
         /// </summary>
         /// <param name="blockHeader"></param>
         /// <param name="prevBlockHeader"></param>

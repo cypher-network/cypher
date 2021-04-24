@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Threading;
@@ -34,28 +35,44 @@ namespace CYPCore.Network
         /// </summary>
         /// <param name="peer"></param>
         /// <returns></returns>
-        public async Task<NetworkBlockHeight> GetPeerBlockHeightAsync(Peer peer)
+        public async Task<BlockHashPeer> GetPeerLastBlockHashAsync(Peer peer)
         {
-            NetworkBlockHeight networkBlockHeight = null;
-
             try
             {
                 var httpResponseMessage = await _httpClient.GetAsync($"{peer.Host}/chain/height");
                 httpResponseMessage.EnsureSuccessStatusCode();
                 var content = await httpResponseMessage.Content.ReadAsStringAsync();
                 var blockHeight = Newtonsoft.Json.JsonConvert.DeserializeObject<BlockHeight>(content);
-                networkBlockHeight = new NetworkBlockHeight
+                var networkBlockHeight = new NetworkBlockHeight
                 {
-                    Local = new BlockHeight { Height = await _unitOfWork.HashChainRepository.CountAsync(), Host = "local" },
+                    Local = new BlockHeight
+                    { Height = await _unitOfWork.HashChainRepository.CountAsync(), Host = "local" },
                     Remote = new BlockHeight { Height = blockHeight.Height, Host = peer.Host }
+                };
+
+                var remoteBlock = await GetBlocksAsync(peer.Host, networkBlockHeight.Remote.Height, 1);
+
+                // block height 0 retrieves the last block hash (highest height)
+                //httpResponseMessage = await _httpClient.GetAsync($"{peer.Host}/chain/blocks/{networkBlockHeight.Remote.Height}/1");
+                //httpResponseMessage.EnsureSuccessStatusCode();
+                //content = await httpResponseMessage.Content.ReadAsStringAsync();
+
+                return new()
+                {
+                    Peer = peer,
+                    BlockHash = new()
+                    {
+                        Hash = remoteBlock.Last().ToHash(),
+                        Height = networkBlockHeight.Remote.Height
+                    }
                 };
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex.Message);
+                _logger.Here().Error(ex, "Error getting last block hash");
             }
 
-            return networkBlockHeight;
+            return null;
         }
 
         /// <summary>
