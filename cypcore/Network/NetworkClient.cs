@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Threading;
@@ -38,16 +39,31 @@ namespace CYPCore.Network
         {
             try
             {
-                // block height 0 retrieves the last block hash (highest height)
-                var httpResponseMessage = await _httpClient.GetAsync($"{peer.Host}/chain/hash/0");
+                var httpResponseMessage = await _httpClient.GetAsync($"{peer.Host}/chain/height");
                 httpResponseMessage.EnsureSuccessStatusCode();
                 var content = await httpResponseMessage.Content.ReadAsStringAsync();
+                var blockHeight = Newtonsoft.Json.JsonConvert.DeserializeObject<BlockHeight>(content);
+                var networkBlockHeight = new NetworkBlockHeight
+                {
+                    Local = new BlockHeight
+                    { Height = await _unitOfWork.HashChainRepository.CountAsync(), Host = "local" },
+                    Remote = new BlockHeight { Height = blockHeight.Height, Host = peer.Host }
+                };
+
+                var remoteBlock = await GetBlocksAsync(peer.Host, networkBlockHeight.Remote.Height, 1);
+
+                // block height 0 retrieves the last block hash (highest height)
+                //httpResponseMessage = await _httpClient.GetAsync($"{peer.Host}/chain/blocks/{networkBlockHeight.Remote.Height}/1");
+                //httpResponseMessage.EnsureSuccessStatusCode();
+                //content = await httpResponseMessage.Content.ReadAsStringAsync();
+
                 return new()
                 {
                     Peer = peer,
-                    BlockHash =
+                    BlockHash = new()
                     {
-                        Hash = Newtonsoft.Json.JsonConvert.DeserializeObject<byte[]>(content)
+                        Hash = remoteBlock.Last().ToHash(),
+                        Height = networkBlockHeight.Remote.Height
                     }
                 };
             }
