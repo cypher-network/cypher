@@ -6,12 +6,15 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using CYPCore.Extensions;
+using CYPCore.Extentions;
+using CYPCore.Helper;
 using Serilog;
 using CYPCore.Models;
 using CYPCore.Network;
 using CYPCore.Persistence;
 using Dawn;
 using Microsoft.CodeAnalysis.FlowAnalysis;
+using Microsoft.VisualBasic;
 
 namespace CYPCore.Ledger
 {
@@ -87,60 +90,83 @@ namespace CYPCore.Ledger
                 var localBlockHeight = await _unitOfWork.HashChainRepository.CountAsync();
                 var localLastBlock = await _unitOfWork.HashChainRepository.GetAsync(b =>
                     new ValueTask<bool>(b.Height == localBlockHeight));
-                var localLastBlockHash = localLastBlock?.ToHash();
+
+                var localLastBlockHash = string.Empty;
+                if (localLastBlock != null)
+                {
+                    localLastBlockHash = BitConverter.ToString(localLastBlock.ToHash());
+                }
 
                 var networkPeerTasks =
                     peers.Values.Select(peer => _networkClient.GetPeerLastBlockHashAsync(peer)).ToArray();
 
+                var networkBlockHashes =
+                    new List<BlockHashPeer>(await Task.WhenAll(networkPeerTasks))
+                        .Where(element => element != null);
 
-                var networkBlockHashes = new List<BlockHashPeer>(await Task.WhenAll(networkPeerTasks));
-
-                var networkBlockHashesGrouped = new List<BlockHashPeer>(await Task.WhenAll(networkPeerTasks))
-                    .GroupBy(hash => hash)
+                var networkBlockHashesGrouped = networkBlockHashes
+                    .Where(hash => hash != null)
+                    .GroupBy(hash => new
+                    {
+                        Hash = BitConverter.ToString(hash.BlockHash.Hash),
+                        Height = hash.BlockHash.Height,
+                    })
                     .Select(hash => new
                     {
-                        Hash = hash.Key.BlockHash.Hash,
+                        Hash = hash.Key.Hash,
+                        Height = hash.Key.Height,
                         Count = hash.Count()
-                    });
+                    })
+                    .OrderByDescending(element => element.Count)
+                    .ThenBy(element => element.Height);
 
-                var blockHashes = networkBlockHashesGrouped.ToList();
-                var numPeersWithSameHash = blockHashes
+                var numPeersWithSameHash = networkBlockHashesGrouped
                     .FirstOrDefault(element => element.Hash == localLastBlockHash)?
                     .Count ?? 0;
 
-                if (blockHashes.Count == 0)
+                if (!networkBlockHashes.Any())
                 {
                     _logger.Here().Information("No remote block hashes found");
                 }
-                else if (numPeersWithSameHash > peers.Count / 2.0)
+                else if (numPeersWithSameHash > networkBlockHashes.Count() / 2.0)
                 {
-                    _logger.Here().Information("Local node has same hash (@Hash} as majority of the network ({@NumSameHash} / {@NumPeers})",
-                        localLastBlockHash, numPeersWithSameHash, peers.Count);
+                    _logger.Here().Information("Local node has same hash {@Hash} as majority of the network ({@NumSameHash} / {@NumPeers})",
+                        localLastBlockHash, numPeersWithSameHash, networkBlockHashes.Count());
                 }
                 else
                 {
                     _logger.Here().Information(
                         "Local node does not have same hash {@Hash} as majority of the network ({@NumSameHash} / {@NumPeers})",
-                        localLastBlockHash, numPeersWithSameHash, peers.Count);
+                        localLastBlockHash, numPeersWithSameHash, networkBlockHashes.Count());
 
-                    foreach (var hash in blockHashes)
+                    foreach (var hash in networkBlockHashesGrouped)
                     {
-                        _logger.Here().Debug("Hash {@Hash} found {@Count} times", hash.Hash, hash.Count);
+                        _logger.Here().Debug("Hash {@Hash} with height {@Height} found {@Count} times", hash.Hash, hash.Height, hash.Count);
                     }
 
                     var synchronized = false;
-                    var majorityHash = blockHashes.OrderByDescending(hash => hash.Count).First();
-                    foreach (var blockHash in networkBlockHashes.Where(element => element.BlockHash.Hash == majorityHash.Hash))
+                    foreach (var hash in networkBlockHashesGrouped)
                     {
-                        _logger.Here().Debug("Synchronizing chain with last block hash {@Hash} from {@Peer} {@Host}",
-                            majorityHash, blockHash.Peer.NodeName, blockHash.Peer.Host);
+                        foreach (var peer in networkBlockHashes.Where(element =>
+                            BitConverter.ToString(element.BlockHash.Hash) == hash.Hash &&
+                            element.BlockHash.Height == hash.Height))
+                        {
+                            _logger.Here().Debug(
+                                "Synchronizing chain with last block hash {@Hash} and height {@Height} from {@Peer} {@Host}",
+                                hash.Hash, hash.Height, peer.Peer.NodeName, peer.Peer.Host);
 
-                        synchronized = await Synchronize(blockHash.Peer.Host, localBlockHeight, blockHash.BlockHash.Height);
+                            synchronized = await Synchronize(peer.Peer.Host, localBlockHeight, hash.Height);
+                            if (synchronized)
+                            {
+                                _logger.Here().Information("Successfully synchronized with {@Peer} {@Host}",
+                                    peer.Peer.NodeName, peer.Peer.Host);
+
+                                break;
+                            }
+                        }
+
                         if (synchronized)
                         {
-                            _logger.Here().Information("Successfully synchronized with {@Peer} {@Host}",
-                                blockHash.Peer.NodeName, blockHash.Peer.Host);
-
                             break;
                         }
                     }
