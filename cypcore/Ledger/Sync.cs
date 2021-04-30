@@ -152,14 +152,14 @@ namespace CYPCore.Ledger
                             element.BlockHash.Height == hash.Height))
                         {
                             _logger.Here().Debug(
-                                "Synchronizing chain with last block hash {@Hash} and height {@Height} from {@Peer} {@Host}",
-                                hash.Hash, hash.Height, peer.Peer.NodeName, peer.Peer.Host);
+                                "Synchronizing chain with last block hash {@Hash} and height {@Height} from {@Peer} {@Version} {@Host}",
+                                hash.Hash, hash.Height, peer.Peer.NodeName, peer.Peer.NodeVersion, peer.Peer.Host);
 
                             synchronized = await Synchronize(peer.Peer.Host, localBlockHeight, hash.Height);
                             if (synchronized)
                             {
-                                _logger.Here().Information("Successfully synchronized with {@Peer} {@Host}",
-                                    peer.Peer.NodeName, peer.Peer.Host);
+                                _logger.Here().Information("Successfully synchronized with {@Peer} {@Version} {@Host}",
+                                    peer.Peer.NodeName, peer.Peer.NodeVersion, peer.Peer.Host);
 
                                 break;
                             }

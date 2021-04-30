@@ -147,12 +147,15 @@ namespace CYPCore.Network
                         continue;
                     }
 
+                    member.Tags.TryGetValue("nodeversion", out var nodeVersion);
+
                     var peer = new Peer
                     {
                         Host = uri.OriginalString,
                         ClientId = Helper.Util.HashToId(member.Tags["pubkey"]),
                         PublicKey = member.Tags["pubkey"],
-                        NodeName = member.Name
+                        NodeName = member.Name,
+                        NodeVersion = nodeVersion ?? string.Empty
                     };
                     if (peers.ContainsKey(peer.ClientId)) continue;
                     if (peers.TryAdd(peer.ClientId, peer)) continue;

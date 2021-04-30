@@ -7,6 +7,7 @@ using System.Linq;
 using System.Diagnostics;
 using System.IO;
 using System.Reactive.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -143,7 +144,9 @@ namespace CYPCore.Services
                     .Add("-tag")
                     .Add($"rest={_serfClient.ApiConfigurationOptions.Advertise}")
                     .Add("-tag")
-                    .Add($"pubkey={pubKey.ByteToHex()}"));
+                    .Add($"pubkey={pubKey.ByteToHex()}")
+                    .Add("-tag")
+                    .Add($"nodeversion={Assembly.GetExecutingAssembly().GetName().Version}"));
 
                 await cmd.Observe().ForEachAsync(cmdEvent =>
                 {
