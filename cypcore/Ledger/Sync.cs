@@ -213,12 +213,6 @@ namespace CYPCore.Ledger
                 foreach (var blocks in blockHeaders)
                 {
                     if (blocks.Any() != true) continue;
-                    var verifyForkRule = await _validator.VerifyForkRule(blocks.ToArray());
-                    if (verifyForkRule == VerifyResult.UnableToVerify)
-                    {
-                        _logger.Here().Error("Unable to verify fork rule for: {@Host}", host);
-                        return false;
-                    }
 
                     foreach (var blockHeader in blocks.OrderBy(x => x.Height))
                     {
