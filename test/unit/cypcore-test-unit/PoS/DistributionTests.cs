@@ -19,17 +19,17 @@ namespace cypcore_test_unit.PoS
             runningDistribution -= NetworkShare(1678616, runningDistribution);
             var netShare = NetworkShare(1678616, runningDistribution);
             runningDistribution -= netShare;
-            
+
             var v1 = VerifyNetworkShare(1678616, netShare, runningDistribution);
-            
-            Assert.True(v1 == VerifyResult.Succeed ? true : false );
-            
+
+            Assert.True(v1 == VerifyResult.Succeed ? true : false);
+
             netShare = NetworkShare(5972130, runningDistribution);
             runningDistribution = CurrentRunningDistribution(netShare, runningDistribution);
             var v2 = VerifyNetworkShare(5972130, netShare, runningDistribution);
-            
-            Assert.True(v2 == VerifyResult.Succeed ? true : false );
-            
+
+            Assert.True(v2 == VerifyResult.Succeed ? true : false);
+
             for (var i = 0; i < 10; i++)
             {
                 var keyPair = CYPCore.Cryptography.Signing.GenerateKeyPair();
@@ -49,7 +49,7 @@ namespace cypcore_test_unit.PoS
                 Assert.True(verifyNetworkShare == VerifyResult.Succeed ? true : false);
             }
         }
-        
+
         private static ulong Solution(byte[] vrfSig, byte[] kernel)
         {
             var calculating = true;
@@ -71,7 +71,7 @@ namespace cypcore_test_unit.PoS
 
             return (ulong)itr;
         }
-        
+
         private static decimal CurrentRunningDistribution(decimal networkShare, decimal prevRunningDistribution)
         {
             var runningDistribution = prevRunningDistribution;
@@ -79,7 +79,7 @@ namespace cypcore_test_unit.PoS
 
             return runningDistribution;
         }
-        
+
         private static decimal NetworkShare(ulong solution, decimal runningDistribution)
         {
             var r = Distribution - runningDistribution;
@@ -91,13 +91,13 @@ namespace cypcore_test_unit.PoS
 
             return solution * percentage / Distribution;
         }
-        
+
         private static ulong Reward(ulong solution, decimal runningDistribution)
         {
             var networkShare = NetworkShare(solution, runningDistribution);
             return networkShare.ConvertToUInt64();
         }
-        
+
         private static int Difficulty(ulong solution, decimal networkShare)
         {
             var diff = Math.Truncate(solution * networkShare / 144);
@@ -105,7 +105,7 @@ namespace cypcore_test_unit.PoS
 
             return (int)diff;
         }
-        
+
         private static VerifyResult VerifyNetworkShare(ulong solution, decimal previousNetworkShare,
             decimal runningDistributionTotal)
         {
@@ -114,7 +114,7 @@ namespace cypcore_test_unit.PoS
 
             var networkShare = NetworkShare(solution, previousRunningDistribution).ConvertToUInt64().DivWithNanoTan();
             previousNetworkShare = previousNetworkShare.ConvertToUInt64().DivWithNanoTan();
-            
+
             return networkShare == previousNetworkShare ? VerifyResult.Succeed : VerifyResult.UnableToVerify;
         }
     }
