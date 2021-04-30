@@ -44,7 +44,6 @@ namespace CYPCore.Ledger
         decimal NetworkShare(ulong solution, decimal runningDistribution);
         ulong Solution(byte[] vrfSig, byte[] kernel);
         long GetAdjustedTimeAsUnixTimestamp();
-        Task<VerifyResult> VerifyForkRule(BlockHeaderProto[] xChain);
         VerifyResult VerifyLockTime(LockTime target, string script);
         VerifyResult VerifyCommitSum(TransactionModel transaction);
         VerifyResult VerifyTransactionFee(TransactionModel transaction);
@@ -720,51 +719,6 @@ namespace CYPCore.Ledger
             }
 
             return (ulong)itr;
-        }
-
-        ///TODO: Change LastAsync as this brings back incorrect data
-        /// <summary>
-        /// </summary>
-        /// <param name="xChain"></param>
-        /// <returns></returns>
-        public async Task<VerifyResult> VerifyForkRule(BlockHeaderProto[] xChain)
-        {
-            Guard.Argument(xChain, nameof(xChain)).NotNull().NotEmpty();
-            try
-            {
-                xChain = xChain.OrderBy(x => x.Height).ToArray();
-
-                var xBlockHeader = xChain.First();
-                var lastBlock = await _unitOfWork.HashChainRepository.GetAsync(x =>
-                    new ValueTask<bool>(x.Height == xBlockHeader.Height));
-                if (lastBlock == null) return VerifyResult.Succeed;
-                if (lastBlock.MerkelRoot.Equals(xBlockHeader.PrevMerkelRoot)) return VerifyResult.UnableToVerify;
-                lastBlock = await _unitOfWork.HashChainRepository.GetAsync(x =>
-                    new ValueTask<bool>(x.MerkelRoot.Equals(xBlockHeader.MerkelRoot)));
-                if (lastBlock == null) return VerifyResult.UnableToVerify;
-                var blockHeaders = await _unitOfWork.HashChainRepository.SkipAsync((int)xBlockHeader.Height);
-
-                blockHeaders = blockHeaders.OrderBy(x => x.Height).ToList();
-
-                if (blockHeaders.Any())
-                {
-                    var blockTime = blockHeaders.First().Locktime.FromUnixTimeSeconds() -
-                                    blockHeaders.Last().Locktime.FromUnixTimeSeconds();
-                    var xBlockTime = xChain.First().Locktime.FromUnixTimeSeconds() -
-                                     xChain.Last().Locktime.FromUnixTimeSeconds();
-                    if (xBlockTime <= blockTime) return VerifyResult.Succeed;
-                }
-                else
-                {
-                    return VerifyResult.Succeed;
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.Here().Fatal(ex, "Error while processing fork rule");
-            }
-
-            return VerifyResult.UnableToVerify;
         }
 
         /// <summary>
