@@ -5,11 +5,14 @@ on: [push]
 jobs:
   build:
     runs-on: ubuntu-latest
-    steps:    
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+    steps:
     - name: Setup .NET Core 5.0
       uses: actions/setup-dotnet@v1
       with:
-        dotnet-version: '5.0.101' # SDK Version to use.
+        dotnet-version: '5.0.x' # Use latest SDK version
         
     - name: Checkout latest
       uses: actions/checkout@v2

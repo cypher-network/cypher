@@ -9,48 +9,115 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
     steps:
     - name: Setup .NET Core 5.0
       uses: actions/setup-dotnet@v1
       with:
-        dotnet-version: '5.0.101' # SDK Version to use.
+        dotnet-version: '5.0.x' # Use latest SDK version
+
     - name: Checkout latest
-      uses: actions/checkout@master
+      uses: actions/checkout@v2
+
     - name: build cypher
       run:  |
         dotnet restore cypher.sln
-        dotnet publish cypnode --output publish/cypnode --configuration Release
-
-        # Linux builds are self-contained, so that the dotnet runtime does not need to be installed separately
-        dotnet publish cypnode --output publish/runtime/linux-x64/self-contained --self-contained --configuration Release --framework net5.0 --runtime linux-x64
+        dotnet publish cypnode --configuration Release                                        --output publish/cypnode/generic
+        dotnet publish cypnode --configuration Release --self-contained --runtime linux-x64   --output publish/cypnode/linux-x64
+        dotnet publish cypnode --configuration Release --self-contained --runtime linux-arm   --output publish/cypnode/linux-arm
+        dotnet publish cypnode --configuration Release --self-contained --runtime linux-arm64 --output publish/cypnode/linux-arm64
+        dotnet publish cypnode --configuration Release --self-contained --runtime osx-x64     --output publish/cypnode/osx-x64
+        dotnet publish cypnode --configuration Release --self-contained --runtime win-x64     --output publish/cypnode/windows-x64
+        dotnet publish cypnode --configuration Release --self-contained --runtime win-x86     --output publish/cypnode/windows-x86
 
     - name: Get the version
       id: get_version
       run: echo ::set-output name=VERSION::${GITHUB_REF#refs/tags/}
-    - name: Generate release artifact
-      id: gen_artifact
+
+    - name: Generate release artifact - generic zip
+      id: gen_artifact_generic
       run: |
-        pushd ${{ github.workspace }}/publish/cypnode/
-        zip -r cypher.${{ steps.get_version.outputs.VERSION }}.zip *
-        mv cypher.${{ steps.get_version.outputs.VERSION }}.zip ${{ github.workspace }}
+        pushd ${{ github.workspace }}/publish/cypnode/generic
+        zip -r ${OUTPUT_FILE} *
+        sha256sum ${OUTPUT_FILE} > ${OUTPUT_FILE}.sha256
+        mv ${OUTPUT_FILE} ${{ github.workspace }}
+        mv ${OUTPUT_FILE}.sha256 ${{ github.workspace }}
         popd
-    - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
+      env:
+        OUTPUT_FILE: "cypher-${{ steps.get_version.outputs.VERSION }}.zip"
+        
+    - name: Generate release artifact - linux-x64 tar.gz
+      run: |
+        pushd ${{ github.workspace }}/publish/cypnode/linux-x64
+        tar -czf ${OUTPUT_FILE} *
+        sha256sum ${OUTPUT_FILE} > ${OUTPUT_FILE}.sha256
+        mv ${OUTPUT_FILE} ${{ github.workspace }}
+        mv ${OUTPUT_FILE}.sha256 ${{ github.workspace }}
+        popd
+      env:
+        OUTPUT_FILE: "cypher-${{ steps.get_version.outputs.VERSION }}-linux-x64.tar.gz"
+        
+    - name: Generate release artifact - linux-arm tar.gz
+      run: |
+        pushd ${{ github.workspace }}/publish/cypnode/linux-arm
+        tar -czf ${OUTPUT_FILE} *
+        sha256sum ${OUTPUT_FILE} > ${OUTPUT_FILE}.sha256
+        mv ${OUTPUT_FILE} ${{ github.workspace }}
+        mv ${OUTPUT_FILE}.sha256 ${{ github.workspace }}
+        popd
+      env:
+        OUTPUT_FILE: "cypher-${{ steps.get_version.outputs.VERSION }}-linux-arm.tar.gz"
+        
+    - name: Generate release artifact - linux-arm64 tar.gz
+      run: |
+        pushd ${{ github.workspace }}/publish/cypnode/linux-arm64
+        tar -czf ${OUTPUT_FILE} *
+        sha256sum ${OUTPUT_FILE} > ${OUTPUT_FILE}.sha256
+        mv ${OUTPUT_FILE} ${{ github.workspace }}
+        mv ${OUTPUT_FILE}.sha256 ${{ github.workspace }}
+        popd
+      env:
+        OUTPUT_FILE: "cypher-${{ steps.get_version.outputs.VERSION }}-linux-arm64.tar.gz"
+
+    - name: Generate release artifact - osx-x64 tar.gz
+      run: |
+        pushd ${{ github.workspace }}/publish/cypnode/osx-x64
+        tar -czf ${OUTPUT_FILE} *
+        sha256sum ${OUTPUT_FILE} > ${OUTPUT_FILE}.sha256
+        mv ${OUTPUT_FILE} ${{ github.workspace }}
+        mv ${OUTPUT_FILE}.sha256 ${{ github.workspace }}
+        popd
+      env:
+        OUTPUT_FILE: "cypher-${{ steps.get_version.outputs.VERSION }}-osx-x64.tar.gz"
+        
+    - name: Generate release artifact - windows-x64 zip
+      run: |
+        pushd ${{ github.workspace }}/publish/cypnode/windows-x64
+        zip -r ${OUTPUT_FILE} *
+        sha256sum ${OUTPUT_FILE} > ${OUTPUT_FILE}.sha256
+        mv ${OUTPUT_FILE} ${{ github.workspace }}
+        mv ${OUTPUT_FILE}.sha256 ${{ github.workspace }}
+        popd
+      env:
+        OUTPUT_FILE: "cypher-${{ steps.get_version.outputs.VERSION }}-windows-x64.zip"
+
+    - name: Generate release artifact - windows-x86 zip
+      run: |
+        pushd ${{ github.workspace }}/publish/cypnode/windows-x86
+        zip -r ${OUTPUT_FILE} *
+        sha256sum ${OUTPUT_FILE} > ${OUTPUT_FILE}.sha256
+        mv ${OUTPUT_FILE} ${{ github.workspace }}
+        mv ${OUTPUT_FILE}.sha256 ${{ github.workspace }}
+        popd
+      env:
+        OUTPUT_FILE: "cypher-${{ steps.get_version.outputs.VERSION }}-windows-x86.zip"
+
+    - name: Create release
+      id: gh-release
+      uses: softprops/action-gh-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        tag_name: ${{ github.ref }}
-        release_name: Release ${{ github.ref }}
-        draft: false
-        prerelease: false
-    - name: Upload Release Asset
-      id: upload-release-asset 
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }} 
-        asset_path: cypher.${{ steps.get_version.outputs.VERSION }}.zip
-        asset_name: cypher.${{ steps.get_version.outputs.VERSION }}.zip
-        asset_content_type: application/zip
+        files: cypher-${{ steps.get_version.outputs.VERSION }}*.*
