@@ -11,6 +11,7 @@
     <Platforms>AnyCPU;x64</Platforms>
     <AssemblyName>cypnode</AssemblyName>
     <RootNamespace>CYPNode</RootNamespace>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <LangVersion>9.0</LangVersion>
