@@ -1,0 +1,10 @@
+[Unit]
+Description=tangram-cypnode
+
+[Service]
+Type=notify
+WorkingDirectory=/usr/share/tangram/cypnode/
+ExecStart=/usr/share/tangram/cypnode/cypnode
+
+[Install]
+WantedBy=multi-user.target
