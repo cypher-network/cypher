@@ -8,5 +8,4 @@ tangram-cypnode (${VERSION}) unstable; urgency=medium
 
 EOF
 
-git describe --abbrev=0 --tags `git rev-list --tags --skip=1 --max-count=2` | sed '$!N;s/\n/.../' | 
-git log --pretty=format:'  * %<(76,trunc)%s%n%n -- %an <%ae>  %aD%n%n' >> ${OUTPUT_FILE}
+git describe --abbrev=0 --tags `git rev-list --tags --skip=1 --max-count=2` | sed '$!N;s/\n/.../' | git log --pretty=format:'  * %<(76,trunc)%s%n%n -- %an <%ae>  %aD%n%n' >> ${OUTPUT_FILE}
