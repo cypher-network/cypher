@@ -41,7 +41,7 @@ jobs:
 
     - name: Get version
       id: get_version
-      run: echo ::set-output name=VERSION::${GITHUB_REF#refs/tags/}
+      run: echo ::set-output name=VERSION::$(git describe --abbrev=0 --tags $(git rev-list --tags --skip=1 --max-count=1) | cut -c2-)
 
     - name: Generate release artifacts - generic
       id: gen_artifact_generic
@@ -53,7 +53,7 @@ jobs:
         mv ${OUTPUT_FILE}.sha256 ${{ github.workspace }}
         popd
       env:
-        OUTPUT_FILE: "cypher-${{ steps.get_version.outputs.VERSION }}.zip"
+        OUTPUT_FILE: "tangram-cypnode_${{ steps.get_version.outputs.VERSION }}.zip"
         
     - name: Generate release artifacts - linux-x64
       run: |
@@ -67,6 +67,7 @@ jobs:
         
         mkdir debian/
         cp -r ${{ github.workspace }}/install/linux/debian/* debian/
+        ./debian/changelog_create.sh
         
         mkdir -p ${{ env.FS_PATH }}/
         cp *.* ${{ env.FS_PATH }}
@@ -79,7 +80,7 @@ jobs:
       env:
         ARCH: "linux-x64"
         ARCH_DEB: "amd64"
-        OUTPUT_FILE: "cypher-${{ steps.get_version.outputs.VERSION }}-linux-x64.tar.gz"
+        OUTPUT_FILE: "tangram-cypnode_${{ steps.get_version.outputs.VERSION }}_linux-x64.tar.gz"
         PUBLISH_PATH: "${{ github.workspace }}/publish/cypnode/linux-x64"
         FS_PATH: "usr/share/tangram/cypnode"
         
@@ -95,6 +96,7 @@ jobs:
         
         mkdir debian/
         cp -r ${{ github.workspace }}/install/linux/debian/* debian/
+        ./debian/changelog_create.sh
         
         mkdir -p ${{ env.FS_PATH }}/
         cp *.* ${{ env.FS_PATH }}
@@ -107,7 +109,7 @@ jobs:
       env:
         ARCH: "linux-arm"
         ARCH_DEB: "armel"
-        OUTPUT_FILE: "cypher-${{ steps.get_version.outputs.VERSION }}-linux-arm.tar.gz"
+        OUTPUT_FILE: "tangram-cypnode_${{ steps.get_version.outputs.VERSION }}_linux-arm.tar.gz"
         PUBLISH_PATH: "${{ github.workspace }}/publish/cypnode/linux-arm"
         FS_PATH: "usr/share/tangram/cypnode"
         
@@ -123,6 +125,7 @@ jobs:
         
         mkdir debian/
         cp -r ${{ github.workspace }}/install/linux/debian/* debian/
+        ./debian/changelog_create.sh
         
         mkdir -p ${{ env.FS_PATH }}/
         cp *.* ${{ env.FS_PATH }}
@@ -135,7 +138,7 @@ jobs:
       env:
         ARCH: "linux-arm64"
         ARCH_DEB: "arm64"
-        OUTPUT_FILE: "cypher-${{ steps.get_version.outputs.VERSION }}-linux-arm64.tar.gz"
+        OUTPUT_FILE: "tangram-cypnode_${{ steps.get_version.outputs.VERSION }}_linux-arm64.tar.gz"
         PUBLISH_PATH: "${{ github.workspace }}/publish/cypnode/linux-arm64"
         FS_PATH: "usr/share/tangram/cypnode"
 
@@ -148,7 +151,7 @@ jobs:
         mv ${OUTPUT_FILE}.sha256 ${{ github.workspace }}
         popd
       env:
-        OUTPUT_FILE: "cypher-${{ steps.get_version.outputs.VERSION }}-osx-x64.tar.gz"
+        OUTPUT_FILE: "tangram-cypnode_${{ steps.get_version.outputs.VERSION }}_osx-x64.tar.gz"
         
     - name: Generate release artifacts - windows-x64
       run: |
@@ -159,7 +162,7 @@ jobs:
         mv ${OUTPUT_FILE}.sha256 ${{ github.workspace }}
         popd
       env:
-        OUTPUT_FILE: "cypher-${{ steps.get_version.outputs.VERSION }}-windows-x64.zip"
+        OUTPUT_FILE: "tangram-cypnode_${{ steps.get_version.outputs.VERSION }}_windows-x64.zip"
 
     - name: Generate release artifacts - windows-x86
       run: |
@@ -170,7 +173,7 @@ jobs:
         mv ${OUTPUT_FILE}.sha256 ${{ github.workspace }}
         popd
       env:
-        OUTPUT_FILE: "cypher-${{ steps.get_version.outputs.VERSION }}-windows-x86.zip"
+        OUTPUT_FILE: "tangram-cypnode_${{ steps.get_version.outputs.VERSION }}_windows-x86.zip"
 
     - name: Create release
       id: gh-release
@@ -178,6 +181,4 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        files: |
-          cypher-${{ steps.get_version.outputs.VERSION }}*.*
-          tangram-cypnode_${{ steps.get_version.outputs.VERSION }}_*.deb
+        files: tangram-cypnode_${{ steps.get_version.outputs.VERSION }}*.*
