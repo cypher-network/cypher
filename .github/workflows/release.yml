@@ -17,7 +17,7 @@ jobs:
     - name: Install debhelper
       run: sudo apt-get install debhelper
       
-    - name: Install ARM binutils 
+    - name: Install ARM binutils
       run: sudo apt-get install binutils-arm-linux-gnueabi
       
     - name: Install .NET Core 5.0 SDK
@@ -56,14 +56,14 @@ jobs:
         OUTPUT_FILE: "tangram-cypnode_${{ steps.get_version.outputs.VERSION }}.zip"
         
     - name: Generate release artifacts - linux-x64
-      run: |       
+      run: |
         pushd ${{ env.PUBLISH_PATH }}/
         
         tar -czf ${{ env.OUTPUT_FILE }} *
         sha256sum ${{ env.OUTPUT_FILE }} > ${{ env.OUTPUT_FILE }}.sha256
         
         mv ${{ env.OUTPUT_FILE }} ${{ github.workspace }}
-        mv ${{ env.OUTPUT_FILE }}.sha256 ${{ github.workspace }}       
+        mv ${{ env.OUTPUT_FILE }}.sha256 ${{ github.workspace }}
         
         mkdir debian/
         cp -r ${{ github.workspace }}/install/linux/debian/* debian/
@@ -82,7 +82,7 @@ jobs:
         ARCH_DEB: "amd64"
         OUTPUT_FILE: "tangram-cypnode_${{ steps.get_version.outputs.VERSION }}_linux-x64.tar.gz"
         PUBLISH_PATH: "${{ github.workspace }}/publish/cypnode/linux-x64"
-        FS_PATH: "usr/share/tangram/cypnode" 
+        FS_PATH: "usr/share/tangram/cypnode"
         
     - name: Generate release artifacts - linux-arm
       run: |
@@ -92,7 +92,7 @@ jobs:
         sha256sum ${{ env.OUTPUT_FILE }} > ${{ env.OUTPUT_FILE }}.sha256
         
         mv ${{ env.OUTPUT_FILE }} ${{ github.workspace }}
-        mv ${{ env.OUTPUT_FILE }}.sha256 ${{ github.workspace }}       
+        mv ${{ env.OUTPUT_FILE }}.sha256 ${{ github.workspace }}
         
         mkdir debian/
         cp -r ${{ github.workspace }}/install/linux/debian/* debian/
@@ -111,7 +111,7 @@ jobs:
         ARCH_DEB: "armel"
         OUTPUT_FILE: "tangram-cypnode_${{ steps.get_version.outputs.VERSION }}_linux-arm.tar.gz"
         PUBLISH_PATH: "${{ github.workspace }}/publish/cypnode/linux-arm"
-        FS_PATH: "usr/share/tangram/cypnode" 
+        FS_PATH: "usr/share/tangram/cypnode"
         
     - name: Generate release artifacts - linux-arm64
       run: |
@@ -121,7 +121,7 @@ jobs:
         sha256sum ${{ env.OUTPUT_FILE }} > ${{ env.OUTPUT_FILE }}.sha256
         
         mv ${{ env.OUTPUT_FILE }} ${{ github.workspace }}
-        mv ${{ env.OUTPUT_FILE }}.sha256 ${{ github.workspace }}       
+        mv ${{ env.OUTPUT_FILE }}.sha256 ${{ github.workspace }}
         
         mkdir debian/
         cp -r ${{ github.workspace }}/install/linux/debian/* debian/
@@ -140,7 +140,7 @@ jobs:
         ARCH_DEB: "arm64"
         OUTPUT_FILE: "tangram-cypnode_${{ steps.get_version.outputs.VERSION }}_linux-arm64.tar.gz"
         PUBLISH_PATH: "${{ github.workspace }}/publish/cypnode/linux-arm64"
-        FS_PATH: "usr/share/tangram/cypnode" 
+        FS_PATH: "usr/share/tangram/cypnode"
 
     - name: Generate release artifacts - osx-x64
       run: |
