@@ -1,0 +1,25 @@
+#! /bin/sh
+# postinst script for tangram-cypnode
+
+set -e
+
+case "$1" in
+  configure)
+    if ! getent passwd tangram-cypnode >/dev/null; then
+      adduser --disabled-password  --quiet --system \
+        --home /proc --no-create-home \
+        --gecos "Tangram cypnode" --group tangram-cypnode
+    fi
+
+    if [ -x "/usr/share/tangram/cypnode/cypnode" ]; then
+      /usr/share/tangram/cypnode/cypnode --configure || true
+    fi
+  ;;
+  abort-upgrade|abort-remove|abort-deconfigure)
+  ;;
+  *)
+    echo "postinst called with unknown argument \`$1'" >&2
+    exit 1
+  ;;
+esac
+
