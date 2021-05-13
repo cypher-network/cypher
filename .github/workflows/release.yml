@@ -43,7 +43,7 @@ jobs:
       id: get_version
       run: echo ::set-output name=VERSION::$(git describe --abbrev=0 --tags $(git rev-list --tags --skip=1 --max-count=1) | cut -c2-)
 
-    - name: Generate release artifacts - generic
+    - name: arch generic, artifact zip
       id: gen_artifact_generic
       run: |
         pushd ${{ github.workspace }}/publish/cypnode/generic
@@ -55,7 +55,7 @@ jobs:
       env:
         OUTPUT_FILE: "tangram-cypnode_${{ steps.get_version.outputs.VERSION }}.zip"
         
-    - name: Generate release artifacts - linux-x64
+    - name: arch linux-x64, artifact tar.gz
       run: |
         pushd ${{ env.PUBLISH_PATH }}/
         
@@ -65,26 +65,23 @@ jobs:
         mv ${{ env.OUTPUT_FILE }} ${{ github.workspace }}
         mv ${{ env.OUTPUT_FILE }}.sha256 ${{ github.workspace }}
         
-        mkdir debian/
-        cp -r ${{ github.workspace }}/install/linux/debian/* debian/
-        ./debian/changelog_create.sh
-        
-        mkdir -p ${{ env.FS_PATH }}/
-        cp *.* ${{ env.FS_PATH }}
-        
-        dpkg-buildpackage -uc -us -a ${{ env.ARCH_DEB }}
-
-        mv ../*.deb ${{ github.workspace }}
-        
         popd
       env:
-        ARCH: "linux-x64"
-        ARCH_DEB: "amd64"
         OUTPUT_FILE: "tangram-cypnode_${{ steps.get_version.outputs.VERSION }}_linux-x64.tar.gz"
         PUBLISH_PATH: "${{ github.workspace }}/publish/cypnode/linux-x64"
-        FS_PATH: "usr/share/tangram/cypnode"
-        
-    - name: Generate release artifacts - linux-arm
+
+    - name: arch linux-x64, artifact deb
+      run: |
+        cp -r install/linux/debian .
+        ./debian/changelog_create.sh
+
+        sed -i 's/$RUNTIME/linux-x64/g' ./debian/rules
+
+        dpkg-buildpackage -b --no-sign -a amd64
+
+        mv ../*.deb ${{ github.workspace }}
+
+    - name: arch linux-arm, artifact tar.gz
       run: |
         pushd ${{ env.PUBLISH_PATH }}/
         
@@ -94,26 +91,23 @@ jobs:
         mv ${{ env.OUTPUT_FILE }} ${{ github.workspace }}
         mv ${{ env.OUTPUT_FILE }}.sha256 ${{ github.workspace }}
         
-        mkdir debian/
-        cp -r ${{ github.workspace }}/install/linux/debian/* debian/
-        ./debian/changelog_create.sh
-        
-        mkdir -p ${{ env.FS_PATH }}/
-        cp *.* ${{ env.FS_PATH }}
-        
-        dpkg-buildpackage -uc -us -a ${{ env.ARCH_DEB }}
-
-        mv ../*.deb ${{ github.workspace }}
-        
         popd
       env:
-        ARCH: "linux-arm"
-        ARCH_DEB: "armel"
         OUTPUT_FILE: "tangram-cypnode_${{ steps.get_version.outputs.VERSION }}_linux-arm.tar.gz"
         PUBLISH_PATH: "${{ github.workspace }}/publish/cypnode/linux-arm"
-        FS_PATH: "usr/share/tangram/cypnode"
-        
-    - name: Generate release artifacts - linux-arm64
+
+    - name: arch linux-arm, artifact deb
+      run: |
+        cp -r install/linux/debian .
+        ./debian/changelog_create.sh
+
+        sed -i 's/$RUNTIME/linux-x64/g' ./debian/rules
+
+        dpkg-buildpackage -b --no-sign -a armel
+
+        mv ../*.deb ${{ github.workspace }}
+
+    - name: arch linux-arm64, artifact tar.gz
       run: |
         pushd ${{ env.PUBLISH_PATH }}/
         
@@ -123,26 +117,23 @@ jobs:
         mv ${{ env.OUTPUT_FILE }} ${{ github.workspace }}
         mv ${{ env.OUTPUT_FILE }}.sha256 ${{ github.workspace }}
         
-        mkdir debian/
-        cp -r ${{ github.workspace }}/install/linux/debian/* debian/
-        ./debian/changelog_create.sh
-        
-        mkdir -p ${{ env.FS_PATH }}/
-        cp *.* ${{ env.FS_PATH }}
-        
-        dpkg-buildpackage -uc -us -a ${{ env.ARCH_DEB }}
-
-        mv ../*.deb ${{ github.workspace }}
-        
         popd
       env:
-        ARCH: "linux-arm64"
-        ARCH_DEB: "arm64"
         OUTPUT_FILE: "tangram-cypnode_${{ steps.get_version.outputs.VERSION }}_linux-arm64.tar.gz"
         PUBLISH_PATH: "${{ github.workspace }}/publish/cypnode/linux-arm64"
-        FS_PATH: "usr/share/tangram/cypnode"
 
-    - name: Generate release artifacts - osx-x64
+    - name: arch linux-arm64, artifact deb
+      run: |
+        cp -r install/linux/debian .
+        ./debian/changelog_create.sh
+
+        sed -i 's/$RUNTIME/linux-x64/g' ./debian/rules
+
+        dpkg-buildpackage -b --no-sign -a arm64
+
+        mv ../*.deb ${{ github.workspace }}
+
+    - name: arch osx-x64, artifact tar.gz
       run: |
         pushd ${{ github.workspace }}/publish/cypnode/osx-x64
         tar -czf ${OUTPUT_FILE} *
@@ -153,7 +144,7 @@ jobs:
       env:
         OUTPUT_FILE: "tangram-cypnode_${{ steps.get_version.outputs.VERSION }}_osx-x64.tar.gz"
         
-    - name: Generate release artifacts - windows-x64
+    - name: arch windows-x64, artifact zip
       run: |
         pushd ${{ github.workspace }}/publish/cypnode/windows-x64
         zip -r ${OUTPUT_FILE} *
@@ -164,7 +155,7 @@ jobs:
       env:
         OUTPUT_FILE: "tangram-cypnode_${{ steps.get_version.outputs.VERSION }}_windows-x64.zip"
 
-    - name: Generate release artifacts - windows-x86
+    - name: arch windows-x86, artifact zip
       run: |
         pushd ${{ github.workspace }}/publish/cypnode/windows-x86
         zip -r ${OUTPUT_FILE} *
