@@ -18,6 +18,9 @@ namespace CYPNode
 {
     public static class Program
     {
+        private const string AppSettingsFile = "appsettings.json";
+        private const string AppSettingsFileDev = "appsettings.Development.json";
+
         /// <summary>
         ///
         /// </summary>
@@ -25,25 +28,24 @@ namespace CYPNode
         /// <returns></returns>
         public static int Main(string[] args)
         {
-            if (args.FirstOrDefault(arg => arg == "--configure") != null)
+            if (args.FirstOrDefault(arg => arg == "--configuree") != null)
             {
                 var ui = new TerminalUserInterface();
                 var nc = new Configuration.Configuration(ui);
                 return 0;
             }
 
-            var settingsFile = System.Diagnostics.Debugger.IsAttached ? "appsettings.Development.json" : "appsettings.Production.json";
-
-            Console.WriteLine($"Using configuration file {@settingsFile}");
-            if (!File.Exists(settingsFile))
+            if (!File.Exists(AppSettingsFile))
             {
-                Console.Error.WriteLine("Configuration file not found. Please create one running 'cypnode --configure'");
+                Console.Error.WriteLine($"{AppSettingsFile} not found. Please create one running 'cypnode --configure'");
                 return 1;
             }
 
             var config = new ConfigurationBuilder()
+
                 .SetBasePath(Directory.GetCurrentDirectory())
-                .AddJsonFile(settingsFile, optional: false)
+                .AddJsonFile(AppSettingsFile, false)
+                .AddJsonFile(AppSettingsFileDev, true)
                 .AddCommandLine(args)
                 .Build();
 
