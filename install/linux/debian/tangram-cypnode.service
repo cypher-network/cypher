@@ -1,8 +1,19 @@
 [Unit]
 Description=tangram-cypnode
+After=network.online.target
+Wants=network-online.target
+
+StartLimitIntervalSec=500
+StartLimitBurst=5
 
 [Service]
 Type=notify
+Restart=on-failure
+RestartSec=5s
+
+User=tangram-cypnode
+Group=tangram-cypnode
+
 WorkingDirectory=/usr/share/tangram/cypnode/
 ExecStart=/usr/share/tangram/cypnode/cypnode
 
