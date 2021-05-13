@@ -38,6 +38,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Folder Include="Configuration\Templates" />
     <Folder Include="StartupExtensions\" />
   </ItemGroup>
 
@@ -50,12 +51,29 @@
     <PackageReference Include="Serilog.AspNetCore" Version="4.1.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.1.2" />
   </ItemGroup>
+
+  <!-- Do not publish the stock appsettings; it contains some mandatory elements which have to be set by the user. The file should be generated with the config util, explicitly provided by the user (which can be the previously configured file before the software update) -->
   <ItemGroup>
     <Content Update="appsettings.json">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Never</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+  <ItemGroup>
+    <Content Update="appsettings.Development.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Never</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+
+  <!-- Publish the configuration templates -->
+  <ItemGroup>
+    <Content Update="Configuration/Templates/appsettings.json">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
       <CopyToPublishDirectory>Always</CopyToPublishDirectory>
     </Content>
   </ItemGroup>
+
   <ItemGroup>
     <None Include="**/*" />
   </ItemGroup>

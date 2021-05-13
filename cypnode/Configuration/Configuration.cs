@@ -26,12 +26,24 @@ namespace CYPNode.Configuration
             Console.WriteLine("Serf public port : " + networkConfiguration.Configuration.SerfPortPublic);
             Console.WriteLine("Serf RPC port    : " + networkConfiguration.Configuration.SerfPortRpc);
             Console.WriteLine();
-            var serfConfigFileName = $"serf.{networkConfiguration.Configuration.NodeName}.conf";
-            var serfConfigFile = networkConfiguration.Configuration.GetSerfConfiguration();
-            using var sw = new StreamWriter(serfConfigFileName, false);
-            sw.WriteLine(serfConfigFile);
-            sw.Close();
-            Console.WriteLine($"Serf configuration written to {serfConfigFileName}");
+
+            var configTemplate = File.ReadAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Configuration", "Templates", Program.AppSettingsFile));
+            var config = configTemplate
+                .Replace("<API_ENDPOINT_BIND>", $"http://0.0.0.0:{networkConfiguration.Configuration.ApiPortLocal.ToString()}")
+                .Replace("<API_ENDPOINT_PUBLIC>",
+                    $"http://{networkConfiguration.Configuration.IPAddress}:{networkConfiguration.Configuration.ApiPortPublic.ToString()}")
+                .Replace("<SERF_ENDPOINT_PUBLIC>",
+                    $"{networkConfiguration.Configuration.IPAddress}:{networkConfiguration.Configuration.SerfPortPublic.ToString()}")
+                .Replace("<SERF_ENDPOINT_BIND>",
+                    $"0.0.0.0:{networkConfiguration.Configuration.SerfPortPublic.ToString()}")
+                .Replace("<SERF_ENDPOINT_RPC>",
+                    $"127.0.0.1:{networkConfiguration.Configuration.SerfPortRpc.ToString()}")
+                .Replace("<SERF_NODE_NAME>", networkConfiguration.Configuration.NodeName);
+
+            var configFileName = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, Program.AppSettingsFile);
+            File.WriteAllText(configFileName, config);
+
+            Console.WriteLine($"Configuration written to {configFileName}. You can start cypnode now.");
         }
 
         private void Cancel()

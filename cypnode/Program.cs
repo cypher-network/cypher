@@ -18,7 +18,7 @@ namespace CYPNode
 {
     public static class Program
     {
-        private const string AppSettingsFile = "appsettings.json";
+        public const string AppSettingsFile = "appsettings.json";
         private const string AppSettingsFileDev = "appsettings.Development.json";
 
         /// <summary>
@@ -28,14 +28,23 @@ namespace CYPNode
         /// <returns></returns>
         public static int Main(string[] args)
         {
-            if (args.FirstOrDefault(arg => arg == "--configuree") != null)
+            var appsettingsExists = File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, AppSettingsFile));
+            
+            if (args.FirstOrDefault(arg => arg == "--configure") != null)
             {
+                if (appsettingsExists)
+                {
+                    // Do not return an error; this check is part of the application installation process
+                    Console.WriteLine($"{AppSettingsFile} already exists. Please remove file before running configuration again");
+                    return 0;
+                }
+                
                 var ui = new TerminalUserInterface();
                 var nc = new Configuration.Configuration(ui);
                 return 0;
             }
 
-            if (!File.Exists(AppSettingsFile))
+            if (!appsettingsExists)
             {
                 Console.Error.WriteLine($"{AppSettingsFile} not found. Please create one running 'cypnode --configure'");
                 return 1;
