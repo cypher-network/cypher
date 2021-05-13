@@ -3,6 +3,7 @@
 
 using System;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Hosting;
@@ -11,6 +12,7 @@ using Autofac.Extensions.DependencyInjection;
 using Serilog;
 using CYPCore.Models;
 using CYPCore.Helper;
+using CYPNode.UI;
 
 namespace CYPNode
 {
@@ -23,10 +25,22 @@ namespace CYPNode
         /// <returns></returns>
         public static int Main(string[] args)
         {
-            var settingsFile = string.Empty;
-            settingsFile = System.Diagnostics.Debugger.IsAttached ? "appsettings.Development.json" : "appsettings.Production.json";
+            if (args.FirstOrDefault(arg => arg == "--configure") != null)
+            {
+                var ui = new TerminalUserInterface();
+                var nc = new Configuration.Configuration(ui);
+                return 0;
+            }
 
-            //var settingsFile = $"appsettings.{Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")}.json";
+            var settingsFile = System.Diagnostics.Debugger.IsAttached ? "appsettings.Development.json" : "appsettings.Production.json";
+
+            Console.WriteLine($"Using configuration file {@settingsFile}");
+            if (!File.Exists(settingsFile))
+            {
+                Console.Error.WriteLine("Configuration file not found. Please create one running 'cypnode --configure'");
+                return 1;
+            }
+
             var config = new ConfigurationBuilder()
                 .SetBasePath(Directory.GetCurrentDirectory())
                 .AddJsonFile(settingsFile, optional: false)
