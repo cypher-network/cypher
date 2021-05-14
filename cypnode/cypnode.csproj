@@ -12,6 +12,7 @@
     <AssemblyName>cypnode</AssemblyName>
     <RootNamespace>CYPNode</RootNamespace>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <LangVersion>9.0</LangVersion>
