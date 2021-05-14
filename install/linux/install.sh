@@ -36,7 +36,7 @@ ARCHITECTURE_X64=("x86_64")
 
 if [[ " ${ARCHITECTURE_ARM[@]} " =~ " ${ARCHITECTURE} " ]]; then
   ARCHITECTURE_UNIFIED="arm"
-  ARCHITECTURE_DEB="armel"
+  ARCHITECTURE_DEB="armhf"
 
 elif [[ " ${ARCHITECTURE_ARM64[@]} " =~ " ${ARCHITECTURE} " ]]; then
   ARCHITECTURE_UNIFIED="arm64"
@@ -175,9 +175,6 @@ download_archive() {
   DOWNLOAD_PATH="/tmp/tangram-cypnode/"
   DOWNLOAD_FILE="${DOWNLOAD_PATH}${ARCHIVE}"
   DOWNLOAD_URL="${TANGRAM_CYPNODE_URL_PREFIX}${ARCHIVE}"
-  
-  printf "\n  ${DOWNLOAD_URL}\n"
-  printf "\n  ${DOWNLOAD_FILE}\n"
   
   if [ "${HAS_CURL}" = true ]; then
     curl -L --create-dirs -o "${DOWNLOAD_FILE}" "${DOWNLOAD_URL}"

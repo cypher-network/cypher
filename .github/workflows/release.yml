@@ -103,7 +103,7 @@ jobs:
 
         sed -i 's/$RUNTIME/linux-x64/g' ./debian/rules
 
-        dpkg-buildpackage -b --no-sign -a armel
+        dpkg-buildpackage -b --no-sign -a armhf
 
         mv ../*.deb ${{ github.workspace }}
 
