@@ -224,6 +224,10 @@ install_systemd_service() {
   rm "/tmp/${TANGRAM_CYPNODE_SYSTEMD_SERVICE}"
   printf "%b  %b Removed temporary systemd service file\n" "${OVER}" "${TICK}"
   
+  printf "  %b Reloading systemd daemon" "${INFO}"
+  sudo systemctl daemon-reload
+  printf "%b  %b Reloading systemd daemon\n" "${OVER}" "${TICK}"
+  
   printf "  %b Enabling systemd service" "${INFO}"
   sudo systemctl enable "${TANGRAM_CYPNODE_SYSTEMD_SERVICE}" >/dev/null
   printf "%b  %b Enabled systemd service\n" "${OVER}" "${TICK}"
@@ -235,19 +239,21 @@ install_systemd_service() {
 
 
 install_archive() {
-  if [ "${INIT}" = "systemd" ]; then
-    printf "\n"
-    printf "  %b Stopping systemd service" "${INFO}"
-    sudo systemctl stop "${TANGRAM_CYPNODE_SYSTEMD_SERVICE}" >/dev/null
-    printf "%b  %b Stopped systemd service\n" "${OVER}" "${TICK}"
-  fi
-
-
   if [ "${ARCHIVE_TYPE}" = "deb" ]; then
     printf "  %b Installing archive\n" "${INFO}"
 
     sudo dpkg -i "${DOWNLOAD_FILE}"
+    
   else
+    if [ "${INIT}" = "systemd" ]; then
+      if [ $(systemctl is-active "${TANGRAM_CYPNODE_SYSTEMD_SERVICE}") = "active" ]; then
+        printf "\n"
+        printf "  %b Stopping systemd service" "${INFO}"
+        sudo systemctl stop "${TANGRAM_CYPNODE_SYSTEMD_SERVICE}" >/dev/null
+        printf "%b  %b Stopped systemd service\n" "${OVER}" "${TICK}"
+      fi
+    fi
+
     printf "  %b Checking if user %s exists" "${INFO}" "${TANGRAM_CYPNODE_USER}"
     
     # Create user
