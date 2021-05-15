@@ -45,6 +45,10 @@ elif [[ " ${ARCHITECTURE_ARM64[@]} " =~ " ${ARCHITECTURE} " ]]; then
 elif [[ " ${ARCHITECTURE_X64[@]} " =~ " ${ARCHITECTURE} " ]]; then
   ARCHITECTURE_UNIFIED="x64"
   ARCHITECTURE_DEB="amd64"
+else
+  # Fall back to x64 architecture
+  ARCHITECTURE_UNIFIED="x64"
+  ARCHITECTURE_DEB="amd64"
 fi
 
 
