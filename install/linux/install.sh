@@ -55,12 +55,23 @@ TANGRAM_CYPNODE_ARTIFACT_PREFIX="tangram-cypnode_${TANGRAM_CYPNODE_VERSION_SHORT
 TANGRAM_CYPNODE_URL_PREFIX="https://github.com/stephankempkes/cypher/releases/download/${TANGRAM_CYPNODE_VERSION}/"
 #TANGRAM_CYPNODE_URL_PREFIX="https://github.com/cypher-network/cypher/releases/download/${TANGRAM_CYPNODE_VERSION}/"
 
+SYSTEMD_SERVICE_PATH="/etc/systemd/system/"
+TANGRAM_CYPNODE_SYSTEMD_SERVICE="tangram-cypnode.service"
+TANGRAM_CYPNODE_SYSTEMD_SERVICE_URL="https://raw.githubusercontent.com/cypher-network/cypher/master/install/linux/${TANGRAM_CYPNODE_SYSTEMD_SERVICE}"
+
+TANGRAM_CYPNODE_OPT_PATH="/opt/tangram/cypnode/"
+TANGRAM_CYPNODE_TMP_PATH="/tmp/opt/tangram/cypnode/"
+TANGRAM_CYPNODE_USER="tangram-cypnode"
+
 
 if test -f /etc/debian_version; then
   IS_DEBIAN_BASED=true
 else
   IS_DEBIAN_BASED=false
 fi
+
+INIT=$(ps --no-headers -o comm 1)
+
 
 # Check if we are running on a real terminal and find the rows and columns
 # If there is no real terminal, we will default to 80x24
@@ -108,7 +119,7 @@ is_command() {
 os_info() {
   if ! whiptail --title "System information" --yesno "The following system was detected:\\n\\nDistribution   : ${DISTRO}\\nVersion        : ${DISTRO_VERSION}\\nDebian based   : ${IS_DEBIAN_BASED}\\n\\nArchitecture   : ${ARCHITECTURE}\\n\nIs this information correct? When unsure, select <Yes>" "${7}" "${c}"; then
     printf "\n"
-    printf "  %b Could not detect your system information. Please report this issue on\n" ${CROSS}
+    printf "  %b Could not detect your system information. Please report this issue on\n" "${CROSS}"
     printf "      https://github.com/cypher-network/cypher/issues/new and include the output\n"
     printf "      of the following command:\n\n"
     printf "        uname -a\n\n"
@@ -124,9 +135,9 @@ install_info() {
     
     if whiptail --title "Installation archive - .deb" --yesno "You are running a Debian-based system. It is recommended to install tangram-cypnode using a .deb archive.\\n\\nWould you like to install the recommended archive ${ARCHIVE} ?" "${7}" "${c}"; then
       ARCHIVE_TYPE="deb"
-      printf "  %b Using installation archive ${ARCHIVE}\n" "${TICK}"
+      printf "  %b Using installation archive %s\n" "${TICK}" "${ARCHIVE}"
     else
-      printf "  %b Not using installation archive ${ARCHIVE}\n" "${CROSS}"
+      printf "  %b Not using installation archive %s\n" "${CROSS}" "${ARCHIVE}"
       ARCHIVE=""
     fi
   fi
@@ -136,9 +147,9 @@ install_info() {
     ARCHIVE="${TANGRAM_CYPNODE_ARTIFACT_PREFIX}linux-${ARCHITECTURE_UNIFIED}.tar.gz"
     if whiptail --title "Installation archive - self-contained .tar.gz" --yesno "Self-contained builds include the .NET runtime environment, which does not require a separate .NET installation at the cost of slightly more disk space.\\n\\nWould you like to install the self-contained archive ${ARCHIVE} ?" "${7}" "${c}"; then
         ARCHIVE_TYPE="self-contained"
-        printf "  %b Using installation archive ${ARCHIVE}\n" "${TICK}"
+        printf "  %b Using installation archive %s\n" "${TICK}" "${ARCHIVE}"
     else
-      printf "  %b Not using installation archive ${ARCHIVE}\n" "${CROSS}"
+      printf "  %b Not using installation archive %s\n" "${CROSS}" "${ARCHIVE}"
       printf "\n"
       printf "  %b Could not find a suitable installation archive.\n" "${CROSS}"
       printf "      Please refer to https://github.com/cypher-network/cypher for manual installation instructions.\n\n"
@@ -170,7 +181,7 @@ download_archive() {
     fi
   fi
   
-  printf "\n  %b Downloading archive ${ARCHIVE}\n\n" "${INFO}"
+  printf "\n  %b Downloading archive %s\n\n" "${INFO}" "${ARCHIVE}"
 
   DOWNLOAD_PATH="/tmp/tangram-cypnode/"
   DOWNLOAD_FILE="${DOWNLOAD_PATH}${ARCHIVE}"
@@ -185,13 +196,82 @@ download_archive() {
 }
 
 
+install_systemd_config() {
+  printf "\n  %b Downloading systemd service file\n\n" "${INFO}"
+
+  if [ "${HAS_CURL}" = true ]; then
+    curl -L -o "/tmp/${TANGRAM_CYPNODE_SYSTEMD_SERVICE}" "${TANGRAM_CYPNODE_SYSTEMD_SERVICE_URL}"
+  else
+    wget -O "/tmp/${TANGRAM_CYPNODE_SYSTEMD_SERVICE}" "${TANGRAM_CYPNODE_SYSTEMD_SERVICE_URL}"
+  fi
+  
+  printf "\n  %b Installing systemd servvice file\n" "${INFO}"
+  
+  sudo install -m 755 -o "${TANGRAM_CYPNODE_USER}" -g "${TANGRAM_CYPNODE_USER}" "/tmp/${TANGRAM_CYPNODE_SYSTEMD_SERVICE}" "${SYSTEMD_SERVICE_PATH}${TANGRAM_CYPNODE_SYSTEMD_SERVICE}"
+  
+  printf "\n  %b Removing temporary systemd service file\n" "${INFO}"
+  rm "/tmp/${TANGRAM_CYPNODE_SYSTEMD_SERVICE}"
+  
+  printf "\n  %b Enabling systemd service\n" "${INFO}"
+  sudo systemctl enable "${TANGRAM_CYPNODE_SYSTEMD_SERVICE}"
+  
+  printf "\n  %b Starting systemd service\n" "${INFO}"
+  sudo systemctl start "${TANGRAM_CYPNODE_SYSTEMD_SERVICE}"
+}
+
+
 install_archive() {
   printf "\n\n  %b Installing archive\n\n" "${INFO}"
   
   if [ "${ARCHIVE_TYPE}" = "deb" ]; then
     sudo dpkg -i "${DOWNLOAD_FILE}"
   else
-    :
+    
+    printf "  %b Checking if user %s exists" "${INFO}" "${TANGRAM_CYPNODE_USER}"
+    
+    # Create user
+    if getent passwd "${TANGRAM_CYPNODE_USER}" >/dev/null; then
+      printf "%b  %b User %s exists\n" "${OVER}" "${TICK}" "${TANGRAM_CYPNODE_USER}"
+    else
+      printf "%b  %b User %s exists\n" "${OVER}" "${CROSS}" "${TANGRAM_CYPNODE_USER}"
+      printf "  %b Creating user %s" "${INFO}" "${TANGRAM_CYPNODE_USER}"
+      
+      adduser --disabled-password  --quiet --system \
+        --home /proc --no-create-home \
+        --gecos "Tangram cypnode" --group "${TANGRAM_CYPNODE_USER}"
+        
+      printf "%b  %b Created user %s\n" "${OVER}" "${TICK}" "${TANGRAM_CYPNODE_USER}"
+    fi
+
+    printf "  %b Unpacking archive to %s\n" "${INFO}" "${TANGRAM_CYPNODE_TMP_PATH}"
+    mkdir -p "${TANGRAM_CYPNODE_TMP_PATH}"
+    tar --overwrite -xf "${DOWNLOAD_FILE}" -C "${TANGRAM_CYPNODE_TMP_PATH}"
+    
+    printf "  %b Installing to %s\n" "${INFO}" "${TANGRAM_CYPNODE_OPT_PATH}"
+    sudo mkdir -p "${TANGRAM_CYPNODE_OPT_PATH}"
+    sudo cp -r "${TANGRAM_CYPNODE_TMP_PATH}"* "${TANGRAM_CYPNODE_OPT_PATH}"
+    sudo chmod 755 -R "${TANGRAM_CYPNODE_OPT_PATH}"
+    sudo chown "${TANGRAM_CYPNODE_USER}":"${TANGRAM_CYPNODE_USER}" "${TANGRAM_CYPNODE_OPT_PATH}"
+    
+    printf "  %s Running configuration util\n" "${INFO}"
+    sudo -u "${TANGRAM_CYPNODE_USER}" "${TANGRAM_CYPNODE_OPT_PATH}"cypnode --configure
+
+    if [ "${INIT}" = "systemd" ]; then
+      if whiptail --title "systemd service" --yesno "To run the node as a service, it is recommended to configure the node as a systemd service.\\n\\nWould you like to use the default systemd service configuration provided with tangram-cypnode?" "${7}" "${c}"; then
+        printf "  %b Using default systemd service%s\n" "${TICK}"
+        install_systemd_config
+      else
+        printf "  %b Not using default systemd service%s\n" "${CROSS}"
+      fi
+      
+    elif [ "${INIT}" = "init" ]; then
+      printf "  %b No tangram-cypnode init script available yet\n" "${CROSS}"
+      
+    else
+      printf "\n"
+      printf "  %b Unknown system %s. Please report this issue on\n" "${CROSS}" "${INIT}"
+      printf "      https://github.com/cypher-network/cypher/issues/new"
+    fi
   fi
 }
 
@@ -199,10 +279,11 @@ install_archive() {
 cleanup() {
   printf "  \n\n  %b Cleaning up files\n" "${INFO}"
   rm -rf "${DOWNLOAD_PATH}"
+  rm -rf "${TANGRAM_CYPNODE_TMP_PATH}"
 }
 
 finish() {
-  printf "\n\n  %b Installation succesful\n\n" "${TICK}"
+  printf "\n\n  %b Installation succesful\n\n" "${DONE}"
 }
 
 
