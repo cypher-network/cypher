@@ -252,9 +252,9 @@ install_archive() {
         sudo systemctl daemon-reload >/dev/null
         printf "%b  %b Reloading systemd daemon\n" "${OVER}" "${TICK}"
 
-        printf "  %b Retarting systemd service" "${INFO}"
+        printf "  %b Restarting systemd service" "${INFO}"
         sudo systemctl restart "${TANGRAM_CYPNODE_SYSTEMD_SERVICE}" >/dev/null
-        printf "%b  %b Retarted systemd service\n" "${OVER}" "${TICK}"
+        printf "%b  %b Restarted systemd service\n" "${OVER}" "${TICK}"
       fi
     fi
 
