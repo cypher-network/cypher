@@ -181,85 +181,105 @@ download_archive() {
     fi
   fi
   
-  printf "\n  %b Downloading archive %s\n\n" "${INFO}" "${ARCHIVE}"
+  printf "\n";
+  printf "  %b Downloading archive %s" "${INFO}" "${ARCHIVE}"
 
   DOWNLOAD_PATH="/tmp/tangram-cypnode/"
   DOWNLOAD_FILE="${DOWNLOAD_PATH}${ARCHIVE}"
   DOWNLOAD_URL="${TANGRAM_CYPNODE_URL_PREFIX}${ARCHIVE}"
   
   if [ "${HAS_CURL}" = true ]; then
-    curl -L --create-dirs -o "${DOWNLOAD_FILE}" "${DOWNLOAD_URL}"
+    curl -s -L --create-dirs -o "${DOWNLOAD_FILE}" "${DOWNLOAD_URL}"
   else
     mkdir -p "${DOWNLOAD_PATH}" 
-    wget -O "${DOWNLOAD_FILE}" "${DOWNLOAD_URL}"
+    wget -q -O "${DOWNLOAD_FILE}" "${DOWNLOAD_URL}"
   fi
+
+  printf "%b  %b Downloaded archive %s\n" "${OVER}" "${TICK}" "${ARCHIVE}"
 }
 
 
-install_systemd_config() {
-  printf "\n  %b Downloading systemd service file\n\n" "${INFO}"
+install_systemd_service() {
+  printf "\n  %b Downloading systemd service file" "${INFO}"
 
   if [ "${HAS_CURL}" = true ]; then
-    curl -L -o "/tmp/${TANGRAM_CYPNODE_SYSTEMD_SERVICE}" "${TANGRAM_CYPNODE_SYSTEMD_SERVICE_URL}"
+    curl -s -L -o "/tmp/${TANGRAM_CYPNODE_SYSTEMD_SERVICE}" "${TANGRAM_CYPNODE_SYSTEMD_SERVICE_URL}"
   else
-    wget -O "/tmp/${TANGRAM_CYPNODE_SYSTEMD_SERVICE}" "${TANGRAM_CYPNODE_SYSTEMD_SERVICE_URL}"
+    wget -q -O "/tmp/${TANGRAM_CYPNODE_SYSTEMD_SERVICE}" "${TANGRAM_CYPNODE_SYSTEMD_SERVICE_URL}"
   fi
   
-  printf "\n  %b Installing systemd servvice file\n" "${INFO}"
+  printf "%b  %b Downloading systemd service file\n" "${OVER}" "${TICK}"
+
+  printf "  %b Installing systemd service file" "${INFO}"
   
   sudo install -m 755 -o "${TANGRAM_CYPNODE_USER}" -g "${TANGRAM_CYPNODE_USER}" "/tmp/${TANGRAM_CYPNODE_SYSTEMD_SERVICE}" "${SYSTEMD_SERVICE_PATH}${TANGRAM_CYPNODE_SYSTEMD_SERVICE}"
   
-  printf "\n  %b Removing temporary systemd service file\n" "${INFO}"
+  printf "%b  %b Installing systemd service file\n" "${OVER}" "${TICK}"
+
+  printf "  %b Removing temporary systemd service file" "${INFO}"
   rm "/tmp/${TANGRAM_CYPNODE_SYSTEMD_SERVICE}"
+  printf "%b  %b Removed temporary systemd service file\n" "${OVER}" "${TICK}"
   
-  printf "\n  %b Enabling systemd service\n" "${INFO}"
-  sudo systemctl enable "${TANGRAM_CYPNODE_SYSTEMD_SERVICE}"
+  printf "  %b Enabling systemd service" "${INFO}"
+  sudo systemctl enable "${TANGRAM_CYPNODE_SYSTEMD_SERVICE}" >/dev/null
+  printf "%b  %b Enabled systemd service\n" "${OVER}" "${TICK}"
   
-  printf "\n  %b Starting systemd service\n" "${INFO}"
-  sudo systemctl start "${TANGRAM_CYPNODE_SYSTEMD_SERVICE}"
+  printf "  %b Starting systemd service" "${INFO}"
+  sudo systemctl start "${TANGRAM_CYPNODE_SYSTEMD_SERVICE}" >/dev/null
+  printf "%b  %b Started systemd service\n" "${OVER}" "${TICK}"
 }
 
 
 install_archive() {
-  printf "\n\n  %b Installing archive\n\n" "${INFO}"
-  
+  if [ "${INIT}" = "systemd" ]; then
+    printf "\n"
+    printf "  %b Stopping systemd service" "${INFO}"
+    sudo systemctl stop "${TANGRAM_CYPNODE_SYSTEMD_SERVICE}" >/dev/null
+    printf "%b  %b Stopped systemd service\n" "${OVER}" "${TICK}"
+  fi
+
+
   if [ "${ARCHIVE_TYPE}" = "deb" ]; then
+    printf "  %b Installing archive\n" "${INFO}"
+
     sudo dpkg -i "${DOWNLOAD_FILE}"
   else
-    
     printf "  %b Checking if user %s exists" "${INFO}" "${TANGRAM_CYPNODE_USER}"
     
     # Create user
     if getent passwd "${TANGRAM_CYPNODE_USER}" >/dev/null; then
       printf "%b  %b User %s exists\n" "${OVER}" "${TICK}" "${TANGRAM_CYPNODE_USER}"
     else
-      printf "%b  %b User %s exists\n" "${OVER}" "${CROSS}" "${TANGRAM_CYPNODE_USER}"
+      printf "%b  %b User %s does not exist\n" "${OVER}" "${CROSS}" "${TANGRAM_CYPNODE_USER}"
       printf "  %b Creating user %s" "${INFO}" "${TANGRAM_CYPNODE_USER}"
       
-      adduser --disabled-password  --quiet --system \
+      sudo adduser --disabled-password  --quiet --system \
         --home /proc --no-create-home \
         --gecos "Tangram cypnode" --group "${TANGRAM_CYPNODE_USER}"
         
       printf "%b  %b Created user %s\n" "${OVER}" "${TICK}" "${TANGRAM_CYPNODE_USER}"
     fi
 
-    printf "  %b Unpacking archive to %s\n" "${INFO}" "${TANGRAM_CYPNODE_TMP_PATH}"
+    printf "  %b Unpacking archive to %s" "${INFO}" "${TANGRAM_CYPNODE_TMP_PATH}"
     mkdir -p "${TANGRAM_CYPNODE_TMP_PATH}"
     tar --overwrite -xf "${DOWNLOAD_FILE}" -C "${TANGRAM_CYPNODE_TMP_PATH}"
+    printf "%b  %b Unpacked archive to %s\n" "${OVER}" "${TICK}" "${TANGRAM_CYPNODE_TMP_PATH}"
     
-    printf "  %b Installing to %s\n" "${INFO}" "${TANGRAM_CYPNODE_OPT_PATH}"
+    printf "  %b Installing to %s" "${INFO}" "${TANGRAM_CYPNODE_OPT_PATH}"
     sudo mkdir -p "${TANGRAM_CYPNODE_OPT_PATH}"
     sudo cp -r "${TANGRAM_CYPNODE_TMP_PATH}"* "${TANGRAM_CYPNODE_OPT_PATH}"
     sudo chmod 755 -R "${TANGRAM_CYPNODE_OPT_PATH}"
-    sudo chown "${TANGRAM_CYPNODE_USER}":"${TANGRAM_CYPNODE_USER}" "${TANGRAM_CYPNODE_OPT_PATH}"
+    sudo chown -R "${TANGRAM_CYPNODE_USER}":"${TANGRAM_CYPNODE_USER}" "${TANGRAM_CYPNODE_OPT_PATH}"
+    printf "%b  %b Installed to %s\n" "${OVER}" "${TICK}" "${TANGRAM_CYPNODE_OPT_PATH}"
     
-    printf "  %s Running configuration util\n" "${INFO}"
-    sudo -u "${TANGRAM_CYPNODE_USER}" "${TANGRAM_CYPNODE_OPT_PATH}"cypnode --configure
+    printf "  %b Running configuration util" "${INFO}"
+    sudo -u "${TANGRAM_CYPNODE_USER}" "${TANGRAM_CYPNODE_OPT_PATH}"cypnode --configure >/dev/null
+    printf "%b  %b Run configuration util\n\n" "${OVER}" "${TICK}"
 
     if [ "${INIT}" = "systemd" ]; then
       if whiptail --title "systemd service" --yesno "To run the node as a service, it is recommended to configure the node as a systemd service.\\n\\nWould you like to use the default systemd service configuration provided with tangram-cypnode?" "${7}" "${c}"; then
-        printf "  %b Using default systemd service%s\n" "${TICK}"
-        install_systemd_config
+        printf "  %b Using default systemd service\n" "${TICK}"
+        install_systemd_service
       else
         printf "  %b Not using default systemd service%s\n" "${CROSS}"
       fi
@@ -277,9 +297,11 @@ install_archive() {
 
 
 cleanup() {
-  printf "  \n\n  %b Cleaning up files\n" "${INFO}"
+  printf "\n"
+  printf "  %b Cleaning up files" "${INFO}"
   rm -rf "${DOWNLOAD_PATH}"
-  rm -rf "${TANGRAM_CYPNODE_TMP_PATH}"
+  sudo rm -rf "${TANGRAM_CYPNODE_TMP_PATH}"
+  printf "%b  %b Cleaned up files\n" "${OVER}" "${TICK}"
 }
 
 finish() {
