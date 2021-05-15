@@ -14,7 +14,7 @@ RestartSec=5s
 User=tangram-cypnode
 Group=tangram-cypnode
 
-WorkingDirectory=/usr/share/tangram/cypnode/
+WorkingDirectory=/usr/share/tangram/cypnode
 ExecStart=/usr/share/tangram/cypnode/cypnode
 
 [Install]

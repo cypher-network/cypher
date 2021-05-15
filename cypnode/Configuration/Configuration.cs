@@ -43,7 +43,10 @@ namespace CYPNode.Configuration
             var configFileName = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, Program.AppSettingsFile);
             File.WriteAllText(configFileName, config);
 
-            Console.WriteLine($"Configuration written to {configFileName}. You can start cypnode now.");
+            Console.WriteLine($"Configuration written to {configFileName}. You can start cypnode now:");
+	    Console.WriteLine();
+	    Console.WriteLine("  sudo systemctl restart tangram-cypnode");
+	    Console.WriteLine();
         }
 
         private void Cancel()
