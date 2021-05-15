@@ -68,7 +68,7 @@ TANGRAM_CYPNODE_TMP_PATH="/tmp/opt/tangram/cypnode/"
 TANGRAM_CYPNODE_USER="tangram-cypnode"
 
 
-if test -f /etc/debian_version; then
+if [ -f /etc/debian_version ]; then
   IS_DEBIAN_BASED=true
 else
   IS_DEBIAN_BASED=false
@@ -244,6 +244,20 @@ install_archive() {
 
     sudo dpkg -i "${DOWNLOAD_FILE}"
     
+    if [ -x "/usr/share/tangram/cypnode/cypnode" ]; then
+      if [ ! -f /usr/share/tangram/cypnode/cypnode/appsettings.json ]; then
+        sudo -u tangram-cypnode /usr/share/tangram/cypnode/cypnode --configure || true
+
+        printf "  %b Reloading systemd daemon" "${INFO}"
+        sudo systemctl daemon-reload >/dev/null
+        printf "%b  %b Reloading systemd daemon\n" "${OVER}" "${TICK}"
+
+        printf "  %b Retarting systemd service" "${INFO}"
+        sudo systemctl restart "${TANGRAM_CYPNODE_SYSTEMD_SERVICE}" >/dev/null
+        printf "%b  %b Retarted systemd service\n" "${OVER}" "${TICK}"
+      fi
+    fi
+
   else
     if [ "${INIT}" = "systemd" ]; then
       if [ $(systemctl is-active "${TANGRAM_CYPNODE_SYSTEMD_SERVICE}") = "active" ]; then
@@ -283,7 +297,7 @@ install_archive() {
     printf "%b  %b Installed to %s\n" "${OVER}" "${TICK}" "${TANGRAM_CYPNODE_OPT_PATH}"
     
     printf "  %b Running configuration util" "${INFO}"
-    sudo -u "${TANGRAM_CYPNODE_USER}" "${TANGRAM_CYPNODE_OPT_PATH}"cypnode --configure >/dev/null
+    sudo -u "${TANGRAM_CYPNODE_USER}" "${TANGRAM_CYPNODE_OPT_PATH}"cypnode --configure
     printf "%b  %b Run configuration util\n\n" "${OVER}" "${TICK}"
 
     if [ "${INIT}" = "systemd" ]; then
