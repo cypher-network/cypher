@@ -11,5 +11,3 @@ For quick installation on Linux, execute the following command:
 
 `curl -sSL https://raw.githubusercontent.com/cypher-network/cypher/master/install/linux/install.sh | bash`
 
-Note that this currently only works for Debian-based Linux distributions.
-
