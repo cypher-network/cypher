@@ -277,9 +277,7 @@ install_archive() {
       printf "%b  %b User %s does not exist\n" "${OVER}" "${CROSS}" "${TANGRAM_CYPNODE_USER}"
       printf "  %b Creating user %s" "${INFO}" "${TANGRAM_CYPNODE_USER}"
       
-      sudo adduser --disabled-password  --quiet --system \
-        --home /proc --no-create-home \
-        --gecos "Tangram cypnode" --group "${TANGRAM_CYPNODE_USER}"
+      sudo adduser --quiet --system --gid "${TANGRAM_CYPNODE_USER}" --no-create-home "${TANGRAM_CYPNODE_USER}"
         
       printf "%b  %b Created user %s\n" "${OVER}" "${TICK}" "${TANGRAM_CYPNODE_USER}"
     fi
