@@ -141,8 +141,10 @@ install_info() {
       ARCHIVE_TYPE="deb"
       printf "  %b Using installation archive %s\n" "${TICK}" "${ARCHIVE}"
     else
-      printf "  %b Not using installation archive %s\n" "${CROSS}" "${ARCHIVE}"
-      ARCHIVE=""
+      printf "  %b Not using Debian installation archive on Debian host %s\n" "${CROSS}" "${ARCHIVE}"
+	  printf "      Please refer to the cypnode documentation to install the package manually.\n"
+	  printf "      DO NOT INSTALL THE DEBIAN ARCHIVE PARALLEL TO A MANUAL INSTALLATION\n\n"
+	  return 1
     fi
   fi
   
