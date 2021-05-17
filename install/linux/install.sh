@@ -279,6 +279,7 @@ install_archive() {
       printf "%b  %b User %s does not exist\n" "${OVER}" "${CROSS}" "${TANGRAM_CYPNODE_USER}"
       printf "  %b Creating user %s" "${INFO}" "${TANGRAM_CYPNODE_USER}"
       
+	  sudo groupadd -f "${TANGRAM_CYPNODE_USER}"
       sudo adduser --system --gid "${TANGRAM_CYPNODE_USER}" --no-create-home "${TANGRAM_CYPNODE_USER}"
         
       printf "%b  %b Created user %s\n" "${OVER}" "${TICK}" "${TANGRAM_CYPNODE_USER}"
