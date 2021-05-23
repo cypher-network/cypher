@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <?if $(var.Platform) = x64 ?>
+  <?define ProductName = "Tangram Node" ?>
+  <?define Win64 = "yes" ?>
+  <?endif ?>
+  <Product Id="*" Name="$(var.ProductName)" Language="1033" Version="1.0.0.0" Manufacturer="tangram" UpgradeCode="24D31C26-3F44-44E2-AC17-2B06F58A1A5B">
+    <Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine" />
+    <UIRef Id="WixUI_Minimal"/>
+    <WixVariable Id="WixUILicenseRtf" Value="Copyright.rtf"/>
+    <MediaTemplate EmbedCab="yes"/>
+    <MajorUpgrade AllowDowngrades="no" 
+                  DowngradeErrorMessage="A newer version of [ProductName] is already installed."
+                  AllowSameVersionUpgrades="no"/>
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id='ProgramFiles64Folder' Name='PFiles'>
+        <Directory Id="Tangram" Name="Tangram">
+          <Directory Id="Node" Name="Node">
+          </Directory>
+        </Directory>
+      </Directory>
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="MyShortcutsDir"
+                   Name="Tangram Node"/>
+      </Directory>
+    </Directory>
+    <Icon Id="icon.ico" SourceFile="tgm.ico"/>
+    <DirectoryRef Id="MyShortcutsDir">
+      <Component Id="CMP_Shortcuts"
+                 Guid="F7C96CC2-E0AF-41D7-8C9E-A236771CF5AF">
+        <Shortcut Id="LicenceAgreementShortcut"
+                  Name="Tangram Node licence"
+                  Description="Read the Tangram Node licence agreement"
+                  Target="[Tangram]Copyright.rtf"/>
+        <Shortcut Id="StartNodeShortcut"
+                  Name="Start Tangram Node"
+                  Description="Starts the Tangram Node. Make sure it is configured already!"
+                  Target="[Tangram]start_node.bat"
+                  Icon="icon.ico"/>
+        <Shortcut Id="ConfigureNodeShortcut"
+                  Name="Configure Tangram Node"
+                  Description="Configures the Tangram Node. Do this after fresh installation!"
+                  Target="[Tangram]configure_node.bat"/>
+        <!--<Shortcut Id="RemoveShortcut"
+                  Name="Remove Tangram Node"
+                  Description="Removes Tangram Node and all of its components"
+                  Target="[System64Folder]msiexec.exe"
+                  Arguments="/x [ProductCode]"/> Not visible on start menu, not recommended by M$OFT-->
+        <RemoveFolder Id="RemoveMyShortcutsDir" On="uninstall"/>
+        <RegistryValue Root="HKCU"
+                       Key="Software\Microsoft\TangramNode"
+                       Name="installed"
+                       Type="integer"
+                       Value="1"
+                       KeyPath="yes"/>
+      </Component>
+    </DirectoryRef>
+    <Property Id="WIXUI_EXITDIALOGOPTIONALTEXT" Value="Thank you for installing Tangram Node. Please exit the installer to start node configuration." />
+    <Component Id="CMP_LicenceTXT" Directory="Tangram" Guid="5F7BCFA8-48FF-442D-80B7-7E070DA14557">
+      <File Id="FILE_5F7BCFA848FF442D80B77E070DA14557" KeyPath="yes" Source="Copyright.rtf" />
+    </Component>
+    <Feature Id="ProductFeature" Title="cypnode_installer" Level="1">
+      <ComponentGroupRef Id="InstallationFilesGroup" />
+      <ComponentRef Id="CMP_Shortcuts"/>
+      <ComponentRef Id="CMP_LicenceTXT"/>
+    </Feature>
+  </Product>
+</Wix>
