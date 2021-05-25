@@ -4,7 +4,7 @@
   <?define ProductName = "Tangram Node" ?>
   <?define Win64 = "yes" ?>
   <?endif ?>
-  <Product Id="*" Name="$(var.ProductName)" Language="1033" Version="1.0.0.0" Manufacturer="tangram" UpgradeCode="24D31C26-3F44-44E2-AC17-2B06F58A1A5B">
+  <Product Id="8413643C-B17F-4067-AF25-618F58B8C21E" Name="$(var.ProductName)" Language="1033" Version="1.0.0.0" Manufacturer="tangram" UpgradeCode="24D31C26-3F44-44E2-AC17-2B06F58A1A5B">
     <Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine" />
     <UIRef Id="WixUI_Minimal"/>
     <WixVariable Id="WixUILicenseRtf" Value="Copyright.rtf"/>
@@ -31,16 +31,18 @@
         <Shortcut Id="LicenceAgreementShortcut"
                   Name="Tangram Node licence"
                   Description="Read the Tangram Node licence agreement"
-                  Target="[Tangram]Copyright.rtf"/>
+                  Target="[Node]Copyright.rtf"/>
         <Shortcut Id="StartNodeShortcut"
                   Name="Start Tangram Node"
                   Description="Starts the Tangram Node. Make sure it is configured already!"
-                  Target="[Tangram]start_node.bat"
+                  WorkingDirectory="Node"
+                  Target="[Node]start_node.bat"
                   Icon="icon.ico"/>
         <Shortcut Id="ConfigureNodeShortcut"
                   Name="Configure Tangram Node"
                   Description="Configures the Tangram Node. Do this after fresh installation!"
-                  Target="[Tangram]configure_node.bat"/>
+                  Target="[Node]configure_node.bat"
+                  WorkingDirectory="Node"/>
         <!--<Shortcut Id="RemoveShortcut"
                   Name="Remove Tangram Node"
                   Description="Removes Tangram Node and all of its components"
@@ -55,14 +57,26 @@
                        KeyPath="yes"/>
       </Component>
     </DirectoryRef>
+    <CustomAction Id="ConfigureNode" Directory="Node" Execute="commit" Impersonate="no" ExeCommand="cmd.exe /c &quot;del /f /q /a appsettings.json &amp; cypnode.exe --configure &amp; icacls . /grant:r Users:F&quot;" Return="ignore" />
+    <InstallExecuteSequence>
+      <Custom Action="ConfigureNode" Before="InstallFinalize" />
+    </InstallExecuteSequence>
     <Property Id="WIXUI_EXITDIALOGOPTIONALTEXT" Value="Thank you for installing Tangram Node. Please exit the installer to start node configuration." />
-    <Component Id="CMP_LicenceTXT" Directory="Tangram" Guid="5F7BCFA8-48FF-442D-80B7-7E070DA14557">
-      <File Id="FILE_5F7BCFA848FF442D80B77E070DA14557" KeyPath="yes" Source="Copyright.rtf" />
-    </Component>
+    <ComponentGroup Id="CMP_ShortcutFiles" Directory="Node">
+      <Component Id="CMP_FILE_A1" Guid="5F7BCFA8-48FF-442D-80B7-7E070DA14557">
+        <File Id="FILE_5F7BCFA848FF442D80B77E070DA14557" KeyPath="yes" Source="Copyright.rtf" />
+      </Component>
+      <Component Id="CMP_FILE_A2" Guid="FC92B091-02E9-4556-ABD1-2474D3B63085">
+        <File Id="FILE_5F7BCFA848FF442D80B77E070DA14558" KeyPath="yes" Source="configure_node.bat" />
+      </Component>
+      <Component Id="CMP_FILE_A3" Guid="0471D420-577B-455B-A619-143BFF80798B">
+        <File Id="FILE_5F7BCFA848FF442D80B77E070DA14559" KeyPath="yes" Source="start_node.bat" />
+      </Component>
+    </ComponentGroup>
     <Feature Id="ProductFeature" Title="cypnode_installer" Level="1">
       <ComponentGroupRef Id="InstallationFilesGroup" />
       <ComponentRef Id="CMP_Shortcuts"/>
-      <ComponentRef Id="CMP_LicenceTXT"/>
+      <ComponentGroupRef Id="CMP_ShortcutFiles"/>
     </Feature>
   </Product>
 </Wix>
