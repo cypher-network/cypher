@@ -1,1 +1,1 @@
-cypnode.exe  & cmd /k
+@powershell "Start-Process -FilePath 'cypnode.exe' -WorkingDirectory '%~dp0' -Verb RunAs"
