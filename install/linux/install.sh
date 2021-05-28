@@ -68,7 +68,7 @@ TANGRAM_CYPNODE_TMP_PATH="/tmp/opt/tangram/cypnode/"
 TANGRAM_CYPNODE_USER="tangram-cypnode"
 
 
-if test -f /etc/debian_version; then
+if [ -f /etc/debian_version ]; then
   IS_DEBIAN_BASED=true
 else
   IS_DEBIAN_BASED=false
@@ -141,8 +141,10 @@ install_info() {
       ARCHIVE_TYPE="deb"
       printf "  %b Using installation archive %s\n" "${TICK}" "${ARCHIVE}"
     else
-      printf "  %b Not using installation archive %s\n" "${CROSS}" "${ARCHIVE}"
-      ARCHIVE=""
+      printf "  %b Not using Debian installation archive on Debian host %s\n" "${CROSS}" "${ARCHIVE}"
+	  printf "      Please refer to the cypnode documentation to install the package manually.\n"
+	  printf "      DO NOT INSTALL THE DEBIAN ARCHIVE PARALLEL TO A MANUAL INSTALLATION\n\n"
+	  return 1
     fi
   fi
   
@@ -224,6 +226,10 @@ install_systemd_service() {
   rm "/tmp/${TANGRAM_CYPNODE_SYSTEMD_SERVICE}"
   printf "%b  %b Removed temporary systemd service file\n" "${OVER}" "${TICK}"
   
+  printf "  %b Reloading systemd daemon" "${INFO}"
+  sudo systemctl daemon-reload
+  printf "%b  %b Reloading systemd daemon\n" "${OVER}" "${TICK}"
+  
   printf "  %b Enabling systemd service" "${INFO}"
   sudo systemctl enable "${TANGRAM_CYPNODE_SYSTEMD_SERVICE}" >/dev/null
   printf "%b  %b Enabled systemd service\n" "${OVER}" "${TICK}"
@@ -235,19 +241,35 @@ install_systemd_service() {
 
 
 install_archive() {
-  if [ "${INIT}" = "systemd" ]; then
-    printf "\n"
-    printf "  %b Stopping systemd service" "${INFO}"
-    sudo systemctl stop "${TANGRAM_CYPNODE_SYSTEMD_SERVICE}" >/dev/null
-    printf "%b  %b Stopped systemd service\n" "${OVER}" "${TICK}"
-  fi
-
-
   if [ "${ARCHIVE_TYPE}" = "deb" ]; then
     printf "  %b Installing archive\n" "${INFO}"
 
     sudo dpkg -i "${DOWNLOAD_FILE}"
+    
+    if [ -x "/usr/share/tangram/cypnode/cypnode" ]; then
+      if [ ! -f /usr/share/tangram/cypnode/cypnode/appsettings.json ]; then
+        sudo -u tangram-cypnode /usr/share/tangram/cypnode/cypnode --configure || true
+
+        printf "  %b Reloading systemd daemon" "${INFO}"
+        sudo systemctl daemon-reload >/dev/null
+        printf "%b  %b Reloading systemd daemon\n" "${OVER}" "${TICK}"
+
+        printf "  %b Restarting systemd service" "${INFO}"
+        sudo systemctl restart "${TANGRAM_CYPNODE_SYSTEMD_SERVICE}" >/dev/null
+        printf "%b  %b Restarted systemd service\n" "${OVER}" "${TICK}"
+      fi
+    fi
+
   else
+    if [ "${INIT}" = "systemd" ]; then
+      if [ $(systemctl is-active "${TANGRAM_CYPNODE_SYSTEMD_SERVICE}") = "active" ]; then
+        printf "\n"
+        printf "  %b Stopping systemd service" "${INFO}"
+        sudo systemctl stop "${TANGRAM_CYPNODE_SYSTEMD_SERVICE}" >/dev/null
+        printf "%b  %b Stopped systemd service\n" "${OVER}" "${TICK}"
+      fi
+    fi
+
     printf "  %b Checking if user %s exists" "${INFO}" "${TANGRAM_CYPNODE_USER}"
     
     # Create user
@@ -257,9 +279,8 @@ install_archive() {
       printf "%b  %b User %s does not exist\n" "${OVER}" "${CROSS}" "${TANGRAM_CYPNODE_USER}"
       printf "  %b Creating user %s" "${INFO}" "${TANGRAM_CYPNODE_USER}"
       
-      sudo adduser --disabled-password  --quiet --system \
-        --home /proc --no-create-home \
-        --gecos "Tangram cypnode" --group "${TANGRAM_CYPNODE_USER}"
+	  sudo groupadd -f "${TANGRAM_CYPNODE_USER}"
+      sudo adduser --system --gid "${TANGRAM_CYPNODE_USER}" --no-create-home "${TANGRAM_CYPNODE_USER}"
         
       printf "%b  %b Created user %s\n" "${OVER}" "${TICK}" "${TANGRAM_CYPNODE_USER}"
     fi
@@ -277,7 +298,7 @@ install_archive() {
     printf "%b  %b Installed to %s\n" "${OVER}" "${TICK}" "${TANGRAM_CYPNODE_OPT_PATH}"
     
     printf "  %b Running configuration util" "${INFO}"
-    sudo -u "${TANGRAM_CYPNODE_USER}" "${TANGRAM_CYPNODE_OPT_PATH}"cypnode --configure >/dev/null
+    sudo -u "${TANGRAM_CYPNODE_USER}" "${TANGRAM_CYPNODE_OPT_PATH}"cypnode --configure
     printf "%b  %b Run configuration util\n\n" "${OVER}" "${TICK}"
 
     if [ "${INIT}" = "systemd" ]; then

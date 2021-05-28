@@ -15,18 +15,7 @@ case "$1" in
 
     chown -R tangram-cypnode:tangram-cypnode /usr/share/tangram/cypnode/
     chmod -R 755 /usr/share/tangram/cypnode/
-
-    echo ""
-    echo ""
-    echo ""
-    echo "  Tangram cypnode is now installed. If you have not yet done so, please"
-    echo "  generate a configuration file, then restart the cypnode service:"
-    echo ""
-    echo "    sudo -u tangram-cypnode /usr/share/tangram/cypnode/cypnode --configure"
-    echo ""
-    echo "    sudo systemctl restart tangram-cypnode"
-    echo ""
-
+    
   ;;
   abort-upgrade|abort-remove|abort-deconfigure)
   ;;

@@ -8,5 +8,5 @@ Homepage: https://tangrams.io
 
 Package: tangram-cypnode
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Depends: ${misc:Depends}, libc6-dev
 Description: Tangram Cypher Node

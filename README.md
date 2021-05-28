@@ -9,5 +9,5 @@
 
 For quick installation on Linux, execute the following command:
 
-`curl -sSL https://raw.githubusercontent.com/cypher-network/cypher/master/install/linux/install.sh | bash`
+`bash <(curl -sSL https://raw.githubusercontent.com/cypher-network/cypher/master/install/linux/install.sh)`
 
