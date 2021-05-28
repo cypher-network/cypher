@@ -10,14 +10,10 @@ using System.Reactive.Linq;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
-
 using Autofac;
 using Serilog;
-
 using CliWrap;
 using CliWrap.EventStream;
-
-using CYPCore.Extentions;
 using CYPCore.Serf;
 using CYPCore.Models;
 using CYPCore.Cryptography;

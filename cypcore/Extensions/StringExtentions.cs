@@ -2,13 +2,12 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
-using System.Globalization;
 using System.Linq;
 using System.Security;
 
-namespace CYPCore.Extentions
+namespace CYPCore.Extensions
 {
-    public static class StringExtentions
+    public static class StringExtensions
     {
         public static SecureString ToSecureString(this string value)
         {

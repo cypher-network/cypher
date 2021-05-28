@@ -3,7 +3,7 @@
 
 namespace CYPCore.Extensions
 {
-    public static class AppHttpExtentions
+    public static class AppHttpExtensions
     {
 
     }

@@ -7,11 +7,11 @@ using CYPCore.Models;
 
 namespace CYPCore.Persistence
 {
-    public interface IDataProtectionRepository : IRepository<DataProtectionProto>
+    public interface IDataProtectionRepository : IRepository<DataProtection>
     {
     }
 
-    public class DataProtectionRepository : Repository<DataProtectionProto>, IDataProtectionRepository
+    public class DataProtectionRepository : Repository<DataProtection>, IDataProtectionRepository
     {
         public DataProtectionRepository(IStoreDb storeDb, ILogger logger)
             : base(storeDb, logger)

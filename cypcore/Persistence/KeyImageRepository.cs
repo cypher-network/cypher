@@ -3,11 +3,11 @@ using Serilog;
 
 namespace CYPCore.Persistence
 {
-    public interface IKeyImageRepository : IRepository<KeyImageProto>
+    public interface IKeyImageRepository : IRepository<KeyImage>
     {
     }
 
-    public class KeyImageRepository : Repository<KeyImageProto>, IKeyImageRepository
+    public class KeyImageRepository : Repository<KeyImage>, IKeyImageRepository
     {
         private readonly ILogger _logger;
 

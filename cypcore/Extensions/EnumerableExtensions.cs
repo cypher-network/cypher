@@ -4,10 +4,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading.Tasks;
-using CYPCore.Helper;
 
-namespace CYPCore.Extentions
+namespace CYPCore.Extensions
 {
     public static class EnumerableExtensions
     {

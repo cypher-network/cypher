@@ -3,7 +3,7 @@
 
 using System;
 
-namespace CYPCore.Extentions
+namespace CYPCore.Extensions
 {
     public static class DateTimeExtensions
     {

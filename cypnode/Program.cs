@@ -78,12 +78,6 @@ namespace CYPNode
                 };
             }
 
-            AppDomain.CurrentDomain.UnhandledException += (sender, e) =>
-            {
-                var ex = (Exception)e.ExceptionObject;
-                Log.Error(ex, ex.Message);
-            };
-
             try
             {
                 Log.Information("Starting web host");

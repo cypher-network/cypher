@@ -1,6 +1,5 @@
 using System;
 using CYPCore.Extensions;
-using CYPCore.Extentions;
 using CYPCore.Ledger;
 using libsignal.ecc;
 using NBitcoin.BouncyCastle.Math;

@@ -5,9 +5,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace CYPCore.Extentions
+namespace CYPCore.Extensions
 {
-    public static class ByteExtentions
+    public static class ByteExtensions
     {
         public static byte[] ToBytes<T>(this T arg) => Encoding.UTF8.GetBytes(arg.ToString());
 

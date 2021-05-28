@@ -6,15 +6,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using CYPCore.Extensions;
-using CYPCore.Extentions;
-using CYPCore.Helper;
 using Serilog;
 using CYPCore.Models;
 using CYPCore.Network;
 using CYPCore.Persistence;
 using Dawn;
-using Microsoft.CodeAnalysis.FlowAnalysis;
-using Microsoft.VisualBasic;
 
 namespace CYPCore.Ledger
 {
@@ -203,7 +199,7 @@ namespace CYPCore.Ledger
             {
                 var numberOfBatches = (int)Math.Ceiling((double)take / BatchSize);
                 numberOfBatches = numberOfBatches == 0 ? 1 : numberOfBatches;
-                var networkBlockTasks = new List<Task<IList<BlockHeaderProto>>>();
+                var networkBlockTasks = new List<Task<IList<BlockHeader>>>();
                 for (var i = 0; i < numberOfBatches; i++)
                 {
                     networkBlockTasks.Add(_networkClient.GetBlocksAsync(host, i + 1 * skip, BatchSize));

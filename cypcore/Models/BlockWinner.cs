@@ -5,7 +5,7 @@ namespace CYPCore.Models
 {
     public class BlockWinner
     {
-        public BlockHeaderProto BlockHeader { get; set; }
+        public BlockHeader BlockHeader { get; set; }
         public long Finish { get; set; }
     }
 }

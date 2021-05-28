@@ -12,12 +12,12 @@ using Serilog;
 
 namespace CYPCore.Persistence
 {
-    public interface IHashChainRepository : IRepository<BlockHeaderProto>
+    public interface IHashChainRepository : IRepository<BlockHeader>
     {
-        ValueTask<List<BlockHeaderProto>> OrderByRangeAsync(Func<BlockHeaderProto, long> selector, int skip, int take);
+        ValueTask<List<BlockHeader>> OrderByRangeAsync(Func<BlockHeader, long> selector, int skip, int take);
     }
 
-    public class HashChainRepository : Repository<BlockHeaderProto>, IHashChainRepository
+    public class HashChainRepository : Repository<BlockHeader>, IHashChainRepository
     {
         private readonly IStoreDb _storeDb;
         private readonly ILogger _logger;
@@ -39,9 +39,9 @@ namespace CYPCore.Persistence
         /// <param name="skip"></param>
         /// <param name="take"></param>
         /// <returns></returns>
-        public ValueTask<List<BlockHeaderProto>> OrderByRangeAsync(Func<BlockHeaderProto, long> selector, int skip, int take)
+        public ValueTask<List<BlockHeader>> OrderByRangeAsync(Func<BlockHeader, long> selector, int skip, int take)
         {
-            ValueTask<List<BlockHeaderProto>> entries = default;
+            ValueTask<List<BlockHeader>> entries = default;
 
             try
             {

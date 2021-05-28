@@ -6,7 +6,7 @@ using System;
 using System.Threading.Tasks;
 using Serilog;
 
-namespace CYPCore.Extentions
+namespace CYPCore.Extensions
 {
     public static class TaskExtensions
     {

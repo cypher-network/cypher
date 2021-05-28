@@ -6,11 +6,11 @@ using CYPCore.Models;
 
 namespace CYPCore.Persistence
 {
-    public interface IDeliveredRepository : IRepository<BlockHeaderProto>
+    public interface IDeliveredRepository : IRepository<BlockHeader>
     {
     }
 
-    public class DeliveredRepository : Repository<BlockHeaderProto>, IDeliveredRepository
+    public class DeliveredRepository : Repository<BlockHeader>, IDeliveredRepository
     {
         private readonly IStoreDb _storeDb;
         private readonly ILogger _logger;

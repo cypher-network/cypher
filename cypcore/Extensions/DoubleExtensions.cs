@@ -1,8 +1,6 @@
-using System;
 using System.Linq;
-using CYPCore.Extentions;
 
-namespace cypcore.Extensions
+namespace CYPCore.Extensions
 {
     public static class DoubleExtensions
     {

@@ -6,11 +6,11 @@ using Serilog;
 
 namespace CYPCore.Persistence
 {
-    public interface ITransactionRepository : IRepository<TransactionModel>
+    public interface ITransactionRepository : IRepository<Transaction>
     {
     }
 
-    public class TransactionRepository : Repository<TransactionModel>, ITransactionRepository
+    public class TransactionRepository : Repository<Transaction>, ITransactionRepository
     {
         private readonly ILogger _logger;
 

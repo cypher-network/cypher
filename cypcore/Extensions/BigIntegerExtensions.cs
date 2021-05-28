@@ -21,7 +21,7 @@ namespace CYPCore.Extensions
 
     }
 
-    public static class BigIntegerExtentions
+    public static class BigIntegerExtensions
     {
 
         public static byte[] ToBigEndianBytes(this BigInteger val)

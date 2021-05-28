@@ -12,7 +12,6 @@ using Newtonsoft.Json;
 using Serilog;
 
 using CYPCore.Models;
-using CYPCore.Extentions;
 using CYPCore.Persistence;
 
 namespace CYPCore.Cryptography
@@ -42,7 +41,7 @@ namespace CYPCore.Cryptography
         private readonly IUnitOfWork _unitOfWork;
 
         private IDataProtector _dataProtector;
-        private DataProtectionProto _protectionProto;
+        private DataProtection _protectionProto;
 
         public string DefaultSigningKeyName => "DefaultSigning.Key";
 
@@ -88,7 +87,7 @@ namespace CYPCore.Cryptography
 
                 if (_protectionProto == null)
                 {
-                    _protectionProto = new DataProtectionProto
+                    _protectionProto = new DataProtection
                     {
                         FriendlyName = keyName,
                         Payload = _dataProtector.Protect(JsonConvert.SerializeObject(GenerateKeyPair()))

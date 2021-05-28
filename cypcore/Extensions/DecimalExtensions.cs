@@ -3,7 +3,7 @@ using System.Linq;
 
 namespace CYPCore.Extensions
 {
-    public static class DecimalExtentions
+    public static class DecimalExtensions
     {
         public static int LeadingZeros(this decimal value)
         {
