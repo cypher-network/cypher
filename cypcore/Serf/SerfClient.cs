@@ -533,7 +533,7 @@ namespace CYPCore.Serf
 
                             continue;
                         }
-                        
+
                         try
                         {
                             var responseHeader = MessagePackSerializer.Deserialize<ResponseHeader>(readBuffer);

@@ -65,7 +65,7 @@ namespace CYPCore.Controllers
                 var blockHeaders = safeGuardTransactions as BlockHeader[] ?? safeGuardTransactions.ToArray();
                 var genericList = new GenericDataList<BlockHeader> { Data = blockHeaders };
                 var buffer = MessagePackSerializer.Serialize(genericList);
-                
+
                 return new ObjectResult(new { messagepack = buffer });
             }
             catch (Exception ex)

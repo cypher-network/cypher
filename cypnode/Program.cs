@@ -29,7 +29,7 @@ namespace CYPNode
         public static int Main(string[] args)
         {
             var appsettingsExists = File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, AppSettingsFile));
-            
+
             if (args.FirstOrDefault(arg => arg == "--configure") != null)
             {
                 if (appsettingsExists)
@@ -38,7 +38,7 @@ namespace CYPNode
                     Console.WriteLine($"{AppSettingsFile} already exists. Please remove file before running configuration again");
                     return 0;
                 }
-                
+
                 var ui = new TerminalUserInterface();
                 var nc = new Configuration.Configuration(ui);
                 return 0;

@@ -44,7 +44,7 @@ namespace CYPNode.Configuration
             File.WriteAllText(configFileName, config);
 
             Console.WriteLine($"Configuration written to {configFileName}");
-	    Console.WriteLine();
+            Console.WriteLine();
         }
 
         private void Cancel()

@@ -215,7 +215,7 @@ namespace CYPCore.Persistence
                 {
                     var cf = _storeDb.Rocks.GetColumnFamily(_tableName);
                     var buffer = MessagePackSerializer.Serialize(data);
-                    
+
                     _storeDb.Rocks.Put(StoreDb.Key(_tableName, key), buffer, cf);
                     saved = true;
                 }
