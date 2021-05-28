@@ -1,16 +1,16 @@
 // CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
-using FlatSharp.Attributes;
+using MessagePack;
 
 namespace CYPCore.Consensus.Models
 {
-    [FlatBufferTable]
+    [MessagePackObject]
     public class Reached : object
     {
-        [FlatBufferItem(0)] public virtual string Hash { get; set; }
-        [FlatBufferItem(1)] public virtual ulong Node { get; set; }
-        [FlatBufferItem(2)] public virtual ulong Round { get; set; }
+        [Key(0)] public string Hash { get; set; }
+        [Key(1)] public ulong Node { get; set; }
+        [Key(2)] public ulong Round { get; set; }
 
         public Reached(string hash, ulong node, ulong round)
         {

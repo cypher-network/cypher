@@ -12,13 +12,14 @@ using CYPCore.Consensus;
 using CYPCore.Consensus.Models;
 using CYPCore.Cryptography;
 using CYPCore.Extensions;
-using CYPCore.Extentions;
 using CYPCore.Models;
 using CYPCore.Network;
 using CYPCore.Persistence;
 using CYPCore.Serf;
 using Dawn;
+using MessagePack;
 using Serilog;
+using Interpreted = CYPCore.Consensus.Models.Interpreted;
 
 namespace CYPCore.Ledger
 {
@@ -26,9 +27,9 @@ namespace CYPCore.Ledger
     {
         Task<VerifyResult> TryAddBlockGraph(BlockGraph blockGraph);
         Task<VerifyResult> TryAddBlockGraph(byte[] blockGraphModel);
-        Task<VoutProto[]> GetTransaction(byte[] txnId);
-        Task<IEnumerable<BlockHeaderProto>> GetBlocks(int skip, int take);
-        Task<IEnumerable<BlockHeaderProto>> GetSafeguardBlocks();
+        Task<Transaction> GetTransaction(byte[] txnId);
+        Task<IEnumerable<BlockHeader>> GetBlocks(int skip, int take);
+        Task<IEnumerable<BlockHeader>> GetSafeguardBlocks();
         Task<long> GetHeight();
         Task<BlockHash> GetHash(long height);
     }
@@ -123,7 +124,7 @@ namespace CYPCore.Ledger
         /// <returns></returns>
         public async Task<VerifyResult> TryAddBlockGraph(byte[] blockGraphModel)
         {
-            var blockGraph = Helper.Util.DeserializeFlatBuffer<BlockGraph>(blockGraphModel);
+            var blockGraph = MessagePackSerializer.Deserialize<BlockGraph>(blockGraphModel);
             await TryAddBlockGraph(blockGraph);
             return VerifyResult.Succeed;
         }
@@ -197,14 +198,14 @@ namespace CYPCore.Ledger
         /// <param name="skip"></param>
         /// <param name="take"></param>
         /// <returns></returns>
-        public async Task<IEnumerable<BlockHeaderProto>> GetBlocks(int skip, int take)
+        public async Task<IEnumerable<BlockHeader>> GetBlocks(int skip, int take)
         {
             Guard.Argument(skip, nameof(skip)).NotNegative();
             Guard.Argument(take, nameof(take)).NotNegative();
-            var blockHeaders = Enumerable.Empty<BlockHeaderProto>();
+            var blockHeaders = Enumerable.Empty<BlockHeader>();
             try
             {
-                blockHeaders = await _unitOfWork.HashChainRepository.RangeAsync(skip, take);
+                blockHeaders = await _unitOfWork.HashChainRepository.OrderByRangeAsync(x => x.Height, skip, take);
             }
             catch (Exception ex)
             {
@@ -218,14 +219,14 @@ namespace CYPCore.Ledger
         /// 
         /// </summary>
         /// <returns></returns>
-        public async Task<IEnumerable<BlockHeaderProto>> GetSafeguardBlocks()
+        public async Task<IEnumerable<BlockHeader>> GetSafeguardBlocks()
         {
-            var blockHeaders = Enumerable.Empty<BlockHeaderProto>();
+            var blockHeaders = Enumerable.Empty<BlockHeader>();
             try
             {
-                var height = await _unitOfWork.HashChainRepository.CountAsync() - 147;
+                var height = (int)await _unitOfWork.HashChainRepository.CountAsync() - 147;
                 height = height < 0 ? 0 : height;
-                blockHeaders = await _unitOfWork.HashChainRepository.RangeAsync(height, 147);
+                blockHeaders = await _unitOfWork.HashChainRepository.OrderByRangeAsync(proto => proto.Height, height, 147);
             }
             catch (Exception ex)
             {
@@ -290,10 +291,10 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="transactionId"></param>
         /// <returns></returns>
-        public async Task<VoutProto[]> GetTransaction(byte[] transactionId)
+        public async Task<Transaction> GetTransaction(byte[] transactionId)
         {
             Guard.Argument(transactionId, nameof(transactionId)).NotNull().MaxCount(32);
-            VoutProto[] outputs = null;
+            Transaction transaction = null;
             try
             {
                 var blockHeaders = await _unitOfWork.HashChainRepository.WhereAsync(x =>
@@ -302,7 +303,7 @@ namespace CYPCore.Ledger
                 var found = firstBlockHeader?.Transactions.FirstOrDefault(x => x.TxnId.Xor(transactionId));
                 if (found != null)
                 {
-                    outputs = found.Vout;
+                    transaction = found;
                 }
             }
             catch (Exception ex)
@@ -310,7 +311,7 @@ namespace CYPCore.Ledger
                 _logger.Here().Error(ex, "Unable tp get outputs");
             }
 
-            return outputs;
+            return transaction;
         }
 
         /// <summary>
@@ -319,15 +320,15 @@ namespace CYPCore.Ledger
         /// <param name="blockHeader"></param>
         /// <param name="prevBlockHeader"></param>
         /// <returns></returns>
-        private BlockGraph CopyBlockGraph(BlockHeaderProto blockHeader, BlockHeaderProto prevBlockHeader)
+        private BlockGraph CopyBlockGraph(BlockHeader blockHeader, BlockHeader prevBlockHeader)
         {
             var blockGraph = new BlockGraph
             {
                 Block = new Block(blockHeader.MerkelRoot, _serfClient.ClientId,
-                    (ulong)blockHeader.Height, Helper.Util.SerializeFlatBuffer(blockHeader)),
+                    (ulong)blockHeader.Height, MessagePackSerializer.Serialize(blockHeader)),
                 Prev = new Block
                 {
-                    Data = Helper.Util.SerializeFlatBuffer(prevBlockHeader),
+                    Data = MessagePackSerializer.Serialize(prevBlockHeader),
                     Hash = prevBlockHeader.MerkelRoot,
                     Node = _serfClient.ClientId,
                     Round = (ulong)prevBlockHeader.Height
@@ -367,8 +368,8 @@ namespace CYPCore.Ledger
                                 {
                                     var saved = await SaveBlockGraph(blockGraph);
                                     if (!saved) return;
-                                    var block = Helper.Util.DeserializeFlatBuffer<BlockHeaderProto>(blockGraph.Block.Data);
-                                    var prev = Helper.Util.DeserializeFlatBuffer<BlockHeaderProto>(blockGraph.Prev.Data);
+                                    var block = MessagePackSerializer.Deserialize<BlockHeader>(blockGraph.Block.Data);
+                                    var prev = MessagePackSerializer.Deserialize<BlockHeader>(blockGraph.Prev.Data);
                                     var copyBlockGraph = CopyBlockGraph(block, prev);
                                     copyBlockGraph = await SignBlockGraph(copyBlockGraph);
                                     var savedCopy = await SaveBlockGraph(copyBlockGraph);
@@ -453,7 +454,7 @@ namespace CYPCore.Ledger
                     }
 
                     await RemoveBlockGraph(blockGraph, next);
-                    var block = Helper.Util.DeserializeFlatBuffer<BlockHeaderProto>(next.Data);
+                    var block = MessagePackSerializer.Deserialize<BlockHeader>(next.Data);
                     var exists = await _validator.BlockExists(block);
                     if (exists == VerifyResult.AlreadyExists)
                     {
@@ -546,7 +547,7 @@ namespace CYPCore.Ledger
             {
                 var peers = await _localNode.GetPeers();
                 await _localNode.Broadcast(peers.Values.ToArray(), TopicType.AddBlockGraph,
-                    Helper.Util.SerializeFlatBuffer(blockGraph));
+                    MessagePackSerializer.Serialize(blockGraph));
             }
             catch (Exception ex)
             {

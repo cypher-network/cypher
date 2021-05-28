@@ -3,17 +3,17 @@
 
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using FlatSharp.Attributes;
+using MessagePack;
 
 namespace CYPCore.Models
 {
-    [FlatBufferTable]
-    public class RCTProto : object
+    [MessagePackObject]
+    public class Rct
     {
-        [FlatBufferItem(0)] public virtual byte[] M { get; set; }
-        [FlatBufferItem(1)] public virtual byte[] P { get; set; }
-        [FlatBufferItem(2)] public virtual byte[] S { get; set; }
-        [FlatBufferItem(3)] public virtual byte[] I { get; set; }
+        [MessagePack.Key(0)] public byte[] M { get; set; }
+        [MessagePack.Key(1)] public byte[] P { get; set; }
+        [MessagePack.Key(2)] public byte[] S { get; set; }
+        [MessagePack.Key(3)] public byte[] I { get; set; }
 
         /// <summary>
         /// 

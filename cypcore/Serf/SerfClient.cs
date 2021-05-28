@@ -10,13 +10,10 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Win32.SafeHandles;
-
 using MessagePack;
 using Serilog;
-
 using CYPCore.Cryptography;
 using CYPCore.Extensions;
-using CYPCore.Extentions;
 using CYPCore.Helper;
 using CYPCore.Messages;
 using CYPCore.Models;
@@ -433,11 +430,9 @@ namespace CYPCore.Serf
                 }
                 else
                 {
-                    var resolver = MessagePack.Resolvers.StandardResolver.Instance;
-                    var formatter = resolver.GetFormatterWithVerify<TResponse>();
-                    if (transaction.ResponseBuffer != null)
+                    if (transaction.ResponseBuffer.Length != 0)
                     {
-                        response = formatter.Deserialize(transaction.ResponseBuffer, 0, resolver, out int readSize);
+                        response = MessagePackSerializer.Deserialize<TResponse>(transaction.ResponseBuffer);
                     }
                 }
 
@@ -538,20 +533,14 @@ namespace CYPCore.Serf
 
                             continue;
                         }
-
-                        var resolver = MessagePack.Resolvers.StandardResolver.Instance;
-                        var formatter = resolver.GetFormatterWithVerify<ResponseHeader>();
-
+                        
                         try
                         {
-                            int readSize;
-                            var responseHeader = formatter.Deserialize(readBuffer, 0, resolver, out readSize);
-
-                            if (_handlers.ContainsKey(responseHeader.Seq))
+                            var responseHeader = MessagePackSerializer.Deserialize<ResponseHeader>(readBuffer);
                             {
                                 var transaction = _handlers[responseHeader.Seq];
                                 transaction.Header = responseHeader;
-                                transaction.ResponseBuffer = readBuffer.Skip(readSize).Take(size - readSize).ToArray();
+                                transaction.ResponseBuffer = readBuffer.Skip(13).Take(size - 13).ToArray();
                                 transaction.CancellationTokenSource.Cancel();
 
                                 if (transaction.Header.Error == "Handshake required")

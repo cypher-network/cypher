@@ -2,16 +2,16 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System.Collections.Generic;
-using FlatSharp.Attributes;
+using MessagePack;
 
 namespace CYPCore.Consensus.Models
 {
-    [FlatBufferTable]
-    public class Entry : object
+    [MessagePackObject]
+    public class Entry
     {
-        [FlatBufferItem(0)] public virtual Block Block { get; set; }
-        [FlatBufferItem(0)] public virtual IList<Block> Deps { get; set; } = new List<Block>();
-        [FlatBufferItem(0)] public virtual Block Prev { get; set; }
+        [Key(0)] public virtual Block Block { get; set; }
+        [Key(1)] public virtual IList<Block> Deps { get; set; } = new List<Block>();
+        [Key(2)] public virtual Block Prev { get; set; }
 
         public Entry(Block prev)
         {

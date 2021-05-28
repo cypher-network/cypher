@@ -3,8 +3,8 @@
 
 namespace CYPCore.Models
 {
-    public class FlatBufferStream
+    public class BufferStream
     {
-        public byte[] FlatBuffer { get; set; }
+        public byte[] Data { get; set; }
     }
 }

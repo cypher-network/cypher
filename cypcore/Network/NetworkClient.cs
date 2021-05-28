@@ -9,7 +9,7 @@ using CYPCore.Extensions;
 using CYPCore.Models;
 using CYPCore.Persistence;
 using Dawn;
-using FlatSharp;
+using MessagePack;
 using Serilog;
 
 namespace CYPCore.Network
@@ -124,16 +124,16 @@ namespace CYPCore.Network
         /// <param name="skip"></param>
         /// <param name="take"></param>
         /// <returns></returns>
-        public async Task<IList<BlockHeaderProto>> GetBlocksAsync(string host, long skip, int take)
+        public async Task<IList<BlockHeader>> GetBlocksAsync(string host, long skip, int take)
         {
-            IList<BlockHeaderProto> blockHeaders = null;
+            IList<BlockHeader> blockHeaders = null;
             try
             {
-                var httpResponseMessage = await _httpClient.GetAsync($"{host}/chain/blocks/{(int)skip}/{take}");
+                var httpResponseMessage = await _httpClient.GetAsync($"{host}/chain/blocks/{skip}/{take}");
                 httpResponseMessage.EnsureSuccessStatusCode();
                 var content = await httpResponseMessage.Content.ReadAsStringAsync();
-                var flatBufferStream = Newtonsoft.Json.JsonConvert.DeserializeObject<FlatBufferStream>(content);
-                var genericList = FlatBufferSerializer.Default.Parse<GenericList<BlockHeaderProto>>(flatBufferStream.FlatBuffer);
+                var bufferStream = Newtonsoft.Json.JsonConvert.DeserializeObject<BufferStream>(content);
+                var genericList = MessagePackSerializer.Deserialize<GenericDataList<BlockHeader>>(bufferStream.Data);
 
                 blockHeaders = genericList.Data;
             }

@@ -11,9 +11,8 @@ using System.IO;
 using System.Security;
 using System.Numerics;
 using System.Security.Cryptography;
-using CYPCore.Extentions;
+using CYPCore.Extensions;
 using System.Runtime.InteropServices;
-using FlatSharp;
 
 namespace CYPCore.Helper
 {
@@ -267,33 +266,6 @@ namespace CYPCore.Helper
         public static long GetAdjustedTimeAsUnixTimestamp()
         {
             return new DateTimeOffset(GetAdjustedTime()).ToUnixTimeSeconds();
-        }
-
-        public static byte[] SerializeFlatBuffer<T>(T data) where T : class
-        {
-            try
-            {
-                int maxSize = FlatBufferSerializer.Default.GetMaxSize(data);
-                byte[] buffer = new byte[maxSize];
-                FlatBufferSerializer.Default.Serialize(data, buffer);
-                return buffer;
-            }
-            catch (Exception)
-            {
-                throw;
-            }
-        }
-
-        public static T DeserializeFlatBuffer<T>(byte[] data) where T : class
-        {
-            try
-            {
-                return FlatBufferSerializer.Default.Parse<T>(data);
-            }
-            catch (Exception)
-            {
-                throw;
-            }
         }
 
         public static class ConfigurationFile

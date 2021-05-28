@@ -1,4 +1,4 @@
-﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
@@ -10,7 +10,6 @@ using System.Threading.Tasks;
 using CYPCore.Consensus.Models;
 using CYPCore.Cryptography;
 using CYPCore.Extensions;
-using CYPCore.Extentions;
 using CYPCore.Helper;
 using CYPCore.Models;
 using CYPCore.Persistence;
@@ -21,6 +20,8 @@ using NBitcoin;
 using NBitcoin.BouncyCastle.Math;
 using NBitcoin.Crypto;
 using Stratis.Patricia;
+using BlockHeader = CYPCore.Models.BlockHeader;
+using Transaction = CYPCore.Models.Transaction;
 using Util = CYPCore.Helper.Util;
 
 namespace CYPCore.Ledger
@@ -31,13 +32,13 @@ namespace CYPCore.Ledger
     public interface IValidator
     {
         Task<VerifyResult> VerifyBlockGraphSignatureNodeRound(BlockGraph blockGraph);
-        VerifyResult VerifyBulletProof(TransactionModel transaction);
-        VerifyResult VerifyCoinbaseTransaction(VoutProto coinbase, ulong solution, decimal runningDistribution);
+        VerifyResult VerifyBulletProof(Transaction transaction);
+        VerifyResult VerifyCoinbaseTransaction(Vout coinbase, ulong solution, decimal runningDistribution);
         VerifyResult VerifySolution(byte[] vrfBytes, byte[] kernel, ulong solution);
-        Task<VerifyResult> VerifyBlockHeader(BlockHeaderProto blockHeader);
-        Task<VerifyResult> VerifyBlockHeaders(BlockHeaderProto[] blockHeaders);
-        Task<VerifyResult> VerifyTransaction(TransactionModel transaction);
-        Task<VerifyResult> VerifyTransactions(TransactionModel[] transactions);
+        Task<VerifyResult> VerifyBlockHeader(BlockHeader blockHeader);
+        Task<VerifyResult> VerifyBlockHeaders(BlockHeader[] blockHeaders);
+        Task<VerifyResult> VerifyTransaction(Transaction transaction);
+        Task<VerifyResult> VerifyTransactions(IList<Transaction> transactions);
         VerifyResult VerifySloth(int bits, byte[] vrfSig, byte[] nonce, byte[] security);
         int Difficulty(ulong solution, decimal networkShare);
         ulong Reward(ulong solution, decimal runningDistribution);
@@ -45,15 +46,15 @@ namespace CYPCore.Ledger
         ulong Solution(byte[] vrfSig, byte[] kernel);
         long GetAdjustedTimeAsUnixTimestamp();
         VerifyResult VerifyLockTime(LockTime target, string script);
-        VerifyResult VerifyCommitSum(TransactionModel transaction);
-        VerifyResult VerifyTransactionFee(TransactionModel transaction);
-        Task<VerifyResult> VerifyKeyImage(TransactionModel transaction);
-        Task<VerifyResult> VerifyOutputCommits(TransactionModel transaction);
+        VerifyResult VerifyCommitSum(Transaction transaction);
+        VerifyResult VerifyTransactionFee(Transaction transaction);
+        Task<VerifyResult> VerifyKeyImage(Transaction transaction);
+        Task<VerifyResult> VerifyOutputCommits(Transaction transaction);
         Task<decimal> CurrentRunningDistribution(ulong solution);
         Task<decimal> GetRunningDistribution();
         ulong Fee(int nByte);
         VerifyResult VerifyNetworkShare(ulong solution, decimal previousNetworkShare, decimal runningDistributionTotal);
-        Task<VerifyResult> BlockExists(BlockHeaderProto blockHeader);
+        Task<VerifyResult> BlockExists(BlockHeader blockHeader);
         PatriciaTrie Trie { get; }
     }
 
@@ -111,7 +112,7 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="blockHeader"></param>
         /// <returns></returns>
-        public async Task<VerifyResult> BlockExists(BlockHeaderProto blockHeader)
+        public async Task<VerifyResult> BlockExists(BlockHeader blockHeader)
         {
             Guard.Argument(blockHeader, nameof(blockHeader)).NotNull();
             var hasSeen = await _unitOfWork.HashChainRepository.GetAsync(blockHeader.ToIdentifier());
@@ -174,7 +175,7 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="transaction"></param>
         /// <returns></returns>
-        public VerifyResult VerifyBulletProof(TransactionModel transaction)
+        public VerifyResult VerifyBulletProof(Transaction transaction)
         {
             Guard.Argument(transaction, nameof(transaction)).NotNull();
             Guard.Argument(transaction.Vout, nameof(transaction)).NotNull();
@@ -202,7 +203,7 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="transaction"></param>
         /// <returns></returns>
-        public VerifyResult VerifyCommitSum(TransactionModel transaction)
+        public VerifyResult VerifyCommitSum(Transaction transaction)
         {
             Guard.Argument(transaction, nameof(transaction)).NotNull();
             try
@@ -261,7 +262,7 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="blockHeaders"></param>
         /// <returns></returns>
-        public async Task<VerifyResult> VerifyBlockHeaders(BlockHeaderProto[] blockHeaders)
+        public async Task<VerifyResult> VerifyBlockHeaders(BlockHeader[] blockHeaders)
         {
             Guard.Argument(blockHeaders, nameof(blockHeaders)).NotNull();
             foreach (var blockHeader in blockHeaders)
@@ -279,7 +280,7 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="blockHeader"></param>
         /// <returns></returns>
-        public async Task<VerifyResult> VerifyBlockHeader(BlockHeaderProto blockHeader)
+        public async Task<VerifyResult> VerifyBlockHeader(BlockHeader blockHeader)
         {
             Guard.Argument(blockHeader, nameof(blockHeader)).NotNull();
             var verifySignature = _signing.VerifySignature(blockHeader.Signature.HexToByte(),
@@ -377,7 +378,7 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="transactions"></param>
         /// <returns></returns>
-        public async Task<VerifyResult> VerifyTransactions(TransactionModel[] transactions)
+        public async Task<VerifyResult> VerifyTransactions(IList<Transaction> transactions)
         {
             Guard.Argument(transactions, nameof(transactions)).NotNull();
 
@@ -412,7 +413,7 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="transaction"></param>
         /// <returns></returns>
-        public async Task<VerifyResult> VerifyTransaction(TransactionModel transaction)
+        public async Task<VerifyResult> VerifyTransaction(Transaction transaction)
         {
             Guard.Argument(transaction, nameof(transaction)).NotNull();
             if (transaction.Validate().Any()) return VerifyResult.UnableToVerify;
@@ -450,7 +451,7 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="transaction"></param>
         /// <returns></returns>
-        public VerifyResult VerifyTransactionFee(TransactionModel transaction)
+        public VerifyResult VerifyTransactionFee(Transaction transaction)
         {
             Guard.Argument(transaction, nameof(transaction)).NotNull();
             var vout = transaction.Vout.First();
@@ -478,7 +479,7 @@ namespace CYPCore.Ledger
         /// <param name="solution"></param>
         /// <param name="runningDistribution"></param>
         /// <returns></returns>
-        public VerifyResult VerifyCoinbaseTransaction(VoutProto coinbase, ulong solution, decimal runningDistribution)
+        public VerifyResult VerifyCoinbaseTransaction(Vout coinbase, ulong solution, decimal runningDistribution)
         {
             Guard.Argument(coinbase, nameof(coinbase)).NotNull();
             Guard.Argument(solution, nameof(solution)).NotZero().NotNegative();
@@ -518,7 +519,7 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="transaction"></param>
         /// <returns></returns>
-        public async Task<VerifyResult> VerifyKeyImage(TransactionModel transaction)
+        public async Task<VerifyResult> VerifyKeyImage(Transaction transaction)
         {
             Guard.Argument(transaction, nameof(transaction)).NotNull();
             if (transaction.Validate().Any()) return VerifyResult.UnableToVerify;
@@ -536,7 +537,7 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="transaction"></param>
         /// <returns></returns>
-        public async Task<VerifyResult> VerifyOutputCommits(TransactionModel transaction)
+        public async Task<VerifyResult> VerifyOutputCommits(Transaction transaction)
         {
             Guard.Argument(transaction, nameof(transaction)).NotNull();
             var offSets = transaction.Vin.Select(v => v.Key).SelectMany(k => k.Offsets.Split(33)).ToArray();
@@ -758,7 +759,7 @@ namespace CYPCore.Ledger
         /// <param name="cols"></param>
         /// <param name="rows"></param>
         /// <returns></returns>
-        private byte[] PrepareMlsag(byte[] m, VoutProto[] vout, byte[] keyOffset, int cols, int rows)
+        private byte[] PrepareMlsag(byte[] m, Vout[] vout, byte[] keyOffset, int cols, int rows)
         {
             Guard.Argument(m, nameof(m)).NotNull();
             Guard.Argument(vout, nameof(vout)).NotNull();

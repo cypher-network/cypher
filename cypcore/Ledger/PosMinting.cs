@@ -15,15 +15,16 @@ using libsignal.ecc;
 using NBitcoin;
 using Newtonsoft.Json.Linq;
 using Serilog;
-using CYPCore.Extentions;
 using CYPCore.Models;
 using CYPCore.Persistence;
 using CYPCore.Serf;
 using CYPCore.Cryptography;
 using CYPCore.Extensions;
 using CYPCore.Helper;
-using FlatSharp;
+using MessagePack;
 using Microsoft.Extensions.Hosting;
+using BlockHeader = CYPCore.Models.BlockHeader;
+using Transaction = CYPCore.Models.Transaction;
 
 namespace CYPCore.Ledger
 {
@@ -108,7 +109,7 @@ namespace CYPCore.Ledger
                 await _unitOfWork.HashChainRepository.GetAsync(x => new ValueTask<bool>(x.Height == height));
             if (prevBlock == null)
             {
-                _logger.Here().Information("There is no block available for processing");
+                _logger.Here().Information("No previous block available for processing");
                 return;
             }
 
@@ -174,6 +175,9 @@ namespace CYPCore.Ledger
 
                 blockHeader.Signature = signature.ByteToHex();
                 blockHeader.PublicKey = _keyPair.PublicKey.ByteToHex();
+
+                var b = await _unitOfWork.HashChainRepository.PutAsync(blockHeader.ToIdentifier(), blockHeader);
+                
                 var blockGraph = CreateBlockGraph(blockHeader, prevBlock);
                 await _graph.TryAddBlockGraph(blockGraph);
             }
@@ -258,16 +262,12 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="transaction"></param>
         /// <returns></returns>
-        private async Task<TransactionModel> GetValidTransactionAsync(TransactionModel transaction)
+        private async Task<Transaction> GetValidTransactionAsync(Transaction transaction)
         {
             try
             {
-                _logger.Here().Information("Transaction {@TxnId}", transaction.TxnId.ByteToHex());
                 var verifyTransaction = await _validator.VerifyTransaction(transaction);
                 var verifyTransactionFee = _validator.VerifyTransactionFee(transaction);
-                _logger.Here().Information("Transaction verifyTransaction {@verifyTransaction}", verifyTransaction);
-                _logger.Here().Information("Transaction verifyTransactionFee {@verifyTransactionFee}",
-                    verifyTransactionFee);
                 var removed = _memoryPool.Remove(transaction);
                 if (removed == VerifyResult.UnableToVerify)
                 {
@@ -279,8 +279,6 @@ namespace CYPCore.Ledger
                 {
                     return transaction;
                 }
-
-                _logger.Here().Information("Transaction failed {@TxnId}", transaction.TxnId.ByteToHex());
             }
             catch (Exception ex)
             {
@@ -311,17 +309,17 @@ namespace CYPCore.Ledger
         /// <param name="blockHeader"></param>
         /// <param name="prevBlockHeader"></param>
         /// <returns></returns>
-        private BlockGraph CreateBlockGraph(BlockHeaderProto blockHeader, BlockHeaderProto prevBlockHeader)
+        private BlockGraph CreateBlockGraph(BlockHeader blockHeader, BlockHeader prevBlockHeader)
         {
             Guard.Argument(blockHeader, nameof(blockHeader)).NotNull();
             Guard.Argument(prevBlockHeader, nameof(prevBlockHeader)).NotNull();
             var blockGraph = new BlockGraph
             {
                 Block = new CYPCore.Consensus.Models.Block(blockHeader.MerkelRoot, _serfClient.ClientId,
-                    (ulong)blockHeader.Height, Util.SerializeFlatBuffer(blockHeader)),
+                    (ulong)blockHeader.Height, MessagePackSerializer.Serialize(blockHeader)),
                 Prev = new CYPCore.Consensus.Models.Block
                 {
-                    Data = Util.SerializeFlatBuffer(prevBlockHeader),
+                    Data = MessagePackSerializer.Serialize(prevBlockHeader),
                     Hash = prevBlockHeader.MerkelRoot,
                     Node = _serfClient.ClientId,
                     Round = (ulong)prevBlockHeader.Height
@@ -340,8 +338,8 @@ namespace CYPCore.Ledger
         /// <param name="bits"></param>
         /// <param name="previous"></param>
         /// <returns></returns>
-        private BlockHeaderProto CreateBlock(TransactionModel[] transactions, byte[] signature, byte[] vrfBytes,
-            ulong solution, int bits, BlockHeaderProto previous)
+        private BlockHeader CreateBlock(Transaction[] transactions, byte[] signature, byte[] vrfBytes,
+            ulong solution, int bits, BlockHeader previous)
         {
             Guard.Argument(transactions, nameof(transactions)).NotNull();
             Guard.Argument(signature, nameof(signature)).NotNull().MaxCount(96);
@@ -362,7 +360,7 @@ namespace CYPCore.Ledger
             var nonce = sloth.Eval(bits, x, p256);
             if (ct.IsCancellationRequested) return null;
             var lockTime = _validator.GetAdjustedTimeAsUnixTimestamp();
-            var blockHeader = new BlockHeaderProto
+            var blockHeader = new BlockHeader
             {
                 Bits = bits,
                 Height = 1 + previous.Height,
@@ -387,20 +385,20 @@ namespace CYPCore.Ledger
         /// <param name="bits"></param>
         /// <param name="reward"></param>
         /// <returns></returns>
-        private async Task<TransactionModel> CoinbaseTransactionAsync(int bits, ulong reward)
+        private async Task<Transaction> CoinbaseTransactionAsync(int bits, ulong reward)
         {
             Guard.Argument(bits, nameof(bits)).NotNegative();
             Guard.Argument(reward, nameof(reward)).NotNegative();
-            TransactionModel transaction = null;
+            Transaction transaction = null;
             using var client = new HttpClient { BaseAddress = new Uri(_stakingConfigurationOptions.WalletSettings.Url) };
             try
             {
                 var pub = await _signing.GetPublicKey(_signing.DefaultSigningKeyName);
-                var sendPayment = new SendPaymentProto
+                var sendPayment = new Payment
                 {
                     Address = _stakingConfigurationOptions.WalletSettings.Address,
                     Amount = ((decimal)bits).ConvertToUInt64(),
-                    Credentials = new CredentialsProto
+                    Credentials = new Credentials
                     {
                         Identifier = _stakingConfigurationOptions.WalletSettings.Identifier,
                         Passphrase = _stakingConfigurationOptions.WalletSettings.Passphrase
@@ -410,9 +408,8 @@ namespace CYPCore.Ledger
                         $"Coinstake {_serfClient.SerfConfigurationOptions.NodeName}: {pub.ByteToHex().ShorterString()}",
                     SessionType = SessionType.Coinstake
                 };
-                var maxBytesNeeded = FlatBufferSerializer.Default.GetMaxSize(sendPayment);
-                var buffer = new byte[maxBytesNeeded];
-                FlatBufferSerializer.Default.Serialize(sendPayment, buffer);
+
+                var buffer = MessagePackSerializer.Serialize(sendPayment);
                 var byteArrayContent = new ByteArrayContent(buffer);
                 byteArrayContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
                 using var response = await client.PostAsync(
@@ -420,11 +417,11 @@ namespace CYPCore.Ledger
                     new CancellationToken());
                 var read = response.Content.ReadAsStringAsync().Result;
                 var jObject = JObject.Parse(read);
-                var jToken = jObject.GetValue("flatbuffer");
+                var jToken = jObject.GetValue("messagepack");
                 var byteArray =
                     Convert.FromBase64String((jToken ?? throw new InvalidOperationException()).Value<string>());
                 if (response.IsSuccessStatusCode)
-                    transaction = FlatBufferSerializer.Default.Parse<TransactionModel>(byteArray);
+                    transaction = MessagePackSerializer.Deserialize<Transaction>(byteArray);
                 else
                 {
                     var content = await response.Content.ReadAsStringAsync();

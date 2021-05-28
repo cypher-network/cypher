@@ -3,20 +3,20 @@
 
 using System;
 using System.Collections.Generic;
-using CYPCore.Extentions;
-using FlatSharp.Attributes;
+using CYPCore.Extensions;
+using MessagePack;
 using Newtonsoft.Json;
 
 namespace CYPCore.Consensus.Models
 {
-    [FlatBufferTable]
-    public class BlockGraph : object, IEquatable<BlockGraph>
+    [MessagePackObject]
+    public class BlockGraph : IEquatable<BlockGraph>
     {
-        [FlatBufferItem(0)] public virtual Block Block { get; set; }
-        [FlatBufferItem(1)] public virtual IList<Dep> Deps { get; set; } = new List<Dep>();
-        [FlatBufferItem(2)] public virtual Block Prev { get; set; }
-        [FlatBufferItem(3)] public virtual byte[] PublicKey { get; set; }
-        [FlatBufferItem(4)] public virtual byte[] Signature { get; set; }
+        [Key(0)] public Block Block { get; set; }
+        [Key(1)] public IList<Dep> Deps { get; set; } = new List<Dep>();
+        [Key(2)] public Block Prev { get; set; }
+        [Key(3)] public byte[] PublicKey { get; set; }
+        [Key(4)] public byte[] Signature { get; set; }
 
         public static bool operator ==(BlockGraph left, BlockGraph right) => Equals(left, right);
 

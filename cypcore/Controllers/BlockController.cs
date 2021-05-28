@@ -4,15 +4,13 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
-using CYPCore.Consensus.Models;
 using CYPCore.Extensions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Serilog;
-using CYPCore.Extentions;
 using CYPCore.Ledger;
 using CYPCore.Models;
-using FlatSharp;
+using MessagePack;
 
 namespace CYPCore.Controllers
 {
@@ -64,14 +62,11 @@ namespace CYPCore.Controllers
             try
             {
                 var safeGuardTransactions = await _graph.GetSafeguardBlocks();
-                var blockHeaders = safeGuardTransactions as BlockHeaderProto[] ?? safeGuardTransactions.ToArray();
-                var genericList = new GenericList<BlockHeaderProto> { Data = blockHeaders };
-                var maxBytesNeeded = FlatBufferSerializer.Default.GetMaxSize(genericList);
-                var buffer = new byte[maxBytesNeeded];
-
-                FlatBufferSerializer.Default.Serialize(genericList, buffer);
-
-                return new ObjectResult(new { flatbuffers = buffer });
+                var blockHeaders = safeGuardTransactions as BlockHeader[] ?? safeGuardTransactions.ToArray();
+                var genericList = new GenericDataList<BlockHeader> { Data = blockHeaders };
+                var buffer = MessagePackSerializer.Serialize(genericList);
+                
+                return new ObjectResult(new { messagepack = buffer });
             }
             catch (Exception ex)
             {
@@ -139,13 +134,10 @@ namespace CYPCore.Controllers
             try
             {
                 var blocks = await _graph.GetBlocks(skip, take);
-                var genericList = new GenericList<BlockHeaderProto> { Data = blocks.ToList() };
-                var maxBytesNeeded = FlatBufferSerializer.Default.GetMaxSize(genericList);
-                var buffer = new byte[maxBytesNeeded];
+                var genericList = new GenericDataList<BlockHeader> { Data = blocks.ToList() };
+                var buffer = MessagePackSerializer.Serialize(genericList);
 
-                FlatBufferSerializer.Default.Serialize(genericList, buffer);
-
-                return new ObjectResult(new { flatbuffer = buffer });
+                return new ObjectResult(new { messagepack = buffer });
             }
             catch (Exception ex)
             {
@@ -170,13 +162,8 @@ namespace CYPCore.Controllers
                 var transaction = await _graph.GetTransaction(id.HexToByte());
                 if (transaction != null)
                 {
-                    var genericList = new GenericList<VoutProto> { Data = transaction.ToList() };
-                    var maxBytesNeeded = FlatBufferSerializer.Default.GetMaxSize(genericList);
-                    var buffer = new byte[maxBytesNeeded];
-
-                    FlatBufferSerializer.Default.Serialize(genericList, buffer);
-
-                    return new ObjectResult(new { flatbuffers = buffer });
+                    var buffer = MessagePackSerializer.Serialize(transaction);
+                    return new ObjectResult(new { messagepack = buffer });
                 }
             }
             catch (Exception ex)

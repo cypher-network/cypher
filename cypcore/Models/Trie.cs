@@ -1,14 +1,14 @@
 // CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
-using CYPCore.Network;
+using MessagePack;
 
 namespace CYPCore.Models
 {
-    public class BroadcastMatrix
+    [MessagePackObject]
+    public class Trie
     {
-        public Peer Peer { get; set; }
-        public int[] Received { get; set; }
-        public int[] Sending { get; set; }
+        [Key(0)] public byte[] Key { get; set; }
+        [Key(1)] public byte[] Value { get; set; }
     }
 }

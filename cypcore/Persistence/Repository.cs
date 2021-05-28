@@ -8,9 +8,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using CYPCore.Extensions;
 using Serilog;
-using CYPCore.Extentions;
-using FlatSharp;
 using RocksDbSharp;
+using MessagePack;
 
 namespace CYPCore.Persistence
 {
@@ -103,7 +102,7 @@ namespace CYPCore.Persistence
                     var value = _storeDb.Rocks.Get(StoreDb.Key(_tableName, key), cf, _readOptions);
                     if (value != null)
                     {
-                        entry = FlatBufferSerializer.Default.Parse<T>(value);
+                        entry = MessagePackSerializer.Deserialize<T>(value);
                     }
                 }
             }
@@ -188,7 +187,7 @@ namespace CYPCore.Persistence
                     iterator.SeekToFirst();
                     if (iterator.Valid())
                     {
-                        entry = FlatBufferSerializer.Default.Parse<T>(iterator.Value());
+                        entry = MessagePackSerializer.Deserialize<T>(iterator.Value());
                     }
                 }
             }
@@ -215,11 +214,8 @@ namespace CYPCore.Persistence
                 using (_sync.Write())
                 {
                     var cf = _storeDb.Rocks.GetColumnFamily(_tableName);
-                    var maxBytesNeeded = FlatBufferSerializer.Default.GetMaxSize(data);
-                    var buffer = new byte[maxBytesNeeded];
-
-                    FlatBufferSerializer.Default.Serialize(data, buffer);
-
+                    var buffer = MessagePackSerializer.Serialize(data);
+                    
                     _storeDb.Rocks.Put(StoreDb.Key(_tableName, key), buffer, cf);
                     saved = true;
                 }
@@ -272,7 +268,7 @@ namespace CYPCore.Persistence
                             if (iSkip % skip != 0) continue;
                         }
 
-                        entries.Add(FlatBufferSerializer.Default.Parse<T>(iterator.Value()));
+                        entries.Add(MessagePackSerializer.Deserialize<T>(iterator.Value()));
 
                         iTake++;
                         if (iTake % take == 0)
@@ -308,7 +304,7 @@ namespace CYPCore.Persistence
                     iterator.SeekToLast();
                     if (iterator.Valid())
                     {
-                        entry = FlatBufferSerializer.Default.Parse<T>(iterator.Value());
+                        entry = MessagePackSerializer.Deserialize<T>(iterator.Value());
                     }
                 }
             }
@@ -437,7 +433,7 @@ namespace CYPCore.Persistence
 
                     for (iterator.SeekToFirst(); iterator.Valid(); iterator.Next())
                     {
-                        entries.Add(FlatBufferSerializer.Default.Parse<T>(iterator.Value()));
+                        entries.Add(MessagePackSerializer.Deserialize<T>(iterator.Value()));
 
                         iTake++;
                         if (iTake % take == 0)
@@ -471,7 +467,7 @@ namespace CYPCore.Persistence
                 if (!new string(iterator.Key().ToStr()).StartsWith(new string(_tableName))) continue;
                 if (!iterator.Valid()) continue;
 
-                yield return FlatBufferSerializer.Default.Parse<T>(iterator.Value()); ;
+                yield return MessagePackSerializer.Deserialize<T>(iterator.Value()); ;
             }
         }
     }

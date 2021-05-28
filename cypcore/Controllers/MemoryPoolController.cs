@@ -4,11 +4,9 @@
 using System;
 using CYPCore.Extensions;
 using CYPCore.Ledger;
-using CYPCore.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Serilog;
-using FlatSharp;
 
 namespace CYPCore.Controllers
 {

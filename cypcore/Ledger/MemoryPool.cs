@@ -7,10 +7,10 @@ using System.Reactive.Linq;
 using Collections.Pooled;
 using Dawn;
 using Serilog;
-using CYPCore.Extentions;
-using CYPCore.Models;
 using CYPCore.Extensions;
+using CYPCore.Models;
 using CYPCore.Network;
+using MessagePack;
 
 namespace CYPCore.Ledger
 {
@@ -20,12 +20,12 @@ namespace CYPCore.Ledger
     public interface IMemoryPool
     {
         public VerifyResult Add(byte[] transactionModel);
-        TransactionModel Get(byte[] hash);
-        TransactionModel[] GetMany();
-        TransactionModel[] Range(int skip, int take);
-        IObservable<TransactionModel> ObserveRange(int skip, int take);
-        IObservable<TransactionModel> ObserveTake(int take);
-        VerifyResult Remove(TransactionModel transaction);
+        Transaction Get(byte[] hash);
+        Transaction[] GetMany();
+        Transaction[] Range(int skip, int take);
+        IObservable<Transaction> ObserveRange(int skip, int take);
+        IObservable<Transaction> ObserveTake(int take);
+        VerifyResult Remove(Transaction transaction);
         int Count();
     }
 
@@ -36,7 +36,7 @@ namespace CYPCore.Ledger
     {
         private readonly ILocalNode _localNode;
         private readonly ILogger _logger;
-        private readonly PooledList<TransactionModel> _pooledTransactions;
+        private readonly PooledList<Transaction> _pooledTransactions;
         private readonly PooledList<string> _pooledSeenTransactions;
         private const int MaxMemoryPoolTransactions = 10_000;
         private const int MaxMemoryPoolSeenTransactions = 50_000;
@@ -45,7 +45,7 @@ namespace CYPCore.Ledger
         {
             _localNode = localNode;
             _logger = logger.ForContext("SourceContext", nameof(MemoryPool));
-            _pooledTransactions = new PooledList<TransactionModel>(MaxMemoryPoolTransactions);
+            _pooledTransactions = new PooledList<Transaction>(MaxMemoryPoolTransactions);
             _pooledSeenTransactions = new PooledList<string>(MaxMemoryPoolSeenTransactions);
             Observable.Timer(TimeSpan.Zero, TimeSpan.FromHours(1)).Subscribe(x =>
             {
@@ -63,7 +63,7 @@ namespace CYPCore.Ledger
             Guard.Argument(transactionModel, nameof(transactionModel)).NotNull();
             try
             {
-                var transaction = Helper.Util.DeserializeFlatBuffer<TransactionModel>(transactionModel);
+                var transaction = MessagePackSerializer.Deserialize<Transaction>(transactionModel);
                 if (transaction.Validate().Any()) return VerifyResult.Invalid;
                 if (!_pooledSeenTransactions.Contains(transaction.TxnId.ByteToHex()))
                 {
@@ -86,10 +86,10 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="transactionId"></param>
         /// <returns></returns>
-        public TransactionModel Get(byte[] transactionId)
+        public Transaction Get(byte[] transactionId)
         {
             Guard.Argument(transactionId, nameof(transactionId)).NotNull().MaxCount(32);
-            TransactionModel transaction = null;
+            Transaction transaction = null;
             try
             {
                 transaction = _pooledTransactions.FirstOrDefault(x => x.TxnId == transactionId.HexToByte());
@@ -106,7 +106,7 @@ namespace CYPCore.Ledger
         /// 
         /// </summary>
         /// <returns></returns>
-        public TransactionModel[] GetMany()
+        public Transaction[] GetMany()
         {
             return _pooledTransactions.Select(x => x).ToArray();
         }
@@ -117,7 +117,7 @@ namespace CYPCore.Ledger
         /// <param name="skip"></param>
         /// <param name="take"></param>
         /// <returns></returns>
-        public TransactionModel[] Range(int skip, int take)
+        public Transaction[] Range(int skip, int take)
         {
             Guard.Argument(skip, nameof(skip)).NotNegative();
             return _pooledTransactions.Skip(skip).Take(take).Select(x => x).ToArray();
@@ -129,7 +129,7 @@ namespace CYPCore.Ledger
         /// <param name="skip"></param>
         /// <param name="take"></param>
         /// <returns></returns>
-        public IObservable<TransactionModel> ObserveRange(int skip, int take)
+        public IObservable<Transaction> ObserveRange(int skip, int take)
         {
             return Observable.Defer(() =>
             {
@@ -143,7 +143,7 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="take"></param>
         /// <returns></returns>
-        public IObservable<TransactionModel> ObserveTake(int take)
+        public IObservable<Transaction> ObserveTake(int take)
         {
             return Observable.Defer(() =>
             {
@@ -157,7 +157,7 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="transaction"></param>
         /// <returns></returns>
-        public VerifyResult Remove(TransactionModel transaction)
+        public VerifyResult Remove(Transaction transaction)
         {
             Guard.Argument(transaction, nameof(transaction)).NotNull();
             var removed = false;

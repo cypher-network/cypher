@@ -3,19 +3,19 @@
 
 using System;
 using System.Text;
-using FlatSharp.Attributes;
+using MessagePack;
 
 namespace CYPCore.Consensus.Models
 {
-    [FlatBufferTable]
-    public class Block : object, IEquatable<Block>
+    [MessagePackObject]
+    public class Block : IEquatable<Block>
     {
         private const string HexUpper = "0123456789ABCDEF";
 
-        [FlatBufferItem(0)] public virtual string Hash { get; set; }
-        [FlatBufferItem(1)] public virtual ulong Node { get; set; }
-        [FlatBufferItem(2)] public virtual ulong Round { get; set; }
-        [FlatBufferItem(3)] public virtual byte[] Data { get; set; }
+        [Key(0)] public string Hash { get; set; }
+        [Key(1)] public ulong Node { get; set; }
+        [Key(2)] public ulong Round { get; set; }
+        [Key(3)] public byte[] Data { get; set; }
 
         public Block()
         {
