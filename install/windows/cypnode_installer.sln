@@ -11,7 +11,12 @@ Project("{930C7802-8A8C-48F9-8165-68863BCCD9DD}") = "cypnode_installer", "cypnod
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "service", "service\service.csproj", "{9ED3C22D-B902-43BC-AF4E-BDF2EC3305C9}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestNodeLaunch", "TestNodeLaunch\TestNodeLaunch.csproj", "{4D4ACAE8-35BB-42D9-A1B9-42324601F127}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TestNodeLaunch", "TestNodeLaunch\TestNodeLaunch.csproj", "{4D4ACAE8-35BB-42D9-A1B9-42324601F127}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{ED5F699B-F9C6-4C1C-A696-DA031E257DDB}"
+	ProjectSection(SolutionItems) = preProject
+		.gitignore = .gitignore
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
