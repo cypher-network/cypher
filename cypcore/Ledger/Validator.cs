@@ -1,4 +1,4 @@
-// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
@@ -83,7 +83,7 @@ namespace CYPCore.Ledger
         }
 
         public const uint StakeTimestampMask = 0x0000000A;
-        public const string BlockZeroMerkel = "95ffdcc129740ae6b535c4274e4ea251501cebc00a90898a4e7265ffe494a895";
+        public const string BlockZeroMerkel = "72a6366e59f38ce6ff5588e26dfcaeaca3c242543e77bf281e546379d14b29e3";
         public const string BlockZeroPreMerkel = "3030303030303030437970686572204e6574776f726b2076742e322e32303231";
 
         public const string Seed =
