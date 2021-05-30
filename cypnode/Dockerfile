@@ -10,11 +10,8 @@ EXPOSE 7946
 # node monitor
 EXPOSE 7005
 
-RUN apt-get -y update
-RUN apt-get -y upgrade
-
 # needed by rocksdb
-RUN apt-get -y install libc6-dev
+RUN apt-get -y update && apt-get -y install --no-install-recommends libc6-dev && rm -rf /var/lib/apt/lists/*
 
 FROM mcr.microsoft.com/dotnet/sdk:5.0 AS build
 WORKDIR /src
