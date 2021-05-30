@@ -1,1 +1,4 @@
-cypnode_installer/x64_installation_files/**
+cypnode_installer/node_x64_installation_files/**
+cypnode_installer/service_x64_installation_files/**
+cypnode_installer/bin/**
+cypnode_installer/obj/**

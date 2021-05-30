@@ -74,7 +74,7 @@
       </Component>
     </ComponentGroup>
     <Feature Id="ProductFeature" Title="cypnode_installer" Level="1">
-      <ComponentGroupRef Id="InstallationFilesGroup" />
+      <ComponentGroupRef Id="NodeInstallationFilesGroup " />
       <ComponentRef Id="CMP_Shortcuts"/>
       <ComponentGroupRef Id="CMP_ShortcutFiles"/>
     </Feature>

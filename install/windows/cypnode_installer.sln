@@ -4,16 +4,13 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 VisualStudioVersion = 16.0.31313.79
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{930C7802-8A8C-48F9-8165-68863BCCD9DD}") = "cypnode_installer", "cypnode_installer\cypnode_installer.wixproj", "{162C4BB5-4DB8-4503-8AA8-66BCFDE83EE1}"
-	ProjectSection(ProjectDependencies) = postProject
-		{9ED3C22D-B902-43BC-AF4E-BDF2EC3305C9} = {9ED3C22D-B902-43BC-AF4E-BDF2EC3305C9}
-	EndProjectSection
-EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "service", "service\service.csproj", "{9ED3C22D-B902-43BC-AF4E-BDF2EC3305C9}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{ED5F699B-F9C6-4C1C-A696-DA031E257DDB}"
 	ProjectSection(SolutionItems) = preProject
 		.gitignore = .gitignore
 	EndProjectSection
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "tangram_node_service", "service\tangram_node_service.csproj", "{69FC0271-313F-4F33-8BFB-373040448DAF}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -35,18 +32,18 @@ Global
 		{162C4BB5-4DB8-4503-8AA8-66BCFDE83EE1}.Release|x64.Build.0 = Release|x64
 		{162C4BB5-4DB8-4503-8AA8-66BCFDE83EE1}.Release|x86.ActiveCfg = Release|x86
 		{162C4BB5-4DB8-4503-8AA8-66BCFDE83EE1}.Release|x86.Build.0 = Release|x86
-		{9ED3C22D-B902-43BC-AF4E-BDF2EC3305C9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{9ED3C22D-B902-43BC-AF4E-BDF2EC3305C9}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{9ED3C22D-B902-43BC-AF4E-BDF2EC3305C9}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{9ED3C22D-B902-43BC-AF4E-BDF2EC3305C9}.Debug|x64.Build.0 = Debug|Any CPU
-		{9ED3C22D-B902-43BC-AF4E-BDF2EC3305C9}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{9ED3C22D-B902-43BC-AF4E-BDF2EC3305C9}.Debug|x86.Build.0 = Debug|Any CPU
-		{9ED3C22D-B902-43BC-AF4E-BDF2EC3305C9}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{9ED3C22D-B902-43BC-AF4E-BDF2EC3305C9}.Release|Any CPU.Build.0 = Release|Any CPU
-		{9ED3C22D-B902-43BC-AF4E-BDF2EC3305C9}.Release|x64.ActiveCfg = Release|Any CPU
-		{9ED3C22D-B902-43BC-AF4E-BDF2EC3305C9}.Release|x64.Build.0 = Release|Any CPU
-		{9ED3C22D-B902-43BC-AF4E-BDF2EC3305C9}.Release|x86.ActiveCfg = Release|Any CPU
-		{9ED3C22D-B902-43BC-AF4E-BDF2EC3305C9}.Release|x86.Build.0 = Release|Any CPU
+		{69FC0271-313F-4F33-8BFB-373040448DAF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{69FC0271-313F-4F33-8BFB-373040448DAF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{69FC0271-313F-4F33-8BFB-373040448DAF}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{69FC0271-313F-4F33-8BFB-373040448DAF}.Debug|x64.Build.0 = Debug|Any CPU
+		{69FC0271-313F-4F33-8BFB-373040448DAF}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{69FC0271-313F-4F33-8BFB-373040448DAF}.Debug|x86.Build.0 = Debug|Any CPU
+		{69FC0271-313F-4F33-8BFB-373040448DAF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{69FC0271-313F-4F33-8BFB-373040448DAF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{69FC0271-313F-4F33-8BFB-373040448DAF}.Release|x64.ActiveCfg = Release|Any CPU
+		{69FC0271-313F-4F33-8BFB-373040448DAF}.Release|x64.Build.0 = Release|Any CPU
+		{69FC0271-313F-4F33-8BFB-373040448DAF}.Release|x86.ActiveCfg = Release|Any CPU
+		{69FC0271-313F-4F33-8BFB-373040448DAF}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
