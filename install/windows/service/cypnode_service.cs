@@ -6,26 +6,24 @@ using System.Diagnostics;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Text;
+using System.Management;
 
 namespace service
 {
     class CypNodeService : ServiceBase
     {
+        private ManagementEventWatcher fSerfWatcher;
         private Process fProcess;
+        private int fSerfPid;
         private Thread fThread;
         private bool fThreadActive;
-        private const string fLogfile = @"Tangram\Node\Service\servicelog.txt";
         private const string fCommand = @"Tangram\Node\cypnode.exe";
-        private string fLogFileLocation = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), fLogfile);
-
-        private void Log(string logMessage)
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(fLogFileLocation));
-            File.AppendAllText(fLogFileLocation, DateTime.UtcNow.ToString() + " : " + logMessage + Environment.NewLine);
-        }
+        private string fCommandFullPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), fCommand);
 
         protected override void OnStart(string[] args)
         {
+            //while (!Debugger.IsAttached) Thread.Sleep(100); just for debugging so that process doesn't start before debugger is active
+            fSerfWatcher = WatchForProcessStart("serf.exe");
             if (!this.fThreadActive)
             {
                 this.fThreadActive = true;
@@ -33,17 +31,16 @@ namespace service
                 this.fThread = new Thread(job);
                 this.fThread.Start();
             }
-            Log("Starting");
             base.OnStart(args);
         }
 
         protected override void OnStop()
         {
-            Log("Stopping");
             if (this.fThreadActive)
             {
                 fProcess.Kill();
                 this.fThreadActive = false;
+                KillProcessAndChildren(fSerfPid);
             }
             base.OnStop();
         }
@@ -51,15 +48,15 @@ namespace service
         protected void StartNode()
         {
             ProcessStartInfo startInfo = new ProcessStartInfo() {
-                FileName = fCommand,
+                FileName = fCommandFullPath,
                 UseShellExecute = false,
                 RedirectStandardError = true,
                 RedirectStandardInput = true,
                 RedirectStandardOutput = true,
-                CreateNoWindow = true
+                CreateNoWindow = true,
+                WorkingDirectory = Path.GetDirectoryName(fCommandFullPath)
             };
             Task<Result> task = Task.Run(() => RunAsync(startInfo));
-
             // Will block until the task is completed...
             Result result = task.Result;
         }
@@ -99,10 +96,6 @@ namespace service
                     };
 
                     processTasks.Add(stdOutCloseEvent.Task);
-                }
-                else
-                {
-                    // STDOUT is not redirected, so we won't look for it
                 }
 
                 // === STDERR handling ===
@@ -210,6 +203,95 @@ namespace service
             /// Standard output stream
             /// </summary>
             public string StdOut { get; set; } = "";
+        }
+
+        private ManagementEventWatcher WatchForProcessStart(string processName)
+        {
+            string queryString =
+                "SELECT TargetInstance" +
+                "  FROM __InstanceCreationEvent " +
+                "WITHIN  10 " +
+                " WHERE TargetInstance ISA 'Win32_Process' " +
+                "   AND TargetInstance.Name = '" + processName + "'";
+
+            // The dot in the scope means use the current machine
+            string scope = @"\\.\root\CIMV2";
+
+            // Create a watcher and listen for events
+            ManagementEventWatcher watcher = new ManagementEventWatcher(scope, queryString);
+            watcher.EventArrived += ProcessStarted;
+            watcher.Start();
+            return watcher;
+        }
+
+        private ManagementEventWatcher WatchForProcessEnd(string processName)
+        {
+            string queryString =
+                "SELECT TargetInstance" +
+                "  FROM __InstanceDeletionEvent " +
+                "WITHIN  10 " +
+                " WHERE TargetInstance ISA 'Win32_Process' " +
+                "   AND TargetInstance.Name = '" + processName + "'";
+
+            // The dot in the scope means use the current machine
+            string scope = @"\\.\root\CIMV2";
+
+            // Create a watcher and listen for events
+            ManagementEventWatcher watcher = new ManagementEventWatcher(scope, queryString);
+            watcher.EventArrived += ProcessEnded;
+            watcher.Start();
+            return watcher;
+        }
+
+        private void ProcessEnded(object sender, EventArrivedEventArgs e)
+        {
+            ManagementBaseObject targetInstance = (ManagementBaseObject)e.NewEvent.Properties["TargetInstance"].Value;
+            string processName = targetInstance.Properties["Name"].Value.ToString();
+            Console.WriteLine(String.Format("{0} process ended", processName));
+        }
+
+        private void ProcessStarted(object sender, EventArrivedEventArgs e)
+        {
+            ManagementBaseObject targetInstance = (ManagementBaseObject)e.NewEvent.Properties["TargetInstance"].Value;
+            string processName = targetInstance.Properties["Name"].Value.ToString();
+            Process[] processlist = Process.GetProcesses();
+            foreach (Process p in processlist)
+            {
+                if(p.ProcessName == "serf")
+                {
+                    fSerfPid = p.Id;
+                    break;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Kill a process, and all of its children, grandchildren, etc.
+        /// </summary>
+        /// <param name="pid">Process ID.</param>
+        private static void KillProcessAndChildren(int pid)
+        {
+            // Cannot close 'system idle process'.
+            if (pid == 0)
+            {
+                return;
+            }
+            ManagementObjectSearcher searcher = new ManagementObjectSearcher
+                    ("Select * From Win32_Process Where ParentProcessID=" + pid);
+            ManagementObjectCollection moc = searcher.Get();
+            foreach (ManagementObject mo in moc)
+            {
+                KillProcessAndChildren(Convert.ToInt32(mo["ProcessID"]));
+            }
+            try
+            {
+                Process proc = Process.GetProcessById(pid);
+                proc.Kill();
+            }
+            catch (ArgumentException)
+            {
+                // Process already exited.
+            }
         }
     }
 }
