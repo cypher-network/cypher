@@ -16,10 +16,17 @@
     },
     "CYPNode": {
       "commandName": "Project",
-      "applicationUrl": "http://localhost:7000",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
-      }
+      },
+      "applicationUrl": "http://localhost:7000"
+    },
+    "Docker": {
+      "commandName": "Docker",
+      "launchUrl": "{Scheme}://{ServiceHost}:{ServicePort}",
+      "publishAllPorts": true,
+      "useSSL": true,
+      "DockerfileRunArguments": "-p 7946:7946 -p 7000:7000 -p 7005:7005"
     }
   }
 }
