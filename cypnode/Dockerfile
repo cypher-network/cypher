@@ -11,7 +11,7 @@ EXPOSE 7946
 EXPOSE 7005
 
 # needed by rocksdb
-RUN apt-get -y update && apt-get -y install --no-install-recommends libc6-dev && rm -rf /var/lib/apt/lists/*
+RUN apt-get -y update && apt-get -y install --no-install-recommends libc6-dev=2.28-10 && rm -rf /var/lib/apt/lists/*
 
 FROM mcr.microsoft.com/dotnet/sdk:5.0 AS build
 WORKDIR /src
@@ -19,7 +19,7 @@ COPY ["cypnode/cypnode.csproj", "cypnode/"]
 COPY ["cypcore/cypcore.csproj", "cypcore/"]
 RUN dotnet restore "cypnode/cypnode.csproj"
 COPY . .
-WORKDIR "/src/cypnode"
+WORKDIR /src/cypnode
 RUN dotnet build "cypnode.csproj" -c Release -o /app/build
 
 FROM build AS publish
