@@ -2,174 +2,73 @@ name: build cypher node release
 
 on:
   push:
-    # Sequence of patterns matched against refs/tags
     tags:
-    - 'v*' # Push events to matching v*, i.e. v1.0, v20.15.10
+      - 'v*.*.*'
+
 
 jobs:
-  build:
+  build-linux:
     runs-on: ubuntu-latest
     env:
       DOTNET_NOLOGO: true
       DOTNET_CLI_TELEMETRY_OPTOUT: true
-      
+
     steps:
-    - name: Install debhelper
-      run: sudo apt-get install debhelper
-      
-    - name: Install ARM binutils
-      run: sudo apt-get install binutils-arm-linux-gnueabi
-      
-    - name: Install .NET Core 5.0 SDK
-      uses: actions/setup-dotnet@v1
-      with:
-        dotnet-version: '5.0.x'
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
 
-    - name: Checkout latest
-      uses: actions/checkout@v2
+      - name: Get version
+        uses: ./.github/actions/get-version
 
-    - name: build cypher
-      run:  |
-        dotnet restore cypher.sln
-        dotnet publish cypnode --configuration Release                                        --output publish/cypnode/generic
-        dotnet publish cypnode --configuration Release --self-contained --runtime linux-x64   --output publish/cypnode/linux-x64
-        dotnet publish cypnode --configuration Release --self-contained --runtime linux-arm   --output publish/cypnode/linux-arm
-        dotnet publish cypnode --configuration Release --self-contained --runtime linux-arm64 --output publish/cypnode/linux-arm64
-        dotnet publish cypnode --configuration Release --self-contained --runtime osx-x64     --output publish/cypnode/osx-x64
-        dotnet publish cypnode --configuration Release --self-contained --runtime win-x64     --output publish/cypnode/windows-x64
-        dotnet publish cypnode --configuration Release --self-contained --runtime win-x86     --output publish/cypnode/windows-x86
+      - uses: actions/setup-dotnet@v1
+        with:
+          dotnet-version: '5.0.x'
 
-    - name: Get version
-      id: get_version
-      run: echo ::set-output name=VERSION::$(git describe --abbrev=0 --tags $(git rev-list --tags --skip=1 --max-count=1) | cut -c2-)
+      - name: Prepare Linux build environment
+        uses: ./.github/actions/build-env-prepare-linux
 
-    - name: arch generic, artifact zip
-      id: gen_artifact_generic
-      run: |
-        pushd ${{ github.workspace }}/publish/cypnode/generic
-        zip -r ${OUTPUT_FILE} *
-        sha256sum ${OUTPUT_FILE} > ${OUTPUT_FILE}.sha256
-        mv ${OUTPUT_FILE} ${{ github.workspace }}
-        mv ${OUTPUT_FILE}.sha256 ${{ github.workspace }}
-        popd
-      env:
-        OUTPUT_FILE: "tangram-cypnode_${{ steps.get_version.outputs.VERSION }}.zip"
-        
-    - name: arch linux-x64, artifact tar.gz
-      run: |
-        pushd ${{ env.PUBLISH_PATH }}/
-        
-        tar -czf ${{ env.OUTPUT_FILE }} *
-        sha256sum ${{ env.OUTPUT_FILE }} > ${{ env.OUTPUT_FILE }}.sha256
-        
-        mv ${{ env.OUTPUT_FILE }} ${{ github.workspace }}
-        mv ${{ env.OUTPUT_FILE }}.sha256 ${{ github.workspace }}
-        
-        popd
-      env:
-        OUTPUT_FILE: "tangram-cypnode_${{ steps.get_version.outputs.VERSION }}_linux-x64.tar.gz"
-        PUBLISH_PATH: "${{ github.workspace }}/publish/cypnode/linux-x64"
+      - name: Create linux-x64 package
+        uses: ./.github/actions/build-linux
+        with:
+          runtime: 'linux-x64'
+          runtime_deb: 'amd64'
 
-    - name: arch linux-x64, artifact deb
-      run: |
-        cp -r install/linux/debian .
-        ./debian/changelog_create.sh
+      - name: Create linux-arm package
+        uses: ./.github/actions/build-linux
+        with:
+          runtime: 'linux-arm'
+          runtime_deb: 'armhf'
 
-        sed -i 's/$RUNTIME/linux-x64/g' ./debian/rules
+      - name: Create linux-arm64 package
+        uses: ./.github/actions/build-linux
+        with:
+          runtime: 'linux-arm64'
+          runtime_deb: 'arm64'
 
-        dpkg-buildpackage -b --no-sign -a amd64
+      - name: Create releases
+        id: gh-release
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          files: cypher-cypnode_${{ env.VERSION }}*.*
 
-        mv ../*.deb ${{ github.workspace }}
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
 
-    - name: arch linux-arm, artifact tar.gz
-      run: |
-        pushd ${{ env.PUBLISH_PATH }}/
-        
-        tar -czf ${{ env.OUTPUT_FILE }} *
-        sha256sum ${{ env.OUTPUT_FILE }} > ${{ env.OUTPUT_FILE }}.sha256
-        
-        mv ${{ env.OUTPUT_FILE }} ${{ github.workspace }}
-        mv ${{ env.OUTPUT_FILE }}.sha256 ${{ github.workspace }}
-        
-        popd
-      env:
-        OUTPUT_FILE: "tangram-cypnode_${{ steps.get_version.outputs.VERSION }}_linux-arm.tar.gz"
-        PUBLISH_PATH: "${{ github.workspace }}/publish/cypnode/linux-arm"
+      - name: Get version
+        id: get_version
+        uses: ./.github/actions/get-version
 
-    - name: arch linux-arm, artifact deb
-      run: |
-        cp -r install/linux/debian .
-        ./debian/changelog_create.sh
-
-        sed -i 's/$RUNTIME/linux-x64/g' ./debian/rules
-
-        dpkg-buildpackage -b --no-sign -a armhf
-
-        mv ../*.deb ${{ github.workspace }}
-
-    - name: arch linux-arm64, artifact tar.gz
-      run: |
-        pushd ${{ env.PUBLISH_PATH }}/
-        
-        tar -czf ${{ env.OUTPUT_FILE }} *
-        sha256sum ${{ env.OUTPUT_FILE }} > ${{ env.OUTPUT_FILE }}.sha256
-        
-        mv ${{ env.OUTPUT_FILE }} ${{ github.workspace }}
-        mv ${{ env.OUTPUT_FILE }}.sha256 ${{ github.workspace }}
-        
-        popd
-      env:
-        OUTPUT_FILE: "tangram-cypnode_${{ steps.get_version.outputs.VERSION }}_linux-arm64.tar.gz"
-        PUBLISH_PATH: "${{ github.workspace }}/publish/cypnode/linux-arm64"
-
-    - name: arch linux-arm64, artifact deb
-      run: |
-        cp -r install/linux/debian .
-        ./debian/changelog_create.sh
-
-        sed -i 's/$RUNTIME/linux-x64/g' ./debian/rules
-
-        dpkg-buildpackage -b --no-sign -a arm64
-
-        mv ../*.deb ${{ github.workspace }}
-
-    - name: arch osx-x64, artifact tar.gz
-      run: |
-        pushd ${{ github.workspace }}/publish/cypnode/osx-x64
-        tar -czf ${OUTPUT_FILE} *
-        sha256sum ${OUTPUT_FILE} > ${OUTPUT_FILE}.sha256
-        mv ${OUTPUT_FILE} ${{ github.workspace }}
-        mv ${OUTPUT_FILE}.sha256 ${{ github.workspace }}
-        popd
-      env:
-        OUTPUT_FILE: "tangram-cypnode_${{ steps.get_version.outputs.VERSION }}_osx-x64.tar.gz"
-        
-    - name: arch windows-x64, artifact zip
-      run: |
-        pushd ${{ github.workspace }}/publish/cypnode/windows-x64
-        zip -r ${OUTPUT_FILE} *
-        sha256sum ${OUTPUT_FILE} > ${OUTPUT_FILE}.sha256
-        mv ${OUTPUT_FILE} ${{ github.workspace }}
-        mv ${OUTPUT_FILE}.sha256 ${{ github.workspace }}
-        popd
-      env:
-        OUTPUT_FILE: "tangram-cypnode_${{ steps.get_version.outputs.VERSION }}_windows-x64.zip"
-
-    - name: arch windows-x86, artifact zip
-      run: |
-        pushd ${{ github.workspace }}/publish/cypnode/windows-x86
-        zip -r ${OUTPUT_FILE} *
-        sha256sum ${OUTPUT_FILE} > ${OUTPUT_FILE}.sha256
-        mv ${OUTPUT_FILE} ${{ github.workspace }}
-        mv ${OUTPUT_FILE}.sha256 ${{ github.workspace }}
-        popd
-      env:
-        OUTPUT_FILE: "tangram-cypnode_${{ steps.get_version.outputs.VERSION }}_windows-x86.zip"
-
-    - name: Create release
-      id: gh-release
-      uses: softprops/action-gh-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        files: tangram-cypnode_${{ steps.get_version.outputs.VERSION }}*.*
+      - name: Create Windows release
+        id: gh-release
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          files: cypher-cypnode_$VERSION*.msi

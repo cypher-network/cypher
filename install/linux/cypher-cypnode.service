@@ -1,5 +1,5 @@
 [Unit]
-Description=tangram-cypnode
+Description=cypher-cypnode
 After=network.online.target
 Wants=network-online.target
 
@@ -11,11 +11,11 @@ Type=notify
 Restart=on-failure
 RestartSec=5s
 
-User=tangram-cypnode
-Group=tangram-cypnode
+User=cypher-cypnode
+Group=cypher-cypnode
 
-WorkingDirectory=/usr/share/tangram/cypnode
-ExecStart=/usr/share/tangram/cypnode/cypnode
+WorkingDirectory=/opt/cypher/cypnode
+ExecStart=/opt/cypher/cypnode/cypnode
 
 [Install]
 WantedBy=multi-user.target

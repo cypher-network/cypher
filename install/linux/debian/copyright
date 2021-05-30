@@ -1,5 +1,5 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: tangram-cypnode
+Upstream-Name: cypher-cypnode
 Upstream-Contact: Tangram Development <info@tangrams.io>
 Source: https://github.com/cypher-network/cypher
 

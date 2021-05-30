@@ -1,6 +1,17 @@
 name: build cypher node
 
-on: [push]
+on:
+  push:
+    branches:
+      - '**'
+    tags-ignore:
+      - 'v*.*.*'
+    paths-ignore:
+      - '**/LICENSE'
+      - '**/*.md'
+      - '**/*.json'
+      - 'install/**'
+
 
 jobs:
   build:

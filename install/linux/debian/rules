@@ -20,9 +20,9 @@ override_dh_auto_build:
 	dotnet publish cypnode --configuration Release --self-contained --runtime $RUNTIME --output publish_deb_$RUNTIME/
 
 override_dh_auto_install:
-	mkdir -p debian/tangram-cypnode/usr/share/tangram/cypnode/
-	cp -r publish_deb_$RUNTIME/* debian/tangram-cypnode/usr/share/tangram/cypnode/
-	rm debian/tangram-cypnode/usr/share/tangram/cypnode/*.pdb
+	mkdir -p debian/cypher-cypnode/usr/share/cypher/cypnode/
+	cp -r publish_deb_$RUNTIME/* debian/cypher-cypnode/usr/share/cypher/cypnode/
+	rm debian/cypher-cypnode/usr/share/cypher/cypnode/*.pdb
 
 override_dh_strip:
 	:

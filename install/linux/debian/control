@@ -1,4 +1,4 @@
-Source: tangram-cypnode
+Source: cypher-cypnode
 Section: custom
 Priority: optional
 Maintainer: tangrams.io <info@tangrams.io>
@@ -6,7 +6,7 @@ Build-Depends: debhelper-compat (= 12)
 Standards-Version: 4.4.1
 Homepage: https://tangrams.io
 
-Package: tangram-cypnode
+Package: cypher-cypnode
 Architecture: any
 Depends: ${misc:Depends}, libc6-dev
-Description: Tangram Cypher Node
+Description: cypher cypnode
