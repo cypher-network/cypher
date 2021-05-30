@@ -1,0 +1,13 @@
+name: Prepare build environment - Linux
+description: 'Prepare the minimum build environment for Linux builds'
+runs:
+  using: "composite"
+  steps:
+
+  - name: Install debhelper
+    run: sudo apt-get install debhelper
+    shell: bash
+
+  - name: Install ARM binutils
+    run: sudo apt-get install binutils-arm-linux-gnueabi
+    shell: bash

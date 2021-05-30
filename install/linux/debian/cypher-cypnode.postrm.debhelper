@@ -6,14 +6,14 @@ fi
 # Automatically added by dh_installsystemd/12.10ubuntu1
 if [ "$1" = "remove" ]; then
 	if [ -x "/usr/bin/deb-systemd-helper" ]; then
-		deb-systemd-helper mask 'tangram-cypnode.service' >/dev/null || true
+		deb-systemd-helper mask 'cypher-cypnode.service' >/dev/null || true
 	fi
 fi
 
 if [ "$1" = "purge" ]; then
 	if [ -x "/usr/bin/deb-systemd-helper" ]; then
-		deb-systemd-helper purge 'tangram-cypnode.service' >/dev/null || true
-		deb-systemd-helper unmask 'tangram-cypnode.service' >/dev/null || true
+		deb-systemd-helper purge 'cypher-cypnode.service' >/dev/null || true
+		deb-systemd-helper unmask 'cypher-cypnode.service' >/dev/null || true
 	fi
 fi
 # End automatically added section

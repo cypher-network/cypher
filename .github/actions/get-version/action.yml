@@ -1,0 +1,9 @@
+name: Get version
+description: 'Get current version'
+
+runs:
+  using: "composite"
+  steps:
+    - id: get_version
+      run: echo "VERSION=$(git describe --abbrev=0 --tags $(git rev-list --tags --skip=0 --max-count=1) | cut -c2-)" >> $GITHUB_ENV
+      shell: bash
