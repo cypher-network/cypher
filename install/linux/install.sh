@@ -4,8 +4,6 @@
 # cypher cypnode
 # (c) 2021 Tangram
 #
-# This file is copyright under the latest version of the EUPL.
-
 # Install with this command (from your Linux machine):
 #
 # bash <(curl -sSL https://raw.githubusercontent.com/cypher-network/cypher/master/install/linux/install.sh)
