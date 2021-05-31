@@ -17,7 +17,7 @@ namespace service
         private int fSerfPid;
         private Thread fThread;
         private bool fThreadActive;
-        private const string fCommand = @"Tangram\Node\cypnode.exe";
+        private const string fCommand = @"Cypher\Node\cypnode.exe";
         private string fCommandFullPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), fCommand);
 
         protected override void OnStart(string[] args)

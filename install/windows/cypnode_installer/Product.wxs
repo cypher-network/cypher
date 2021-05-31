@@ -1,20 +1,47 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi" xmlns:util="http://schemas.microsoft.com/wix/UtilExtension">
   <?if $(var.Platform) = x64 ?>
-  <?define ProductName = "Tangram Node" ?>
+  <?define ProductName = "Cypher Node" ?>
   <?define Win64 = "yes" ?>
   <?endif ?>
-  <Product Id="8413643C-B17F-4067-AF25-618F58B8C21E" Name="$(var.ProductName)" Language="1033" Version="1.0.0.0" Manufacturer="tangram" UpgradeCode="24D31C26-3F44-44E2-AC17-2B06F58A1A5B">
-    <Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine" />
+  <!-- Full version number to display -->
+  <?define VersionNumber="!(bind.FileVersion.filEAED9D20F2CFC15D7672EE6A5EB4C686)" ?>
+  <!--
+   Upgrade code HAS to be the same for all updates.
+   Once you've chosen it don't change it.
+   -->
+  <?define UpgradeCode="BC2E46D2-2304-415B-A341-754D9D263EAF"?>
+
+  <!-- The URL for add/remove programs -->
+  <?define InfoURL="https://tangrams.io/about-tangram/" ?>
+
+  <Product Id="*" Name="$(var.ProductName)" Language="1033" Version="$(var.VersionNumber)" Manufacturer="Cypher" UpgradeCode="$(var.UpgradeCode)">
+    <Package InstallerVersion="400" Compressed="yes" InstallScope="perMachine" Description="Cypher Node installer" Comments="Cypher node version: $(var.VersionNumber)"/>
     <UIRef Id="WixUI_Minimal"/>
-    <WixVariable Id="WixUILicenseRtf" Value="Copyright.rtf"/>
+    <WixVariable Id="WixUILicenseRtf" Value="Eula-en.rtf"/>
+    <!--Images-->
+    <!--<WixVariable Id="WixUIBannerBmp" Value="Tangram_Logo_Banner-493x58.bmp" />-->
+    <!--<WixVariable Id="WixUIDialogBmp" Value="images\Dialog.bmp" />-->
+    <Icon Id="icon.ico" SourceFile="tgm.ico"/>
+    <!--Override standard dialog properties-->
+    <Property Id="ARPPRODUCTICON" Value="icon.ico" />
+    <Property Id="ARPHELPLINK" Value="$(var.InfoURL)" />
+    <Property Id="ARPNOREPAIR" Value="yes" Secure="yes" />
+    <!-- Remove repair -->
+
     <MediaTemplate EmbedCab="yes"/>
-    <MajorUpgrade AllowDowngrades="no" 
+
+    <MajorUpgrade AllowDowngrades="no"
                   DowngradeErrorMessage="A newer version of [ProductName] is already installed."
                   AllowSameVersionUpgrades="no"/>
+    <!--Windows 10 only allowed!-->
+    <Condition Message="This product requires at least Windows 10.">
+      <![CDATA[Installed OR (VersionNT >= 603)]]>
+    </Condition>
+
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id='ProgramFiles64Folder' Name='PFiles'>
-        <Directory Id="Tangram" Name="Tangram">
+        <Directory Id="Cypher" Name="Cypher">
           <Directory Id="Node" Name="Node">
             <Directory Id="Service" Name="Service"/>
           </Directory>
@@ -22,26 +49,28 @@
       </Directory>
       <Directory Id="ProgramMenuFolder">
         <Directory Id="MyShortcutsDir"
-                   Name="Tangram Node"/>
+                   Name="Cypher Node"/>
       </Directory>
     </Directory>
-    <Icon Id="icon.ico" SourceFile="tgm.ico"/>
+
+
+
     <DirectoryRef Id="MyShortcutsDir">
       <Component Id="CMP_Shortcuts"
                  Guid="F7C96CC2-E0AF-41D7-8C9E-A236771CF5AF">
         <Shortcut Id="LicenceAgreementShortcut"
-                  Name="Tangram Node licence"
-                  Description="Read the Tangram Node licence agreement"
-                  Target="[Node]Copyright.rtf"/>
+                  Name="Cypher Node licence"
+                  Description="Read the Cypher Node licence agreement"
+                  Target="[Node]Eula-en.rtf"/>
         <Shortcut Id="StartNodeShortcut"
-                  Name="Start Tangram Node"
-                  Description="Starts the Tangram Node. Make sure it is configured already!"
+                  Name="Start Cypher Node"
+                  Description="Starts the Cypher Node. Make sure it is configured already!"
                   WorkingDirectory="Node"
                   Target="[Node]start_node.bat"
                   Icon="icon.ico"/>
         <Shortcut Id="ConfigureNodeShortcut"
-                  Name="Configure Tangram Node"
-                  Description="Configures the Tangram Node. After public IP change, or if the configuration during installation failed."
+                  Name="Configure Cypher Node"
+                  Description="Configures the Cypher Node. After public IP change, or if the configuration during installation failed."
                   Target="[Node]configure_node.bat"
                   WorkingDirectory="Node"/>
         <RemoveFolder Id="RemoveMyShortcutsDir" On="uninstall"/>
@@ -53,14 +82,14 @@
                        KeyPath="yes"/>
       </Component>
     </DirectoryRef>
-    <CustomAction Id="ConfigureNode" Directory="Node" Execute="commit" Impersonate="no" ExeCommand="cmd.exe /c &quot;del /f /q /a appsettings.json &amp; cypnode.exe --configure &amp; icacls . /grant:r Users:F&quot;" Return="asyncWait" />
+    <CustomAction Id="ConfigureNode" Directory="Node" Execute="commit" Impersonate="no" ExeCommand="cmd.exe /c &quot;del /f /q /a appsettings.json &amp; cypnode.exe --configure &amp; icacls . /grant:r Users:F &amp; sc start cypher_node_service &amp; exit /b 0&quot;" Return="check" />
     <InstallExecuteSequence>
       <Custom Action="ConfigureNode" Before="InstallServices" />
     </InstallExecuteSequence>
     <Property Id="WIXUI_EXITDIALOGOPTIONALTEXT" Value="Thank you for installing Cypher Node." />
     <ComponentGroup Id="CMP_ShortcutFiles" Directory="Node">
       <Component Id="CMP_FILE_A1" Guid="5F7BCFA8-48FF-442D-80B7-7E070DA14557">
-        <File Id="FILE_5F7BCFA848FF442D80B77E070DA14557" KeyPath="yes" Source="Copyright.rtf" />
+        <File Id="FILE_5F7BCFA848FF442D80B77E070DA14557" KeyPath="yes" Source="Eula-en.rtf" />
       </Component>
       <Component Id="CMP_FILE_A2" Guid="FC92B091-02E9-4556-ABD1-2474D3B63085">
         <File Id="FILE_5F7BCFA848FF442D80B77E070DA14558" KeyPath="yes" Source="configure_node.bat" />
@@ -69,18 +98,16 @@
         <File Id="FILE_5F7BCFA848FF442D80B77E070DA14559" KeyPath="yes" Source="start_node.bat" />
       </Component>
     </ComponentGroup>
-    <PropertyRef Id="WIX_ACCOUNT_NETWORKSERVICE"/>
     <Component Id="cmp_service_exe" Directory="Service" Guid="C6FE69A2-F268-4899-A8ED-FA146399FC21">
-      <File Id="filEAED9D20F2CFC15D7672EE6A5EB4C686" KeyPath="yes" Source="$(var.ServiceInstallationDirectory)\tangram_node_service.exe" />
-      <ServiceInstall Id="InstallTangramNodeService" Name="tangram_node_service" 
-                      DisplayName="Tangram Node Service" Start="auto" 
+      <File Id="filEAED9D20F2CFC15D7672EE6A5EB4C686" KeyPath="yes" Source="$(var.ServiceInstallationDirectory)\cypher_node_service.exe" />
+      <ServiceInstall Id="InstallTangramNodeService" Name="cypher_node_service"
+                      DisplayName="Cypher Node Service" Start="auto"
                       ErrorControl="normal" Type="ownProcess"
-                      Vital="yes" 
-                      Account="[WIX_ACCOUNT_NETWORKSERVICE]"
+                      Vital="yes"
                       Description="This service is responsible for running the tangram node semalessly as a background service."/>
-      <ServiceControl Id="SC_TangramNodeService" 
-                      Name="tangram_node_service" 
-                      Start="install" Stop="both" Remove="uninstall" Wait="yes"/>
+      <ServiceControl Id="SC_TangramNodeService"
+                      Name="cypher_node_service"
+                      Stop="both" Remove="both" Wait="yes"/>
     </Component>
     <Feature Id="ProductFeature" Title="cypnode_installer" Level="1">
       <ComponentGroupRef Id="NodeInstallationFilesGroup"/>

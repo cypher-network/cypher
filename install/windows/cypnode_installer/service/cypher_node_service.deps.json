@@ -7,13 +7,13 @@
   "targets": {
     ".NETCoreApp,Version=v5.0": {},
     ".NETCoreApp,Version=v5.0/win-x64": {
-      "tangram_node_service/1.0.0": {
+      "cypher_node_service/1.0.0": {
         "dependencies": {
           "Microsoft.Windows.Compatibility": "5.0.2",
           "runtimepack.Microsoft.NETCore.App.Runtime.win-x64": "5.0.6"
         },
         "runtime": {
-          "tangram_node_service.dll": {}
+          "cypher_node_service.dll": {}
         }
       },
       "runtimepack.Microsoft.NETCore.App.Runtime.win-x64/5.0.6": {
@@ -1379,7 +1379,7 @@
     }
   },
   "libraries": {
-    "tangram_node_service/1.0.0": {
+    "cypher_node_service/1.0.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""

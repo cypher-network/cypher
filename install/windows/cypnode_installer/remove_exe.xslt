@@ -18,7 +18,7 @@
     -->
   <xsl:key
       name="ExeToRemove"
-      match="wix:Component[ substring( wix:File/@Source, string-length( wix:File/@Source ) - 23 ) = 'tangram_node_service.exe' ]"
+      match="wix:Component[ substring( wix:File/@Source, string-length( wix:File/@Source ) - 22 ) = 'cypher_node_service.exe' ]"
       use="@Id"
     />
   <!-- In this expression "-8" is the length of "tangram_node_service.exe" - 1 because XSLT uses 1-based indexes, not 0-based indexes. -->

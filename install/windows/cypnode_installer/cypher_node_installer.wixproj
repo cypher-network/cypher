@@ -6,8 +6,9 @@
     <ProductVersion>3.10</ProductVersion>
     <ProjectGuid>162c4bb5-4db8-4503-8aa8-66bcfde83ee1</ProjectGuid>
     <SchemaVersion>2.0</SchemaVersion>
-    <OutputName>cypnode_installer</OutputName>
+    <OutputName>cypher_node_installer</OutputName>
     <OutputType>Package</OutputType>
+    <Name>cypher_node_installer</Name>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x86' ">
     <OutputPath>bin\$(Configuration)\</OutputPath>
@@ -35,7 +36,7 @@
     <Pedantic>True</Pedantic>
     <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
     <VerboseOutput>False</VerboseOutput>
-    <DefineConstants>NodeInstallationDirectory=$(ProjectDir)node_x64_installation_files;ServiceInstallationDirectory=$(ProjectDir)service_x64_installation_files</DefineConstants>
+    <DefineConstants>NodeInstallationDirectory=$(ProjectDir)node_x64_installation_files;ServiceInstallationDirectory=$(ProjectDir)service</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="node_installation_files.wxs" />
@@ -58,9 +59,10 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="configure_node.bat" />
-    <Content Include="Copyright.rtf" />
+    <Content Include="Eula-en.rtf" />
     <Content Include="remove_exe.xslt" />
     <Content Include="start_node.bat" />
+    <Content Include="Tangram_Logo_Banner-493x58.bmp" />
     <Content Include="tgm.ico" />
   </ItemGroup>
   <Import Project="$(WixTargetsPath)" Condition=" '$(WixTargetsPath)' != '' " />
@@ -69,13 +71,17 @@
     <Error Text="The WiX Toolset v3.11 (or newer) build tools must be installed to build this project. To download the WiX Toolset, see http://wixtoolset.org/releases/" />
   </Target>
   <PropertyGroup>
-    <PreBuildEvent>cd $(SolutionDir)\..\..\cypnode
+    <PreBuildEvent>cd $(SolutionDir)..\..\cypnode
 dotnet publish -c Release -r win-x64 -p:PublishReadyToRun=true
-Xcopy /E /I bin\Release\net5.0\win-x64\publish $(ProjectDir)node_x64_installation_files
+cd $(ProjectDir)node_x64_installation_files
+del /f /q /s %2a.%2a &gt; NUL
+Xcopy /E /I $(SolutionDir)..\..\cypnode\bin\Release\net5.0\win-x64\publish $(ProjectDir)node_x64_installation_files
 heat.exe dir $(ProjectDir)node_x64_installation_files -dr Node -cg NodeInstallationFilesGroup -gg -g1 -sf -srd -var "var.NodeInstallationDirectory" -out $(ProjectDir)node_installation_files.wxs
 cd $(SolutionDir)service
 dotnet publish -c Release -r win-x64 -p:PublishReadyToRun=true
-Xcopy /E /I bin\Release\net5.0\win-x64\publish $(ProjectDir)service
+cd $(ProjectDir)service
+del /f /q /s %2a.%2a &gt; NUL
+Xcopy /E /I $(SolutionDir)service\bin\Release\net5.0\win-x64\publish $(ProjectDir)service
 heat.exe dir $(ProjectDir)service -dr Node -cg ServiceInstallationFilesGroup -gg -g1 -sf -var "var.ServiceInstallationDirectory" -t $(ProjectDir)remove_exe.xslt  -out $(ProjectDir)service_installation_files.wxs</PreBuildEvent>
   </PropertyGroup>
   <!--
