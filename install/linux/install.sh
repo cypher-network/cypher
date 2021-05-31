@@ -3,17 +3,12 @@
 
 # cypher cypnode
 # (c) 2021 Tangram
-# This script is a shameless adaptation of the work of
-# Pi-hole, LLC (https://pi-hole.net)
-#
-# Using the Pi-hole installation script allows us to benefit from bug fixes
-# and feature updates done by the Pi-hole team without reinventing the wheel.
 #
 # This file is copyright under the latest version of the EUPL.
 
 # Install with this command (from your Linux machine):
 #
-# curl -sL https://raw.githubusercontent.com/cypher-network/cypher/sk_installer/install.sh | bash
+# bash <(curl -sSL https://raw.githubusercontent.com/cypher-network/cypher/master/install/linux/install.sh)
 
 # -e option instructs bash to immediately exit if any command [1] has a non-zero exit status
 # We do not want users to end up with a partially working install, so we exit the script
@@ -34,15 +29,15 @@ ARCHITECTURE_ARM=("armv7l")
 ARCHITECTURE_ARM64=("aarch64")
 ARCHITECTURE_X64=("x86_64")
 
-if [[ " ${ARCHITECTURE_ARM[@]} " =~ " ${ARCHITECTURE} " ]]; then
+if [[ " ${ARCHITECTURE_ARM[*]} " =~ " ${ARCHITECTURE} " ]]; then
   ARCHITECTURE_UNIFIED="arm"
   ARCHITECTURE_DEB="armhf"
 
-elif [[ " ${ARCHITECTURE_ARM64[@]} " =~ " ${ARCHITECTURE} " ]]; then
+elif [[ " ${ARCHITECTURE_ARM64[*]} " =~ " ${ARCHITECTURE} " ]]; then
   ARCHITECTURE_UNIFIED="arm64"
   ARCHITECTURE_DEB="arm64"
 
-elif [[ " ${ARCHITECTURE_X64[@]} " =~ " ${ARCHITECTURE} " ]]; then
+elif [[ " ${ARCHITECTURE_X64[*]} " =~ " ${ARCHITECTURE} " ]]; then
   ARCHITECTURE_UNIFIED="x64"
   ARCHITECTURE_DEB="amd64"
 else
