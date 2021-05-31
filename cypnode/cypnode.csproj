@@ -37,6 +37,7 @@
   <PropertyGroup>
     <DisableImplicitAspNetCoreAnalyzers>true</DisableImplicitAspNetCoreAnalyzers>
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+	<UserSecretsId>c11932df-5632-4079-86e9-71e0339d5ec1</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
