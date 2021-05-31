@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi" xmlns:util="http://schemas.microsoft.com/wix/UtilExtension">
   <?if $(var.Platform) = x64 ?>
   <?define ProductName = "Tangram Node" ?>
   <?define Win64 = "yes" ?>
@@ -16,6 +16,7 @@
       <Directory Id='ProgramFiles64Folder' Name='PFiles'>
         <Directory Id="Tangram" Name="Tangram">
           <Directory Id="Node" Name="Node">
+            <Directory Id="Service" Name="Service"/>
           </Directory>
         </Directory>
       </Directory>
@@ -40,14 +41,9 @@
                   Icon="icon.ico"/>
         <Shortcut Id="ConfigureNodeShortcut"
                   Name="Configure Tangram Node"
-                  Description="Configures the Tangram Node. Do this after fresh installation!"
+                  Description="Configures the Tangram Node. After public IP change, or if the configuration during installation failed."
                   Target="[Node]configure_node.bat"
                   WorkingDirectory="Node"/>
-        <!--<Shortcut Id="RemoveShortcut"
-                  Name="Remove Tangram Node"
-                  Description="Removes Tangram Node and all of its components"
-                  Target="[System64Folder]msiexec.exe"
-                  Arguments="/x [ProductCode]"/> Not visible on start menu, not recommended by M$OFT-->
         <RemoveFolder Id="RemoveMyShortcutsDir" On="uninstall"/>
         <RegistryValue Root="HKCU"
                        Key="Software\Microsoft\TangramNode"
@@ -57,11 +53,11 @@
                        KeyPath="yes"/>
       </Component>
     </DirectoryRef>
-    <CustomAction Id="ConfigureNode" Directory="Node" Execute="commit" Impersonate="no" ExeCommand="cmd.exe /c &quot;del /f /q /a appsettings.json &amp; cypnode.exe --configure &amp; icacls . /grant:r Users:F&quot;" Return="ignore" />
+    <CustomAction Id="ConfigureNode" Directory="Node" Execute="commit" Impersonate="no" ExeCommand="cmd.exe /c &quot;del /f /q /a appsettings.json &amp; cypnode.exe --configure &amp; icacls . /grant:r Users:F&quot;" Return="asyncWait" />
     <InstallExecuteSequence>
-      <Custom Action="ConfigureNode" Before="InstallFinalize" />
+      <Custom Action="ConfigureNode" Before="InstallServices" />
     </InstallExecuteSequence>
-    <Property Id="WIXUI_EXITDIALOGOPTIONALTEXT" Value="Thank you for installing Tangram Node. Please exit the installer to start node configuration." />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALTEXT" Value="Thank you for installing Cypher Node." />
     <ComponentGroup Id="CMP_ShortcutFiles" Directory="Node">
       <Component Id="CMP_FILE_A1" Guid="5F7BCFA8-48FF-442D-80B7-7E070DA14557">
         <File Id="FILE_5F7BCFA848FF442D80B77E070DA14557" KeyPath="yes" Source="Copyright.rtf" />
@@ -73,9 +69,24 @@
         <File Id="FILE_5F7BCFA848FF442D80B77E070DA14559" KeyPath="yes" Source="start_node.bat" />
       </Component>
     </ComponentGroup>
+    <PropertyRef Id="WIX_ACCOUNT_NETWORKSERVICE"/>
+    <Component Id="cmp_service_exe" Directory="Service" Guid="C6FE69A2-F268-4899-A8ED-FA146399FC21">
+      <File Id="filEAED9D20F2CFC15D7672EE6A5EB4C686" KeyPath="yes" Source="$(var.ServiceInstallationDirectory)\tangram_node_service.exe" />
+      <ServiceInstall Id="InstallTangramNodeService" Name="tangram_node_service" 
+                      DisplayName="Tangram Node Service" Start="auto" 
+                      ErrorControl="normal" Type="ownProcess"
+                      Vital="yes" 
+                      Account="[WIX_ACCOUNT_NETWORKSERVICE]"
+                      Description="This service is responsible for running the tangram node semalessly as a background service."/>
+      <ServiceControl Id="SC_TangramNodeService" 
+                      Name="tangram_node_service" 
+                      Start="install" Stop="both" Remove="uninstall" Wait="yes"/>
+    </Component>
     <Feature Id="ProductFeature" Title="cypnode_installer" Level="1">
-      <ComponentGroupRef Id="NodeInstallationFilesGroup " />
+      <ComponentGroupRef Id="NodeInstallationFilesGroup"/>
+      <ComponentGroupRef Id="ServiceInstallationFilesGroup"/>
       <ComponentRef Id="CMP_Shortcuts"/>
+      <ComponentRef Id="cmp_service_exe"/>
       <ComponentGroupRef Id="CMP_ShortcutFiles"/>
     </Feature>
   </Product>

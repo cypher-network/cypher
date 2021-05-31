@@ -35,16 +35,22 @@
     <Pedantic>True</Pedantic>
     <TreatWarningsAsErrors>True</TreatWarningsAsErrors>
     <VerboseOutput>False</VerboseOutput>
-    <DefineConstants>InstallationDirectory=$(ProjectDir)x64_installation_files</DefineConstants>
+    <DefineConstants>NodeInstallationDirectory=$(ProjectDir)node_x64_installation_files;ServiceInstallationDirectory=$(ProjectDir)service_x64_installation_files</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="node_installation_files.wxs" />
     <Compile Include="Product.wxs" />
+    <Compile Include="service_installation_files.wxs" />
   </ItemGroup>
   <ItemGroup>
-    <Folder Include="x64_installation_files" />
+    <Folder Include="service" />
+    <Folder Include="node_x64_installation_files" />
   </ItemGroup>
   <ItemGroup>
+    <WixExtension Include="WixUtilExtension">
+      <HintPath>$(WixExtDir)\WixUtilExtension.dll</HintPath>
+      <Name>WixUtilExtension</Name>
+    </WixExtension>
     <WixExtension Include="WixUIExtension">
       <HintPath>$(WixExtDir)\WixUIExtension.dll</HintPath>
       <Name>WixUIExtension</Name>
@@ -53,6 +59,7 @@
   <ItemGroup>
     <Content Include="configure_node.bat" />
     <Content Include="Copyright.rtf" />
+    <Content Include="remove_exe.xslt" />
     <Content Include="start_node.bat" />
     <Content Include="tgm.ico" />
   </ItemGroup>
@@ -62,7 +69,14 @@
     <Error Text="The WiX Toolset v3.11 (or newer) build tools must be installed to build this project. To download the WiX Toolset, see http://wixtoolset.org/releases/" />
   </Target>
   <PropertyGroup>
-    <PreBuildEvent>heat.exe dir $(ProjectDir)node_x64_installation_files -dr Node -cg NodeInstallationFilesGroup -gg -g1 -sf -srd -var "var.InstallationDirectory" -out $(ProjectDir)node_installation_files.wxs</PreBuildEvent>
+    <PreBuildEvent>cd $(SolutionDir)\..\..\cypnode
+dotnet publish -c Release -r win-x64 -p:PublishReadyToRun=true
+Xcopy /E /I bin\Release\net5.0\win-x64\publish $(ProjectDir)node_x64_installation_files
+heat.exe dir $(ProjectDir)node_x64_installation_files -dr Node -cg NodeInstallationFilesGroup -gg -g1 -sf -srd -var "var.NodeInstallationDirectory" -out $(ProjectDir)node_installation_files.wxs
+cd $(SolutionDir)service
+dotnet publish -c Release -r win-x64 -p:PublishReadyToRun=true
+Xcopy /E /I bin\Release\net5.0\win-x64\publish $(ProjectDir)service
+heat.exe dir $(ProjectDir)service -dr Node -cg ServiceInstallationFilesGroup -gg -g1 -sf -var "var.ServiceInstallationDirectory" -t $(ProjectDir)remove_exe.xslt  -out $(ProjectDir)service_installation_files.wxs</PreBuildEvent>
   </PropertyGroup>
   <!--
 	To modify your build process, add your task inside one of the targets below and uncomment it.
