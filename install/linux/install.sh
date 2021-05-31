@@ -13,6 +13,31 @@
 # instead of continuing the installation with something broken
 set -e
 
+while test $# -gt 0
+do
+    case "$1" in
+        --help)
+          echo "  Install script arguments:"
+          echo
+          echo "    --noninteractive              : use default options without user interaction"
+          echo "    --config-skip                 : skip the node's configuration wizard (--noninteractive implies --config-skip)"
+          echo
+          exit 0
+          ;;
+        --noninteractive)
+            IS_NON_INTERACTIVE=true
+            IS_SKIP_CONFIG=true
+            ;;
+        --config-skip)
+            IS_SKIP_CONFIG=true
+            ;;
+        --*) echo "bad option $1"
+            exit 1
+            ;;
+    esac
+    shift
+done
+
 ######## VARIABLES #########
 # For better maintainability, we store as much information that can change in variables
 # This allows us to make a change in one place that can propagate to all instances of the variable
@@ -114,13 +139,15 @@ is_command() {
 
 
 os_info() {
-  if ! whiptail --title "System information" --yesno "The following system was detected:\\n\\nDistribution   : ${DISTRO}\\nVersion        : ${DISTRO_VERSION}\\nDebian based   : ${IS_DEBIAN_BASED}\\n\\nArchitecture   : ${ARCHITECTURE}\\n\nIs this information correct? When unsure, select <Yes>" "${7}" "${c}"; then
-    printf "\n"
-    printf "  %b Could not detect your system information. Please report this issue on\n" "${CROSS}"
-    printf "      https://github.com/cypher-network/cypher/issues/new and include the output\n"
-    printf "      of the following command:\n\n"
-    printf "        uname -a\n\n"
-    return 1
+  if [ ! "${IS_NON_INTERACTIVE}" = true ]; then
+    if ! whiptail --title "System information" --yesno "The following system was detected:\\n\\nDistribution   : ${DISTRO}\\nVersion        : ${DISTRO_VERSION}\\nDebian based   : ${IS_DEBIAN_BASED}\\n\\nArchitecture   : ${ARCHITECTURE}\\n\nIs this information correct? When unsure, select <Yes>" "${7}" "${c}"; then
+      printf "\n"
+      printf "  %b Could not detect your system information. Please report this issue on\n" "${CROSS}"
+      printf "      https://github.com/cypher-network/cypher/issues/new and include the output\n"
+      printf "      of the following command:\n\n"
+      printf "        uname -a\n\n"
+      return 1
+    fi
   fi
 }
 
@@ -129,30 +156,40 @@ install_info() {
   if [ "${IS_DEBIAN_BASED}" = true ]; then
     printf "\n"
     ARCHIVE="${CYPHER_CYPNODE_ARTIFACT_PREFIX}${ARCHITECTURE_DEB}.deb"
-    
-    if whiptail --title "Installation archive - .deb" --yesno "You are running a Debian-based system. It is recommended to install cypher-cypnode using a .deb archive.\\n\\nWould you like to install the recommended archive ${ARCHIVE} ?" "${7}" "${c}"; then
+
+    if [ "${IS_NON_INTERACTIVE}" = true ]; then
       ARCHIVE_TYPE="deb"
       printf "  %b Using installation archive %s\n" "${TICK}" "${ARCHIVE}"
     else
-      printf "  %b Not using Debian installation archive on Debian host %s\n" "${CROSS}" "${ARCHIVE}"
-	  printf "      Please refer to the cypnode documentation to install the package manually.\n"
-	  printf "      DO NOT INSTALL THE DEBIAN ARCHIVE PARALLEL TO A MANUAL INSTALLATION\n\n"
-	  return 1
+      if whiptail --title "Installation archive - .deb" --yesno "You are running a Debian-based system. It is recommended to install cypher-cypnode using a .deb archive.\\n\\nWould you like to install the recommended archive ${ARCHIVE} ?" "${7}" "${c}"; then
+        ARCHIVE_TYPE="deb"
+        printf "  %b Using installation archive %s\n" "${TICK}" "${ARCHIVE}"
+      else
+        printf "  %b Not using Debian installation archive on Debian host %s\n" "${CROSS}" "${ARCHIVE}"
+	    printf "      Please refer to the cypnode documentation to install the package manually.\n"
+	    printf "      DO NOT INSTALL THE DEBIAN ARCHIVE PARALLEL TO A MANUAL INSTALLATION\n\n"
+	    return 1
+      fi
     fi
   fi
   
   if [ -z "${ARCHIVE}" ]; then
     printf "\n"
     ARCHIVE="${CYPHER_CYPNODE_ARTIFACT_PREFIX}linux-${ARCHITECTURE_UNIFIED}.tar.gz"
-    if whiptail --title "Installation archive - self-contained .tar.gz" --yesno "Self-contained builds include the .NET runtime environment, which does not require a separate .NET installation at the cost of slightly more disk space.\\n\\nWould you like to install the self-contained archive ${ARCHIVE} ?" "${7}" "${c}"; then
+    if [ "${IS_NON_INTERACTIVE}" = true ]; then
+      ARCHIVE_TYPE="self-contained"
+      printf "  %b Using installation archive %s\n" "${TICK}" "${ARCHIVE}"
+    else
+      if whiptail --title "Installation archive - self-contained .tar.gz" --yesno "Self-contained builds include the .NET runtime environment, which does not require a separate .NET installation at the cost of slightly more disk space.\\n\\nWould you like to install the self-contained archive ${ARCHIVE} ?" "${7}" "${c}"; then
         ARCHIVE_TYPE="self-contained"
         printf "  %b Using installation archive %s\n" "${TICK}" "${ARCHIVE}"
-    else
-      printf "  %b Not using installation archive %s\n" "${CROSS}" "${ARCHIVE}"
-      printf "\n"
-      printf "  %b Could not find a suitable installation archive.\n" "${CROSS}"
-      printf "      Please refer to https://github.com/cypher-network/cypher for manual installation instructions.\n\n"
-      return 1
+      else
+        printf "  %b Not using installation archive %s\n" "${CROSS}" "${ARCHIVE}"
+        printf "\n"
+        printf "  %b Could not find a suitable installation archive.\n" "${CROSS}"
+        printf "      Please refer to https://github.com/cypher-network/cypher for manual installation instructions.\n\n"
+        return 1
+      fi
     fi
   fi
 }
@@ -237,19 +274,25 @@ install_archive() {
   if [ "${ARCHIVE_TYPE}" = "deb" ]; then
     printf "  %b Installing archive\n" "${INFO}"
 
-    sudo dpkg -i "${DOWNLOAD_FILE}"
-    
+    if [ "${IS_NON_INTERACTIVE}" = true ]; then
+      sudo DEBIAN_FRONTEND=noninteractive dpkg -i "${DOWNLOAD_FILE}"
+    else
+      sudo dpkg -i "${DOWNLOAD_FILE}"
+    fi
+
     if [ -x "/usr/share/cypher/cypnode/cypnode" ]; then
-      if [ ! -f /usr/share/cypher/cypnode/cypnode/appsettings.json ]; then
-        sudo -u cypher-cypnode /usr/share/cypher/cypnode/cypnode --configure || true
+      if [ ! "${IS_SKIP_CONFIG}" = true ]; then
+        if [ ! -f /usr/share/cypher/cypnode/cypnode/appsettings.json ]; then
+          sudo -u cypher-cypnode /usr/share/cypher/cypnode/cypnode --configure || true
 
-        printf "  %b Reloading systemd daemon" "${INFO}"
-        sudo systemctl daemon-reload >/dev/null
-        printf "%b  %b Reloading systemd daemon\n" "${OVER}" "${TICK}"
+          printf "  %b Reloading systemd daemon" "${INFO}"
+          sudo systemctl daemon-reload >/dev/null
+          printf "%b  %b Reloading systemd daemon\n" "${OVER}" "${TICK}"
 
-        printf "  %b Restarting systemd service" "${INFO}"
-        sudo systemctl restart "${CYPHER_CYPNODE_SYSTEMD_SERVICE}" >/dev/null
-        printf "%b  %b Restarted systemd service\n" "${OVER}" "${TICK}"
+          printf "  %b Restarting systemd service" "${INFO}"
+          sudo systemctl restart "${CYPHER_CYPNODE_SYSTEMD_SERVICE}" >/dev/null
+          printf "%b  %b Restarted systemd service\n" "${OVER}" "${TICK}"
+        fi
       fi
     fi
 
@@ -295,13 +338,17 @@ install_archive() {
     printf "%b  %b Run configuration util\n\n" "${OVER}" "${TICK}"
 
     if [ "${INIT}" = "systemd" ]; then
-      if whiptail --title "systemd service" --yesno "To run the node as a service, it is recommended to configure the node as a systemd service.\\n\\nWould you like to use the default systemd service configuration provided with cypher-cypnode?" "${7}" "${c}"; then
+      if [ "${IS_NON_INTERACTIVE}" = true ]; then
         printf "  %b Using default systemd service\n" "${TICK}"
         install_systemd_service
       else
-        printf "  %b Not using default systemd service%s\n" "${CROSS}"
+        if whiptail --title "systemd service" --yesno "To run the node as a service, it is recommended to configure the node as a systemd service.\\n\\nWould you like to use the default systemd service configuration provided with cypher-cypnode?" "${7}" "${c}"; then
+          printf "  %b Using default systemd service\n" "${TICK}"
+          install_systemd_service
+        else
+          printf "  %b Not using default systemd service%s\n" "${CROSS}"
+        fi
       fi
-      
     elif [ "${INIT}" = "init" ]; then
       printf "  %b No cypher-cypnode init script available yet\n" "${CROSS}"
       
