@@ -5,6 +5,15 @@ on:
     tags:
       - 'v*.*.*'
 
+workflow_dispatch:
+    inputs:
+      logLevel:
+        description: 'Log level'
+        required: true
+        default: 'warning'
+      tags:
+        description: 'Test scenario tags'
+
 
 jobs:
   build-linux:
@@ -95,4 +104,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          files: cypher-cypnode_$VERSION*.msi
+          files: cypher-cypnode_${{ env.VERSION }}.msi
