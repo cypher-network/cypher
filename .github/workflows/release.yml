@@ -57,6 +57,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           files: cypher-cypnode_${{ env.VERSION }}*.*
+          name: Release v${{ env.VERSION }}
 
   build-windows:
     runs-on: windows-latest

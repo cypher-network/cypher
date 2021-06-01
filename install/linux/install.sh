@@ -275,9 +275,9 @@ install_archive() {
     printf "  %b Installing archive\n" "${INFO}"
 
     if [ "${IS_NON_INTERACTIVE}" = true ]; then
-      sudo DEBIAN_FRONTEND=noninteractive dpkg -i "${DOWNLOAD_FILE}"
+      sudo DEBIAN_FRONTEND=noninteractive apt install "${DOWNLOAD_FILE}"
     else
-      sudo dpkg -i "${DOWNLOAD_FILE}"
+      sudo apt install "${DOWNLOAD_FILE}"
     fi
 
     if [ -x "/usr/share/cypher/cypnode/cypnode" ]; then
