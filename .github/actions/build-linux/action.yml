@@ -5,9 +5,6 @@ inputs:
   runtime:
     description: '.NET runtime'
     required: true
-  runtime_deb:
-    description: 'Debian runtime'
-    required: true
   
 runs:
   using: "composite"
@@ -28,20 +25,4 @@ runs:
       mv cypher-cypnode_${{ env.VERSION }}_${{ inputs.runtime }}.tar.gz.sha256 ${{ github.workspace }}
 
       popd
-    shell: bash
-
-  - name: Package deb
-    run: |
-      cp -r install/linux/debian .
-
-      sed -i 's/\$RUNTIME/${{ inputs.runtime }}/g'                 ./debian/rules
-      sed -i "s/\$VERSION/$VERSION/g"                              ./debian/changelog
-      sed -i "s/\$TIMESTAMP/$(date +"%a, %d %b %Y %H:%M:%S %z")/g" ./debian/changelog
-
-      dpkg-buildpackage -b --no-sign -a ${{ inputs.runtime_deb }}
-
-      sha256sum ../cypher-cypnode_${{ env.VERSION }}_${{ inputs.runtime_deb }}.deb > ../cypher-cypnode_${{ env.VERSION }}_${{ inputs.runtime_deb }}.deb.sha256
-
-      mv ../*.deb        ${{ github.workspace }}
-      mv ../*.deb.sha256 ${{ github.workspace }}
     shell: bash

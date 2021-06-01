@@ -21,6 +21,7 @@ do
           echo
           echo "    --noninteractive              : use default options without user interaction"
           echo "    --config-skip                 : skip the node's configuration wizard (--noninteractive implies --config-skip)"
+          echo "    --uninstall                   : uninstall node"
           echo
           exit 0
           ;;
@@ -30,6 +31,9 @@ do
             ;;
         --config-skip)
             IS_SKIP_CONFIG=true
+            ;;
+        --uninstall)
+            IS_UNINSTALL=true
             ;;
         --*) echo "bad option $1"
             exit 1
@@ -72,7 +76,7 @@ fi
 
 CYPHER_CYPNODE_VERSION=$(curl --silent "https://api.github.com/repos/cypher-network/cypher/releases/latest" | grep -Po '"tag_name": "\K.*?(?=")')
 CYPHER_CYPNODE_VERSION_SHORT=$(echo "${CYPHER_CYPNODE_VERSION}" | cut -c 2-)
-CYPHER_CYPNODE_ARTIFACT_PREFIX="cypher-cypnode_${CYPHER_CYPNODE_VERSION_SHORT}_"
+CYPHER_CYPNODE_ARTIFACT_PREFIX="tangram-cypnode_${CYPHER_CYPNODE_VERSION_SHORT}_"
 CYPHER_CYPNODE_URL_PREFIX="https://github.com/cypher-network/cypher/releases/download/${CYPHER_CYPNODE_VERSION}/"
 
 SYSTEMD_SERVICE_PATH="/etc/systemd/system/"
@@ -136,62 +140,24 @@ is_command() {
 }
 
 
-os_info() {
-  if [ ! "${IS_NON_INTERACTIVE}" = true ]; then
-    if ! whiptail --title "System information" --yesno "The following system was detected:\\n\\nDistribution   : ${DISTRO}\\nVersion        : ${DISTRO_VERSION}\\nDebian based   : ${IS_DEBIAN_BASED}\\n\\nArchitecture   : ${ARCHITECTURE}\\n\nIs this information correct? When unsure, select <Yes>" "${7}" "${c}"; then
-      printf "\n"
-      printf "  %b Could not detect your system information. Please report this issue on\n" "${CROSS}"
-      printf "      https://github.com/cypher-network/cypher/issues/new and include the output\n"
-      printf "      of the following command:\n\n"
-      printf "        uname -a\n\n"
-      return 1
-    fi
-  fi
-}
-
-
 install_info() {
-  if [ "${IS_DEBIAN_BASED}" = true ]; then
-    printf "\n"
-    ARCHIVE="${CYPHER_CYPNODE_ARTIFACT_PREFIX}${ARCHITECTURE_DEB}.deb"
+  ARCHIVE="${CYPHER_CYPNODE_ARTIFACT_PREFIX}linux-${ARCHITECTURE_UNIFIED}.tar.gz"
+  printf "\n  %b Using installation archive %s\n" "${TICK}" "${ARCHIVE}"
+}
 
-    if [ "${IS_NON_INTERACTIVE}" = true ]; then
-      ARCHIVE_TYPE="deb"
-      printf "  %b Using installation archive %s\n" "${TICK}" "${ARCHIVE}"
-    else
-      if whiptail --title "Installation archive - .deb" --yesno "You are running a Debian-based system. It is recommended to install cypher-cypnode using a .deb archive.\\n\\nWould you like to install the recommended archive ${ARCHIVE} ?" "${7}" "${c}"; then
-        ARCHIVE_TYPE="deb"
-        printf "  %b Using installation archive %s\n" "${TICK}" "${ARCHIVE}"
-      else
-        printf "  %b Not using Debian installation archive on Debian host %s\n" "${CROSS}" "${ARCHIVE}"
-	    printf "      Please refer to the cypnode documentation to install the package manually.\n"
-	    printf "      DO NOT INSTALL THE DEBIAN ARCHIVE PARALLEL TO A MANUAL INSTALLATION\n\n"
-	    return 1
-      fi
-    fi
-  fi
+install_dependencies() {
+  printf "\n  %b Checking dependencies\n" "${INFO}"
   
-  if [ -z "${ARCHIVE}" ]; then
-    printf "\n"
-    ARCHIVE="${CYPHER_CYPNODE_ARTIFACT_PREFIX}linux-${ARCHITECTURE_UNIFIED}.tar.gz"
-    if [ "${IS_NON_INTERACTIVE}" = true ]; then
-      ARCHIVE_TYPE="self-contained"
-      printf "  %b Using installation archive %s\n" "${TICK}" "${ARCHIVE}"
+  if [ "${IS_DEBIAN_BASED}" = true ]; then
+    if dpkg -s libc6-dev &> /dev/null; then
+      printf "  %b libc6-dev\n" "${TICK}"
     else
-      if whiptail --title "Installation archive - self-contained .tar.gz" --yesno "Self-contained builds include the .NET runtime environment, which does not require a separate .NET installation at the cost of slightly more disk space.\\n\\nWould you like to install the self-contained archive ${ARCHIVE} ?" "${7}" "${c}"; then
-        ARCHIVE_TYPE="self-contained"
-        printf "  %b Using installation archive %s\n" "${TICK}" "${ARCHIVE}"
-      else
-        printf "  %b Not using installation archive %s\n" "${CROSS}" "${ARCHIVE}"
-        printf "\n"
-        printf "  %b Could not find a suitable installation archive.\n" "${CROSS}"
-        printf "      Please refer to https://github.com/cypher-network/cypher for manual installation instructions.\n\n"
-        return 1
-      fi
+      printf "  %b libc6-dev\n" "${CROSS}"
+      printf "  %b Installing libc6-dev\n" "${INFO}"
+      sudo apt-get install libc6-dev
     fi
   fi
 }
-
 
 download_archive() {
   printf "\n"
@@ -204,7 +170,7 @@ download_archive() {
     HAS_CURL=false
   fi
   
-  if [ "${HAS_CURL}" = false ]; then
+  if [ ! "${HAS_CURL}" = true ]; then
     if is_command wget; then
       printf "  %b wget\n" "${TICK}"
     else
@@ -259,102 +225,85 @@ install_systemd_service() {
   printf "%b  %b Reloading systemd daemon\n" "${OVER}" "${TICK}"
   
   printf "  %b Enabling systemd service" "${INFO}"
-  sudo systemctl enable "${CYPHER_CYPNODE_SYSTEMD_SERVICE}" >/dev/null
+  sudo systemctl enable "${CYPHER_CYPNODE_SYSTEMD_SERVICE}" &> /dev/null
   printf "%b  %b Enabled systemd service\n" "${OVER}" "${TICK}"
   
   printf "  %b Starting systemd service" "${INFO}"
-  sudo systemctl start "${CYPHER_CYPNODE_SYSTEMD_SERVICE}" >/dev/null
+  sudo systemctl start "${CYPHER_CYPNODE_SYSTEMD_SERVICE}" > /dev/null
   printf "%b  %b Started systemd service\n" "${OVER}" "${TICK}"
 }
 
 
+stop_service() {
+  if [ "${INIT}" = "systemd" ]; then
+    if [ $(systemctl is-active "${CYPHER_CYPNODE_SYSTEMD_SERVICE}") = "active" ]; then
+      printf "\n"
+      printf "  %b Stopping systemd service" "${INFO}"
+      sudo systemctl stop "${CYPHER_CYPNODE_SYSTEMD_SERVICE}" >/dev/null
+      printf "%b  %b Stopped systemd service\n" "${OVER}" "${TICK}"
+    fi
+  fi
+}
+
 install_archive() {
-  if [ "${ARCHIVE_TYPE}" = "deb" ]; then
-    printf "  %b Installing archive\n" "${INFO}"
+  printf "\n  %b Installing archive\n" "${INFO}"
 
-    if [ "${IS_NON_INTERACTIVE}" = true ]; then
-      sudo DEBIAN_FRONTEND=noninteractive apt install "${DOWNLOAD_FILE}"
-    else
-      sudo apt install "${DOWNLOAD_FILE}"
-    fi
-
-    if [ -x "/usr/share/cypher/cypnode/cypnode" ]; then
-      if [ ! "${IS_SKIP_CONFIG}" = true ]; then
-        if [ ! -f /usr/share/cypher/cypnode/cypnode/appsettings.json ]; then
-          sudo -u cypher-cypnode /usr/share/cypher/cypnode/cypnode --configure || true
-
-          printf "  %b Reloading systemd daemon" "${INFO}"
-          sudo systemctl daemon-reload >/dev/null
-          printf "%b  %b Reloading systemd daemon\n" "${OVER}" "${TICK}"
-
-          printf "  %b Restarting systemd service" "${INFO}"
-          sudo systemctl restart "${CYPHER_CYPNODE_SYSTEMD_SERVICE}" >/dev/null
-          printf "%b  %b Restarted systemd service\n" "${OVER}" "${TICK}"
-        fi
-      fi
-    fi
-
+  stop_service
+  
+  printf "\n  %b Checking if user %s exists" "${INFO}" "${CYPHER_CYPNODE_USER}"
+    
+  # Create user
+  if getent passwd "${CYPHER_CYPNODE_USER}" >/dev/null; then
+    printf "%b  %b User %s exists\n" "${OVER}" "${TICK}" "${CYPHER_CYPNODE_USER}"
   else
-    if [ "${INIT}" = "systemd" ]; then
-      if [ $(systemctl is-active "${CYPHER_CYPNODE_SYSTEMD_SERVICE}") = "active" ]; then
-        printf "\n"
-        printf "  %b Stopping systemd service" "${INFO}"
-        sudo systemctl stop "${CYPHER_CYPNODE_SYSTEMD_SERVICE}" >/dev/null
-        printf "%b  %b Stopped systemd service\n" "${OVER}" "${TICK}"
-      fi
-    fi
-
-    printf "  %b Checking if user %s exists" "${INFO}" "${CYPHER_CYPNODE_USER}"
-    
-    # Create user
-    if getent passwd "${CYPHER_CYPNODE_USER}" >/dev/null; then
-      printf "%b  %b User %s exists\n" "${OVER}" "${TICK}" "${CYPHER_CYPNODE_USER}"
-    else
-      printf "%b  %b User %s does not exist\n" "${OVER}" "${CROSS}" "${CYPHER_CYPNODE_USER}"
-      printf "  %b Creating user %s" "${INFO}" "${CYPHER_CYPNODE_USER}"
+    printf "%b  %b User %s does not exist\n" "${OVER}" "${CROSS}" "${CYPHER_CYPNODE_USER}"
+    printf "  %b Creating user %s" "${INFO}" "${CYPHER_CYPNODE_USER}"
       
-	  sudo groupadd -f "${CYPHER_CYPNODE_USER}"
-      sudo adduser --system --gid "${CYPHER_CYPNODE_USER}" --no-create-home "${CYPHER_CYPNODE_USER}"
-        
-      printf "%b  %b Created user %s\n" "${OVER}" "${TICK}" "${CYPHER_CYPNODE_USER}"
-    fi
+    sudo groupadd -f "${CYPHER_CYPNODE_USER}" >/dev/null
+    sudo adduser --system --gid $(getent group "${CYPHER_CYPNODE_USER}" | cut -d: -f3) --no-create-home "${CYPHER_CYPNODE_USER}" >/dev/null
 
-    printf "  %b Unpacking archive to %s" "${INFO}" "${CYPHER_CYPNODE_TMP_PATH}"
-    mkdir -p "${CYPHER_CYPNODE_TMP_PATH}"
-    tar --overwrite -xf "${DOWNLOAD_FILE}" -C "${CYPHER_CYPNODE_TMP_PATH}"
-    printf "%b  %b Unpacked archive to %s\n" "${OVER}" "${TICK}" "${CYPHER_CYPNODE_TMP_PATH}"
+    printf "%b  %b Created user %s\n" "${OVER}" "${TICK}" "${CYPHER_CYPNODE_USER}"
+  fi
+
+  printf "  %b Unpacking archive to %s" "${INFO}" "${CYPHER_CYPNODE_TMP_PATH}"
+  mkdir -p "${CYPHER_CYPNODE_TMP_PATH}"
+  tar --overwrite -xf "${DOWNLOAD_FILE}" -C "${CYPHER_CYPNODE_TMP_PATH}"
+  printf "%b  %b Unpacked archive to %s\n" "${OVER}" "${TICK}" "${CYPHER_CYPNODE_TMP_PATH}"
     
-    printf "  %b Installing to %s" "${INFO}" "${CYPHER_CYPNODE_OPT_PATH}"
-    sudo mkdir -p "${CYPHER_CYPNODE_OPT_PATH}"
-    sudo cp -r "${CYPHER_CYPNODE_TMP_PATH}"* "${CYPHER_CYPNODE_OPT_PATH}"
-    sudo chmod 755 -R "${CYPHER_CYPNODE_OPT_PATH}"
-    sudo chown -R "${CYPHER_CYPNODE_USER}":"${CYPHER_CYPNODE_USER}" "${CYPHER_CYPNODE_OPT_PATH}"
-    printf "%b  %b Installed to %s\n" "${OVER}" "${TICK}" "${CYPHER_CYPNODE_OPT_PATH}"
-    
+  printf "  %b Installing to %s" "${INFO}" "${CYPHER_CYPNODE_OPT_PATH}"
+  sudo mkdir -p "${CYPHER_CYPNODE_OPT_PATH}"
+  sudo cp -r "${CYPHER_CYPNODE_TMP_PATH}"* "${CYPHER_CYPNODE_OPT_PATH}"
+  sudo chmod 755 -R "${CYPHER_CYPNODE_OPT_PATH}"
+  sudo chown -R "${CYPHER_CYPNODE_USER}":"${CYPHER_CYPNODE_USER}" "${CYPHER_CYPNODE_OPT_PATH}"
+  printf "%b  %b Installed to %s\n" "${OVER}" "${TICK}" "${CYPHER_CYPNODE_OPT_PATH}"
+
+  if [ "${IS_SKIP_CONFIG}" = true ]; then
+    printf "  %b Skipping configuration util\n\n" "${CROSS}"
+  else
     printf "  %b Running configuration util" "${INFO}"
     sudo -u "${CYPHER_CYPNODE_USER}" "${CYPHER_CYPNODE_OPT_PATH}"cypnode --configure
     printf "%b  %b Run configuration util\n\n" "${OVER}" "${TICK}"
+  fi
 
-    if [ "${INIT}" = "systemd" ]; then
-      if [ "${IS_NON_INTERACTIVE}" = true ]; then
+  if [ "${INIT}" = "systemd" ]; then
+    if [ "${IS_NON_INTERACTIVE}" = true ]; then
+      printf "  %b Using default systemd service\n" "${TICK}"
+      install_systemd_service
+    else
+      if whiptail --title "systemd service" --yesno "To run the node as a service, it is recommended to configure the node as a systemd service.\\n\\nWould you like to use the default systemd service configuration provided with cypher-cypnode?" "${7}" "${c}"; then
         printf "  %b Using default systemd service\n" "${TICK}"
         install_systemd_service
       else
-        if whiptail --title "systemd service" --yesno "To run the node as a service, it is recommended to configure the node as a systemd service.\\n\\nWould you like to use the default systemd service configuration provided with cypher-cypnode?" "${7}" "${c}"; then
-          printf "  %b Using default systemd service\n" "${TICK}"
-          install_systemd_service
-        else
-          printf "  %b Not using default systemd service%s\n" "${CROSS}"
-        fi
+        printf "  %b Not using default systemd service%s\n" "${CROSS}"
       fi
-    elif [ "${INIT}" = "init" ]; then
-      printf "  %b No cypher-cypnode init script available yet\n" "${CROSS}"
-      
-    else
-      printf "\n"
-      printf "  %b Unknown system %s. Please report this issue on\n" "${CROSS}" "${INIT}"
-      printf "      https://github.com/cypher-network/cypher/issues/new"
     fi
+  elif [ "${INIT}" = "init" ]; then
+    printf "  %b No cypher-cypnode init script available yet\n" "${CROSS}"
+      
+  else
+    printf "\n"
+    printf "  %b Unknown system %s. Please report this issue on\n" "${CROSS}" "${INIT}"
+    printf "      https://github.com/cypher-network/cypher/issues/new"
   fi
 }
 
@@ -371,12 +320,46 @@ finish() {
   printf "\n\n  %b Installation succesful\n\n" "${DONE}"
 }
 
+if [ "${IS_UNINSTALL}" = true ]; then
+  printf "  %b Uninstalling\n\n" "${INFO}"
+  
+  stop_service
+  
+  if [ "${INIT}" = "systemd" ]; then
+    if [ -f "${SYSTEMD_SERVICE_PATH}${CYPHER_CYPNODE_SYSTEMD_SERVICE}" ]; then
+      if [ $(systemctl is-enabled "${CYPHER_CYPNODE_SYSTEMD_SERVICE}") = "enabled" ]; then
+        printf "  %b Disabling service" "${INFO}"
+        sudo systemctl disable "${CYPHER_CYPNODE_SYSTEMD_SERVICE}" >/dev/null 2>&1
+        printf "%b  %b Disabled service\n" "${OVER}" "${TICK}"
+      fi
+    
+      printf "  %b Removing service" "${INFO}"
+      sudo rm -rf "${SYSTEMD_SERVICE_PATH}${CYPHER_CYPNODE_SYSTEMD_SERVICE}"
+      printf "%b  %b Removed service\n" "${OVER}" "${TICK}"
+    
+      printf "  %b Reloading systemd daemon" "${INFO}"
+      sudo systemctl daemon-reload
+      printf "%b  %b Reloading systemd daemon\n" "${OVER}" "${TICK}"       
+    fi
+  fi
 
-os_info
-install_info
+  sudo rm -rf "${CYPHER_CYPNODE_OPT_PATH}"
 
-download_archive
-install_archive
+  if getent passwd "${CYPHER_CYPNODE_USER}" >/dev/null; then
+    printf "  %b Removing user" "${INFO}"
+    sudo userdel -r "${CYPHER_CYPNODE_USER}" &> /dev/null
+    printf "%b  %b Removed user\n" "${OVER}" "${TICK}"   
+  fi
+  
+  printf "\n\n  %b Uninstall succesful\n\n" "${DONE}"
+  
+else
+  install_info
+  install_dependencies
 
-cleanup
-finish
+  download_archive
+  install_archive
+
+  cleanup
+  finish
+fi
