@@ -13,17 +13,17 @@ For quick installation on Linux, execute the following command:
 
 The following parameters can be supplied:
 
-:--help:
-  Display help
+`--help`
+Display help
   
-:--config-skip:
-  Do not run configuration wizard
+`--config-skip`
+Do not run configuration wizard
 
-:--noninteractive:
-  Assume default answers without user interaction.
+`--noninteractive`
+Assume default answers without user interaction.
 
-:--uninstall:
-  Uninstall node
+`--uninstall`
+Uninstall node
 
   
 For example:
