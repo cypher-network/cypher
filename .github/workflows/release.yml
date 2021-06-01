@@ -98,6 +98,9 @@ jobs:
         id: get_version
         uses: ./.github/actions/get-version
 
+      - name: Create windows installer
+        uses: ./.github/actions/build-windows
+
       - name: Create Windows release
         id: gh-release
         uses: softprops/action-gh-release@v1
