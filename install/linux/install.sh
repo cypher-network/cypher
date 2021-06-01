@@ -70,12 +70,10 @@ else
 fi
 
 
-CYPHER_CYPNODE_VERSION=$(curl --silent "https://api.github.com/repos/stephankempkes/cypher/releases/latest" | grep -Po '"tag_name": "\K.*?(?=")')
-#CYPHER_CYPNODE_VERSION=$(curl --silent "https://api.github.com/repos/cypher-network/cypher/releases/latest" | grep -Po '"tag_name": "\K.*?(?=")')
+CYPHER_CYPNODE_VERSION=$(curl --silent "https://api.github.com/repos/cypher-network/cypher/releases/latest" | grep -Po '"tag_name": "\K.*?(?=")')
 CYPHER_CYPNODE_VERSION_SHORT=$(echo "${CYPHER_CYPNODE_VERSION}" | cut -c 2-)
 CYPHER_CYPNODE_ARTIFACT_PREFIX="cypher-cypnode_${CYPHER_CYPNODE_VERSION_SHORT}_"
-CYPHER_CYPNODE_URL_PREFIX="https://github.com/stephankempkes/cypher/releases/download/${CYPHER_CYPNODE_VERSION}/"
-#CYPHER_CYPNODE_URL_PREFIX="https://github.com/cypher-network/cypher/releases/download/${CYPHER_CYPNODE_VERSION}/"
+CYPHER_CYPNODE_URL_PREFIX="https://github.com/cypher-network/cypher/releases/download/${CYPHER_CYPNODE_VERSION}/"
 
 SYSTEMD_SERVICE_PATH="/etc/systemd/system/"
 CYPHER_CYPNODE_SYSTEMD_SERVICE="cypher-cypnode.service"
