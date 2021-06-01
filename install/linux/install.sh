@@ -154,6 +154,7 @@ install_dependencies() {
     else
       printf "  %b libc6-dev\n" "${CROSS}"
       printf "  %b Installing libc6-dev\n" "${INFO}"
+      sudo apt-get update
       if [ "${IS_NON_INTERACTIVE}" = true ]; then
         sudo DEBIAN_FRONTEND=noninteractive apt-get -yq install libc6-dev
       else
