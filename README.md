@@ -11,3 +11,21 @@ For quick installation on Linux, execute the following command:
 
 `bash <(curl -sSL https://raw.githubusercontent.com/cypher-network/cypher/master/install/linux/install.sh)`
 
+The following parameters can be supplied:
+
+:--help:
+  Display help
+  
+:--config-skip:
+  Do not run configuration wizard
+
+:--noninteractive:
+  Assume default answers without user interaction.
+
+:--uninstall:
+  Uninstall node
+
+  
+For example:
+
+`bash <(curl -sSL https://raw.githubusercontent.com/cypher-network/cypher/master/install/linux/install.sh) --uninstall`
