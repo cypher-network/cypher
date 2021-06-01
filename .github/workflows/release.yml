@@ -21,7 +21,11 @@ jobs:
       - name: Get version
         uses: ./.github/actions/get-version
 
-      - name: Verify AssemblyVersion
+      - name: Verify AssemblyVersion cypcore
+        run: ./.github/actions/get-version/validate.sh ./cypcore/cypcore.csproj ${{ env.VERSION }}
+        shell: bash
+
+      - name: Verify AssemblyVersion cypnode
         run: ./.github/actions/get-version/validate.sh ./cypnode/cypnode.csproj ${{ env.VERSION }}
         shell: bash
 
