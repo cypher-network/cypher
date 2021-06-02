@@ -70,7 +70,7 @@ jobs:
         with:
           context: .
           file: cypnode/Dockerfile.build
-          push: false
+          push: true
           build-args: |
             version=v${{ env.VERSION }}
           tags: |
