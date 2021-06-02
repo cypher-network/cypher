@@ -74,14 +74,14 @@ else
 fi
 
 
-CYPHER_CYPNODE_VERSION=$(curl --silent "https://api.github.com/repos/cypher-network/cypher/releases/latest" | grep -Po '"tag_name": "\K.*?(?=")')
+CYPHER_CYPNODE_VERSION=$(curl --silent "https://api.github.com/repos/inkadnb/cypher/releases/latest" | grep -Po '"tag_name": "\K.*?(?=")')
 CYPHER_CYPNODE_VERSION_SHORT=$(echo "${CYPHER_CYPNODE_VERSION}" | cut -c 2-)
 CYPHER_CYPNODE_ARTIFACT_PREFIX="cypher-cypnode_${CYPHER_CYPNODE_VERSION_SHORT}_"
-CYPHER_CYPNODE_URL_PREFIX="https://github.com/cypher-network/cypher/releases/download/${CYPHER_CYPNODE_VERSION}/"
+CYPHER_CYPNODE_URL_PREFIX="https://github.com/inkadnb/cypher/releases/download/${CYPHER_CYPNODE_VERSION}/"
 
 SYSTEMD_SERVICE_PATH="/etc/systemd/system/"
 CYPHER_CYPNODE_SYSTEMD_SERVICE="cypher-cypnode.service"
-CYPHER_CYPNODE_SYSTEMD_SERVICE_URL="https://raw.githubusercontent.com/cypher-network/cypher/master/install/linux/${CYPHER_CYPNODE_SYSTEMD_SERVICE}"
+CYPHER_CYPNODE_SYSTEMD_SERVICE_URL="https://raw.githubusercontent.com/inkadnb/cypher/master/install/linux/${CYPHER_CYPNODE_SYSTEMD_SERVICE}"
 
 CYPHER_CYPNODE_OPT_PATH="/opt/cypher/cypnode/"
 CYPHER_CYPNODE_TMP_PATH="/tmp/opt/cypher/cypnode/"
