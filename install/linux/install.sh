@@ -19,17 +19,21 @@ do
         --help)
           echo "  Install script arguments:"
           echo
-          echo "    --noninteractive              : use default options without user interaction"
           echo "    --config-skip                 : skip the node's configuration wizard (--noninteractive implies --config-skip)"
+          echo "    --no-service                  : do not install node as a service"
+          echo "    --noninteractive              : use default options without user interaction"
           echo "    --uninstall                   : uninstall node"
           echo
           exit 0
           ;;
-        --noninteractive)
-            IS_NON_INTERACTIVE=true
+        --config-skip)
             IS_SKIP_CONFIG=true
             ;;
-        --config-skip)
+        --no-service)
+            IS_NO_SERVICE=true
+            ;;
+        --noninteractive)
+            IS_NON_INTERACTIVE=true
             IS_SKIP_CONFIG=true
             ;;
         --uninstall)
@@ -290,25 +294,29 @@ install_archive() {
     printf "%b  %b Run configuration util\n\n" "${OVER}" "${TICK}"
   fi
 
-  if [ "${INIT}" = "systemd" ]; then
-    if [ "${IS_NON_INTERACTIVE}" = true ]; then
-      printf "  %b Using default systemd service\n" "${TICK}"
-      install_systemd_service
-    else
-      if whiptail --title "systemd service" --yesno "To run the node as a service, it is recommended to configure the node as a systemd service.\\n\\nWould you like to use the default systemd service configuration provided with cypher-cypnode?" "${7}" "${c}"; then
+  if [ "${IS_NO_SERVICE}" = true ]; then
+    printf "  %b Not installing service\n" "${CROSS}"
+  else
+    if [ "${INIT}" = "systemd" ]; then
+      if [ "${IS_NON_INTERACTIVE}" = true ]; then
         printf "  %b Using default systemd service\n" "${TICK}"
         install_systemd_service
       else
-        printf "  %b Not using default systemd service%s\n" "${CROSS}"
+        if whiptail --title "systemd service" --yesno "To run the node as a service, it is recommended to configure the node as a systemd service.\\n\\nWould you like to use the default systemd service configuration provided with cypher-cypnode?" "${7}" "${c}"; then
+          printf "  %b Using default systemd service\n" "${TICK}"
+          install_systemd_service
+        else
+          printf "  %b Not using default systemd service%s\n" "${CROSS}"
+        fi
       fi
+    elif [ "${INIT}" = "init" ]; then
+      printf "  %b No cypher-cypnode init script available yet\n" "${CROSS}"
+
+    else
+      printf "\n"
+      printf "  %b Unknown system %s. Please report this issue on\n" "${CROSS}" "${INIT}"
+      printf "      https://github.com/cypher-network/cypher/issues/new"
     fi
-  elif [ "${INIT}" = "init" ]; then
-    printf "  %b No cypher-cypnode init script available yet\n" "${CROSS}"
-      
-  else
-    printf "\n"
-    printf "  %b Unknown system %s. Please report this issue on\n" "${CROSS}" "${INIT}"
-    printf "      https://github.com/cypher-network/cypher/issues/new"
   fi
 }
 

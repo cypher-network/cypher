@@ -19,6 +19,9 @@ Display help
 `--config-skip`
 Do not run configuration wizard
 
+`--no-service`
+Do not install node as a service
+
 `--noninteractive`
 Assume default answers without user interaction.
 
