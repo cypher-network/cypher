@@ -1,0 +1,24 @@
+FROM mcr.microsoft.com/dotnet/sdk:5.0 AS base
+ARG version
+
+# api
+EXPOSE 7000
+# serf
+EXPOSE 7946
+# node monitor
+EXPOSE 7005
+
+RUN apt-get -y update && apt-get -y install --no-install-recommends wget ca-certificates curl procps sudo systemd
+RUN wget -O install.sh https://raw.githubusercontent.com/cypher-network/cypher/${version}/install/linux/install.sh \
+	&& chmod +x install.sh \
+	&& ./install.sh --noninteractive \
+	&& rm install.sh \
+	&& rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt/cypher/cypnode
+
+FROM base AS build
+
+RUN wget -O appsettings.json https://raw.githubusercontent.com/cypher-network/cypher/${version}/cypnode/appsettings.json
+
+ENTRYPOINT ["dotnet", "cypnode.dll"]
