@@ -10,8 +10,8 @@ EXPOSE 7005
 
 RUN apt-get -y update && apt-get -y install --no-install-recommends wget=1.20.1-1.1 ca-certificates=20200601~deb10u2 curl=7.64.0-4+deb10u2 procps=2:3.3.15-2 sudo=1.8.27-1+deb10u3 systemd=241-7~deb10u7 \
 	&& apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-RUN wget -O install.sh https://raw.githubusercontent.com/cypher-network/cypher/${version:?}/install/linux/install.sh \
+  && rm -rf /var/lib/apt/lists/* \
+	&& wget -qO install.sh https://raw.githubusercontent.com/cypher-network/cypher/${version:?}/install/linux/install.sh \
 	&& chmod +x install.sh \
 	&& ./install.sh --noninteractive \
 	&& rm install.sh
@@ -20,6 +20,6 @@ WORKDIR /opt/cypher/cypnode
 
 FROM base AS build
 
-RUN wget -O "appsettings.json" "https://raw.githubusercontent.com/cypher-network/cypher/${version:?}/cypnode/appsettings.json"
+RUN wget -qO "appsettings.json" "https://raw.githubusercontent.com/cypher-network/cypher/${version:?}/cypnode/appsettings.json"
 
 ENTRYPOINT ["dotnet", "cypnode.dll"]
