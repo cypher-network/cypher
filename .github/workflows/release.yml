@@ -66,7 +66,7 @@ jobs:
           file: cypnode/Dockerfile.build
           push: false
           build-args: |
-            version=v${{env.VERSION}}
+            version=v${{ env.VERSION }}
           tags: |
             tangrams/cypher:latest
 
