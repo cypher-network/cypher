@@ -65,7 +65,10 @@ jobs:
           context: .
           file: cypnode/Dockerfile.build
           push: false
-          tags: user/app:latest
+          build-args: |
+            version=v${{env.VERSION}}
+          tags: |
+            tangrams/cypher:latest
 
   build-windows:
     runs-on: windows-latest
