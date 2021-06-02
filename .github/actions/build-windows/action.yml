@@ -1,0 +1,43 @@
+name: Build - Windows
+description: 'Build Windows release'
+
+runs:
+  using: "composite"
+  steps:
+
+  - name: Set path for candle and light
+    run: echo "C:\Program Files (x86)\WiX Toolset v3.11\bin" >> $GITHUB_PATH
+    shell: bash
+
+  - name: Build cypher node
+    run: |
+      dotnet publish cypnode --configuration Release --self-contained -r win-x64 -p:PublishReadyToRun=true
+      new-item -Path 'install\windows\cypnode_installer\node_x64_installation_files' -ItemType Directory
+      copy-item -path 'cypnode\bin\Release\net5.0\win-x64\publish\**' -destination 'install\windows\cypnode_installer\node_x64_installation_files' -recurse
+    shell: powershell
+
+  - name: Harvest cypher node files
+    run: heat.exe dir install/windows/cypnode_installer/node_x64_installation_files -dr Node -cg NodeInstallationFilesGroup -gg -g1 -sf -srd -sreg -var "var.NodeInstallationDirectory" -out install/windows/cypnode_installer/node_installation_files.wxs
+    shell: cmd
+
+
+  - name: Build cypher service
+    run: |
+      dotnet publish install/windows/service --configuration Release --self-contained -r win-x64 -p:PublishReadyToRun=true
+      new-item -Path 'install\windows\cypnode_installer\service' -ItemType Directory
+      copy-item -path 'install\windows\service\bin\Release\net5.0\win-x64\publish\**' -destination 'install\windows\cypnode_installer\service' -recurse
+    shell: powershell
+
+  - name: Harvest cypher service files
+    run: heat.exe dir install/windows/cypnode_installer/service -dr Node -cg ServiceInstallationFilesGroup -gg -g1 -sf -sreg -var "var.ServiceInstallationDirectory" -t install/windows/cypnode_installer/remove_exe.xslt  -out install/windows/cypnode_installer/service_installation_files.wxs
+    shell: cmd
+
+  - name: Build installer
+    run: |
+      candle.exe -wx -dNodeInstallationDirectory=install\windows\cypnode_installer\node_x64_installation_files -dServiceInstallationDirectory=install\windows\cypnode_installer\service -d"DevEnvDir=C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\Common7\IDE\\" -dSolutionDir=install\windows\ -dSolutionExt=.sln -dSolutionFileName=cypher_node_installer.sln -dSolutionName=cypher_node_installer -dSolutionPath=install\windows\cypher_node_installer.sln -dConfiguration=Release -dOutDir=install\windows\cypnode_installer\bin\x64\Release\ -dPlatform=x64 -dProjectDir=install\windows\cypnode_installer\ -dProjectExt=.wixproj -dProjectFileName=cypher_node_installer.wixproj -dProjectName=cypher_node_installer -dProjectPath=install\windows\cypnode_installer\cypher_node_installer.wixproj -dTargetDir=install\windows\cypnode_installer\bin\x64\Release\ -dTargetExt=.msi -dTargetFileName=cypher-cypnode_${{ env.VERSION }}.msi -dTargetName=cypher-cypnode_${{ env.VERSION }} -dTargetPath=install\windows\cypnode_installer\bin\x64\Release\cypher-cypnode_${{ env.VERSION }}.msi -out install\windows\cypnode_installer\obj\x64\Release\ -pedantic -arch x64 -ext "C:\Program Files (x86)\WiX Toolset v3.11\bin\\WixUtilExtension.dll" -ext "C:\Program Files (x86)\WiX Toolset v3.11\bin\\WixUIExtension.dll" install\windows\cypnode_installer\node_installation_files.wxs install\windows\cypnode_installer\Product.wxs install\windows\cypnode_installer\service_installation_files.wxs
+      Light.exe -b install\windows\cypnode_installer -out install\windows\cypnode_installer\bin\x64\Release\cypher-cypnode_${{ env.VERSION }}.msi -pdbout install\windows\cypnode_installer\bin\x64\Release\cypher-cypnode_${{ env.VERSION }}.wixpdb -wx -cultures:null -ext "C:\Program Files (x86)\WiX Toolset v3.11\bin\\WixUtilExtension.dll" -ext "C:\Program Files (x86)\WiX Toolset v3.11\bin\\WixUIExtension.dll" -pedantic -contentsfile install\windows\cypnode_installer\obj\x64\Release\cypher_node_installer.wixproj.BindContentsFileListnull.txt -outputsfile install\windows\cypnode_installer\obj\x64\Release\cypher_node_installer.wixproj.BindOutputsFileListnull.txt -builtoutputsfile install\windows\cypnode_installer\obj\x64\Release\cypher_node_installer.wixproj.BindBuiltOutputsFileListnull.txt -wixprojectfile install\windows\cypnode_installer\cypher_node_installer.wixproj install\windows\cypnode_installer\obj\x64\Release\node_installation_files.wixobj install\windows\cypnode_installer\obj\x64\Release\Product.wixobj install\windows\cypnode_installer\obj\x64\Release\service_installation_files.wixobj
+    shell: cmd
+
+  - name: Copy artifacts
+    run:  move-item install/windows/cypnode_installer/bin/x64/Release/cypher-cypnode_${{ env.VERSION }}.msi ${{ github.workspace }} -v
+    shell: powershell

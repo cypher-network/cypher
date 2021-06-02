@@ -44,3 +44,4 @@ bld/
 
 workspace.code-workspace
 publish/**
+install/windows/.vs/
