@@ -75,7 +75,7 @@ jobs:
             version=v${{ env.VERSION }}
           tags: |
             tangrams/cypher:latest
-      - name: Image digest
+      - name: Docker Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}
 
   build-windows:
