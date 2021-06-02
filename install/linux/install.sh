@@ -189,14 +189,31 @@ download_archive() {
       return 1
     fi
   fi
-  
-  printf "\n";
-  printf "  %b Downloading archive %s" "${INFO}" "${ARCHIVE}"
 
   DOWNLOAD_PATH="/tmp/cypher-cypnode/"
   DOWNLOAD_FILE="${DOWNLOAD_PATH}${ARCHIVE}"
   DOWNLOAD_URL="${CYPHER_CYPNODE_URL_PREFIX}${ARCHIVE}"
-  
+
+  printf "\n";
+  printf "  %b Checking archive %s" "${INFO}" "${ARCHIVE}"
+  if [ "${HAS_CURL}" = true ]; then
+    if curl --silent --fail "${DOWNLOAD_URL}"; then
+      printf " %b  %b Archive %s found\n\n" "${OVER}" "${TICK}" "${ARCHIVE}"
+    else
+      printf " %b  %b Archive %s cannot be found\n\n" "${OVER}" "${CROSS}" "${ARCHIVE}"
+      exit 1
+    fi
+  else
+    if wget -q "${DOWNLOAD_URL}"; then
+      printf " %b  %b Archive %s found\n\n" "${OVER}" "${TICK}" "${ARCHIVE}"
+    else
+      printf " %b  %b Archive %s cannot be found\n\n" "${OVER}" "${CROSS}" "${ARCHIVE}"
+      exit 1
+    fi
+  fi
+
+  printf "  %b Downloading archive %s" "${INFO}" "${ARCHIVE}"
+
   if [ "${HAS_CURL}" = true ]; then
     curl -s -L --create-dirs -o "${DOWNLOAD_FILE}" "${DOWNLOAD_URL}"
   else
