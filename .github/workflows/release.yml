@@ -16,7 +16,7 @@ on:
 
 
 jobs:
-  build-linux:
+  build-linux-macos:
     runs-on: ubuntu-latest
     env:
       DOTNET_NOLOGO: true
@@ -43,19 +43,24 @@ jobs:
           dotnet-version: '5.0.x'
 
       - name: Create linux-x64 package
-        uses: ./.github/actions/build-linux
+        uses: ./.github/actions/build-tar-gz
         with:
           runtime: 'linux-x64'
 
       - name: Create linux-arm package
-        uses: ./.github/actions/build-linux
+        uses: ./.github/actions/build-tar-gz
         with:
           runtime: 'linux-arm'
 
       - name: Create linux-arm64 package
-        uses: ./.github/actions/build-linux
+        uses: ./.github/actions/build-tar-gz
         with:
           runtime: 'linux-arm64'
+
+      - name: Create osx-x64 package
+        uses: ./.github/actions/build-tar-gz
+        with:
+          runtime: 'osx-x64'
 
       - name: Create releases
         id: gh-release
