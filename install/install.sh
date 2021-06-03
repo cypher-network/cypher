@@ -54,7 +54,7 @@ done
 # It's still a work in progress, so you may see some variance in this guideline until it is complete
 if [[ "$OSTYPE" == "darwin"* ]]; then
   IS_MACOS=true
-  ARCHITECTURE_UNIFIED="linux-x64"
+  ARCHITECTURE_UNIFIED="osx-x64"
 
   CYPHER_CYPNODE_VERSION=$(curl --silent "https://api.github.com/repos/cypher-network/cypher/releases/latest" | grep -w '"tag_name": "v.*"' | cut -f2 -d ":" | cut -f2 -d "\"")
   CYPHER_CYPNODE_GROUP="cypher_cypnode"
