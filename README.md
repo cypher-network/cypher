@@ -5,9 +5,9 @@
 
 ## Installation
 
-### Linux
+### Linux and macOS
 
-For quick installation on Linux, execute the following command:
+For quick installation on Linux and macOS, execute the following command:
 
 `bash <(curl -sSL https://raw.githubusercontent.com/cypher-network/cypher/master/install/linux/install.sh)`
 
