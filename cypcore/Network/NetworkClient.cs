@@ -10,6 +10,7 @@ using CYPCore.Models;
 using CYPCore.Persistence;
 using Dawn;
 using MessagePack;
+using Newtonsoft.Json.Linq;
 using Serilog;
 
 namespace CYPCore.Network
@@ -47,7 +48,7 @@ namespace CYPCore.Network
                 {
                     Local = new BlockHeight
                     { Height = await _unitOfWork.HashChainRepository.CountAsync(), Host = "local" },
-                    Remote = new BlockHeight { Height = blockHeight.Height, Host = peer.Host }
+                    Remote = new BlockHeight { Height = blockHeight.Height == 0 ? 0 : blockHeight.Height - 1, Host = peer.Host }
                 };
 
                 var remoteBlock = await GetBlocksAsync(peer.Host, networkBlockHeight.Remote.Height, 1);

@@ -222,11 +222,10 @@ namespace CYPCore.Ledger
 
                             var saved = await _unitOfWork.HashChainRepository.PutAsync(blockHeader.ToIdentifier(),
                                 blockHeader);
-                            if (!saved)
-                            {
-                                _logger.Here().Error("Unable to save block: {@MerkleRoot}", blockHeader.MerkelRoot);
-                                return false;
-                            }
+                            if (saved) continue;
+
+                            _logger.Here().Error("Unable to save block: {@MerkleRoot}", blockHeader.MerkelRoot);
+                            return false;
                         }
                         catch (Exception ex)
                         {
