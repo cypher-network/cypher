@@ -525,7 +525,7 @@ if [ "${IS_UNINSTALL}" = true ]; then
       printf "%b  %b Removed user\n" "${OVER}" "${TICK}"
     fi
   fi
-  printf "\n\n  %b Uninstall succesful\n\n" "${DONE}"
+  printf "\n\n  %b Uninstall successful\n\n" "${DONE}"
 
 else
   install_info
