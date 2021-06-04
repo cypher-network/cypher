@@ -176,8 +176,6 @@ namespace CYPCore.Ledger
                 blockHeader.Signature = signature.ByteToHex();
                 blockHeader.PublicKey = _keyPair.PublicKey.ByteToHex();
 
-                var b = await _unitOfWork.HashChainRepository.PutAsync(blockHeader.ToIdentifier(), blockHeader);
-
                 var blockGraph = CreateBlockGraph(blockHeader, prevBlock);
                 await _graph.TryAddBlockGraph(blockGraph);
             }
