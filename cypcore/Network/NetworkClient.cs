@@ -133,15 +133,26 @@ namespace CYPCore.Network
                 var httpResponseMessage = await _httpClient.GetAsync($"{host}/chain/blocks/{skip}/{take}");
                 httpResponseMessage.EnsureSuccessStatusCode();
                 var content = await httpResponseMessage.Content.ReadAsStringAsync();
-                var bufferStream = Newtonsoft.Json.JsonConvert.DeserializeObject<BufferStream>(content);
-                var genericList = MessagePackSerializer.Deserialize<GenericDataList<BlockHeader>>(bufferStream.Data);
-
-                blockHeaders = genericList.Data;
+                var jObject = JObject.Parse(content);
+                var jToken = jObject.GetValue("messagepack");
+                var byteArray =
+                    Convert.FromBase64String((jToken ?? throw new InvalidOperationException()).Value<string>());
+                if (httpResponseMessage.IsSuccessStatusCode)
+                {
+                    var genericList = MessagePackSerializer.Deserialize<GenericDataList<BlockHeader>>(byteArray);
+                    blockHeaders = genericList.Data;
+                }
+                else
+                {
+                    content = await httpResponseMessage.Content.ReadAsStringAsync();
+                    _logger.Here().Error("{@Content}\n StatusCode: {@StatusCode}", content,
+                        (int)httpResponseMessage.StatusCode);
+                    throw new Exception(content);
+                }
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
-                Console.WriteLine(e);
-                throw;
+                _logger.Here().Error(ex, "Unable to deserialize object for {@host}", host);
             }
 
             return blockHeaders;
