@@ -2,7 +2,7 @@
 
   <PropertyGroup> 
     <ServerGarbageCollection>true</ServerGarbageCollection> 
-    <AssemblyVersion>0.2.3</AssemblyVersion> 
+    <AssemblyVersion>0.2.3.0</AssemblyVersion> 
     <NeutralLanguage>en</NeutralLanguage>
   </PropertyGroup>
   <PropertyGroup>
