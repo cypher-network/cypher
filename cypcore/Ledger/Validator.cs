@@ -627,7 +627,7 @@ namespace CYPCore.Ledger
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, "Unable tp get the running distribution");
+                _logger.Here().Error(ex, "Unable to get the running distribution");
             }
 
             return runningDistributionTotal;
@@ -738,15 +738,8 @@ namespace CYPCore.Ledger
         public async Task<decimal> CurrentRunningDistribution(ulong solution)
         {
             var runningDistribution = await GetRunningDistribution();
-            if (runningDistribution == Distribution)
-            {
-                runningDistribution -= NetworkShare(solution, runningDistribution);
-                var share = NetworkShare(solution, runningDistribution);
-                runningDistribution -= share.ConvertToUInt64().DivWithNanoTan();
-                return runningDistribution;
-            }
-
             var networkShare = NetworkShare(solution, runningDistribution);
+
             runningDistribution -= networkShare.ConvertToUInt64().DivWithNanoTan();
             return runningDistribution;
         }
