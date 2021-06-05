@@ -77,6 +77,7 @@ jobs:
   build-docker-image:
     needs: build-linux-macos
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v2
         with:
@@ -84,6 +85,9 @@ jobs:
 
       - name: Get version
         uses: ./.github/actions/get-version
+        
+      - name: Echo version
+        run: echo ${{ env.VERSION }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
