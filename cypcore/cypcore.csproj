@@ -4,7 +4,7 @@
     <TargetFramework>net5.0</TargetFramework>
     <Platforms>AnyCPU;x64</Platforms>
     <RootNamespace>CYPCore</RootNamespace>
-    <AssemblyVersion>0.0.44.0</AssemblyVersion>
+    <AssemblyVersion>0.0.47.0</AssemblyVersion>
   </PropertyGroup>
   
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">

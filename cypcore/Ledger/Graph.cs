@@ -270,7 +270,7 @@ namespace CYPCore.Ledger
                 }
 
                 var block = await _unitOfWork.HashChainRepository.GetAsync(b =>
-                    new ValueTask<bool>(b.Height == height));
+                    new ValueTask<bool>(b.Height == height - 1));
 
                 return new()
                 {

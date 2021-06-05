@@ -5,11 +5,11 @@
 
 ## Installation
 
-### Linux
+### Linux and macOS
 
-For quick installation on Linux, execute the following command:
+For quick installation on Linux and macOS, execute the following command:
 
-`bash <(curl -sSL https://raw.githubusercontent.com/cypher-network/cypher/master/install/linux/install.sh)`
+`bash <(curl -sSL https://raw.githubusercontent.com/cypher-network/cypher/master/install/install.sh)`
 
 The following parameters can be supplied:
 
@@ -31,4 +31,4 @@ Uninstall node
   
 For example:
 
-`bash <(curl -sSL https://raw.githubusercontent.com/cypher-network/cypher/master/install/linux/install.sh) --uninstall`
+`bash <(curl -sSL https://raw.githubusercontent.com/cypher-network/cypher/master/install/install.sh) --uninstall`

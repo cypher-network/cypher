@@ -142,9 +142,9 @@ namespace CYPCore.Ledger
                     _signing.CalculateVrfSignature(Curve.decodePrivatePoint(_keyPair.PrivateKey), hash.ToBytes(false));
                 var verifyVrfSignature = _signing.VerifyVrfSignature(Curve.decodePoint(_keyPair.PublicKey, 0),
                     hash.ToBytes(false), calculateVrfSignature);
-                var runningDistribution = await _validator.GetRunningDistribution();
                 var solution = _validator.Solution(verifyVrfSignature, hash.ToBytes(false));
                 if (solution == 0) return;
+                var runningDistribution = await _validator.GetRunningDistribution();
                 var networkShare = _validator.NetworkShare(solution, runningDistribution);
                 var reward = _validator.Reward(solution, runningDistribution);
                 var bits = _validator.Difficulty(solution, networkShare);
@@ -175,8 +175,6 @@ namespace CYPCore.Ledger
 
                 blockHeader.Signature = signature.ByteToHex();
                 blockHeader.PublicKey = _keyPair.PublicKey.ByteToHex();
-
-                var b = await _unitOfWork.HashChainRepository.PutAsync(blockHeader.ToIdentifier(), blockHeader);
 
                 var blockGraph = CreateBlockGraph(blockHeader, prevBlock);
                 await _graph.TryAddBlockGraph(blockGraph);

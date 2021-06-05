@@ -1,5 +1,5 @@
-name: Build - Linux
-description: 'Build Linux release'
+name: Build - tar.gz
+description: 'Build .tar.gz release'
 
 inputs:
   runtime:
