@@ -76,7 +76,7 @@ jobs:
 
   build-docker-image:
     needs: build-linux-macos
-    runs-on: ubuntu-latest
+    runs-on: debian-latest
 
     steps:
       - uses: actions/checkout@v2
