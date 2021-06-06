@@ -114,26 +114,22 @@
     <Feature Id="CypherNode"
              Title="Cypher Node main product"
              Absent="disallow"
-             Display="hidden"
-             TypicalDefault="install"
-             AllowAdvertise="no"
-             Description="Installs main node excutable"
              Level="1">
       <ComponentGroupRef Id="NodeInstallationFilesGroup"/>
       <ComponentRef Id="CMP_Shortcuts"/>
       <ComponentGroupRef Id="CMP_ShortcutFiles"/>
-    </Feature>
-    <Feature Id="CypherNodeConfiguration"
-             Title="Configure Cypher Node during installation"
-             Level="1"
-             Description="When chosen, this option allows the user to configure the newly installed node via a configuration utility."
-    />
-    <Feature Id="CypherNodeService"
-             Title="Cypter Node Windows Service"
-             Level="1"
-             Description="When chosen, this option will run the cypher node in the background as a windows service.">
-      <ComponentGroupRef Id="ServiceInstallationFilesGroup"/>
-      <ComponentRef Id="cmp_service_exe"/>
+      <Feature Id="CypherNodeConfiguration"
+               Title="Configure Cypher Node during installation"
+               Level="1"
+               Description="When chosen, this option allows the user to configure the newly installed node via a configuration utility."
+      />
+      <Feature Id="CypherNodeService"
+               Title="Cypter Node Windows Service"
+               Level="1"
+               Description="When chosen, this option will run the cypher node in the background as a windows service.">
+        <ComponentGroupRef Id="ServiceInstallationFilesGroup"/>
+        <ComponentRef Id="cmp_service_exe"/>
+      </Feature>
     </Feature>
   </Product>
 </Wix>

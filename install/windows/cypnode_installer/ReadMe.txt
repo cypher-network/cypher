@@ -1,4 +1,4 @@
-Hello tangram user, this is a small read me file to help u get going with your tangram node installation.
+Hello tangram user, this is a small read me file to help you get going with your tangram node installation.
 
 Installer features:
 
@@ -26,12 +26,29 @@ and every time you restart your system for convenience.
 
 You can install any of the optional feature via the interactive .msi installer, or if you're deploying per command line you can choose which features to install like this:
 
-msiexec /i <cypher_node_installer>.msi /quiet /qn /norestart
+msiexec /i <cypher_node_installer>.msi /quiet /qn /norestart ADDLOCAL=ALL
 
-The above command line will install all optional features. This requires supervision since the configuration utility will be launched.
+The above command line will install all optional features.
 
-msiexec /i <cypher_node_installer>.msi /quiet /qn /norestart ADDLOCAL=CypherNode,CypherNodeConfiguration,CypherNodeService
+msiexec /i <cypher_node_installer>.msi /quiet /qn /norestart ADDLOCAL=CypherNodeConfiguration,CypherNodeService
 
 This again installs all features. If you omit one of the comma separated features, then that feature will not be installed.
 
+Be aware that whenever the feature CypherNodeConfiguration is installed either explicitly or implicitly ( ADDLOCAL=ALL ) then supervision of the installation process is required
+due to the interactive configuration utility.
 
+Configuration Utility properties:
+
+If you chose not to run the interactive configuration utility during installation, you can create a configuration settings file based on the following tempalte:
+
+C:\Program Files\Cypher\Node\Configuration\Templates\appsettings.json
+
+In this file you'd need to change the following settings to have a working node:
+
+"Listening": "<API_ENDPOINT_BIND>"
+"Advertise": "<API_ENDPOINT_PUBLIC>"
+"Advertise": "<SERF_ENDPOINT_PUBLIC>"
+"Listening": "<SERF_ENDPOINT_BIND>"
+"NodeName": "<SERF_NODE_NAME>"
+
+You can find more Information about these settings here: https://github.com/cypher-network/cypher/wiki/Configuration
