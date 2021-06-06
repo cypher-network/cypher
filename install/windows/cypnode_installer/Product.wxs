@@ -14,7 +14,6 @@
 
   <!-- The URL for add/remove programs -->
   <?define InfoURL="https://tangrams.io/about-tangram/" ?>
-
   <Product Id="*" Name="$(var.ProductName)" Language="1033" Version="$(var.VersionNumber)" Manufacturer="Cypher" UpgradeCode="$(var.UpgradeCode)">
     <Package InstallerVersion="400" Compressed="yes" InstallScope="perMachine" Description="Cypher Node installer" Comments="Cypher node version: $(var.VersionNumber)"/>
     <UIRef Id="WixUI_FeatureTree"/>
@@ -28,9 +27,7 @@
     <Property Id="ARPHELPLINK" Value="$(var.InfoURL)" />
     <Property Id="ARPNOREPAIR" Value="yes" Secure="yes" />
     <!-- Remove repair -->
-
     <MediaTemplate EmbedCab="yes"/>
-
     <MajorUpgrade AllowDowngrades="no"
                   DowngradeErrorMessage="A newer version of [ProductName] is already installed."
                   AllowSameVersionUpgrades="no"/>
