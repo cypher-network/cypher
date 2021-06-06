@@ -17,10 +17,10 @@
 
   <Product Id="*" Name="$(var.ProductName)" Language="1033" Version="$(var.VersionNumber)" Manufacturer="Cypher" UpgradeCode="$(var.UpgradeCode)">
     <Package InstallerVersion="400" Compressed="yes" InstallScope="perMachine" Description="Cypher Node installer" Comments="Cypher node version: $(var.VersionNumber)"/>
-    <UIRef Id="WixUI_Minimal"/>
+    <UIRef Id="WixUI_FeatureTree"/>
     <WixVariable Id="WixUILicenseRtf" Value="Eula-en.rtf"/>
     <!--Images-->
-    <!--<WixVariable Id="WixUIBannerBmp" Value="Tangram_Logo_Banner-493x58.bmp" />-->
+    <WixVariable Id="WixUIBannerBmp" Value="Tangram_Logo_Banner-493x58.bmp" />
     <!--<WixVariable Id="WixUIDialogBmp" Value="images\Dialog.bmp" />-->
     <Icon Id="icon.ico" SourceFile="tgm.ico"/>
     <!--Override standard dialog properties-->
@@ -84,7 +84,9 @@
     </DirectoryRef>
     <CustomAction Id="ConfigureNode" Directory="Node" Execute="commit" Impersonate="no" ExeCommand="cmd.exe /c &quot;del /f /q /a appsettings.json &amp; cypnode.exe --configure &amp; icacls . /grant:r Users:F &amp; sc start cypher_node_service &amp; exit /b 0&quot;" Return="check" />
     <InstallExecuteSequence>
-      <Custom Action="ConfigureNode" Before="InstallServices" />
+      <Custom Action="ConfigureNode" Before="InstallServices">
+        <![CDATA[&CypherNodeConfiguration=3]]>
+      </Custom>
     </InstallExecuteSequence>
     <Property Id="WIXUI_EXITDIALOGOPTIONALTEXT" Value="Thank you for installing Cypher Node." />
     <ComponentGroup Id="CMP_ShortcutFiles" Directory="Node">
@@ -109,12 +111,29 @@
                       Name="cypher_node_service"
                       Stop="both" Remove="both" Wait="yes"/>
     </Component>
-    <Feature Id="ProductFeature" Title="cypnode_installer" Level="1">
+    <Feature Id="CypherNode"
+             Title="Cypher Node main product"
+             Absent="disallow"
+             Display="hidden"
+             TypicalDefault="install"
+             AllowAdvertise="no"
+             Description="Installs main node excutable"
+             Level="1">
       <ComponentGroupRef Id="NodeInstallationFilesGroup"/>
-      <ComponentGroupRef Id="ServiceInstallationFilesGroup"/>
       <ComponentRef Id="CMP_Shortcuts"/>
-      <ComponentRef Id="cmp_service_exe"/>
       <ComponentGroupRef Id="CMP_ShortcutFiles"/>
+    </Feature>
+    <Feature Id="CypherNodeConfiguration"
+             Title="Configure Cypher Node during installation"
+             Level="1"
+             Description="When chosen, this option allows the user to configure the newly installed node via a configuration utility."
+    />
+    <Feature Id="CypherNodeService"
+             Title="Cypter Node Windows Service"
+             Level="1"
+             Description="When chosen, this option will run the cypher node in the background as a windows service.">
+      <ComponentGroupRef Id="ServiceInstallationFilesGroup"/>
+      <ComponentRef Id="cmp_service_exe"/>
     </Feature>
   </Product>
 </Wix>
