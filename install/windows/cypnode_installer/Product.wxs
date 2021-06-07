@@ -80,10 +80,14 @@
       </Component>
     </DirectoryRef>
     <CustomAction Id="ConfigureNode" Directory="Node" Execute="commit" Impersonate="no" ExeCommand="cmd.exe /c &quot;del /f /q /a appsettings.json &amp; cypnode.exe --configure &amp; icacls . /grant:r Users:F &amp; sc start cypher_node_service &amp; exit /b 0&quot;" Return="check" />
+    <CustomAction Id="CleanupAction" Directory="Node" Execute="commit" Impersonate="no" ExeCommand="cmd.exe /c &quot;sc stop cypher_node_service &amp; sc delete cypher_node_service &amp; exit /b 0&quot;" Return="check" />
     <InstallExecuteSequence>
       <Custom Action="ConfigureNode" Before="InstallServices">
         <![CDATA[&CypherNodeConfiguration=3]]>
       </Custom>
+      <!--<Custom Action="CleanupAction" Before="RemoveFiles">
+        (REMOVE~="ALL") AND (NOT UPGRADINGPRODUCTCODE)
+      </Custom>-->
     </InstallExecuteSequence>
     <Property Id="WIXUI_EXITDIALOGOPTIONALTEXT" Value="Thank you for installing Cypher Node." />
     <ComponentGroup Id="CMP_ShortcutFiles" Directory="Node">

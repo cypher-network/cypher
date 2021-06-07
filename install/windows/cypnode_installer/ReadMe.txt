@@ -52,3 +52,7 @@ In this file you'd need to change the following settings to have a working node:
 "NodeName": "<SERF_NODE_NAME>"
 
 You can find more Information about these settings here: https://github.com/cypher-network/cypher/wiki/Configuration
+
+Uninstalling
+
+Please stop the service manually before uninstalling or upgrading this product to avoid having to reboot the machine.
