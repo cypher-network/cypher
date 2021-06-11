@@ -38,7 +38,7 @@ runs:
       Light.exe -b install\windows\cypnode_installer -out install\windows\cypnode_installer\bin\x64\Release\cypher-cypnode_${{ env.VERSION }}.msi -pdbout install\windows\cypnode_installer\bin\x64\Release\cypher-cypnode_${{ env.VERSION }}.wixpdb -wx -cultures:null -ext "C:\Program Files (x86)\WiX Toolset v3.11\bin\\WixUtilExtension.dll" -ext "C:\Program Files (x86)\WiX Toolset v3.11\bin\\WixUIExtension.dll" -pedantic -contentsfile install\windows\cypnode_installer\obj\x64\Release\cypher_node_installer.wixproj.BindContentsFileListnull.txt -outputsfile install\windows\cypnode_installer\obj\x64\Release\cypher_node_installer.wixproj.BindOutputsFileListnull.txt -builtoutputsfile install\windows\cypnode_installer\obj\x64\Release\cypher_node_installer.wixproj.BindBuiltOutputsFileListnull.txt -wixprojectfile install\windows\cypnode_installer\cypher_node_installer.wixproj install\windows\cypnode_installer\obj\x64\Release\node_installation_files.wixobj install\windows\cypnode_installer\obj\x64\Release\Product.wixobj install\windows\cypnode_installer\obj\x64\Release\service_installation_files.wixobj
     shell: cmd
 
-  - name: Calculate SHA1
+  - name: Calculate SHA256
     run: sha256sum install/windows/cypnode_installer/bin/x64/Release/cypher-cypnode_${{ env.VERSION }}.msi > install/windows/cypnode_installer/bin/x64/Release/cypher-cypnode_${{ env.VERSION }}.msi.sha256
     shell: bash
 
