@@ -1,4 +1,4 @@
-﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
@@ -68,7 +68,7 @@ namespace CYPCore.Ledger
         private readonly IUnitOfWork _unitOfWork;
         private readonly ISigning _signing;
         private readonly ILogger _logger;
-        public PatriciaTrie Trie { get; private set; }
+        private Hasher _hasher;
 
         public Validator(IUnitOfWork unitOfWork, ISigning signing, ILogger logger)
         {
@@ -76,7 +76,7 @@ namespace CYPCore.Ledger
             _signing = signing;
             _logger = logger.ForContext("SourceContext", nameof(Validator));
 
-            SetupTrie().SafeFireAndForget(exception =>
+            _hasher = Hasher.New();
             {
                 _logger.Here().Fatal(exception, "Unable to setup patricia trie");
             });
@@ -96,15 +96,15 @@ namespace CYPCore.Ledger
         /// 
         /// </summary>
         /// <returns></returns>
-        private async Task SetupTrie()
+        public async Task<VerifyResult> VerifyBlockHash(Block block)
         {
-            Trie = new PatriciaTrie(_unitOfWork.TrieRepository);
+            Guard.Argument(block, nameof(block)).NotNull();
             var height = await _unitOfWork.HashChainRepository.CountAsync() - 1;
             var blockHeader =
                 await _unitOfWork.HashChainRepository.GetAsync(x => new ValueTask<bool>(x.Height == height));
             if (blockHeader == null) return;
-            Trie.Put(blockHeader.ToHash(), blockHeader.ToHash());
-            Trie.Flush();
+            {
+                _logger.Here().Error("No previous block available");
         }
 
         /// <summary>

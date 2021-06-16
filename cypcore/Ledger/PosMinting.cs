@@ -164,8 +164,7 @@ namespace CYPCore.Ledger
                     return;
                 }
 
-                _validator.Trie.Put(blockHeader.ToHash(), blockHeader.ToHash());
-                blockHeader.MerkelRoot = _validator.Trie.GetRootHash().ByteToHex();
+                var blockGraph = CreateBlockGraph(block, prevBlock);
                 var signature = await _signing.Sign(_signing.DefaultSigningKeyName, blockHeader.ToFinalStream());
                 if (signature == null)
                 {

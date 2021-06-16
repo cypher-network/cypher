@@ -18,7 +18,6 @@ namespace CYPCore.Persistence
         IBlockGraphRepository BlockGraphRepository { get; }
         IKeyImageRepository KeyImageRepository { get; }
         IHashChainRepository HashChainRepository { get; }
-        ITrieRepository TrieRepository { get; }
     }
 
     public class UnitOfWork : IUnitOfWork
@@ -32,7 +31,6 @@ namespace CYPCore.Persistence
         public IBlockGraphRepository BlockGraphRepository { get; }
         public IKeyImageRepository KeyImageRepository { get; }
         public IHashChainRepository HashChainRepository { get; }
-        public ITrieRepository TrieRepository { get; }
 
         private readonly ILogger _logger;
 
@@ -48,7 +46,6 @@ namespace CYPCore.Persistence
             BlockGraphRepository = new BlockGraphRepository(StoreDb, logger);
             KeyImageRepository = new KeyImageRepository(StoreDb, logger);
             HashChainRepository = new HashChainRepository(StoreDb, logger);
-            TrieRepository = new TrieRepository(StoreDb, logger);
         }
     }
 }
