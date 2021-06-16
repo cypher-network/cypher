@@ -565,14 +565,12 @@ namespace CYPCore.Ledger
         /// <param name="bits"></param>
         /// <param name="vrfSig"></param>
         /// <param name="nonce"></param>
-        /// <param name="security"></param>
         /// <returns></returns>
-        public VerifyResult VerifySloth(int bits, byte[] vrfSig, byte[] nonce, byte[] security)
+        public VerifyResult VerifySloth(uint bits, byte[] vrfSig, byte[] nonce)
         {
             Guard.Argument(bits, nameof(bits)).NotNegative().NotZero();
             Guard.Argument(vrfSig, nameof(vrfSig)).NotNull().MaxCount(32);
             Guard.Argument(nonce, nameof(nonce)).NotNull().MaxCount(77);
-            Guard.Argument(security, nameof(security)).NotNull().MaxCount(77);
             var verifySloth = false;
             try
             {
@@ -580,13 +578,12 @@ namespace CYPCore.Ledger
                 var sloth = new Sloth(ct);
                 var x = System.Numerics.BigInteger.Parse(vrfSig.ByteToHex(), NumberStyles.AllowHexSpecifier);
                 var y = System.Numerics.BigInteger.Parse(nonce.ToStr());
-                var p256 = System.Numerics.BigInteger.Parse(security.ToStr());
                 if (x.Sign <= 0) x = -x;
-                verifySloth = sloth.Verify(bits, x, y, p256);
+                verifySloth = sloth.Verify(bits, x, y);
             }
             catch (Exception ex)
             {
-                _logger.Here().Fatal(ex, "Unable to verify the Verified Delay Function");
+                _logger.Here().Fatal(ex, "Unable to verify the delay function");
             }
 
             return verifySloth ? VerifyResult.Succeed : VerifyResult.UnableToVerify;

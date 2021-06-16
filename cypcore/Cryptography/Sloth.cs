@@ -16,10 +16,12 @@ namespace CYPCore.Cryptography
 
     public class Sloth
     {
+        public const string Security256 =
+            "60464814417085833675395020742168312237934553084050601624605007846337253615407";
+        
         private static readonly BigInteger Zero = new(0);
         private static readonly BigInteger One = new(1);
         private static readonly BigInteger Two = new(2);
-        private static readonly BigInteger Three = new(3);
         private static readonly BigInteger Four = new(4);
 
         private readonly CancellationToken _stoppingToken;
@@ -89,12 +91,12 @@ namespace CYPCore.Cryptography
         /// </summary>
         /// <param name="t"></param>
         /// <param name="x"></param>
-        /// <param name="p"></param>
-        /// <param name="stoppingToken"></param>
         /// <returns></returns>
-        public string Eval(int t, BigInteger x, BigInteger p)
+        public string Eval(int t, BigInteger x)
         {
+            var p = BigInteger.Parse(Security256);
             var y = ModSqrtOp(t, x, p);
+            
             return y.ToString();
         }
 
@@ -104,10 +106,10 @@ namespace CYPCore.Cryptography
         /// <param name="t"></param>
         /// <param name="x"></param>
         /// <param name="y"></param>
-        /// <param name="p"></param>
         /// <returns></returns>
-        public bool Verify(int t, BigInteger x, BigInteger y, BigInteger p)
+        public bool Verify(uint t, BigInteger x, BigInteger y)
         {
+            var p = BigInteger.Parse(Security256);
             if (!IsQuadraticResidue(x, p))
             {
                 x = Util.Mod(BigInteger.Negate(x), p);
