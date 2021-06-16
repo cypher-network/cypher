@@ -1,9 +1,13 @@
 ﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
+using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.Linq;
+using Blake3;
 using CYPCore.Extensions;
+using Dawn;
 using MessagePack;
 
 namespace CYPCore.Models
@@ -11,22 +15,12 @@ namespace CYPCore.Models
     [MessagePackObject]
     public class BlockHeader
     {
-        [Key(0)] public int Bits { get; set; }
-        [Key(1)] public long Height { get; set; }
-        [Key(2)] public long Locktime { get; set; }
-        [Key(3)] public string LocktimeScript { get; set; }
-        [Key(4)] public string MerkelRoot { get; set; }
-        [Key(5)] public string Nonce { get; set; }
-        [Key(6)] public string PrevMerkelRoot { get; set; }
-        [Key(7)] public string Proof { get; set; }
-        [Key(8)] public string Sec { get; set; }
-        [Key(9)] public string Seed { get; set; }
-        [Key(10)] public ulong Solution { get; set; }
-        [Key(11)] public IList<Transaction> Transactions { get; set; } = new List<Transaction>();
-        [Key(12)] public int Version { get; set; }
-        [Key(13)] public string VrfSignature { get; set; }
-        [Key(14)] public string Signature { get; set; }
-        [Key(15)] public string PublicKey { get; set; }
+        [MessagePack.Key(0)] public uint Version { get; set; }
+        [MessagePack.Key(1)] public byte[] PrevBlockHash { get; set; }
+        [MessagePack.Key(2)] public byte[] MerkleRoot { get; set; }  
+        [MessagePack.Key(3)] public ulong Height { get; set; }
+        [MessagePack.Key(4)] public long Locktime { get; set; }
+        [MessagePack.Key(5)] public string LocktimeScript { get; set; }
 
         /// <summary>
         /// 
@@ -43,46 +37,97 @@ namespace CYPCore.Models
         /// <returns></returns>
         public byte[] ToStream()
         {
+            if (Validate().Any()) return null;
+            
             using var ts = new Helper.TangramStream();
-            ts
-                .Append(Bits)
-                .Append(Nonce)
-                .Append(PrevMerkelRoot)
-                .Append(Proof)
-                .Append(Sec)
-                .Append(Seed)
-                .Append(Solution)
-                .Append(Locktime)
-                .Append(LocktimeScript)
-                .Append(NBitcoin.Crypto.Hashes.DoubleSHA256(
-                    Helper.Util.Combine(Transactions.Select(x => x.ToHash()).ToArray())).ToBytes(false))
-                .Append(Version)
-                .Append(VrfSignature);
 
+            ts.Append(Version)
+                .Append(PrevBlockHash)
+                .Append(MerkleRoot)
+                .Append(Height)
+                .Append(Locktime)
+                .Append(LocktimeScript);
             return ts.ToArray();
         }
 
         /// <summary>
         /// 
         /// </summary>
+        /// <param name="prevMerkelRoot"></param>
+        /// <param name="transactions"></param>
         /// <returns></returns>
-        public byte[] ToFinalStream()
+        public static byte[] ToMerkelRoot(byte[] prevMerkelRoot, IEnumerable<Transaction> transactions)
         {
-            using var ts = new Helper.TangramStream();
+            Guard.Argument(prevMerkelRoot, nameof(prevMerkelRoot)).NotNull().MaxCount(32);
+            Guard.Argument(transactions, nameof(transactions)).NotNull();
+            var hasher = Hasher.New();
+            hasher.Update(prevMerkelRoot);
+            foreach (var transaction in transactions)
+            {
+                hasher.Update(transaction.ToStream());
+            }
 
-            ts.Append(ToStream());
-            ts.Append(MerkelRoot);
-
-            return ts.ToArray();
+            var hash = hasher.Finalize();
+            return hash.HexToByte();
         }
-
+        
         /// <summary>
         /// 
         /// </summary>
         /// <returns></returns>
         public byte[] ToHash()
         {
-            return NBitcoin.Crypto.Hashes.DoubleSHA256(ToStream()).ToBytes(false); ;
+            return Hasher.Hash(ToStream()).HexToByte();
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        public IEnumerable<ValidationResult> Validate()
+        {
+            var results = new List<ValidationResult>();
+            if (Version != 0x1)
+            {
+                results.Add(new ValidationResult("Range exception", new[] { "Version" }));
+            }
+            if (PrevBlockHash == null)
+            {
+                results.Add(new ValidationResult("Argument is null", new[] { "PrevBlockHash" }));
+            }
+            if (PrevBlockHash != null && PrevBlockHash.Length != 32)
+            {
+                results.Add(new ValidationResult("Range exception", new[] { "PrevBlockHash" }));
+            }
+            if (Height < 0)
+            {
+                results.Add(new ValidationResult("Range exception", new[] { "Height" }));
+            }
+            if (MerkleRoot == null)
+            {
+                results.Add(new ValidationResult("Argument is null", new[] { "MerkleRoot" }));
+            }
+            if (MerkleRoot != null && MerkleRoot.Length != 32)
+            {
+                results.Add(new ValidationResult("Range exception", new[] { "MerkleRoot" }));
+            }
+            if (Locktime < 0)
+            {
+                results.Add(new ValidationResult("Range exception", new[] { "Locktime" }));
+            }
+            try
+            {
+                DateTimeOffset.FromUnixTimeSeconds(Locktime);
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                results.Add(new ValidationResult("Range exception", new[] { "Locktime" }));
+            }
+            if (LocktimeScript != null && LocktimeScript.Length != 16)
+            {
+                results.Add(new ValidationResult("Range exception", new[] { "LocktimeScript" }));
+            }
+            return  results;
         }
     }
 }
