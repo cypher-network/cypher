@@ -98,23 +98,5 @@ namespace CYPCore.Controllers
                 hashChains
             });
         }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <returns></returns>
-        [HttpGet("tries", Name = "GetTries")]
-        [ProducesResponseType(typeof(byte[]), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> GetTries(long skip = 0, int take = 100)
-        {
-            int limitTake = (take > 100) ? 100 : take;
-            var tries = await _unitOfWork.TrieRepository.RangeAsync(skip, limitTake);
-            return new ObjectResult(new
-            {
-                total = tries.Count,
-                tries
-            });
-        }
     }
 }
