@@ -1,4 +1,4 @@
-// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
@@ -7,6 +7,7 @@ using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Blake3;
 using CYPCore.Consensus.Models;
 using CYPCore.Cryptography;
 using CYPCore.Extensions;
@@ -15,13 +16,13 @@ using CYPCore.Models;
 using CYPCore.Persistence;
 using Dawn;
 using Libsecp256k1Zkp.Net;
+using libsignal.ecc;
 using Serilog;
 using NBitcoin;
 using NBitcoin.BouncyCastle.Math;
-using NBitcoin.Crypto;
-using Stratis.Patricia;
-using BlockHeader = CYPCore.Models.BlockHeader;
 using Transaction = CYPCore.Models.Transaction;
+using Block = CYPCore.Models.Block;
+using BlockHeader = CYPCore.Models.BlockHeader;
 using Util = CYPCore.Helper.Util;
 
 namespace CYPCore.Ledger
@@ -35,12 +36,12 @@ namespace CYPCore.Ledger
         VerifyResult VerifyBulletProof(Transaction transaction);
         VerifyResult VerifyCoinbaseTransaction(Vout coinbase, ulong solution, decimal runningDistribution);
         VerifyResult VerifySolution(byte[] vrfBytes, byte[] kernel, ulong solution);
-        Task<VerifyResult> VerifyBlockHeader(BlockHeader blockHeader);
-        Task<VerifyResult> VerifyBlockHeaders(BlockHeader[] blockHeaders);
+        Task<VerifyResult> VerifyBlock(Block block);
+        Task<VerifyResult> VerifyBlocks(Block[] blocks);
         Task<VerifyResult> VerifyTransaction(Transaction transaction);
         Task<VerifyResult> VerifyTransactions(IList<Transaction> transactions);
-        VerifyResult VerifySloth(int bits, byte[] vrfSig, byte[] nonce, byte[] security);
-        int Difficulty(ulong solution, decimal networkShare);
+        VerifyResult VerifySloth(uint bits, byte[] vrfSig, byte[] nonce);
+        uint Difficulty(ulong solution, decimal networkShare);
         ulong Reward(ulong solution, decimal runningDistribution);
         decimal NetworkShare(ulong solution, decimal runningDistribution);
         ulong Solution(byte[] vrfSig, byte[] kernel);
@@ -49,13 +50,16 @@ namespace CYPCore.Ledger
         VerifyResult VerifyCommitSum(Transaction transaction);
         VerifyResult VerifyTransactionFee(Transaction transaction);
         Task<VerifyResult> VerifyKeyImage(Transaction transaction);
-        Task<VerifyResult> VerifyOutputCommits(Transaction transaction);
+        Task<VerifyResult> VerifyOutputCommitments(Transaction transaction);
         Task<decimal> CurrentRunningDistribution(ulong solution);
         Task<decimal> GetRunningDistribution();
         ulong Fee(int nByte);
         VerifyResult VerifyNetworkShare(ulong solution, decimal previousNetworkShare, decimal runningDistributionTotal);
-        Task<VerifyResult> BlockExists(BlockHeader blockHeader);
-        PatriciaTrie Trie { get; }
+        Task<VerifyResult> BlockExists(Block block);
+        byte[] IncrementHasher(byte[] previous, byte[] next);
+        Task<VerifyResult> VerifyBlockHash(Block block);
+        VerifyResult VerifyVrfProof(byte[] publicKey, byte[] vrfProof, byte[] message, byte[] vrfSig);
+        Task<VerifyResult> VerifyMerkel(Block block);
     }
 
     /// <summary>
@@ -63,13 +67,20 @@ namespace CYPCore.Ledger
     /// </summary>
     public class Validator : IValidator
     {
+        public static readonly byte[] BlockZeroHash =
+            "02681b3ffbf30ecd5849d6ddcde65263ad23bfe02dedc2738360be38a6cb32b0".HexToByte();
+
+        public static readonly byte[] BlockZeroPreHash =
+            "3030303030303030437970686572204e6574776f726b2076742e322e32303231".HexToByte();
+        
+        private const uint StakeTimestampMask = 0x0000000A;
         private const decimal Distribution = 139_000_000;
         private const int FeeNByte = 6000;
         private readonly IUnitOfWork _unitOfWork;
         private readonly ISigning _signing;
         private readonly ILogger _logger;
         private Hasher _hasher;
-
+        
         public Validator(IUnitOfWork unitOfWork, ISigning signing, ILogger logger)
         {
             _unitOfWork = unitOfWork;
@@ -77,45 +88,82 @@ namespace CYPCore.Ledger
             _logger = logger.ForContext("SourceContext", nameof(Validator));
 
             _hasher = Hasher.New();
-            {
-                _logger.Here().Fatal(exception, "Unable to setup patricia trie");
-            });
         }
-
-        public const uint StakeTimestampMask = 0x0000000A;
-        public const string BlockZeroMerkel = "72a6366e59f38ce6ff5588e26dfcaeaca3c242543e77bf281e546379d14b29e3";
-        public const string BlockZeroPreMerkel = "3030303030303030437970686572204e6574776f726b2076742e322e32303231";
-
-        public const string Seed =
-            "6b341e59ba355e73b1a8488e75b617fe1caa120aa3b56584a217862840c4f7b5d70cefc0d2b36038d67a35b3cd406d54f8065c1371a17a44c1abb38eea8883b2";
-
-        public const string Security256 =
-            "60464814417085833675395020742168312237934553084050601624605007846337253615407";
+        
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="previous"></param>
+        /// <param name="next"></param>
+        /// <returns></returns>
+        public byte[] IncrementHasher(byte[] previous, byte[] next)
+        {
+            Guard.Argument(previous, nameof(previous)).NotNull().MaxCount(32);
+            Guard.Argument(next, nameof(next)).NotNull().MaxCount(32);
+            
+            _hasher.Update(previous);
+            _hasher.Update(next);
+            
+            var hash = _hasher.Finalize();
+            return hash.AsSpan().ToArray();
+        }
 
         /// <summary>
         /// 
         /// </summary>
+        /// <param name="block"></param>
         /// <returns></returns>
         public async Task<VerifyResult> VerifyBlockHash(Block block)
         {
             Guard.Argument(block, nameof(block)).NotNull();
+            using var hasher = Hasher.New();
             var height = await _unitOfWork.HashChainRepository.CountAsync() - 1;
-            var blockHeader =
-                await _unitOfWork.HashChainRepository.GetAsync(x => new ValueTask<bool>(x.Height == height));
-            if (blockHeader == null) return;
+            var prevBlock =
+                await _unitOfWork.HashChainRepository.GetAsync(x => new ValueTask<bool>(x.Height == (ulong) height));
+            if (prevBlock == null)
             {
                 _logger.Here().Error("No previous block available");
-        }
+                return VerifyResult.UnableToVerify;
+            }
 
+            hasher.Update(prevBlock.Hash);
+            hasher.Update(block.ToHash());
+            var hash = hasher.Finalize();
+            var verifyHasher = hash.HexToByte().Xor(block.Hash);
+            return verifyHasher ? VerifyResult.Succeed : VerifyResult.UnableToVerify;
+        }
+        
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="blockHeader"></param>
+        /// <param name="block"></param>
         /// <returns></returns>
-        public async Task<VerifyResult> BlockExists(BlockHeader blockHeader)
+        public async Task<VerifyResult> VerifyMerkel(Block block)
         {
-            Guard.Argument(blockHeader, nameof(blockHeader)).NotNull();
-            var hasSeen = await _unitOfWork.HashChainRepository.GetAsync(blockHeader.ToIdentifier());
+            Guard.Argument(block, nameof(block)).NotNull();
+            var height = await _unitOfWork.HashChainRepository.CountAsync() - 1;
+            var prevBlock =
+                await _unitOfWork.HashChainRepository.GetAsync(x => new ValueTask<bool>(x.Height == (ulong) height));
+            if (prevBlock == null)
+            {
+                _logger.Here().Error("No previous block available");
+                return VerifyResult.UnableToVerify;
+            }
+
+            var merkelRoot = BlockHeader.ToMerkelRoot(prevBlock.BlockHeader.MerkleRoot, block.Txs);
+            var verifyMerkel = merkelRoot.Xor(block.BlockHeader.MerkleRoot);
+            return verifyMerkel ? VerifyResult.Succeed : VerifyResult.UnableToVerify;
+        }
+        
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="block"></param>
+        /// <returns></returns>
+        public async Task<VerifyResult> BlockExists(Block block)
+        {
+            Guard.Argument(block, nameof(block)).NotNull();
+            var hasSeen = await _unitOfWork.HashChainRepository.GetAsync(block.ToIdentifier());
             return hasSeen != null ? VerifyResult.AlreadyExists : VerifyResult.Succeed;
         }
 
@@ -260,14 +308,14 @@ namespace CYPCore.Ledger
 
         /// <summary>
         /// </summary>
-        /// <param name="blockHeaders"></param>
+        /// <param name="blocks"></param>
         /// <returns></returns>
-        public async Task<VerifyResult> VerifyBlockHeaders(BlockHeader[] blockHeaders)
+        public async Task<VerifyResult> VerifyBlocks(Block[] blocks)
         {
-            Guard.Argument(blockHeaders, nameof(blockHeaders)).NotNull();
-            foreach (var blockHeader in blockHeaders)
+            Guard.Argument(blocks, nameof(blocks)).NotNull();
+            foreach (var block in blocks)
             {
-                var verifyBlockHeader = await VerifyBlockHeader(blockHeader);
+                var verifyBlockHeader = await VerifyBlock(block);
                 if (verifyBlockHeader == VerifyResult.Succeed) continue;
                 _logger.Here().Fatal("Unable to verify the block");
                 return VerifyResult.UnableToVerify;
@@ -278,102 +326,99 @@ namespace CYPCore.Ledger
 
         /// <summary>
         /// </summary>
-        /// <param name="blockHeader"></param>
+        /// <param name="block"></param>
         /// <returns></returns>
-        public async Task<VerifyResult> VerifyBlockHeader(BlockHeader blockHeader)
+        public async Task<VerifyResult> VerifyBlock(Block block)
         {
-            Guard.Argument(blockHeader, nameof(blockHeader)).NotNull();
-            var verifySignature = _signing.VerifySignature(blockHeader.Signature.HexToByte(),
-                blockHeader.PublicKey.HexToByte(), blockHeader.ToFinalStream());
-            if (verifySignature == false)
-            {
-                _logger.Here().Fatal("Unable to verify the block signature");
-                return VerifyResult.UnableToVerify;
-            }
-
-            var verifySloth = VerifySloth(blockHeader.Bits, blockHeader.VrfSignature.HexToByte(),
-                blockHeader.Nonce.ToBytes(), blockHeader.Sec.ToBytes());
+            Guard.Argument(block, nameof(block)).NotNull();
+            
+            var verifySloth = VerifySloth(block.BlockPos.Bits, block.BlockPos.VrfSig,
+                block.BlockPos.Nonce.ToStr().ToBytes());
             if (verifySloth == VerifyResult.UnableToVerify)
             {
-                _logger.Here().Fatal("Unable to verify the Verified Delay Function");
+                _logger.Here().Fatal("Unable to verify the delay function");
                 return verifySloth;
             }
 
-            var runningDistribution = await CurrentRunningDistribution(blockHeader.Solution);
-            var verifyCoinbase = VerifyCoinbaseTransaction(blockHeader.Transactions.First().Vout.First(),
-                blockHeader.Solution, runningDistribution);
+            var runningDistribution = await CurrentRunningDistribution(block.BlockPos.Solution);
+            var verifyCoinbase = VerifyCoinbaseTransaction(block.Txs.First().Vout.First(),
+                block.BlockPos.Solution, runningDistribution);
             if (verifyCoinbase == VerifyResult.UnableToVerify)
             {
                 _logger.Here().Fatal("Unable to verify the coinbase transaction");
                 return verifyCoinbase;
             }
 
-            uint256 hash;
+            byte[] hash;
             using (var ts = new TangramStream())
             {
-                blockHeader.Transactions.Skip(1).ForEach(x => ts.Append(x.Stream()));
-                hash = Hashes.DoubleSHA256(ts.ToArray());
+                block.Txs.Skip(1).ForEach(x => ts.Append(x.ToStream()));
+                hash = Hasher.Hash(ts.ToArray()).HexToByte();
             }
 
-            var verifySolution = VerifySolution(blockHeader.VrfSignature.HexToByte(), hash.ToBytes(false),
-                blockHeader.Solution);
+            var verifyVrfProof = VerifyVrfProof(block.BlockPos.PublicKey, block.BlockPos.VrfProof, hash, block.BlockPos.VrfSig);
+            if (verifyVrfProof == VerifyResult.UnableToVerify)
+            {
+                _logger.Here().Fatal("Unable to verify the Vrf Proof");
+                return verifyVrfProof;
+            }
+            
+            var verifySolution = VerifySolution(block.BlockPos.VrfSig, hash,
+                block.BlockPos.Solution);
             if (verifySolution == VerifyResult.UnableToVerify)
             {
                 _logger.Here().Fatal("Unable to verify the solution");
                 return verifySolution;
             }
 
-            var bits = Difficulty(blockHeader.Solution,
-                blockHeader.Transactions.First().Vout.First().A.DivWithNanoTan());
-            if (blockHeader.Bits != bits)
+            var bits = Difficulty(block.BlockPos.Solution,
+                block.Txs.First().Vout.First().A.DivWithNanoTan());
+            if (block.BlockPos.Bits != bits)
             {
                 _logger.Here().Fatal("Unable to verify the bits");
                 return VerifyResult.UnableToVerify;
             }
 
-            Trie.Put(blockHeader.ToHash(), blockHeader.ToHash());
-            if (!blockHeader.MerkelRoot.Equals(Trie.GetRootHash().ByteToHex()))
-            {
-                _logger.Here().Fatal("Unable to verify the merkel");
-                var key = Trie.Get(blockHeader.ToHash());
-                if (key != null) Trie.Delete(blockHeader.ToHash());
-
-                return VerifyResult.UnableToVerify;
-            }
-
-            var verifyLockTime = VerifyLockTime(new LockTime(Utils.UnixTimeToDateTime(blockHeader.Locktime)),
-                blockHeader.LocktimeScript);
+            var verifyLockTime = VerifyLockTime(new LockTime(Utils.UnixTimeToDateTime(block.BlockHeader.Locktime)),
+                block.BlockHeader.LocktimeScript);
             if (verifyLockTime == VerifyResult.UnableToVerify)
             {
                 _logger.Here().Fatal("Unable to verify the block lock time");
                 return verifyLockTime;
             }
 
-            if (blockHeader.MerkelRoot.HexToByte().Xor(BlockZeroMerkel.HexToByte()) &&
-                blockHeader.PrevMerkelRoot.HexToByte().Xor(BlockZeroPreMerkel.HexToByte())) return VerifyResult.Succeed;
-            if (blockHeader.Height == 0)
-            {
-                if (!blockHeader.MerkelRoot.HexToByte().Xor(BlockZeroMerkel.HexToByte()) &&
-                    !blockHeader.PrevMerkelRoot.HexToByte().Xor(BlockZeroPreMerkel.HexToByte()))
-                {
-                    return VerifyResult.UnableToVerify;
-                }
-            }
-
+            if (block.BlockHeader.MerkleRoot.Xor(BlockZeroHash) &&
+                block.BlockHeader.PrevBlockHash.Xor(Hasher.Hash(BlockZeroPreHash).HexToByte()))
+                return VerifyResult.Succeed;
+            
             var prevBlock = await _unitOfWork.HashChainRepository.GetAsync(x =>
-                new ValueTask<bool>(x.MerkelRoot.Equals(blockHeader.PrevMerkelRoot)));
+                new ValueTask<bool>(x.Hash.Xor(block.BlockHeader.PrevBlockHash)));
             if (prevBlock == null)
             {
                 _logger.Here().Fatal("Unable to find the previous block");
                 return VerifyResult.UnableToVerify;
             }
 
-            var verifyTransactions = await VerifyTransactions(blockHeader.Transactions);
+            var verifyPreviousHasher = await VerifyBlockHash(block);
+            if (verifyPreviousHasher == VerifyResult.UnableToVerify)
+            {
+                _logger.Here().Fatal("Unable to verify the block hash");
+                return verifyPreviousHasher;
+            }
+
+            var verifyMerkel = await VerifyMerkel(block);
+            if (verifyMerkel == VerifyResult.UnableToVerify)
+            {
+                _logger.Here().Fatal("Unable to verify the merkel tree");
+                return verifyMerkel;
+            }
+
+            var verifyTransactions = await VerifyTransactions(block.Txs);
             if (verifyTransactions == VerifyResult.Succeed) return VerifyResult.Succeed;
             _logger.Here().Fatal("Unable to verify the block transactions");
             return VerifyResult.UnableToVerify;
         }
-
+        
         /// <summary>
         /// </summary>
         /// <param name="transactions"></param>
@@ -381,7 +426,6 @@ namespace CYPCore.Ledger
         public async Task<VerifyResult> VerifyTransactions(IList<Transaction> transactions)
         {
             Guard.Argument(transactions, nameof(transactions)).NotNull();
-
             foreach (var transaction in transactions)
             {
                 var verifyTransaction = await VerifyTransaction(transaction);
@@ -425,7 +469,7 @@ namespace CYPCore.Ledger
             if (transactionTypeArray.Contains(CoinType.Fee.ToString()) &&
                 transactionTypeArray.Contains(CoinType.Coin.ToString()))
             {
-                var verifyVOutCommits = await VerifyOutputCommits(transaction);
+                var verifyVOutCommits = await VerifyOutputCommitments(transaction);
                 if (verifyVOutCommits == VerifyResult.UnableToVerify) return verifyVOutCommits;
             }
 
@@ -434,11 +478,11 @@ namespace CYPCore.Ledger
             using var mlsag = new MLSAG();
             for (var i = 0; i < transaction.Vin.Length; i++)
             {
-                var m = PrepareMlsag(transaction.Rct[i].M, transaction.Vout, transaction.Vin[i].Key.Offsets,
+                var m = Makemlsag(transaction.Rct[i].M, transaction.Vout, transaction.Vin[i].Key.Offsets,
                     transaction.Mix, 2);
-                var verifyMlsag = mlsag.Verify(transaction.Rct[i].I, transaction.Mix, 2, m,
+                var verifymlsag = mlsag.Verify(transaction.Rct[i].I, transaction.Mix, 2, m,
                     transaction.Vin[i].Key.Image, transaction.Rct[i].P, transaction.Rct[i].S);
-                if (verifyMlsag) continue;
+                if (verifymlsag) continue;
                 _logger.Here()
                     .Fatal("Unable to verify the Multilayered Linkable Spontaneous Anonymous Group transaction");
                 return VerifyResult.UnableToVerify;
@@ -454,12 +498,12 @@ namespace CYPCore.Ledger
         public VerifyResult VerifyTransactionFee(Transaction transaction)
         {
             Guard.Argument(transaction, nameof(transaction)).NotNull();
-            var vout = transaction.Vout.First();
-            if (vout.T != CoinType.Fee) return VerifyResult.UnableToVerify;
+            var output = transaction.Vout.First();
+            if (output.T != CoinType.Fee) return VerifyResult.UnableToVerify;
             var feeRate = Fee(FeeNByte);
-            if (vout.A != feeRate) return VerifyResult.UnableToVerify;
+            if (output.A != feeRate) return VerifyResult.UnableToVerify;
             using var pedersen = new Pedersen();
-            var commitSum = pedersen.CommitSum(new List<byte[]> { vout.C }, new List<byte[]> { vout.C });
+            var commitSum = pedersen.CommitSum(new List<byte[]> { output.C }, new List<byte[]> { output.C });
             return commitSum == null ? VerifyResult.Succeed : VerifyResult.UnableToVerify;
         }
 
@@ -483,6 +527,7 @@ namespace CYPCore.Ledger
         {
             Guard.Argument(coinbase, nameof(coinbase)).NotNull();
             Guard.Argument(solution, nameof(solution)).NotZero().NotNegative();
+            Guard.Argument(runningDistribution, nameof(runningDistribution)).NotZero().NotNegative();
             if (coinbase.Validate().Any()) return VerifyResult.UnableToVerify;
             if (coinbase.T != CoinType.Coinbase) return VerifyResult.UnableToVerify;
             var verifyNetworkShare = VerifyNetworkShare(solution, coinbase.A.DivWithNanoTan(), runningDistribution);
@@ -525,9 +570,9 @@ namespace CYPCore.Ledger
             if (transaction.Validate().Any()) return VerifyResult.UnableToVerify;
             foreach (var vin in transaction.Vin)
             {
-                var blockHeaders = await _unitOfWork.HashChainRepository.WhereAsync(x =>
-                    new ValueTask<bool>(x.Transactions.Any(t => t.Vin.First().Key.Image.Xor(vin.Key.Image))));
-                if (blockHeaders.Count > 1) return VerifyResult.UnableToVerify;
+                var blocks = await _unitOfWork.HashChainRepository.WhereAsync(x =>
+                    new ValueTask<bool>(x.Txs.Any(t => t.Vin.First().Key.Image.Xor(vin.Key.Image))));
+                if (blocks.Count > 1) return VerifyResult.UnableToVerify;
             }
 
             return VerifyResult.Succeed;
@@ -537,17 +582,17 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="transaction"></param>
         /// <returns></returns>
-        public async Task<VerifyResult> VerifyOutputCommits(Transaction transaction)
+        public async Task<VerifyResult> VerifyOutputCommitments(Transaction transaction)
         {
             Guard.Argument(transaction, nameof(transaction)).NotNull();
             var offSets = transaction.Vin.Select(v => v.Key).SelectMany(k => k.Offsets.Split(33)).ToArray();
             var list = offSets.Where((value, index) => index % 2 == 0).ToArray();
             foreach (var commit in list)
             {
-                var blockHeaders = await _unitOfWork.HashChainRepository.WhereAsync(x =>
-                    new ValueTask<bool>(x.Transactions.Any(v => v.Vout.Any(c => c.C.Xor(commit)))));
-                if (!blockHeaders.Any()) return VerifyResult.UnableToVerify;
-                var outputs = blockHeaders.SelectMany(blockHeader => blockHeader.Transactions).SelectMany(x => x.Vout);
+                var blocks = await _unitOfWork.HashChainRepository.WhereAsync(x =>
+                    new ValueTask<bool>(x.Txs.Any(v => v.Vout.Any(c => c.C.Xor(commit)))));
+                if (!blocks.Any()) return VerifyResult.UnableToVerify;
+                var outputs = blocks.SelectMany(block => block.Txs).SelectMany(x => x.Vout);
                 if (outputs.Where(output => output.T == CoinType.Coinbase && output.T == CoinType.Fee)
                     .Select(output => VerifyLockTime(new LockTime(Utils.UnixTimeToDateTime(output.L)), output.S))
                     .Any(verified => verified != VerifyResult.UnableToVerify))
@@ -559,6 +604,24 @@ namespace CYPCore.Ledger
             return VerifyResult.Succeed;
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="publicKey"></param>
+        /// <param name="vrfProof"></param>
+        /// <param name="message"></param>
+        /// <param name="vrfSig"></param>
+        /// <returns></returns>
+        public VerifyResult VerifyVrfProof(byte[] publicKey, byte[] vrfProof, byte[] message, byte[] vrfSig)
+        {
+            Guard.Argument(publicKey, nameof(publicKey)).NotNull().MaxCount(33);
+            Guard.Argument(vrfProof, nameof(vrfProof)).NotNull().MaxCount(96);
+            Guard.Argument(message, nameof(message)).NotNull().MaxCount(32);
+            Guard.Argument(vrfSig, nameof(vrfSig)).NotNull().MaxCount(32);
+            var verifyVrfSignature = _signing.VerifyVrfSignature(Curve.decodePoint(publicKey, 0), message, vrfProof);
+            return verifyVrfSignature.Xor(vrfSig) ? VerifyResult.Succeed : VerifyResult.UnableToVerify;
+        }
+        
         /// <summary>
         /// 
         /// </summary>
@@ -597,7 +660,7 @@ namespace CYPCore.Ledger
         public ulong Reward(ulong solution, decimal runningDistribution)
         {
             Guard.Argument(solution, nameof(solution)).NotZero().NotNegative();
-            Guard.Argument(runningDistribution, nameof(runningDistribution)).NotNegative();
+            Guard.Argument(runningDistribution, nameof(runningDistribution)).NotZero().NotNegative();
             var networkShare = NetworkShare(solution, runningDistribution);
             return networkShare.ConvertToUInt64();
         }
@@ -618,7 +681,7 @@ namespace CYPCore.Ledger
                     : orderedBlockHeaders.Length - 1;
                 for (var i = 0; i < length; i++)
                 {
-                    runningDistributionTotal -= NetworkShare(orderedBlockHeaders.ElementAt(i).Solution,
+                    runningDistributionTotal -= NetworkShare(orderedBlockHeaders.ElementAt(i).BlockPos.Solution,
                         runningDistributionTotal);
                 }
             }
@@ -638,7 +701,7 @@ namespace CYPCore.Ledger
         public decimal NetworkShare(ulong solution, decimal runningDistribution)
         {
             Guard.Argument(solution, nameof(solution)).NotZero().NotNegative();
-            Guard.Argument(runningDistribution, nameof(runningDistribution)).NotNegative();
+            Guard.Argument(runningDistribution, nameof(runningDistribution)).NotZero().NotNegative();
             var r = Distribution - runningDistribution;
             var percentage = r / runningDistribution == 0 ? 0.1M : r / runningDistribution;
             if (percentage != 0.1M)
@@ -659,6 +722,8 @@ namespace CYPCore.Ledger
             decimal runningDistributionTotal)
         {
             Guard.Argument(solution, nameof(solution)).NotZero().NotNegative();
+            Guard.Argument(previousNetworkShare, nameof(previousNetworkShare)).NotZero().NotNegative();
+            Guard.Argument(runningDistributionTotal, nameof(runningDistributionTotal)).NotZero().NotNegative();
             var previousRunningDistribution = runningDistributionTotal + previousNetworkShare;
             if (previousRunningDistribution > Distribution) return VerifyResult.UnableToVerify;
             var networkShare = NetworkShare(solution, previousRunningDistribution).ConvertToUInt64().DivWithNanoTan();
@@ -671,13 +736,13 @@ namespace CYPCore.Ledger
         /// <param name="solution"></param>
         /// <param name="networkShare"></param>
         /// <returns></returns>
-        public int Difficulty(ulong solution, decimal networkShare)
+        public uint Difficulty(ulong solution, decimal networkShare)
         {
             Guard.Argument(solution, nameof(solution)).NotZero().NotNegative();
             Guard.Argument(networkShare, nameof(networkShare)).NotNegative();
             var diff = Math.Truncate(solution * networkShare / 144);
             diff = diff == 0 ? 1 : diff;
-            return (int)diff;
+            return (uint)diff;
         }
 
         /// <summary>
@@ -690,14 +755,11 @@ namespace CYPCore.Ledger
         {
             Guard.Argument(vrfSig, nameof(vrfSig)).NotNull().MaxCount(32);
             Guard.Argument(kernel, nameof(kernel)).NotNull().MaxCount(32);
-
             long itr = 0;
-
             try
             {
                 var ct = new CancellationTokenSource(TimeSpan.FromSeconds(30)).Token;
                 var calculating = true;
-
                 var target = new BigInteger(1, vrfSig);
                 var hashTarget = new BigInteger(1, kernel);
                 var hashTargetValue = new BigInteger((target.IntValue / hashTarget.BitCount).ToString()).Abs();
@@ -716,7 +778,7 @@ namespace CYPCore.Ledger
                 _logger.Here().Fatal(ex, "Unable to calculate solution");
             }
 
-            return (ulong)itr;
+            return (ulong) itr;
         }
 
         /// <summary>
@@ -734,6 +796,7 @@ namespace CYPCore.Ledger
         /// <returns></returns>
         public async Task<decimal> CurrentRunningDistribution(ulong solution)
         {
+            Guard.Argument(solution, nameof(solution)).NotZero().NotNegative();
             var runningDistribution = await GetRunningDistribution();
             var networkShare = NetworkShare(solution, runningDistribution);
 
@@ -744,25 +807,25 @@ namespace CYPCore.Ledger
         /// <summary>
         /// </summary>
         /// <param name="m"></param>
-        /// <param name="vout"></param>
+        /// <param name="outputs"></param>
         /// <param name="keyOffset"></param>
         /// <param name="cols"></param>
         /// <param name="rows"></param>
         /// <returns></returns>
-        private byte[] PrepareMlsag(byte[] m, Vout[] vout, byte[] keyOffset, int cols, int rows)
+        private byte[] Makemlsag(byte[] m, Vout[] outputs, byte[] keyOffset, int cols, int rows)
         {
             Guard.Argument(m, nameof(m)).NotNull();
-            Guard.Argument(vout, nameof(vout)).NotNull();
+            Guard.Argument(outputs, nameof(outputs)).NotNull();
             Guard.Argument(keyOffset, nameof(keyOffset)).NotNull();
             Guard.Argument(cols, nameof(cols)).NotZero().NotNegative();
             Guard.Argument(rows, nameof(rows)).NotZero().NotNegative();
-            var pcmOut = new Span<byte[]>(new[] { vout[0].C, vout[1].C, vout[2].C });
+            var pcmOut = new Span<byte[]>(new[] { outputs[0].C, outputs[1].C, outputs[2].C });
             var kOffsets = keyOffset.Split(33).Select(x => x).ToList();
             var pcmIn = kOffsets.Where((value, index) => index % 2 == 0).ToArray().AsSpan();
             using var mlsag = new MLSAG();
-            var prepareMlsag = mlsag.Prepare(m, null, pcmOut.Length, pcmOut.Length, cols, rows, pcmIn, pcmOut, null);
-            if (prepareMlsag) return m;
-            _logger.Here().Fatal("Unable to verify the Multilayered Linkable Spontaneous Anonymous Group transaction");
+            var preparemlsag = mlsag.Prepare(m, null, pcmOut.Length, pcmOut.Length, cols, rows, pcmIn, pcmOut, null);
+            if (preparemlsag) return m;
+            _logger.Here().Fatal("Unable to verify the Multilayered Linkable Spontaneous Anonymous Group membership");
             return null;
         }
     }

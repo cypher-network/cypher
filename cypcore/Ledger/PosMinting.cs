@@ -9,6 +9,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Threading;
 using Autofac;
+using Blake3;
 using CYPCore.Consensus.Models;
 using Dawn;
 using libsignal.ecc;
@@ -23,6 +24,7 @@ using CYPCore.Extensions;
 using CYPCore.Helper;
 using MessagePack;
 using Microsoft.Extensions.Hosting;
+using Block = CYPCore.Models.Block;
 using BlockHeader = CYPCore.Models.BlockHeader;
 using Transaction = CYPCore.Models.Transaction;
 
@@ -100,49 +102,47 @@ namespace CYPCore.Ledger
 
             var transactionTasks = transactionModels.Select(GetValidTransactionAsync);
             transactionModels = await Task.WhenAll(transactionTasks);
-
             if (transactionModels.Length == 0) return;
-
             var transactions = transactionModels.ToList();
             var height = await _unitOfWork.HashChainRepository.CountAsync() - 1;
             var prevBlock =
-                await _unitOfWork.HashChainRepository.GetAsync(x => new ValueTask<bool>(x.Height == height));
+                await _unitOfWork.HashChainRepository.GetAsync(x => new ValueTask<bool>(x.Height == (ulong) height));
             if (prevBlock == null)
             {
                 _logger.Here().Information("No previous block available for processing");
                 return;
             }
-
+            
             var coinStakeTimestamp = _validator.GetAdjustedTimeAsUnixTimestamp();
-            if (coinStakeTimestamp <= prevBlock.Locktime)
+            if (coinStakeTimestamp <= prevBlock.BlockHeader.Locktime)
             {
                 _logger.Here()
                     .Warning(
                         "Current coinstake time {@Timestamp} is not greater than last search timestamp {@Locktime}",
-                        coinStakeTimestamp, prevBlock.Locktime);
+                        coinStakeTimestamp, prevBlock.BlockHeader.Locktime);
                 return;
             }
-
+            
             try
             {
-                uint256 hash;
+                byte[] hash;
                 using (TangramStream ts = new())
                 {
                     transactions.ForEach(x =>
                     {
                         if (x != null)
                         {
-                            ts.Append(x.Stream());
+                            ts.Append(x.ToStream());
                         }
                     });
-                    hash = NBitcoin.Crypto.Hashes.DoubleSHA256(ts.ToArray());
+                    hash = Hasher.Hash(ts.ToArray()).HexToByte();
                 }
 
                 var calculateVrfSignature =
-                    _signing.CalculateVrfSignature(Curve.decodePrivatePoint(_keyPair.PrivateKey), hash.ToBytes(false));
+                    _signing.CalculateVrfSignature(Curve.decodePrivatePoint(_keyPair.PrivateKey), hash);
                 var verifyVrfSignature = _signing.VerifyVrfSignature(Curve.decodePoint(_keyPair.PublicKey, 0),
-                    hash.ToBytes(false), calculateVrfSignature);
-                var solution = _validator.Solution(verifyVrfSignature, hash.ToBytes(false));
+                    hash, calculateVrfSignature);
+                var solution = _validator.Solution(verifyVrfSignature, hash);
                 if (solution == 0) return;
                 var runningDistribution = await _validator.GetRunningDistribution();
                 var networkShare = _validator.NetworkShare(solution, runningDistribution);
@@ -156,26 +156,15 @@ namespace CYPCore.Ledger
                 }
 
                 transactions.Insert(0, coinStakeTransaction);
-                var blockHeader = CreateBlock(transactions.ToArray(), calculateVrfSignature, verifyVrfSignature,
+                var block = CreateBlock(transactions.ToArray(), calculateVrfSignature, verifyVrfSignature,
                     solution, bits, prevBlock);
-                if (blockHeader == null)
+                if (block == null)
                 {
                     _logger.Here().Fatal("Unable to create the block");
                     return;
                 }
-
+                
                 var blockGraph = CreateBlockGraph(block, prevBlock);
-                var signature = await _signing.Sign(_signing.DefaultSigningKeyName, blockHeader.ToFinalStream());
-                if (signature == null)
-                {
-                    _logger.Here().Fatal("Unable to sign the block");
-                    return;
-                }
-
-                blockHeader.Signature = signature.ByteToHex();
-                blockHeader.PublicKey = _keyPair.PublicKey.ByteToHex();
-
-                var blockGraph = CreateBlockGraph(blockHeader, prevBlock);
                 await _graph.TryAddBlockGraph(blockGraph);
             }
             catch (Exception ex)
@@ -195,15 +184,15 @@ namespace CYPCore.Ledger
             {
                 var height = await _unitOfWork.HashChainRepository.CountAsync() - 1;
                 var prevBlock = await _unitOfWork.HashChainRepository.GetAsync(block =>
-                    new ValueTask<bool>(block.Height == height));
+                    new ValueTask<bool>(block.Height == (ulong) height));
                 if (prevBlock == null) return;
                 var deliveredBlocks =
                     await _unitOfWork.DeliveredRepository.WhereAsync(block =>
-                        new ValueTask<bool>(block.Height == height + 1));
+                        new ValueTask<bool>(block.Height == (ulong) (height + 1)));
                 var blockWinners = deliveredBlocks.Select(deliveredBlock => new BlockWinner
                 {
-                    BlockHeader = deliveredBlock,
-                    Finish = new TimeSpan(deliveredBlock.Locktime).Subtract(new TimeSpan(prevBlock.Locktime)).Ticks
+                    Block = deliveredBlock,
+                    Finish = new TimeSpan(deliveredBlock.BlockHeader.Locktime).Subtract(new TimeSpan(prevBlock.BlockHeader.Locktime)).Ticks
                 }).ToList();
                 if (blockWinners.Any() != true) return;
                 _logger.Here().Information("RunStakingWinnerAsync");
@@ -212,13 +201,13 @@ namespace CYPCore.Ledger
                 var blockWinner = winners.Length switch
                 {
                     > 2 => winners.FirstOrDefault(winner =>
-                        winner.BlockHeader.Bits >= blockWinners.Select(bits => bits.BlockHeader.Bits).Max()),
+                        winner.Block.BlockPos.Bits >= blockWinners.Select(x => x.Block.BlockPos.Bits).Max()),
                     _ => winners.First()
                 };
                 if (blockWinner != null)
                 {
                     _logger.Here().Information("RunStakingWinnerAsync we have a winner");
-                    var exists = await _validator.BlockExists(blockWinner.BlockHeader);
+                    var exists = await _validator.BlockExists(blockWinner.Block);
                     if (exists == VerifyResult.AlreadyExists)
                     {
                         _logger.Here().Error("Block winner already exists");
@@ -226,7 +215,7 @@ namespace CYPCore.Ledger
                         return;
                     }
 
-                    var verifyBlockHeader = await _validator.VerifyBlockHeader(blockWinner.BlockHeader);
+                    var verifyBlockHeader = await _validator.VerifyBlock(blockWinner.Block);
                     if (verifyBlockHeader == VerifyResult.UnableToVerify)
                     {
                         _logger.Here().Error("Unable to verify the block");
@@ -235,8 +224,8 @@ namespace CYPCore.Ledger
                     }
 
                     _logger.Here().Information("RunStakingWinnerAsync saving winner");
-                    var saved = await _unitOfWork.HashChainRepository.PutAsync(blockWinner.BlockHeader.ToIdentifier(),
-                        blockWinner.BlockHeader);
+                    var saved = await _unitOfWork.HashChainRepository.PutAsync(blockWinner.Block.ToIdentifier(),
+                        blockWinner.Block);
                     if (!saved)
                     {
                         _logger.Here().Error("Unable to save the block winner");
@@ -261,6 +250,7 @@ namespace CYPCore.Ledger
         /// <returns></returns>
         private async Task<Transaction> GetValidTransactionAsync(Transaction transaction)
         {
+            Guard.Argument(transaction, nameof(transaction)).NotNull();
             try
             {
                 var verifyTransaction = await _validator.VerifyTransaction(transaction);
@@ -292,60 +282,60 @@ namespace CYPCore.Ledger
         /// <returns></returns>
         private async Task RemoveDeliveredBlock(BlockWinner winner)
         {
-            var removed = await _unitOfWork.DeliveredRepository.RemoveAsync(winner.BlockHeader.ToIdentifier());
+            Guard.Argument(winner, nameof(winner)).NotNull();
+            var removed = await _unitOfWork.DeliveredRepository.RemoveAsync(winner.Block.ToIdentifier());
             if (!removed)
             {
                 _logger.Here().Error("Unable to remove potential block winner {@MerkelRoot}",
-                    winner.BlockHeader.MerkelRoot);
+                    winner.Block.Hash);
             }
         }
 
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="blockHeader"></param>
-        /// <param name="prevBlockHeader"></param>
+        /// <param name="block"></param>
+        /// <param name="prevBlock"></param>
         /// <returns></returns>
-        private BlockGraph CreateBlockGraph(BlockHeader blockHeader, BlockHeader prevBlockHeader)
+        private BlockGraph CreateBlockGraph(Block block, Block prevBlock)
         {
-            Guard.Argument(blockHeader, nameof(blockHeader)).NotNull();
-            Guard.Argument(prevBlockHeader, nameof(prevBlockHeader)).NotNull();
+            Guard.Argument(block, nameof(block)).NotNull();
+            Guard.Argument(prevBlock, nameof(prevBlock)).NotNull();
             var blockGraph = new BlockGraph
             {
-                Block = new CYPCore.Consensus.Models.Block(blockHeader.MerkelRoot, _serfClient.ClientId,
-                    (ulong)blockHeader.Height, MessagePackSerializer.Serialize(blockHeader)),
+                Block = new CYPCore.Consensus.Models.Block(block.Hash.ByteToHex(), _serfClient.ClientId,
+                    block.Height, MessagePackSerializer.Serialize(block)),
                 Prev = new CYPCore.Consensus.Models.Block
                 {
-                    Data = MessagePackSerializer.Serialize(prevBlockHeader),
-                    Hash = prevBlockHeader.MerkelRoot,
+                    Data = MessagePackSerializer.Serialize(prevBlock),
+                    Hash = prevBlock.Hash.ByteToHex(),
                     Node = _serfClient.ClientId,
-                    Round = (ulong)prevBlockHeader.Height
+                    Round = prevBlock.Height
                 }
             };
             return blockGraph;
         }
-
+        
         /// <summary>
         /// 
         /// </summary>
         /// <param name="transactions"></param>
-        /// <param name="signature"></param>
-        /// <param name="vrfBytes"></param>
+        /// <param name="calculateVrfSignature"></param>
+        /// <param name="verifyVrfSignature"></param>
         /// <param name="solution"></param>
         /// <param name="bits"></param>
-        /// <param name="previous"></param>
+        /// <param name="previousBlock"></param>
         /// <returns></returns>
-        private BlockHeader CreateBlock(Transaction[] transactions, byte[] signature, byte[] vrfBytes,
-            ulong solution, int bits, BlockHeader previous)
+        private Block CreateBlock(Transaction[] transactions, byte[] calculateVrfSignature, byte[] verifyVrfSignature,
+            ulong solution, uint bits, Block previousBlock)
         {
             Guard.Argument(transactions, nameof(transactions)).NotNull();
-            Guard.Argument(signature, nameof(signature)).NotNull().MaxCount(96);
-            Guard.Argument(vrfBytes, nameof(vrfBytes)).NotNull().MaxCount(32);
-            Guard.Argument(solution, nameof(solution)).NotNegative();
-            Guard.Argument(bits, nameof(bits)).NotNegative().NotZero();
-            Guard.Argument(previous, nameof(previous)).NotNull();
-            var p256 = System.Numerics.BigInteger.Parse(Validator.Security256);
-            var x = System.Numerics.BigInteger.Parse(vrfBytes.ByteToHex(),
+            Guard.Argument(calculateVrfSignature, nameof(calculateVrfSignature)).NotNull().MaxCount(96);
+            Guard.Argument(verifyVrfSignature, nameof(verifyVrfSignature)).NotNull().MaxCount(32);
+            Guard.Argument(solution, nameof(solution)).NotZero().NotNegative();
+            Guard.Argument(bits, nameof(bits)).NotZero().NotNegative();
+            Guard.Argument(previousBlock, nameof(previousBlock)).NotNull();
+            var x = System.Numerics.BigInteger.Parse(verifyVrfSignature.ByteToHex(),
                 System.Globalization.NumberStyles.AllowHexSpecifier);
             if (x.Sign <= 0)
             {
@@ -354,26 +344,40 @@ namespace CYPCore.Ledger
 
             var ct = new CancellationTokenSource(TimeSpan.FromSeconds(30)).Token;
             var sloth = new Sloth(ct);
-            var nonce = sloth.Eval(bits, x, p256);
+            var nonce = sloth.Eval((int) bits, x);
             if (ct.IsCancellationRequested) return null;
             var lockTime = _validator.GetAdjustedTimeAsUnixTimestamp();
-            var blockHeader = new BlockHeader
+            var block = new Block
             {
-                Bits = bits,
-                Height = 1 + previous.Height,
-                Locktime = lockTime,
-                LocktimeScript = new Script(Op.GetPushOp(lockTime), OpcodeType.OP_CHECKLOCKTIMEVERIFY).ToString(),
-                Nonce = nonce,
-                PrevMerkelRoot = previous.MerkelRoot,
-                Proof = signature.ByteToHex(),
-                Sec = Validator.Security256,
-                Seed = Validator.Seed,
-                Solution = solution,
-                Transactions = transactions,
-                Version = 0x1,
-                VrfSignature = vrfBytes.ByteToHex(),
+                Hash = new byte[32],
+                Height = 1 + previousBlock.Height,
+                BlockHeader = new BlockHeader
+                {
+                    Version = 0x1,
+                    Height = 1 + previousBlock.BlockHeader.Height,
+                    Locktime = lockTime,
+                    LocktimeScript =
+                        new Script(Op.GetPushOp(lockTime), OpcodeType.OP_CHECKLOCKTIMEVERIFY).ToString(),
+                    MerkleRoot = BlockHeader.ToMerkelRoot(previousBlock.BlockHeader.MerkleRoot, transactions),
+                    PrevBlockHash = previousBlock.Hash
+                },
+                NrTx = (ushort) transactions.Length,
+                Txs = transactions,
+                BlockPos = new BlockPos
+                {
+                    Bits = bits,
+                    Nonce = nonce.ToBytes(),
+                    Solution = solution,
+                    VrfProof = calculateVrfSignature,
+                    VrfSig = verifyVrfSignature,
+                    PublicKey = _keyPair.PublicKey
+                }
             };
-            return blockHeader;
+
+            block.Size = block.GetSize();
+            block.Hash = _validator.IncrementHasher(previousBlock.Hash, block.ToHash());
+            
+            return block;
         }
 
         /// <summary>
@@ -382,7 +386,7 @@ namespace CYPCore.Ledger
         /// <param name="bits"></param>
         /// <param name="reward"></param>
         /// <returns></returns>
-        private async Task<Transaction> CoinbaseTransactionAsync(int bits, ulong reward)
+        private async Task<Transaction> CoinbaseTransactionAsync(uint bits, ulong reward)
         {
             Guard.Argument(bits, nameof(bits)).NotNegative();
             Guard.Argument(reward, nameof(reward)).NotNegative();

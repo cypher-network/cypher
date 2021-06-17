@@ -19,9 +19,8 @@ namespace CYPCore.Ledger
     /// </summary>
     public interface ISync
     {
-        bool IsSynchronized { get; }
         bool SyncRunning { get; }
-        Task<bool> Synchronize(string host, long skip, long take);
+        Task<bool> Synchronize(string host, ulong skip, int take);
         Task Synchronize();
     }
 
@@ -30,7 +29,6 @@ namespace CYPCore.Ledger
     /// </summary>
     public class Sync : ISync
     {
-        public bool IsSynchronized { get; private set; }
         public bool SyncRunning { get; private set; }
         private const int BatchSize = 20;
         private readonly IUnitOfWork _unitOfWork;
@@ -85,7 +83,7 @@ namespace CYPCore.Ledger
 
                 var localBlockHeight = await _unitOfWork.HashChainRepository.CountAsync();
                 var localLastBlock = await _unitOfWork.HashChainRepository.GetAsync(b =>
-                    new ValueTask<bool>(b.Height == localBlockHeight));
+                    new ValueTask<bool>(b.Height == (ulong) localBlockHeight));
 
                 var localLastBlockHash = string.Empty;
                 if (localLastBlock != null)
@@ -151,14 +149,12 @@ namespace CYPCore.Ledger
                                 "Synchronizing chain with last block hash {@Hash} and height {@Height} from {@Peer} {@Version} {@Host}",
                                 hash.Hash, hash.Height, peer.Peer.NodeName, peer.Peer.NodeVersion, peer.Peer.Host);
 
-                            synchronized = await Synchronize(peer.Peer.Host, localBlockHeight, hash.Height);
-                            if (synchronized)
-                            {
-                                _logger.Here().Information("Successfully synchronized with {@Peer} {@Version} {@Host}",
-                                    peer.Peer.NodeName, peer.Peer.NodeVersion, peer.Peer.Host);
+                            synchronized = await Synchronize(peer.Peer.Host, (ulong) localBlockHeight, (int) hash.Height);
+                            if (!synchronized) continue;
+                            _logger.Here().Information("Successfully synchronized with {@Peer} {@Version} {@Host}",
+                                peer.Peer.NodeName, peer.Peer.NodeVersion, peer.Peer.Host);
 
-                                break;
-                            }
+                            break;
                         }
 
                         if (synchronized)
@@ -189,7 +185,7 @@ namespace CYPCore.Ledger
         /// <param name="skip"></param>
         /// <param name="take"></param>
         /// <returns></returns>
-        public async Task<bool> Synchronize(string host, long skip, long take)
+        public async Task<bool> Synchronize(string host, ulong skip, int take)
         {
             Guard.Argument(host, nameof(host)).NotNull().NotEmpty().NotWhiteSpace();
             Guard.Argument(skip, nameof(skip)).NotNegative();
@@ -199,10 +195,10 @@ namespace CYPCore.Ledger
             {
                 var numberOfBatches = (int)Math.Ceiling((double)take / BatchSize);
                 numberOfBatches = numberOfBatches == 0 ? 1 : numberOfBatches;
-                var networkBlockTasks = new List<Task<IList<BlockHeader>>>();
+                var networkBlockTasks = new List<Task<IList<Block>>>();
                 for (var i = 0; i < numberOfBatches; i++)
                 {
-                    networkBlockTasks.Add(_networkClient.GetBlocksAsync(host, i + 1 * skip, BatchSize));
+                    networkBlockTasks.Add(_networkClient.GetBlocksAsync(host, (ulong) (i + (int) (1 * skip)), BatchSize));
                 }
 
                 var blockHeaders = await Task.WhenAll(networkBlockTasks);
@@ -210,26 +206,26 @@ namespace CYPCore.Ledger
                 {
                     if (blocks.Any() != true) continue;
 
-                    foreach (var blockHeader in blocks.OrderBy(x => x.Height))
+                    foreach (var block in blocks.OrderBy(x => x.Height))
                     {
                         try
                         {
-                            var verifyBlockHeader = await _validator.VerifyBlockHeader(blockHeader);
+                            var verifyBlockHeader = await _validator.VerifyBlock(block);
                             if (verifyBlockHeader != VerifyResult.Succeed)
                             {
                                 return false;
                             }
 
-                            var saved = await _unitOfWork.HashChainRepository.PutAsync(blockHeader.ToIdentifier(),
-                                blockHeader);
+                            var saved = await _unitOfWork.HashChainRepository.PutAsync(block.ToIdentifier(),
+                                block);
                             if (saved) continue;
 
-                            _logger.Here().Error("Unable to save block: {@MerkleRoot}", blockHeader.MerkelRoot);
+                            _logger.Here().Error("Unable to save block: {@Hash}", block.Hash);
                             return false;
                         }
                         catch (Exception ex)
                         {
-                            _logger.Here().Error(ex, "Unable to save block: {@MerkleRoot}", blockHeader.MerkelRoot);
+                            _logger.Here().Error(ex, "Unable to save block: {@Hash}", block.Hash);
                             return false;
                         }
                     }
