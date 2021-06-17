@@ -3,6 +3,9 @@
 
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.Linq;
+using Blake3;
+using CYPCore.Extensions;
 using MessagePack;
 
 namespace CYPCore.Models
@@ -19,27 +22,22 @@ namespace CYPCore.Models
         public IEnumerable<ValidationResult> Validate()
         {
             var results = new List<ValidationResult>();
-
             if (Key.Image == null)
             {
                 results.Add(new ValidationResult("Argument is null", new[] { "Vin.Key.Image" }));
             }
-
             if (Key.Image != null && Key.Image.Length != 33)
             {
                 results.Add(new ValidationResult("Range exception", new[] { "Vin.Key.Image" }));
             }
-
             if (Key.Offsets == null)
             {
                 results.Add(new ValidationResult("Argument is null", new[] { "Vin.Key.Offsets" }));
             }
-
             if (Key.Offsets != null && Key.Offsets.Length != 1452)
             {
                 results.Add(new ValidationResult("Range exception", new[] { "Vin.Key.Offsets" }));
             }
-
             return results;
         }
 
@@ -49,16 +47,16 @@ namespace CYPCore.Models
         /// <returns></returns>
         public byte[] ToHash()
         {
-            return NBitcoin.Crypto.Hashes.DoubleSHA256(Stream()).ToBytes(false);
+            return Hasher.Hash(ToStream()).HexToByte();
         }
 
-        public byte[] Stream()
+        public byte[] ToStream()
         {
+            if (Validate().Any()) return null;
+            
             using var ts = new Helper.TangramStream();
-            ts
-                .Append(Key.Image)
+            ts.Append(Key.Image)
                 .Append(Key.Offsets);
-
             return ts.ToArray(); ;
         }
     }

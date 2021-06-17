@@ -22,47 +22,38 @@ namespace CYPCore.Models
         public IEnumerable<ValidationResult> Validate()
         {
             var results = new List<ValidationResult>();
-
             if (I == null)
             {
-                results.Add(new ValidationResult("Argument is null", new[] { "Rct.I" }));
+                results.Add(new ValidationResult("Argument is null", new[] {"Rct.I"}));
             }
-
             if (I != null && I.Length != 32)
             {
-                results.Add(new ValidationResult("Range exception", new[] { "Rct.I" }));
+                results.Add(new ValidationResult("Range exception", new[] {"Rct.I"}));
             }
-
             if (M == null)
             {
-                results.Add(new ValidationResult("Argument is null", new[] { "Rct.M" }));
+                results.Add(new ValidationResult("Argument is null", new[] {"Rct.M"}));
             }
-
             if (M != null && M.Length != 1452)
             {
-                results.Add(new ValidationResult("Range exception", new[] { "Rct.M" }));
+                results.Add(new ValidationResult("Range exception", new[] {"Rct.M"}));
             }
-
             if (P == null)
             {
-                results.Add(new ValidationResult("Argument is null", new[] { "Rct.P" }));
+                results.Add(new ValidationResult("Argument is null", new[] {"Rct.P"}));
             }
-
             if (P != null && P.Length != 32)
             {
-                results.Add(new ValidationResult("Range exception", new[] { "Rct.P" }));
+                results.Add(new ValidationResult("Range exception", new[] {"Rct.P"}));
             }
-
             if (S == null)
             {
-                results.Add(new ValidationResult("Argument is null", new[] { "Rct.S" }));
+                results.Add(new ValidationResult("Argument is null", new[] {"Rct.S"}));
             }
-
             if (S != null && S.Length != 1408)
             {
-                results.Add(new ValidationResult("Range exception", new[] { "Rct.S" }));
+                results.Add(new ValidationResult("Range exception", new[] {"Rct.S"}));
             }
-
             return results;
         }
     }

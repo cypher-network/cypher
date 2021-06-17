@@ -8,16 +8,19 @@ using System.Threading;
 using System.Threading.Tasks;
 using CYPCore.Extensions;
 using CYPCore.Models;
+using Dawn;
+using MessagePack;
 using Serilog;
 
 namespace CYPCore.Persistence
 {
-    public interface IHashChainRepository : IRepository<BlockHeader>
+    public interface IHashChainRepository : IRepository<Block>
     {
-        ValueTask<List<BlockHeader>> OrderByRangeAsync(Func<BlockHeader, long> selector, int skip, int take);
+        ValueTask<List<Block>> OrderByRangeAsync(Func<Block, ulong> selector, int skip, int take);
+        new Task<bool> PutAsync(byte[] key, Block data);
     }
 
-    public class HashChainRepository : Repository<BlockHeader>, IHashChainRepository
+    public class HashChainRepository : Repository<Block>, IHashChainRepository
     {
         private readonly IStoreDb _storeDb;
         private readonly ILogger _logger;
@@ -31,6 +34,37 @@ namespace CYPCore.Persistence
 
             SetTableName(StoreDb.HashChainTable.ToString());
         }
+        
+        public Task<bool> PutAsync(byte[] key, Block data)
+        {
+            Guard.Argument(key, nameof(key)).NotNull();
+            Guard.Argument(data, nameof(data)).NotNull();
+            
+            if (data.Validate().Any())
+            {
+                return Task.FromResult(false);
+            }
+            
+            var saved = false;
+            try
+            {
+                using (_sync.Write())
+                {
+                    var cf = _storeDb.Rocks.GetColumnFamily(StoreDb.HashChainTable.ToString());
+                    var buffer = MessagePackSerializer.Serialize(data);
+                    
+                    _storeDb.Rocks.Put(StoreDb.Key(StoreDb.HashChainTable.ToString(), key), buffer, cf);
+                    
+                    saved = true;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Here().Error(ex, "Error while storing in database");
+            }
+
+            return Task.FromResult(saved);
+        }
 
         /// <summary>
         /// 
@@ -39,9 +73,9 @@ namespace CYPCore.Persistence
         /// <param name="skip"></param>
         /// <param name="take"></param>
         /// <returns></returns>
-        public ValueTask<List<BlockHeader>> OrderByRangeAsync(Func<BlockHeader, long> selector, int skip, int take)
+        public ValueTask<List<Block>> OrderByRangeAsync(Func<Block, ulong> selector, int skip, int take)
         {
-            ValueTask<List<BlockHeader>> entries = default;
+            ValueTask<List<Block>> entries = default;
 
             try
             {

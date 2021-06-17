@@ -2,6 +2,7 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System.Text;
+using Blake3;
 using Newtonsoft.Json;
 using CYPCore.Extensions;
 using MessagePack;
@@ -19,7 +20,7 @@ namespace CYPCore.Models
         string PreviousHash { get; set; }
         string ToString();
         byte[] ToHash();
-        byte[] Stream();
+        byte[] ToStream();
         T Cast<T>();
     }
 
@@ -67,25 +68,23 @@ namespace CYPCore.Models
         /// <returns></returns>
         public byte[] ToHash()
         {
-            return NBitcoin.Crypto.Hashes.DoubleSHA256(Stream()).ToBytes(false);
+            return Hasher.Hash(ToStream()).HexToByte();
         }
 
         /// <summary>
         /// 
         /// </summary>
         /// <returns></returns>
-        public byte[] Stream()
+        public byte[] ToStream()
         {
             using var ts = new Helper.TangramStream();
-            ts
-                .Append(Hash)
+            ts.Append(Hash)
                 .Append(Node)
                 .Append(PreviousHash ?? string.Empty)
                 .Append(Round)
                 .Append(PublicKey ?? string.Empty)
                 .Append(Signature ?? string.Empty);
-
-            return ts.ToArray(); ;
+            return ts.ToArray();
         }
 
         /// <summary>

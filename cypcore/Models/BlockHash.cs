@@ -5,7 +5,7 @@ namespace CYPCore.Models
     public class BlockHash
     {
         public byte[] Hash;
-        public long Height;
+        public ulong Height;
     }
 
     public class BlockHashPeer

@@ -26,47 +26,38 @@ namespace CYPCore.Models
         public IEnumerable<ValidationResult> Validate()
         {
             var results = new List<ValidationResult>();
-
             if (C == null)
             {
                 results.Add(new ValidationResult("Argument is null", new[] { "Vout.C" }));
             }
-
             if (C != null && C.Length != 33)
             {
                 results.Add(new ValidationResult("Range exception", new[] { "Vout.C" }));
             }
-
             if (E == null)
             {
                 results.Add(new ValidationResult("Argument is null", new[] { "Vout.E" }));
             }
-
             if (E != null && E.Length != 33)
             {
                 results.Add(new ValidationResult("Range exception", new[] { "Vout.E" }));
             }
-
             if (N == null)
             {
                 results.Add(new ValidationResult("Argument is null", new[] { "Vout.N" }));
             }
-
-            if (N != null && N.Length > 512)
+            if (N is {Length: > 512})
             {
                 results.Add(new ValidationResult("Range exception", new[] { "Vout.N" }));
             }
-
             if (P == null)
             {
                 results.Add(new ValidationResult("Argument is null", new[] { "Vout.P" }));
             }
-
             if (P != null && P.Length != 33)
             {
                 results.Add(new ValidationResult("Range exception", new[] { "Vout.P" }));
             }
-
             if (!string.IsNullOrEmpty(S))
             {
                 if (S.Length != 16)
@@ -74,13 +65,11 @@ namespace CYPCore.Models
                     results.Add(new ValidationResult("Range exception", new[] { "Vout.S" }));
                 }
             }
-
             if (T != CoinType.Payment && T != CoinType.Coinbase && T != CoinType.Coinstake && T != CoinType.Fee &&
                 T != CoinType.Change)
             {
                 results.Add(new ValidationResult("Argument exception", new[] { "Vout.T" }));
             }
-
             return results;
         }
     }

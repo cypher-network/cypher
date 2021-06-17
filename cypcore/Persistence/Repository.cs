@@ -36,7 +36,6 @@ namespace CYPCore.Persistence
     {
         private readonly IStoreDb _storeDb;
         private readonly ILogger _logger;
-        private readonly object _locker = new();
         private readonly ReadOptions _readOptions;
         private readonly ReaderWriterLockSlim _sync = new();
 

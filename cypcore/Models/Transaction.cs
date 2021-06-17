@@ -4,6 +4,8 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.Linq;
+using Blake3;
 using Newtonsoft.Json;
 using CYPCore.Extensions;
 using MessagePack;
@@ -42,7 +44,7 @@ namespace CYPCore.Models
         /// 
         /// </summary>
         /// <returns></returns>
-        byte[] Stream();
+        byte[] ToStream();
 
         /// <summary>
         /// 
@@ -69,7 +71,6 @@ namespace CYPCore.Models
         public IEnumerable<ValidationResult> Validate()
         {
             var results = new List<ValidationResult>();
-
             if (TxnId == null)
             {
                 results.Add(new ValidationResult("Argument is null", new[] { "TxnId" }));
@@ -102,31 +103,25 @@ namespace CYPCore.Models
             {
                 results.Add(new ValidationResult("Argument is null", new[] { "Vout" }));
             }
-
             foreach (var bp in Bp)
             {
                 results.AddRange(bp.Validate());
             }
-
             if (Vin != null)
                 foreach (var vi in Vin)
                 {
                     results.AddRange(vi.Validate());
                 }
-
             if (Vout != null)
                 foreach (var vo in Vout)
                 {
                     results.AddRange(vo.Validate());
                 }
-
             if (Rct == null) return results;
-
             foreach (var rct in Rct)
             {
                 results.AddRange(rct.Validate());
             }
-
             return results;
         }
 
@@ -145,15 +140,17 @@ namespace CYPCore.Models
         /// <returns></returns>
         public byte[] ToHash()
         {
-            return NBitcoin.Crypto.Hashes.DoubleSHA256(Stream()).ToBytes(false);
+            return Hasher.Hash(ToStream()).HexToByte();
         }
 
         /// <summary>
         /// 
         /// </summary>
         /// <returns></returns>
-        public byte[] Stream()
+        public byte[] ToStream()
         {
+            if (Validate().Any()) return null;
+            
             using var ts = new Helper.TangramStream();
             ts
                 .Append(TxnId)
@@ -196,17 +193,43 @@ namespace CYPCore.Models
             return ts.ToArray(); ;
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="left"></param>
+        /// <param name="right"></param>
+        /// <returns></returns>
         public static bool operator ==(Transaction left, Transaction right) => Equals(left, right);
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="left"></param>
+        /// <param name="right"></param>
+        /// <returns></returns>
         public static bool operator !=(Transaction left, Transaction right) => !Equals(left, right);
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="obj"></param>
+        /// <returns></returns>
         public override bool Equals(object obj) => (obj is Transaction transactionModel) && Equals(transactionModel);
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="other"></param>
+        /// <returns></returns>
         public bool Equals(Transaction other)
         {
             return TxnId.Xor(other.TxnId);
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
         public override int GetHashCode()
         {
             return HashCode.Combine(TxnId);

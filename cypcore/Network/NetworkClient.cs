@@ -47,7 +47,7 @@ namespace CYPCore.Network
                 var networkBlockHeight = new NetworkBlockHeight
                 {
                     Local = new BlockHeight
-                    { Height = await _unitOfWork.HashChainRepository.CountAsync(), Host = "local" },
+                    { Height = (ulong) await _unitOfWork.HashChainRepository.CountAsync(), Host = "local" },
                     Remote = new BlockHeight { Height = blockHeight.Height == 0 ? 0 : blockHeight.Height - 1, Host = peer.Host }
                 };
 
@@ -64,7 +64,7 @@ namespace CYPCore.Network
                     BlockHash = new()
                     {
                         Hash = remoteBlock.Last().ToHash(),
-                        Height = networkBlockHeight.Remote.Height
+                        Height = (ulong) networkBlockHeight.Remote.Height
                     }
                 };
             }
@@ -125,9 +125,9 @@ namespace CYPCore.Network
         /// <param name="skip"></param>
         /// <param name="take"></param>
         /// <returns></returns>
-        public async Task<IList<BlockHeader>> GetBlocksAsync(string host, long skip, int take)
+        public async Task<IList<Block>> GetBlocksAsync(string host, ulong skip, int take)
         {
-            IList<BlockHeader> blockHeaders = null;
+            IList<Block> blocks = null;
             try
             {
                 var httpResponseMessage = await _httpClient.GetAsync($"{host}/chain/blocks/{skip}/{take}");
@@ -139,8 +139,8 @@ namespace CYPCore.Network
                     Convert.FromBase64String((jToken ?? throw new InvalidOperationException()).Value<string>());
                 if (httpResponseMessage.IsSuccessStatusCode)
                 {
-                    var genericList = MessagePackSerializer.Deserialize<GenericDataList<BlockHeader>>(byteArray);
-                    blockHeaders = genericList.Data;
+                    var genericList = MessagePackSerializer.Deserialize<GenericDataList<Block>>(byteArray);
+                    blocks = genericList.Data;
                 }
                 else
                 {
@@ -155,7 +155,7 @@ namespace CYPCore.Network
                 _logger.Here().Error(ex, "Unable to deserialize object for {@host}", host);
             }
 
-            return blockHeaders;
+            return blocks;
         }
     }
 }

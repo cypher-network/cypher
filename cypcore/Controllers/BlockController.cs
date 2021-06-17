@@ -62,8 +62,8 @@ namespace CYPCore.Controllers
             try
             {
                 var safeGuardTransactions = await _graph.GetSafeguardBlocks();
-                var blockHeaders = safeGuardTransactions as BlockHeader[] ?? safeGuardTransactions.ToArray();
-                var genericList = new GenericDataList<BlockHeader> { Data = blockHeaders };
+                var blocks = safeGuardTransactions as Block[] ?? safeGuardTransactions.ToArray();
+                var genericList = new GenericDataList<Block> { Data = blocks };
                 var buffer = MessagePackSerializer.Serialize(genericList);
 
                 return new ObjectResult(new { messagepack = buffer });
@@ -109,7 +109,7 @@ namespace CYPCore.Controllers
         {
             try
             {
-                var hash = await _graph.GetHash(height);
+                var hash = await _graph.GetHash((ulong) height);
                 return new ObjectResult(new { hash });
             }
             catch (Exception ex)
@@ -134,7 +134,7 @@ namespace CYPCore.Controllers
             try
             {
                 var blocks = await _graph.GetBlocks(skip, take);
-                var genericList = new GenericDataList<BlockHeader> { Data = blocks.ToList() };
+                var genericList = new GenericDataList<Block> { Data = blocks.ToList() };
                 var buffer = MessagePackSerializer.Serialize(genericList);
 
                 return new ObjectResult(new { messagepack = buffer });

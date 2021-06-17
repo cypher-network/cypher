@@ -19,7 +19,6 @@ namespace CYPCore.Models
         public IEnumerable<ValidationResult> Validate()
         {
             var results = new List<ValidationResult>();
-
             if (Proof == null)
             {
                 results.Add(new ValidationResult("Argument is null", new[] { "Bp.Proof" }));
@@ -28,7 +27,6 @@ namespace CYPCore.Models
             {
                 results.Add(new ValidationResult("Range exception", new[] { "Bp.Proof" }));
             }
-
             return results;
         }
     }

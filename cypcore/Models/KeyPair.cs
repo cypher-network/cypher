@@ -13,7 +13,7 @@ namespace CYPCore.Models
         public KeyPair(byte[] privateKey, byte[] publicKey)
         {
             if (privateKey.Length % 16 != 0)
-                throw new ArgumentOutOfRangeException("Private Key length must be a multiple of 16 bytes.");
+                throw new ArgumentOutOfRangeException($"{nameof(privateKey)} Private Key length must be a multiple of 16 bytes.");
 
             PrivateKey = privateKey;
             PublicKey = publicKey;

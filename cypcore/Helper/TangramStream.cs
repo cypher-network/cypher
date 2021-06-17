@@ -61,6 +61,20 @@ namespace CYPCore.Helper
 
             return Append(lengthBytes);
         }
+        
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="value"></param>
+        /// <returns></returns>
+        public TangramStream Append(uint value)
+        {
+            byte[] lengthBytes = BitConverter.GetBytes(value);
+            if (BitConverter.IsLittleEndian)
+                Array.Reverse(lengthBytes);
+
+            return Append(lengthBytes);
+        }
 
         /// <summary>
         /// 
@@ -68,6 +82,20 @@ namespace CYPCore.Helper
         /// <param name="value"></param>
         /// <returns></returns>
         public TangramStream Append(long value)
+        {
+            byte[] lengthBytes = BitConverter.GetBytes(value);
+            if (BitConverter.IsLittleEndian)
+                Array.Reverse(lengthBytes);
+
+            return Append(lengthBytes);
+        }
+        
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="value"></param>
+        /// <returns></returns>
+        public TangramStream Append(ushort value)
         {
             byte[] lengthBytes = BitConverter.GetBytes(value);
             if (BitConverter.IsLittleEndian)

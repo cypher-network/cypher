@@ -1,6 +1,7 @@
 ﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
+using Blake3;
 using CYPCore.Extensions;
 using MessagePack;
 
@@ -23,22 +24,19 @@ namespace CYPCore.Models
         /// <returns></returns>
         public byte[] ToHash()
         {
-            return NBitcoin.Crypto.Hashes.DoubleSHA256(Stream()).ToBytes(false);
+            return Hasher.Hash(ToStream()).HexToByte();
         }
 
         /// <summary>
         /// 
         /// </summary>
         /// <returns></returns>
-        public byte[] Stream()
+        public byte[] ToStream()
         {
             using Helper.TangramStream ts = new();
-            ts
-                .Append(FriendlyName)
+            ts.Append(FriendlyName)
                 .Append(Payload);
-
             return ts.ToArray();
-            ;
         }
     }
 }
