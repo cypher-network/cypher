@@ -46,7 +46,7 @@ namespace CYPCore.Models
             {
                 results.Add(new ValidationResult("Argument is null", new[] { "Vout.N" }));
             }
-            if (N is {Length: > 512})
+            if (N is { Length: > 512 })
             {
                 results.Add(new ValidationResult("Range exception", new[] { "Vout.N" }));
             }

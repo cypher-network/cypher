@@ -34,17 +34,17 @@ namespace CYPCore.Persistence
 
             SetTableName(StoreDb.HashChainTable.ToString());
         }
-        
+
         public Task<bool> PutAsync(byte[] key, Block data)
         {
             Guard.Argument(key, nameof(key)).NotNull();
             Guard.Argument(data, nameof(data)).NotNull();
-            
+
             if (data.Validate().Any())
             {
                 return Task.FromResult(false);
             }
-            
+
             var saved = false;
             try
             {
@@ -52,9 +52,9 @@ namespace CYPCore.Persistence
                 {
                     var cf = _storeDb.Rocks.GetColumnFamily(StoreDb.HashChainTable.ToString());
                     var buffer = MessagePackSerializer.Serialize(data);
-                    
+
                     _storeDb.Rocks.Put(StoreDb.Key(StoreDb.HashChainTable.ToString(), key), buffer, cf);
-                    
+
                     saved = true;
                 }
             }

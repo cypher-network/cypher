@@ -83,7 +83,7 @@ namespace CYPCore.Ledger
 
                 var localBlockHeight = await _unitOfWork.HashChainRepository.CountAsync();
                 var localLastBlock = await _unitOfWork.HashChainRepository.GetAsync(b =>
-                    new ValueTask<bool>(b.Height == (ulong) localBlockHeight));
+                    new ValueTask<bool>(b.Height == (ulong)localBlockHeight));
 
                 var localLastBlockHash = string.Empty;
                 if (localLastBlock != null)
@@ -149,7 +149,7 @@ namespace CYPCore.Ledger
                                 "Synchronizing chain with last block hash {@Hash} and height {@Height} from {@Peer} {@Version} {@Host}",
                                 hash.Hash, hash.Height, peer.Peer.NodeName, peer.Peer.NodeVersion, peer.Peer.Host);
 
-                            synchronized = await Synchronize(peer.Peer.Host, (ulong) localBlockHeight, (int) hash.Height);
+                            synchronized = await Synchronize(peer.Peer.Host, (ulong)localBlockHeight, (int)hash.Height);
                             if (!synchronized) continue;
                             _logger.Here().Information("Successfully synchronized with {@Peer} {@Version} {@Host}",
                                 peer.Peer.NodeName, peer.Peer.NodeVersion, peer.Peer.Host);
@@ -198,7 +198,7 @@ namespace CYPCore.Ledger
                 var networkBlockTasks = new List<Task<IList<Block>>>();
                 for (var i = 0; i < numberOfBatches; i++)
                 {
-                    networkBlockTasks.Add(_networkClient.GetBlocksAsync(host, (ulong) (i + (int) (1 * skip)), BatchSize));
+                    networkBlockTasks.Add(_networkClient.GetBlocksAsync(host, (ulong)(i + (int)(1 * skip)), BatchSize));
                 }
 
                 var blockHeaders = await Task.WhenAll(networkBlockTasks);

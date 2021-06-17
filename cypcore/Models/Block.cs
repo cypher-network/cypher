@@ -20,7 +20,7 @@ namespace CYPCore.Models
         [MessagePack.Key(4)] public ushort NrTx { get; set; }
         [MessagePack.Key(5)] public IList<Transaction> Txs { get; set; } = new List<Transaction>();
         [MessagePack.Key(6)] public BlockPos BlockPos { get; set; }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -29,7 +29,7 @@ namespace CYPCore.Models
         {
             return Hasher.Hash(ToStream()).HexToByte();
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -38,7 +38,7 @@ namespace CYPCore.Models
         {
             return ToHash().ByteToHex().ToBytes();
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -67,7 +67,7 @@ namespace CYPCore.Models
         /// <returns></returns>
         public ushort GetSize()
         {
-            return (ushort) ToStream().Length;
+            return (ushort)ToStream().Length;
         }
 
         /// <summary>
@@ -97,7 +97,7 @@ namespace CYPCore.Models
             {
                 results.Add(new ValidationResult("Range exception", new[] { "Size" }));
             }
-            
+
             results.AddRange(BlockHeader.Validate());
 
             if (NrTx > 65_535)

@@ -53,7 +53,7 @@ namespace CYPCore.Models
         public byte[] ToStream()
         {
             if (Validate().Any()) return null;
-            
+
             using var ts = new Helper.TangramStream();
             ts.Append(Key.Image)
                 .Append(Key.Offsets);

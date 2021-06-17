@@ -72,7 +72,7 @@ namespace CYPCore.Ledger
 
         public static readonly byte[] BlockZeroPreHash =
             "3030303030303030437970686572204e6574776f726b2076742e322e32303231".HexToByte();
-        
+
         private const uint StakeTimestampMask = 0x0000000A;
         private const decimal Distribution = 139_000_000;
         private const int FeeNByte = 6000;
@@ -80,7 +80,7 @@ namespace CYPCore.Ledger
         private readonly ISigning _signing;
         private readonly ILogger _logger;
         private Hasher _hasher;
-        
+
         public Validator(IUnitOfWork unitOfWork, ISigning signing, ILogger logger)
         {
             _unitOfWork = unitOfWork;
@@ -89,7 +89,7 @@ namespace CYPCore.Ledger
 
             _hasher = Hasher.New();
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -100,10 +100,10 @@ namespace CYPCore.Ledger
         {
             Guard.Argument(previous, nameof(previous)).NotNull().MaxCount(32);
             Guard.Argument(next, nameof(next)).NotNull().MaxCount(32);
-            
+
             _hasher.Update(previous);
             _hasher.Update(next);
-            
+
             var hash = _hasher.Finalize();
             return hash.AsSpan().ToArray();
         }
@@ -119,7 +119,7 @@ namespace CYPCore.Ledger
             using var hasher = Hasher.New();
             var height = await _unitOfWork.HashChainRepository.CountAsync() - 1;
             var prevBlock =
-                await _unitOfWork.HashChainRepository.GetAsync(x => new ValueTask<bool>(x.Height == (ulong) height));
+                await _unitOfWork.HashChainRepository.GetAsync(x => new ValueTask<bool>(x.Height == (ulong)height));
             if (prevBlock == null)
             {
                 _logger.Here().Error("No previous block available");
@@ -132,7 +132,7 @@ namespace CYPCore.Ledger
             var verifyHasher = hash.HexToByte().Xor(block.Hash);
             return verifyHasher ? VerifyResult.Succeed : VerifyResult.UnableToVerify;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -143,7 +143,7 @@ namespace CYPCore.Ledger
             Guard.Argument(block, nameof(block)).NotNull();
             var height = await _unitOfWork.HashChainRepository.CountAsync() - 1;
             var prevBlock =
-                await _unitOfWork.HashChainRepository.GetAsync(x => new ValueTask<bool>(x.Height == (ulong) height));
+                await _unitOfWork.HashChainRepository.GetAsync(x => new ValueTask<bool>(x.Height == (ulong)height));
             if (prevBlock == null)
             {
                 _logger.Here().Error("No previous block available");
@@ -154,7 +154,7 @@ namespace CYPCore.Ledger
             var verifyMerkel = merkelRoot.Xor(block.BlockHeader.MerkleRoot);
             return verifyMerkel ? VerifyResult.Succeed : VerifyResult.UnableToVerify;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -331,7 +331,7 @@ namespace CYPCore.Ledger
         public async Task<VerifyResult> VerifyBlock(Block block)
         {
             Guard.Argument(block, nameof(block)).NotNull();
-            
+
             var verifySloth = VerifySloth(block.BlockPos.Bits, block.BlockPos.VrfSig,
                 block.BlockPos.Nonce.ToStr().ToBytes());
             if (verifySloth == VerifyResult.UnableToVerify)
@@ -362,7 +362,7 @@ namespace CYPCore.Ledger
                 _logger.Here().Fatal("Unable to verify the Vrf Proof");
                 return verifyVrfProof;
             }
-            
+
             var verifySolution = VerifySolution(block.BlockPos.VrfSig, hash,
                 block.BlockPos.Solution);
             if (verifySolution == VerifyResult.UnableToVerify)
@@ -390,7 +390,7 @@ namespace CYPCore.Ledger
             if (block.BlockHeader.MerkleRoot.Xor(BlockZeroHash) &&
                 block.BlockHeader.PrevBlockHash.Xor(Hasher.Hash(BlockZeroPreHash).HexToByte()))
                 return VerifyResult.Succeed;
-            
+
             var prevBlock = await _unitOfWork.HashChainRepository.GetAsync(x =>
                 new ValueTask<bool>(x.Hash.Xor(block.BlockHeader.PrevBlockHash)));
             if (prevBlock == null)
@@ -418,7 +418,7 @@ namespace CYPCore.Ledger
             _logger.Here().Fatal("Unable to verify the block transactions");
             return VerifyResult.UnableToVerify;
         }
-        
+
         /// <summary>
         /// </summary>
         /// <param name="transactions"></param>
@@ -621,7 +621,7 @@ namespace CYPCore.Ledger
             var verifyVrfSignature = _signing.VerifyVrfSignature(Curve.decodePoint(publicKey, 0), message, vrfProof);
             return verifyVrfSignature.Xor(vrfSig) ? VerifyResult.Succeed : VerifyResult.UnableToVerify;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -778,7 +778,7 @@ namespace CYPCore.Ledger
                 _logger.Here().Fatal(ex, "Unable to calculate solution");
             }
 
-            return (ulong) itr;
+            return (ulong)itr;
         }
 
         /// <summary>

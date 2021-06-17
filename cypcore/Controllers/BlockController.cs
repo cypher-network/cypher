@@ -109,7 +109,7 @@ namespace CYPCore.Controllers
         {
             try
             {
-                var hash = await _graph.GetHash((ulong) height);
+                var hash = await _graph.GetHash((ulong)height);
                 return new ObjectResult(new { hash });
             }
             catch (Exception ex)

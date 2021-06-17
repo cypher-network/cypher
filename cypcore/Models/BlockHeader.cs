@@ -17,7 +17,7 @@ namespace CYPCore.Models
     {
         [MessagePack.Key(0)] public uint Version { get; set; }
         [MessagePack.Key(1)] public byte[] PrevBlockHash { get; set; }
-        [MessagePack.Key(2)] public byte[] MerkleRoot { get; set; }  
+        [MessagePack.Key(2)] public byte[] MerkleRoot { get; set; }
         [MessagePack.Key(3)] public ulong Height { get; set; }
         [MessagePack.Key(4)] public long Locktime { get; set; }
         [MessagePack.Key(5)] public string LocktimeScript { get; set; }
@@ -38,7 +38,7 @@ namespace CYPCore.Models
         public byte[] ToStream()
         {
             if (Validate().Any()) return null;
-            
+
             using var ts = new Helper.TangramStream();
 
             ts.Append(Version)
@@ -70,7 +70,7 @@ namespace CYPCore.Models
             var hash = hasher.Finalize();
             return hash.HexToByte();
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -127,7 +127,7 @@ namespace CYPCore.Models
             {
                 results.Add(new ValidationResult("Range exception", new[] { "LocktimeScript" }));
             }
-            return  results;
+            return results;
         }
     }
 }

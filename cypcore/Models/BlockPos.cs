@@ -19,7 +19,7 @@ namespace CYPCore.Models
         [MessagePack.Key(3)] public byte[] VrfProof { get; set; }
         [MessagePack.Key(4)] public byte[] VrfSig { get; set; }
         [MessagePack.Key(5)] public byte[] PublicKey { get; set; }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -28,7 +28,7 @@ namespace CYPCore.Models
         {
             return Hasher.Hash(ToStream()).HexToByte();
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -37,7 +37,7 @@ namespace CYPCore.Models
         {
             return ToHash().ByteToHex().ToBytes();
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -45,7 +45,7 @@ namespace CYPCore.Models
         public byte[] ToStream()
         {
             if (Validate().Any()) return null;
-            
+
             using var ts = new Helper.TangramStream();
             ts.Append(Bits)
                 .Append(Solution)
@@ -55,7 +55,7 @@ namespace CYPCore.Models
                 .Append(PublicKey);
             return ts.ToArray();
         }
-        
+
         /// <summary>
         /// 
         /// </summary>

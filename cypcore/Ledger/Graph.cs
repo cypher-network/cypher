@@ -76,7 +76,7 @@ namespace CYPCore.Ledger
                 ev => _blockGraphAddedEventHandler += ev, ev => _blockGraphAddedEventHandler -= ev);
             _trackingBlockGraphCompleted = Observable.FromEventPattern<BlockGraphEventArgs>(
                 ev => _blockGraphAddCompletedEventHandler += ev, ev => _blockGraphAddCompletedEventHandler -= ev);
-            
+
             TryAddBlockGraphsListener();
             TryAddBlockmaniaListener();
             ReplayLastRound().SafeFireAndForget(exception => { _logger.Here().Error(exception, "Replay error"); });
@@ -242,10 +242,10 @@ namespace CYPCore.Ledger
         public async Task<ulong> GetHeight()
         {
             ulong height = 0;
-            
+
             try
             {
-                height = (ulong) await _unitOfWork.HashChainRepository.CountAsync();
+                height = (ulong)await _unitOfWork.HashChainRepository.CountAsync();
             }
             catch (Exception ex)
             {
@@ -266,7 +266,7 @@ namespace CYPCore.Ledger
                 if (height == 0)
                 {
                     // Get last block hash when no height is given
-                    height = (ulong) await _unitOfWork.HashChainRepository.CountAsync();
+                    height = (ulong)await _unitOfWork.HashChainRepository.CountAsync();
                 }
 
                 var block = await _unitOfWork.HashChainRepository.GetAsync(b =>
@@ -313,7 +313,7 @@ namespace CYPCore.Ledger
 
             return transaction;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -402,7 +402,7 @@ namespace CYPCore.Ledger
                 .Subscribe(blockgraphs =>
                 {
                     try
-                    {   
+                    {
                         var nodeCount = blockgraphs.Select(n => n.Block.Node).Count();
                         var f = (nodeCount - 1) / 3;
                         var quorum2F1 = 2 * f + 1;

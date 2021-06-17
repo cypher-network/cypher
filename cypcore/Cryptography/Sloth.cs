@@ -18,7 +18,7 @@ namespace CYPCore.Cryptography
     {
         public const string Security256 =
             "60464814417085833675395020742168312237934553084050601624605007846337253615407";
-        
+
         private static readonly BigInteger Zero = new(0);
         private static readonly BigInteger One = new(1);
         private static readonly BigInteger Two = new(2);
@@ -96,7 +96,7 @@ namespace CYPCore.Cryptography
         {
             var p = BigInteger.Parse(Security256);
             var y = ModSqrtOp(t, x, p);
-            
+
             return y.ToString();
         }
 

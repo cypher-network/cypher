@@ -106,13 +106,13 @@ namespace CYPCore.Ledger
             var transactions = transactionModels.ToList();
             var height = await _unitOfWork.HashChainRepository.CountAsync() - 1;
             var prevBlock =
-                await _unitOfWork.HashChainRepository.GetAsync(x => new ValueTask<bool>(x.Height == (ulong) height));
+                await _unitOfWork.HashChainRepository.GetAsync(x => new ValueTask<bool>(x.Height == (ulong)height));
             if (prevBlock == null)
             {
                 _logger.Here().Information("No previous block available for processing");
                 return;
             }
-            
+
             var coinStakeTimestamp = _validator.GetAdjustedTimeAsUnixTimestamp();
             if (coinStakeTimestamp <= prevBlock.BlockHeader.Locktime)
             {
@@ -122,7 +122,7 @@ namespace CYPCore.Ledger
                         coinStakeTimestamp, prevBlock.BlockHeader.Locktime);
                 return;
             }
-            
+
             try
             {
                 byte[] hash;
@@ -163,7 +163,7 @@ namespace CYPCore.Ledger
                     _logger.Here().Fatal("Unable to create the block");
                     return;
                 }
-                
+
                 var blockGraph = CreateBlockGraph(block, prevBlock);
                 await _graph.TryAddBlockGraph(blockGraph);
             }
@@ -184,11 +184,11 @@ namespace CYPCore.Ledger
             {
                 var height = await _unitOfWork.HashChainRepository.CountAsync() - 1;
                 var prevBlock = await _unitOfWork.HashChainRepository.GetAsync(block =>
-                    new ValueTask<bool>(block.Height == (ulong) height));
+                    new ValueTask<bool>(block.Height == (ulong)height));
                 if (prevBlock == null) return;
                 var deliveredBlocks =
                     await _unitOfWork.DeliveredRepository.WhereAsync(block =>
-                        new ValueTask<bool>(block.Height == (ulong) (height + 1)));
+                        new ValueTask<bool>(block.Height == (ulong)(height + 1)));
                 var blockWinners = deliveredBlocks.Select(deliveredBlock => new BlockWinner
                 {
                     Block = deliveredBlock,
@@ -315,7 +315,7 @@ namespace CYPCore.Ledger
             };
             return blockGraph;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -344,7 +344,7 @@ namespace CYPCore.Ledger
 
             var ct = new CancellationTokenSource(TimeSpan.FromSeconds(30)).Token;
             var sloth = new Sloth(ct);
-            var nonce = sloth.Eval((int) bits, x);
+            var nonce = sloth.Eval((int)bits, x);
             if (ct.IsCancellationRequested) return null;
             var lockTime = _validator.GetAdjustedTimeAsUnixTimestamp();
             var block = new Block
@@ -361,7 +361,7 @@ namespace CYPCore.Ledger
                     MerkleRoot = BlockHeader.ToMerkelRoot(previousBlock.BlockHeader.MerkleRoot, transactions),
                     PrevBlockHash = previousBlock.Hash
                 },
-                NrTx = (ushort) transactions.Length,
+                NrTx = (ushort)transactions.Length,
                 Txs = transactions,
                 BlockPos = new BlockPos
                 {
@@ -376,7 +376,7 @@ namespace CYPCore.Ledger
 
             block.Size = block.GetSize();
             block.Hash = _validator.IncrementHasher(previousBlock.Hash, block.ToHash());
-            
+
             return block;
         }
 

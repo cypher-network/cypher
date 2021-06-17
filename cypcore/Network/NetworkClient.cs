@@ -47,7 +47,7 @@ namespace CYPCore.Network
                 var networkBlockHeight = new NetworkBlockHeight
                 {
                     Local = new BlockHeight
-                    { Height = (ulong) await _unitOfWork.HashChainRepository.CountAsync(), Host = "local" },
+                    { Height = (ulong)await _unitOfWork.HashChainRepository.CountAsync(), Host = "local" },
                     Remote = new BlockHeight { Height = blockHeight.Height == 0 ? 0 : blockHeight.Height - 1, Host = peer.Host }
                 };
 
@@ -64,7 +64,7 @@ namespace CYPCore.Network
                     BlockHash = new()
                     {
                         Hash = remoteBlock.Last().ToHash(),
-                        Height = (ulong) networkBlockHeight.Remote.Height
+                        Height = (ulong)networkBlockHeight.Remote.Height
                     }
                 };
             }

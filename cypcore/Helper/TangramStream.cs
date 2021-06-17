@@ -61,7 +61,7 @@ namespace CYPCore.Helper
 
             return Append(lengthBytes);
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -89,7 +89,7 @@ namespace CYPCore.Helper
 
             return Append(lengthBytes);
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
