@@ -149,8 +149,6 @@ namespace CYPCore.Models
         /// <returns></returns>
         public byte[] ToStream()
         {
-            if (Validate().Any()) return null;
-
             using var ts = new Helper.TangramStream();
             ts
                 .Append(TxnId)
