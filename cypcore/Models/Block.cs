@@ -7,7 +7,7 @@ using System.Linq;
 using Blake3;
 using CYPCore.Extensions;
 using MessagePack;
-using Validator =  CYPCore.Ledger.Validator;
+using Validator = CYPCore.Ledger.Validator;
 
 namespace CYPCore.Models
 {
