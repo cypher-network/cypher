@@ -352,7 +352,22 @@ namespace CYPCore.Ledger
             byte[] hash;
             using (var ts = new TangramStream())
             {
-                block.Txs.Skip(1).ForEach(x => ts.Append(x.ToStream()));
+                block.Txs.Skip(1).ForEach(x =>
+                {
+                    if (block.Height == 0ul)
+                    {
+                        ts.Append(x.ToStream());
+                    }
+                    else
+                    {
+                        var hasAny = x.Validate();
+                        if (hasAny.Any())
+                        {
+                            throw new ArithmeticException("Unable to verify the transaction");
+                        }
+                        ts.Append(x.ToStream());
+                    }
+                });
                 hash = Hasher.Hash(ts.ToArray()).HexToByte();
             }
 

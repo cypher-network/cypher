@@ -7,6 +7,6 @@ namespace CYPCore.Models
 {
     public class SerfSeedNodes
     {
-        public List<string> Seeds { get; set; }
+        public List<string> Seeds { get; set; } = new();
     }
 }

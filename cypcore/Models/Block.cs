@@ -7,6 +7,7 @@ using System.Linq;
 using Blake3;
 using CYPCore.Extensions;
 using MessagePack;
+using Validator =  CYPCore.Ledger.Validator;
 
 namespace CYPCore.Models
 {
@@ -104,9 +105,13 @@ namespace CYPCore.Models
             {
                 results.Add(new ValidationResult("Range exception", new[] { "NrTx" }));
             }
-            foreach (var transaction in Txs)
+            if (!BlockHeader.MerkleRoot.Xor(Validator.BlockZeroHash) &&
+                !BlockHeader.PrevBlockHash.Xor(Hasher.Hash(Validator.BlockZeroPreHash).HexToByte()))
             {
-                results.AddRange(transaction.Validate());
+                foreach (var transaction in Txs)
+                {
+                    results.AddRange(transaction.Validate());
+                }
             }
             results.AddRange(BlockPos.Validate());
             return results;

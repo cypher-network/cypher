@@ -130,10 +130,9 @@ namespace CYPCore.Ledger
                 {
                     transactions.ForEach(x =>
                     {
-                        if (x != null)
-                        {
-                            ts.Append(x.ToStream());
-                        }
+                        var hasAnyErrors = x.Validate();
+                        if (hasAnyErrors.Any())  throw new ArithmeticException("Unable to verify the transaction");
+                        ts.Append(x.ToStream());
                     });
                     hash = Hasher.Hash(ts.ToArray()).HexToByte();
                 }

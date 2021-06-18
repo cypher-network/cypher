@@ -64,6 +64,8 @@ namespace CYPCore.Models
             hasher.Update(prevMerkelRoot);
             foreach (var transaction in transactions)
             {
+                var hasAnyErrors = transaction.Validate();
+                if (hasAnyErrors.Any()) throw new ArithmeticException("Unable to verify the transaction");
                 hasher.Update(transaction.ToStream());
             }
 
