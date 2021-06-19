@@ -432,7 +432,14 @@ namespace CYPCore.Serf
                 {
                     if (transaction.ResponseBuffer.Length != 0)
                     {
-                        response = MessagePackSerializer.Deserialize<TResponse>(transaction.ResponseBuffer);
+                        try
+                        {
+                            response = MessagePackSerializer.Deserialize<TResponse>(transaction.ResponseBuffer);
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine(e);
+                        }
                     }
                 }
 
@@ -522,8 +529,8 @@ namespace CYPCore.Serf
                         }
 
                         var readBuffer = new byte[8048];
-                        var size = await tcpSession.TransportStream.ReadAsync(readBuffer.AsMemory(0, readBuffer.Length), _cancellationTokenSource.Token);
-
+                        var size = await tcpSession.TransportStream.ReadAsync(readBuffer.AsMemory(0, readBuffer.Length),
+                            _cancellationTokenSource.Token);
                         if (size <= 0)
                         {
                             if (!PingHost(SerfConfigurationOptions.RPC))
@@ -536,13 +543,16 @@ namespace CYPCore.Serf
 
                         try
                         {
-                            var responseHeader = MessagePackSerializer.Deserialize<ResponseHeader>(readBuffer);
+                            var responseHeader =
+                                MessagePackSerializer.Deserialize<ResponseHeader>(readBuffer,
+                                    MessagePackSerializerOptions.Standard);
+                            if (_handlers.ContainsKey(responseHeader.Seq))
                             {
+                                var readSize = MessagePackSerializer.Serialize(responseHeader).Length;
                                 var transaction = _handlers[responseHeader.Seq];
                                 transaction.Header = responseHeader;
-                                transaction.ResponseBuffer = readBuffer.Skip(13).Take(size - 13).ToArray();
+                                transaction.ResponseBuffer = readBuffer.Skip(readSize).Take(size - readSize).ToArray();
                                 transaction.CancellationTokenSource.Cancel();
-
                                 if (transaction.Header.Error == "Handshake required")
                                 {
                                     break;
@@ -557,20 +567,19 @@ namespace CYPCore.Serf
                         {
                             break;
                         }
-                        catch
-                        {
-                            throw;
-                        }
                     }
                 }
             }
             catch (Exception e)
             {
-                var error = new ResponseHeader { Error = $"failed to read from socket: {e.Message} Message processing will be terminated." };
-                foreach (var handler in _handlers)
+                var error = new ResponseHeader
                 {
-                    handler.Value.Header = error;
-                    handler.Value.CancellationTokenSource.Cancel();
+                    Error = $"failed to read from socket: {e.Message} Message processing will be terminated."
+                };
+                foreach (var (_, value) in _handlers)
+                {
+                    value.Header = error;
+                    value.CancellationTokenSource.Cancel();
                 }
 
                 throw;
