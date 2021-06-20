@@ -79,15 +79,12 @@ namespace CYPCore.Ledger
         private readonly IUnitOfWork _unitOfWork;
         private readonly ISigning _signing;
         private readonly ILogger _logger;
-        private Hasher _hasher;
 
         public Validator(IUnitOfWork unitOfWork, ISigning signing, ILogger logger)
         {
             _unitOfWork = unitOfWork;
             _signing = signing;
             _logger = logger.ForContext("SourceContext", nameof(Validator));
-
-            _hasher = Hasher.New();
         }
 
         /// <summary>
@@ -101,10 +98,12 @@ namespace CYPCore.Ledger
             Guard.Argument(previous, nameof(previous)).NotNull().MaxCount(32);
             Guard.Argument(next, nameof(next)).NotNull().MaxCount(32);
 
-            _hasher.Update(previous);
-            _hasher.Update(next);
+            var hasher = Hasher.New();
 
-            var hash = _hasher.Finalize();
+            hasher.Update(previous);
+            hasher.Update(next);
+
+            var hash = hasher.Finalize();
             return hash.AsSpan().ToArray();
         }
 
