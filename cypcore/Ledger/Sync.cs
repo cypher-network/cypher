@@ -92,7 +92,7 @@ namespace CYPCore.Ledger
                 {
                     localLastBlockHash = BitConverter.ToString(localLastBlock.ToHash());
                 }
-                
+
                 Task<BlockHashPeer>[] networkPeerTasks;
 
                 if (_syncWithSeedNodes)

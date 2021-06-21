@@ -251,7 +251,7 @@ namespace CYPCore.Extensions
         /// <returns></returns>
         public static ContainerBuilder AddSync(this ContainerBuilder builder, IConfiguration configuration)
         {
-            var syncWithSeedNodesOnly  = configuration.GetValue<bool>("SyncWithSeedNodesOnly");
+            var syncWithSeedNodesOnly = configuration.GetValue<bool>("SyncWithSeedNodesOnly");
             builder.Register(c =>
             {
                 var sync = new Sync(c.Resolve<IUnitOfWork>(), c.Resolve<IValidator>(), c.Resolve<ILocalNode>(),
