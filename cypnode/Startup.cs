@@ -69,7 +69,7 @@ namespace CYPNode
             builder.AddValidator();
             builder.AddMembershipService();
             builder.AddPosMinting(Configuration);
-            builder.AddSync();
+            builder.AddSync(Configuration);
             builder.AddLocalNode();
         }
 

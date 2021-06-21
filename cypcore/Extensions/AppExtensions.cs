@@ -247,10 +247,19 @@ namespace CYPCore.Extensions
         /// 
         /// </summary>
         /// <param name="builder"></param>
+        /// <param name="configuration"></param>
         /// <returns></returns>
-        public static ContainerBuilder AddSync(this ContainerBuilder builder)
+        public static ContainerBuilder AddSync(this ContainerBuilder builder, IConfiguration configuration)
         {
-            builder.RegisterType<Sync>().As<ISync>().SingleInstance();
+            var syncWithSeedNodesOnly  = configuration.GetValue<bool>("SyncWithSeedNodesOnly");
+            builder.Register(c =>
+            {
+                var sync = new Sync(c.Resolve<IUnitOfWork>(), c.Resolve<IValidator>(), c.Resolve<ILocalNode>(),
+                    c.Resolve<NetworkClient>(), syncWithSeedNodesOnly, c.Resolve<Serilog.ILogger>());
+
+                return sync;
+
+            }).As<ISync>().SingleInstance();
             builder.RegisterType<SyncBackgroundService>().As<IHostedService>();
             return builder;
         }

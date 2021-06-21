@@ -309,6 +309,7 @@ namespace CYPCore.Services
                 }
 
                 JoinedSeedNodes = true;
+                _serfClient.SeedNodes.Seeds.AddRange(seedNode.Seeds);
 
                 _logger.Here().Information("Serf might still be trying to join the seed nodes. Number of nodes joined: {@NumPeers}", joinResult.Value.Peers.ToString());
                 return true;

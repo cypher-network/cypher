@@ -35,15 +35,17 @@ namespace CYPCore.Ledger
         private readonly IValidator _validator;
         private readonly ILocalNode _localNode;
         private readonly NetworkClient _networkClient;
+        private readonly bool _syncWithSeedNodes;
         private readonly ILogger _logger;
 
         public Sync(IUnitOfWork unitOfWork, IValidator validator, ILocalNode localNode, NetworkClient networkClient,
-            ILogger logger)
+            bool syncWithSeedNodes, ILogger logger)
         {
             _unitOfWork = unitOfWork;
             _validator = validator;
             _localNode = localNode;
             _networkClient = networkClient;
+            _syncWithSeedNodes = syncWithSeedNodes;
             _logger = logger.ForContext("SourceContext", nameof(Sync));
         }
 
@@ -90,9 +92,22 @@ namespace CYPCore.Ledger
                 {
                     localLastBlockHash = BitConverter.ToString(localLastBlock.ToHash());
                 }
+                
+                Task<BlockHashPeer>[] networkPeerTasks;
 
-                var networkPeerTasks =
-                    peers.Values.Select(peer => _networkClient.GetPeerLastBlockHashAsync(peer)).ToArray();
+                if (_syncWithSeedNodes)
+                {
+                    networkPeerTasks =
+                        _localNode.SerfClient.SeedNodes.Seeds.Select(seed =>
+                                _networkClient.GetPeerLastBlockHashAsync(peers.First(x =>
+                                    x.Value.Host.Contains(seed[..^seed.IndexOf(":", StringComparison.Ordinal)])).Value))
+                            .ToArray();
+                }
+                else
+                {
+                    networkPeerTasks =
+                        peers.Values.Select(peer => _networkClient.GetPeerLastBlockHashAsync(peer)).ToArray();
+                }
 
                 var networkBlockHashes =
                     new List<BlockHashPeer>(await Task.WhenAll(networkPeerTasks))
