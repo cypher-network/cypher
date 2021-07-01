@@ -105,7 +105,7 @@ jobs:
           build-args: |
             version=v${{ env.VERSION }}
           tags: |
-            tangrams/cypher:latest
+            cyphernetwork/cypnode:latest
 
       - name: Docker Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}
