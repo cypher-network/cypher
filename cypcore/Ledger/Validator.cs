@@ -826,9 +826,8 @@ namespace CYPCore.Ledger
             Guard.Argument(keyOffset, nameof(keyOffset)).NotNull();
             Guard.Argument(cols, nameof(cols)).NotZero().NotNegative();
             Guard.Argument(rows, nameof(rows)).NotZero().NotNegative();
-            var pcmOut = new Span<byte[]>(new[] { outputs[0].C, outputs[1].C, outputs[2].C });
-            var kOffsets = keyOffset.Split(33).Select(x => x).ToList();
-            var pcmIn = kOffsets.Where((value, index) => index % 2 == 0).ToArray().AsSpan();
+            var pcmOut = new Span<byte[]>(new[] { outputs[0].C, outputs[1].C });
+            var pcmIn = keyOffset.Split(33).Select(x => x).ToArray().AsSpan();
             using var mlsag = new MLSAG();
             var preparemlsag = mlsag.Prepare(m, null, pcmOut.Length, pcmOut.Length, cols, rows, pcmIn, pcmOut, null);
             if (preparemlsag) return m;
