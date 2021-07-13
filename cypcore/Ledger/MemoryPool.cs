@@ -12,7 +12,6 @@ using CYPCore.Extensions;
 using CYPCore.Models;
 using CYPCore.Network;
 using MessagePack;
-using NBitcoin;
 using Transaction = CYPCore.Models.Transaction;
 
 namespace CYPCore.Ledger

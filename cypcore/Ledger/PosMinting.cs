@@ -404,7 +404,7 @@ namespace CYPCore.Ledger
         /// 
         /// </summary>
         /// <param name="bits"></param>
-        /// <param name="reward"></param>
+        /// <param name="reward"></param>   
         /// <returns></returns>
         private async Task<Transaction> CoinbaseTransactionAsync(uint bits, ulong reward)
         {
@@ -436,17 +436,19 @@ namespace CYPCore.Ledger
                 using var response = await client.PostAsync(
                     _stakingConfigurationOptions.WalletSettings.SendPaymentEndpoint, byteArrayContent,
                     new CancellationToken());
-                var read = response.Content.ReadAsStringAsync().Result;
-                var jObject = JObject.Parse(read);
-                var jToken = jObject.GetValue("messagepack");
-                var byteArray =
-                    Convert.FromBase64String((jToken ?? throw new InvalidOperationException()).Value<string>());
                 if (response.IsSuccessStatusCode)
+                {
+                    var read = response.Content.ReadAsStringAsync().Result;
+                    var jObject = JObject.Parse(read);
+                    var jToken = jObject.GetValue("messagepack");
+                    var byteArray =
+                        Convert.FromBase64String((jToken ?? throw new InvalidOperationException()).Value<string>());
                     transaction = MessagePackSerializer.Deserialize<Transaction>(byteArray);
+                }
                 else
                 {
                     var content = await response.Content.ReadAsStringAsync();
-                    _logger.Here().Error("{@Content}\n StatusCode: {@StatusCode}", content, (int)response.StatusCode);
+                    _logger.Here().Error("{@Content}\n StatusCode: {@StatusCode}", content, (int) response.StatusCode);
                     throw new Exception(content);
                 }
             }
