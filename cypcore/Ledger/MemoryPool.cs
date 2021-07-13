@@ -1,4 +1,4 @@
-// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
@@ -138,7 +138,7 @@ namespace CYPCore.Ledger
         public Transaction[] Range(int skip, int take)
         {
             Guard.Argument(skip, nameof(skip)).NotNegative();
-            return _pooledTransactions.Skip(skip).Take(take).Select(x => x).ToArray();
+            return _pooledTransactions.OrderByDescending(x => x.Vtime.I).Skip(skip).Take(take).Select(x => x).ToArray();
         }
 
         /// <summary>
