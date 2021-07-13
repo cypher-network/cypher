@@ -324,14 +324,14 @@ namespace CYPCore.Ledger
         {
             var blockGraph = new BlockGraph
             {
-                Block = new CYPCore.Consensus.Models.Block(block.Hash.ByteToHex(), _serfClient.ClientId,
-                    (ulong)block.Height, MessagePackSerializer.Serialize(block)),
+                Block = new CYPCore.Consensus.Models.Block(Hasher.Hash(block.Height.ToBytes()).ToString(), _serfClient.ClientId,
+                    block.Height, MessagePackSerializer.Serialize(block)),
                 Prev = new CYPCore.Consensus.Models.Block
                 {
                     Data = MessagePackSerializer.Serialize(prevBlock),
-                    Hash = prevBlock.Hash.ByteToHex(),
+                    Hash = Hasher.Hash(prevBlock.Height.ToBytes()).ToString(),
                     Node = _serfClient.ClientId,
-                    Round = (ulong)prevBlock.Height
+                    Round = prevBlock.Height
                 }
             };
             return blockGraph;
