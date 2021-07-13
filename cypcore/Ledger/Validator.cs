@@ -600,13 +600,12 @@ namespace CYPCore.Ledger
                 var blocks = await _unitOfWork.HashChainRepository.WhereAsync(x =>
                     new ValueTask<bool>(x.Txs.Any(v => v.Vout.Any(c => c.C.Xor(commit)))));
                 if (!blocks.Any()) return VerifyResult.UnableToVerify;
-                var outputs = blocks.SelectMany(block => block.Txs).SelectMany(x => x.Vout);
-                if (outputs.Where(output => output.T == CoinType.Coinbase)
-                    .Select(output => VerifyLockTime(new LockTime(Utils.UnixTimeToDateTime(output.L)), output.S))
-                    .Any(verified => verified != VerifyResult.UnableToVerify))
-                {
-                    return VerifyResult.UnableToVerify;
-                }
+                var coinbase = blocks.SelectMany(block => block.Txs).SelectMany(x => x.Vout)
+                    .FirstOrDefault(output => output.T == CoinType.Coinbase);
+                if (coinbase == null) return VerifyResult.UnableToVerify;
+                var verifyCoinbaseLockTime =
+                    VerifyLockTime(new LockTime(Utils.UnixTimeToDateTime(coinbase.L)), coinbase.S);
+                if (verifyCoinbaseLockTime == VerifyResult.UnableToVerify) return verifyCoinbaseLockTime;
             }
 
             return VerifyResult.Succeed;
