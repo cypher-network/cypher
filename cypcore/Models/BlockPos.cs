@@ -63,11 +63,11 @@ namespace CYPCore.Models
         public IEnumerable<ValidationResult> Validate()
         {
             var results = new List<ValidationResult>();
-            if (Bits < 0)
+            if (Bits <= 0)
             {
                 results.Add(new ValidationResult("Range exception", new[] { "Bits" }));
             }
-            if (Solution < 0)
+            if (Solution <= 0)
             {
                 results.Add(new ValidationResult("Range exception", new[] { "Solution" }));
             }

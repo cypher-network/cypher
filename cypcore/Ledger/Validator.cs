@@ -1,4 +1,4 @@
-﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
@@ -40,12 +40,12 @@ namespace CYPCore.Ledger
         Task<VerifyResult> VerifyBlocks(Block[] blocks);
         Task<VerifyResult> VerifyTransaction(Transaction transaction);
         Task<VerifyResult> VerifyTransactions(IList<Transaction> transactions);
-        VerifyResult VerifySloth(uint bits, byte[] vrfSig, byte[] nonce);
+        VerifyResult VerifySloth(uint t, byte[] message, byte[] nonce);
         uint Difficulty(ulong solution, decimal networkShare);
         ulong Reward(ulong solution, decimal runningDistribution);
         decimal NetworkShare(ulong solution, decimal runningDistribution);
         ulong Solution(byte[] vrfSig, byte[] kernel);
-        long GetAdjustedTimeAsUnixTimestamp();
+        long GetAdjustedTimeAsUnixTimestamp(uint timeStampMask);
         VerifyResult VerifyLockTime(LockTime target, string script);
         VerifyResult VerifyCommitSum(Transaction transaction);
         VerifyResult VerifyTransactionFee(Transaction transaction);
@@ -67,15 +67,13 @@ namespace CYPCore.Ledger
     /// </summary>
     public class Validator : IValidator
     {
-        public static readonly byte[] BlockZeroHash =
-            "02681b3ffbf30ecd5849d6ddcde65263ad23bfe02dedc2738360be38a6cb32b0".HexToByte();
+        public static readonly byte[] BlockZeroMerkel =
+            "c4cf99ce84c74cdaa353202ab19bc159f2396eb7a128f7758fb432f6092fb126".HexToByte();
 
         public static readonly byte[] BlockZeroPreHash =
             "3030303030303030437970686572204e6574776f726b2076742e322e32303231".HexToByte();
 
-        private const uint StakeTimestampMask = 0x0000000A;
         private const decimal Distribution = 139_000_000;
-        private const int FeeNByte = 6000;
         private readonly IUnitOfWork _unitOfWork;
         private readonly ISigning _signing;
         private readonly ILogger _logger;
@@ -116,7 +114,7 @@ namespace CYPCore.Ledger
         {
             Guard.Argument(block, nameof(block)).NotNull();
             using var hasher = Hasher.New();
-            var height = await _unitOfWork.HashChainRepository.CountAsync() - 1;
+            var height = await _unitOfWork.HashChainRepository.GetBlockHeightAsync();
             var prevBlock =
                 await _unitOfWork.HashChainRepository.GetAsync(x => new ValueTask<bool>(x.Height == (ulong)height));
             if (prevBlock == null)
@@ -140,7 +138,7 @@ namespace CYPCore.Ledger
         public async Task<VerifyResult> VerifyMerkel(Block block)
         {
             Guard.Argument(block, nameof(block)).NotNull();
-            var height = await _unitOfWork.HashChainRepository.CountAsync() - 1;
+            var height = await _unitOfWork.HashChainRepository.GetBlockHeightAsync();
             var prevBlock =
                 await _unitOfWork.HashChainRepository.GetAsync(x => new ValueTask<bool>(x.Height == (ulong)height));
             if (prevBlock == null)
@@ -162,8 +160,9 @@ namespace CYPCore.Ledger
         public async Task<VerifyResult> BlockExists(Block block)
         {
             Guard.Argument(block, nameof(block)).NotNull();
-            var hasSeen = await _unitOfWork.HashChainRepository.GetAsync(block.ToIdentifier());
-            return hasSeen != null ? VerifyResult.AlreadyExists : VerifyResult.Succeed;
+            var seen =
+                await _unitOfWork.HashChainRepository.GetAsync(x => new ValueTask<bool>(x.Height == block.Height));
+            return seen != null ? VerifyResult.AlreadyExists : VerifyResult.Succeed;
         }
 
         /// <summary>
@@ -401,9 +400,8 @@ namespace CYPCore.Ledger
                 return verifyLockTime;
             }
 
-            if (block.BlockHeader.MerkleRoot.Xor(BlockZeroHash) &&
-                block.BlockHeader.PrevBlockHash.Xor(Hasher.Hash(BlockZeroPreHash).HexToByte()))
-                return VerifyResult.Succeed;
+            if (block.BlockHeader.MerkleRoot.Xor(BlockZeroMerkel) &&
+                block.BlockHeader.PrevBlockHash.Xor(BlockZeroPreHash)) return VerifyResult.Succeed;
 
             var prevBlock = await _unitOfWork.HashChainRepository.GetAsync(x =>
                 new ValueTask<bool>(x.Hash.Xor(block.BlockHeader.PrevBlockHash)));
@@ -639,24 +637,24 @@ namespace CYPCore.Ledger
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="bits"></param>
-        /// <param name="vrfSig"></param>
+        /// <param name="t"></param>
+        /// <param name="message"></param>
         /// <param name="nonce"></param>
         /// <returns></returns>
-        public VerifyResult VerifySloth(uint bits, byte[] vrfSig, byte[] nonce)
+        public VerifyResult VerifySloth(uint t, byte[] message, byte[] nonce)
         {
-            Guard.Argument(bits, nameof(bits)).NotNegative().NotZero();
-            Guard.Argument(vrfSig, nameof(vrfSig)).NotNull().MaxCount(32);
+            Guard.Argument(t, nameof(t)).NotNegative().NotZero();
+            Guard.Argument(message, nameof(message)).NotNull().MaxCount(32);
             Guard.Argument(nonce, nameof(nonce)).NotNull().MaxCount(77);
             var verifySloth = false;
             try
             {
                 var ct = new CancellationTokenSource(TimeSpan.FromSeconds(1)).Token;
                 var sloth = new Sloth(ct);
-                var x = System.Numerics.BigInteger.Parse(vrfSig.ByteToHex(), NumberStyles.AllowHexSpecifier);
+                var x = System.Numerics.BigInteger.Parse(message.ByteToHex(), NumberStyles.AllowHexSpecifier);
                 var y = System.Numerics.BigInteger.Parse(nonce.ToStr());
                 if (x.Sign <= 0) x = -x;
-                verifySloth = sloth.Verify(bits, x, y);
+                verifySloth = sloth.Verify(t, x, y);
             }
             catch (Exception ex)
             {
@@ -798,9 +796,9 @@ namespace CYPCore.Ledger
         /// <summary>
         /// </summary>
         /// <returns></returns>
-        public long GetAdjustedTimeAsUnixTimestamp()
+        public long GetAdjustedTimeAsUnixTimestamp(uint timeStampMask)
         {
-            return Util.GetAdjustedTimeAsUnixTimestamp() & ~StakeTimestampMask;
+            return Util.GetAdjustedTimeAsUnixTimestamp() & ~timeStampMask;
         }
 
         /// <summary>
@@ -826,7 +824,7 @@ namespace CYPCore.Ledger
         /// <param name="cols"></param>
         /// <param name="rows"></param>
         /// <returns></returns>
-        private byte[] Makemlsag(byte[] m, Vout[] outputs, byte[] keyOffset, int cols, int rows)
+        private byte[] GenerateMLSAG(byte[] m, Vout[] outputs, byte[] keyOffset, int cols, int rows)
         {
             Guard.Argument(m, nameof(m)).NotNull();
             Guard.Argument(outputs, nameof(outputs)).NotNull();

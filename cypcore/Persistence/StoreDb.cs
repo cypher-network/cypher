@@ -24,10 +24,14 @@ namespace CYPCore.Persistence
         public static readonly StoreDb DataProtectionTable = new(2, "DataProtectionTable");
         public static readonly StoreDb DeliveredTable = new(3, "DeliveredTable");
         public static readonly StoreDb KeyImageTable = new(4, "KeyImageTable");
+        //TODO: remove
         private static readonly StoreDb StagingTable = new(5, "StagingTable");
+        //----------------
         public static readonly StoreDb TransactionTable = new(6, "TransactionTable");
         public static readonly StoreDb HashChainTable = new(7, "HashChainTable");
+        //TODO: remove
         public static readonly StoreDb TrieTable = new(8, "TrieTable");
+        //----------------
 
         private StoreDb(int value, string name)
         {
@@ -67,7 +71,7 @@ namespace CYPCore.Persistence
                 dbKey[i] = (byte)table[i];
             }
 
-            key.AsSpan().CopyTo(dbKey.Slice(table.Length));
+            key.AsSpan().CopyTo(dbKey[table.Length..]);
             return dbKey.ToArray();
         }
 

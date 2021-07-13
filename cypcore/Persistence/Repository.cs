@@ -16,6 +16,7 @@ namespace CYPCore.Persistence
     public interface IRepository<T>
     {
         Task<long> CountAsync();
+        Task<long> GetBlockHeightAsync();
         Task<T> GetAsync(byte[] key);
         Task<T> GetAsync(Func<T, ValueTask<bool>> expression);
         void SetTableName(string tableName);
@@ -50,6 +51,16 @@ namespace CYPCore.Persistence
             _readOptions
                 .SetPrefixSameAsStart(true)
                 .SetVerifyChecksums(false);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        public Task<long> GetBlockHeightAsync()
+        {
+            var height = CountAsync().GetAwaiter().GetResult() - 1;
+            return Task.FromResult(height);
         }
 
         /// <summary>

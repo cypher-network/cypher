@@ -90,7 +90,7 @@ namespace CYPCore.Models
             {
                 results.Add(new ValidationResult("Range exception", new[] { "Height" }));
             }
-            if (Size < 0)
+            if (Size <= 0)
             {
                 results.Add(new ValidationResult("Range exception", new[] { "Size" }));
             }
@@ -105,7 +105,7 @@ namespace CYPCore.Models
             {
                 results.Add(new ValidationResult("Range exception", new[] { "NrTx" }));
             }
-            if (!BlockHeader.MerkleRoot.Xor(Validator.BlockZeroHash) &&
+            if (!BlockHeader.MerkleRoot.Xor(Validator.BlockZeroMerkel) &&
                 !BlockHeader.PrevBlockHash.Xor(Hasher.Hash(Validator.BlockZeroPreHash).HexToByte()))
             {
                 foreach (var transaction in Txs)

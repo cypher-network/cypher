@@ -2,6 +2,7 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
+using System.Threading.Tasks;
 using CYPCore.Extensions;
 using CYPCore.Ledger;
 using Microsoft.AspNetCore.Http;
@@ -31,11 +32,11 @@ namespace CYPCore.Controllers
         [HttpPost("transaction", Name = "AddTransaction")]
         [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public IActionResult AddTransaction([FromBody] byte[] transactionModel)
+        public async Task<IActionResult> AddTransaction([FromBody] byte[] transactionModel)
         {
             try
             {
-                var added = _memoryPool.Add(transactionModel);
+                var added = await _memoryPool.Add(transactionModel);
                 return added switch
                 {
                     VerifyResult.Succeed => new ObjectResult(StatusCodes.Status200OK),

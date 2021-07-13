@@ -1,10 +1,9 @@
-﻿// TGMNode by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+// TGMNode by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.Linq;
 using Blake3;
 using Newtonsoft.Json;
 using CYPCore.Extensions;
@@ -91,7 +90,7 @@ namespace CYPCore.Models
             {
                 results.Add(new ValidationResult("Argument is null", new[] { "Rct" }));
             }
-            if (Ver != 0x1)
+            if (Ver != 0x2)
             {
                 results.Add(new ValidationResult("Incorrect number", new[] { "Ver" }));
             }
@@ -103,24 +102,41 @@ namespace CYPCore.Models
             {
                 results.Add(new ValidationResult("Argument is null", new[] { "Vout" }));
             }
-            foreach (var bp in Bp)
+            if (Bp != null)
             {
-                results.AddRange(bp.Validate());
+                foreach (var bp in Bp)
+                {
+                    results.AddRange(bp.Validate());
+                }
             }
             if (Vin != null)
+            {
                 foreach (var vi in Vin)
                 {
                     results.AddRange(vi.Validate());
                 }
+            }
             if (Vout != null)
+            {
                 foreach (var vo in Vout)
                 {
                     results.AddRange(vo.Validate());
                 }
-            if (Rct == null) return results;
-            foreach (var rct in Rct)
+            }
+            if (Rct != null)
             {
-                results.AddRange(rct.Validate());
+                foreach (var rct in Rct)
+                {
+                    results.AddRange(rct.Validate());
+                }
+            }
+            if (Vtime == null)
+            {
+                results.Add(new ValidationResult("Argument is null", new[] { "Vtime" }));
+            }
+            if (Vtime != null)
+            {
+                results.AddRange(Vtime.Validate());
             }
             return results;
         }
@@ -151,7 +167,6 @@ namespace CYPCore.Models
         {
             using var ts = new Helper.TangramStream();
             ts
-                .Append(TxnId)
                 .Append(Mix)
                 .Append(Ver);
 
@@ -212,7 +227,7 @@ namespace CYPCore.Models
         /// </summary>
         /// <param name="obj"></param>
         /// <returns></returns>
-        public override bool Equals(object obj) => (obj is Transaction transactionModel) && Equals(transactionModel);
+        public override bool Equals(object obj) => obj is Transaction transactionModel && Equals(transactionModel);
 
         /// <summary>
         /// 
@@ -221,7 +236,7 @@ namespace CYPCore.Models
         /// <returns></returns>
         public bool Equals(Transaction other)
         {
-            return TxnId.Xor(other.TxnId);
+            return TxnId.Xor(other?.TxnId);
         }
 
         /// <summary>

@@ -34,7 +34,7 @@ namespace CYPCore.Models
             {
                 results.Add(new ValidationResult("Argument is null", new[] { "Vin.Key.Offsets" }));
             }
-            if (Key.Offsets != null && Key.Offsets.Length != 1452)
+            if (Key.Offsets != null && Key.Offsets.Length != 726)
             {
                 results.Add(new ValidationResult("Range exception", new[] { "Vin.Key.Offsets" }));
             }

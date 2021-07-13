@@ -89,7 +89,7 @@ namespace CYPCore.Models
         public IEnumerable<ValidationResult> Validate()
         {
             var results = new List<ValidationResult>();
-            if (Version != 0x1)
+            if (Version != 0x2)
             {
                 results.Add(new ValidationResult("Range exception", new[] { "Version" }));
             }

@@ -35,6 +35,7 @@ namespace CYPCore.Ledger
     /// </summary>
     public interface IPosMinting : IStartable
     {
+        public bool StakeRunning { get; }
     }
 
     /// <summary>
@@ -42,6 +43,9 @@ namespace CYPCore.Ledger
     /// </summary>
     public class PosMinting : IPosMinting
     {
+        public const uint StakeTimeSlot = 0x00000005;
+        public const uint DecideWinnerSlot = 0x0000000A;
+
         private readonly IGraph _graph;
         private readonly IMemoryPool _memoryPool;
         private readonly ISerfClient _serfClient;
@@ -70,11 +74,13 @@ namespace CYPCore.Ledger
             _logger = logger.ForContext("SourceContext", nameof(PosMinting));
             _keyPair = _signing.GetOrUpsertKeyName(_signing.DefaultSigningKeyName).GetAwaiter().GetResult();
 
-            _stakingTimer = new Timer(async _ => await Staking(), null, TimeSpan.FromSeconds(35), TimeSpan.FromSeconds(10));
-            _decideWinnerTimer = new Timer(async _ => await DecideWinner(), null, TimeSpan.FromSeconds(40), TimeSpan.FromSeconds(20));
+            _stakingTimer = new Timer(async _ => await Staking(), null, TimeSpan.FromSeconds(35), TimeSpan.FromSeconds(StakeTimeSlot));
+            _decideWinnerTimer = new Timer(async _ => await DecideWinner(), null, TimeSpan.FromSeconds(40), TimeSpan.FromSeconds(DecideWinnerSlot));
 
             applicationLifetime.ApplicationStopping.Register(OnApplicationStopping);
         }
+
+        public bool StakeRunning { get; private set; }
 
         /// <summary>
         /// 
@@ -93,18 +99,9 @@ namespace CYPCore.Ledger
         private async Task Staking()
         {
             if (_sync.SyncRunning) return;
-            var transactionModels = _memoryPool.Range(0, _stakingConfigurationOptions.BlockTransactionCount);
-            if (_stakingConfigurationOptions.OnOff != true)
-            {
-                transactionModels.ForEach(x => { _memoryPool.Remove(x); });
-                return;
-            }
+            if (StakeRunning) return;
 
-            var transactionTasks = transactionModels.Select(GetValidTransactionAsync);
-            transactionModels = await Task.WhenAll(transactionTasks);
-            if (transactionModels.Length == 0) return;
-            var transactions = transactionModels.ToList();
-            var height = await _unitOfWork.HashChainRepository.CountAsync() - 1;
+            var height = await _unitOfWork.HashChainRepository.GetBlockHeightAsync();
             var prevBlock =
                 await _unitOfWork.HashChainRepository.GetAsync(x => new ValueTask<bool>(x.Height == (ulong)height));
             if (prevBlock == null)
@@ -113,7 +110,7 @@ namespace CYPCore.Ledger
                 return;
             }
 
-            var coinStakeTimestamp = _validator.GetAdjustedTimeAsUnixTimestamp();
+            var coinStakeTimestamp = _validator.GetAdjustedTimeAsUnixTimestamp(StakeTimeSlot);
             if (coinStakeTimestamp <= prevBlock.BlockHeader.Locktime)
             {
                 _logger.Here()
@@ -123,6 +120,20 @@ namespace CYPCore.Ledger
                 return;
             }
 
+            var transactionModels = _memoryPool.Range(0, _stakingConfigurationOptions.TransactionsPerBlock);
+            if (_stakingConfigurationOptions.OnOff != true)
+            {
+                transactionModels.ForEach(x => { _memoryPool.Remove(x); });
+                return;
+            }
+
+            var transactionTasks = transactionModels.Select(GetValidTransactionAsync);
+            transactionModels = await Task.WhenAll(transactionTasks);
+            if (transactionModels.Any() != true) return;
+            var transactions = transactionModels.ToList();
+
+            StakeRunning = true;
+
             try
             {
                 byte[] hash;
@@ -130,9 +141,18 @@ namespace CYPCore.Ledger
                 {
                     transactions.ForEach(x =>
                     {
-                        var hasAnyErrors = x.Validate();
-                        if (hasAnyErrors.Any()) throw new ArithmeticException("Unable to verify the transaction");
-                        ts.Append(x.ToStream());
+                        try
+                        {
+                            var hasAnyErrors = x.Validate();
+                            if (hasAnyErrors.Any() != true)
+                            {
+                                ts.Append(x.ToStream());
+                            }
+                        }
+                        catch (Exception)
+                        {
+                            _logger.Here().Error("Unable to verify the transaction {@TxId}", x.TxnId.HexToByte());
+                        }
                     });
                     hash = Hasher.Hash(ts.ToArray()).HexToByte();
                 }
@@ -170,6 +190,8 @@ namespace CYPCore.Ledger
             {
                 _logger.Here().Error(ex, "PoS minting Failed");
             }
+
+            StakeRunning = false;
         }
 
         /// <summary>
@@ -181,7 +203,7 @@ namespace CYPCore.Ledger
             if (_sync.SyncRunning) return;
             try
             {
-                var height = await _unitOfWork.HashChainRepository.CountAsync() - 1;
+                var height = await _unitOfWork.HashChainRepository.GetBlockHeightAsync();
                 var prevBlock = await _unitOfWork.HashChainRepository.GetAsync(block =>
                     new ValueTask<bool>(block.Height == (ulong)height));
                 if (prevBlock == null) return;
@@ -345,14 +367,14 @@ namespace CYPCore.Ledger
             var sloth = new Sloth(ct);
             var nonce = sloth.Eval((int)bits, x);
             if (ct.IsCancellationRequested) return null;
-            var lockTime = _validator.GetAdjustedTimeAsUnixTimestamp();
+            var lockTime = _validator.GetAdjustedTimeAsUnixTimestamp(StakeTimeSlot);
             var block = new Block
             {
                 Hash = new byte[32],
                 Height = 1 + previousBlock.Height,
                 BlockHeader = new BlockHeader
                 {
-                    Version = 0x1,
+                    Version = 0x2,
                     Height = 1 + previousBlock.BlockHeader.Height,
                     Locktime = lockTime,
                     LocktimeScript =

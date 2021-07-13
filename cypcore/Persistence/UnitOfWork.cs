@@ -16,7 +16,7 @@ namespace CYPCore.Persistence
         IDeliveredRepository DeliveredRepository { get; }
         ITransactionRepository TransactionRepository { get; }
         IBlockGraphRepository BlockGraphRepository { get; }
-        IKeyImageRepository KeyImageRepository { get; }
+        IImageRepository ImageRepository { get; }
         IHashChainRepository HashChainRepository { get; }
     }
 
@@ -29,7 +29,7 @@ namespace CYPCore.Persistence
         public IDeliveredRepository DeliveredRepository { get; }
         public ITransactionRepository TransactionRepository { get; }
         public IBlockGraphRepository BlockGraphRepository { get; }
-        public IKeyImageRepository KeyImageRepository { get; }
+        public IImageRepository ImageRepository { get; }
         public IHashChainRepository HashChainRepository { get; }
 
         private readonly ILogger _logger;
@@ -44,7 +44,7 @@ namespace CYPCore.Persistence
             DeliveredRepository = new DeliveredRepository(StoreDb, logger);
             TransactionRepository = new TransactionRepository(StoreDb, logger);
             BlockGraphRepository = new BlockGraphRepository(StoreDb, logger);
-            KeyImageRepository = new KeyImageRepository(StoreDb, logger);
+            ImageRepository = new ImageRepository(StoreDb, logger);
             HashChainRepository = new HashChainRepository(StoreDb, logger);
         }
     }

@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using Blake3;
 using CYPCore.Extensions;
 using MessagePack;
 using Newtonsoft.Json;
@@ -26,7 +27,7 @@ namespace CYPCore.Consensus.Models
 
         public bool Equals(BlockGraph other)
         {
-            return (Block.Hash, Block.Node, Block.Round, Deps.Count) == (other.Block.Hash, other.Block.Node,
+            return other is not null && (Block.Hash, Block.Node, Block.Round, Deps.Count) == (other.Block.Hash, other.Block.Node,
                 other.Block.Round, other.Deps.Count);
         }
 
@@ -52,14 +53,14 @@ namespace CYPCore.Consensus.Models
         /// <returns></returns>
         public byte[] ToHash()
         {
-            return NBitcoin.Crypto.Hashes.DoubleSHA256(Stream()).ToBytes(false);
+            return Hasher.Hash(ToStream()).HexToByte();
         }
 
         /// <summary>
         /// 
         /// </summary>
         /// <returns></returns>
-        public byte[] Stream()
+        public byte[] ToStream()
         {
             using var ts = new Helper.TangramStream();
 
