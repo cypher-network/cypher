@@ -1,4 +1,4 @@
-// TGMNode by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+﻿// TGMNode by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
@@ -20,6 +20,7 @@ namespace CYPCore.Models
         Vin[] Vin { get; set; }
         Vout[] Vout { get; set; }
         Rct[] Rct { get; set; }
+        Vtime Vtime { get; set; }
 
         /// <summary>
         /// 
@@ -63,6 +64,8 @@ namespace CYPCore.Models
         [MessagePack.Key(4)] public Vin[] Vin { get; set; }
         [MessagePack.Key(5)] public Vout[] Vout { get; set; }
         [MessagePack.Key(6)] public Rct[] Rct { get; set; }
+        [MessagePack.Key(7)] public Vtime Vtime { get; set; }
+
         /// <summary>
         /// 
         /// </summary>
@@ -203,7 +206,15 @@ namespace CYPCore.Models
                     .Append(rct.S);
             }
 
-            return ts.ToArray(); ;
+            ts
+                .Append(Vtime.I)
+                .Append(Vtime.L)
+                .Append(Vtime.M)
+                .Append(Vtime.N)
+                .Append(Vtime.S)
+                .Append(Vtime.W);
+
+            return ts.ToArray();
         }
 
         /// <summary>

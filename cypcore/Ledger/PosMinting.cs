@@ -275,7 +275,6 @@ namespace CYPCore.Ledger
             try
             {
                 var verifyTransaction = await _validator.VerifyTransaction(transaction);
-                var verifyTransactionFee = _validator.VerifyTransactionFee(transaction);
                 var removed = _memoryPool.Remove(transaction);
                 if (removed == VerifyResult.UnableToVerify)
                 {
@@ -283,7 +282,7 @@ namespace CYPCore.Ledger
                         transaction.TxnId);
                 }
 
-                if (verifyTransaction == VerifyResult.Succeed && verifyTransactionFee == VerifyResult.Succeed)
+                if (verifyTransaction == VerifyResult.Succeed)
                 {
                     return transaction;
                 }
@@ -425,7 +424,7 @@ namespace CYPCore.Ledger
                         Identifier = _stakingConfigurationOptions.WalletSettings.Identifier,
                         Passphrase = _stakingConfigurationOptions.WalletSettings.Passphrase
                     },
-                    Fee = reward,
+                    Reward = reward,
                     Memo =
                         $"Coinstake {_serfClient.SerfConfigurationOptions.NodeName}: {pub.ByteToHex().ShorterString()}",
                     SessionType = SessionType.Coinstake

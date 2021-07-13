@@ -7,6 +7,7 @@ using System.Linq;
 using System.Reactive;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
+using Blake3;
 using Collections.Pooled;
 using CYPCore.Consensus;
 using CYPCore.Consensus.Models;
@@ -467,7 +468,7 @@ namespace CYPCore.Ledger
                         var saved = await _unitOfWork.DeliveredRepository.PutAsync(block.ToIdentifier(), block);
                         if (!saved)
                         {
-                            _logger.Here().Error("Unable to save the block: {@MerkleRoot}", block.Hash);
+                            _logger.Here().Error("Unable to save the block: {@Hash}", block.Hash.ByteToHex());
                         }
 
                         _logger.Here().Information("Saved block to Delivered");

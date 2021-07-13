@@ -11,7 +11,7 @@ namespace CYPCore.Models
         [Key(0)] public ulong Amount { get; set; }
         [Key(1)] public string Address { get; set; }
         [Key(2)] public Credentials Credentials { get; set; }
-        [Key(3)] public ulong Fee { get; set; }
+        [Key(3)] public ulong Reward { get; set; }
         [Key(4)] public string Memo { get; set; }
         [Key(5)] public SessionType SessionType { get; set; }
     }

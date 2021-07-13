@@ -65,8 +65,7 @@ namespace CYPCore.Models
                     results.Add(new ValidationResult("Range exception", new[] { "Vout.S" }));
                 }
             }
-            if (T != CoinType.Payment && T != CoinType.Coinbase && T != CoinType.Coinstake && T != CoinType.Fee &&
-                T != CoinType.Change)
+            if (T != CoinType.Payment && T != CoinType.Coinbase && T != CoinType.Coinstake && T != CoinType.Change)
             {
                 results.Add(new ValidationResult("Argument exception", new[] { "Vout.T" }));
             }
