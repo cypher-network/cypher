@@ -448,7 +448,7 @@ namespace CYPCore.Ledger
                 else
                 {
                     var content = await response.Content.ReadAsStringAsync();
-                    _logger.Here().Error("{@Content}\n StatusCode: {@StatusCode}", content, (int) response.StatusCode);
+                    _logger.Here().Error("{@Content}\n StatusCode: {@StatusCode}", content, (int)response.StatusCode);
                     throw new Exception(content);
                 }
             }
