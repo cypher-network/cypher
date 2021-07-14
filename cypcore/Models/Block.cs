@@ -50,7 +50,7 @@ namespace CYPCore.Models
 
             using var ts = new Helper.TangramStream();
             ts.Append(Height);
-            if (Size != 0)
+            if (Size != 0 && Size != 1)
             {
                 ts.Append(Size);
             }

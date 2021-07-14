@@ -101,41 +101,42 @@ namespace CYPCore.Ledger
             if (_sync.SyncRunning) return;
             if (StakeRunning) return;
 
-            var height = await _unitOfWork.HashChainRepository.GetBlockHeightAsync();
-            var prevBlock =
-                await _unitOfWork.HashChainRepository.GetAsync(x => new ValueTask<bool>(x.Height == (ulong)height));
-            if (prevBlock == null)
-            {
-                _logger.Here().Information("No previous block available for processing");
-                return;
-            }
-
-            var coinStakeTimestamp = _validator.GetAdjustedTimeAsUnixTimestamp(StakeTimeSlot);
-            if (coinStakeTimestamp <= prevBlock.BlockHeader.Locktime)
-            {
-                _logger.Here()
-                    .Warning(
-                        "Current coinstake time {@Timestamp} is not greater than last search timestamp {@Locktime}",
-                        coinStakeTimestamp, prevBlock.BlockHeader.Locktime);
-                return;
-            }
-
-            var transactionModels = _memoryPool.Range(0, _stakingConfigurationOptions.TransactionsPerBlock);
-            if (_stakingConfigurationOptions.OnOff != true)
-            {
-                transactionModels.ForEach(x => { _memoryPool.Remove(x); });
-                return;
-            }
-
-            var transactionTasks = transactionModels.Select(GetValidTransactionAsync);
-            transactionModels = await Task.WhenAll(transactionTasks);
-            if (transactionModels.Any() != true) return;
-            var transactions = transactionModels.ToList();
-
-            StakeRunning = true;
-
             try
             {
+                var height = await _unitOfWork.HashChainRepository.GetBlockHeightAsync();
+                var prevBlock =
+                    await _unitOfWork.HashChainRepository.GetAsync(x =>
+                        new ValueTask<bool>(x.Height == (ulong)height));
+                if (prevBlock == null)
+                {
+                    _logger.Here().Information("No previous block available for processing");
+                    return;
+                }
+
+                var coinStakeTimestamp = _validator.GetAdjustedTimeAsUnixTimestamp(StakeTimeSlot);
+                if (coinStakeTimestamp <= prevBlock.BlockHeader.Locktime)
+                {
+                    _logger.Here()
+                        .Warning(
+                            "Current coinstake time {@Timestamp} is not greater than last search timestamp {@Locktime}",
+                            coinStakeTimestamp, prevBlock.BlockHeader.Locktime);
+                    return;
+                }
+
+                var transactionModels = _memoryPool.Range(0, _stakingConfigurationOptions.TransactionsPerBlock);
+                if (_stakingConfigurationOptions.OnOff != true)
+                {
+                    transactionModels.ForEach(x => { _memoryPool.Remove(x); });
+                    return;
+                }
+
+                var transactionTasks = transactionModels.Select(GetValidTransactionAsync);
+                transactionModels = await Task.WhenAll(transactionTasks);
+                if (transactionModels.Any() != true) return;
+                var transactions = transactionModels.ToList();
+
+                StakeRunning = true;
+
                 byte[] hash;
                 using (TangramStream ts = new())
                 {
@@ -154,6 +155,7 @@ namespace CYPCore.Ledger
                             _logger.Here().Error("Unable to verify the transaction {@TxId}", x.TxnId.HexToByte());
                         }
                     });
+                    if (ts.ToArray().Length == 0) throw new Exception();
                     hash = Hasher.Hash(ts.ToArray()).HexToByte();
                 }
 
@@ -162,7 +164,7 @@ namespace CYPCore.Ledger
                 var verifyVrfSignature = _signing.VerifyVrfSignature(Curve.decodePoint(_keyPair.PublicKey, 0),
                     hash, calculateVrfSignature);
                 var solution = _validator.Solution(verifyVrfSignature, hash);
-                if (solution == 0) return;
+                if (solution == 0) throw new Exception();
                 var runningDistribution = await _validator.GetRunningDistribution();
                 var networkShare = _validator.NetworkShare(solution, runningDistribution);
                 var reward = _validator.Reward(solution, runningDistribution);
@@ -171,7 +173,7 @@ namespace CYPCore.Ledger
                 if (coinStakeTransaction == null)
                 {
                     _logger.Here().Error("Unable to create the coinstake transaction");
-                    return;
+                    throw new Exception();
                 }
 
                 transactions.Insert(0, coinStakeTransaction);
@@ -180,7 +182,7 @@ namespace CYPCore.Ledger
                 if (block == null)
                 {
                     _logger.Here().Fatal("Unable to create the block");
-                    return;
+                    throw new Exception();
                 }
 
                 var blockGraph = CreateBlockGraph(block, prevBlock);
@@ -190,8 +192,10 @@ namespace CYPCore.Ledger
             {
                 _logger.Here().Error(ex, "PoS minting Failed");
             }
-
-            StakeRunning = false;
+            finally
+            {
+                StakeRunning = false;
+            }
         }
 
         /// <summary>
@@ -391,7 +395,8 @@ namespace CYPCore.Ledger
                     VrfProof = calculateVrfSignature,
                     VrfSig = verifyVrfSignature,
                     PublicKey = _keyPair.PublicKey
-                }
+                },
+                Size = 1
             };
 
             block.Size = block.GetSize();
