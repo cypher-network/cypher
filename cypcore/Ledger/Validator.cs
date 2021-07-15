@@ -17,7 +17,6 @@ using CYPCore.Persistence;
 using Dawn;
 using Libsecp256k1Zkp.Net;
 using libsignal.ecc;
-using MessagePack;
 using Serilog;
 using NBitcoin;
 using NBitcoin.BouncyCastle.Math;
@@ -230,7 +229,14 @@ namespace CYPCore.Ledger
                 if (transaction.Validate().Any()) return VerifyResult.UnableToVerify;
                 using var secp256K1 = new Secp256k1();
                 using var bulletProof = new BulletProof();
-                if (transaction.Bp.Select((t, i) => bulletProof.Verify(transaction.Vout[i + 1].C, t.Proof, null))
+                var index = 1;
+                var outputs = transaction.Vout.Select(x => x.T.ToString()).ToArray();
+                if (outputs.Contains(CoinType.Coinbase.ToString()) && outputs.Contains(CoinType.Coinstake.ToString()))
+                {
+                    index++;
+                }
+
+                if (transaction.Bp.Select((t, i) => bulletProof.Verify(transaction.Vout[i + index].C, t.Proof, null))
                     .Any(verified => !verified))
                 {
                     return VerifyResult.UnableToVerify;
@@ -257,11 +263,16 @@ namespace CYPCore.Ledger
                 if (transaction.Validate().Any()) return VerifyResult.UnableToVerify;
                 using var pedersen = new Pedersen();
                 var index = 0;
-                if (transaction.Vout.Length == 3) index = 1;
+                var outputs = transaction.Vout.Select(x => x.T.ToString()).ToArray();
+                if (outputs.Contains(CoinType.Coinbase.ToString()) && outputs.Contains(CoinType.Coinstake.ToString()))
+                {
+                    index++;
+                }
+
                 var payment = transaction.Vout[index].C;
                 var change = transaction.Vout[index + 1].C;
-                var commitSumBalance = pedersen.CommitSum(new List<byte[]> { payment, change }, new List<byte[]>());
-                if (!pedersen.VerifyCommitSum(new List<byte[]> { commitSumBalance }, new List<byte[]> { payment, change }))
+                var commitSumBalance = pedersen.CommitSum(new List<byte[]> {payment, change}, new List<byte[]>());
+                if (!pedersen.VerifyCommitSum(new List<byte[]> {commitSumBalance}, new List<byte[]> {payment, change}))
                     return VerifyResult.UnableToVerify;
             }
             catch (Exception ex)
@@ -461,15 +472,18 @@ namespace CYPCore.Ledger
             if (verifySum == VerifyResult.UnableToVerify) return verifySum;
             var verifyBulletProof = VerifyBulletProof(transaction);
             if (verifyBulletProof == VerifyResult.UnableToVerify) return verifyBulletProof;
-            var verifyVOutCommits = await VerifyOutputCommitments(transaction);
-            if (verifyVOutCommits == VerifyResult.UnableToVerify) return verifyVOutCommits;
+            var outputs = transaction.Vout.Select(x => x.T.ToString()).ToArray();
+            if (outputs.Contains(CoinType.Payment.ToString()) && outputs.Contains(CoinType.Change.ToString()))
+            {
+                var verifyVOutCommits = await VerifyOutputCommitments(transaction);
+                if (verifyVOutCommits == VerifyResult.UnableToVerify) return verifyVOutCommits;
+            }
             var verifyKImage = await VerifyKeyImage(transaction);
             if (verifyKImage == VerifyResult.UnableToVerify) return verifyKImage;
             using var mlsag = new MLSAG();
             for (var i = 0; i < transaction.Vin.Length; i++)
             {
-                var m = GenerateMLSAG(transaction.Rct[i].M, transaction.Vout, transaction.Vin[i].Key.Offsets,
-                    transaction.Mix, 2);
+                var m = GenerateMLSAG(transaction.Rct[i].M, transaction.Vout, transaction.Vin[i].Key.Offsets, transaction.Mix, 2);
                 var verifyMlsag = mlsag.Verify(transaction.Rct[i].I, transaction.Mix, 2, m,
                     transaction.Vin[i].Key.Image, transaction.Rct[i].P, transaction.Rct[i].S);
                 if (verifyMlsag) continue;
@@ -492,9 +506,8 @@ namespace CYPCore.Ledger
             {
                 var t = transaction.Vtime.I / 2.7 / 1000;
                 if (t < 5) return VerifyResult.UnableToVerify;
-                var verifyLockTime =
-                    VerifyLockTime(new LockTime(Utils.UnixTimeToDateTime(transaction.Vtime.L)),
-                        transaction.Vtime.S);
+                var verifyLockTime = VerifyLockTime(new LockTime(Utils.UnixTimeToDateTime(transaction.Vtime.L)),
+                    transaction.Vtime.S);
                 if (verifyLockTime == VerifyResult.UnableToVerify)
                 {
                     _logger.Here().Fatal("Unable to verify the transaction locktime");
@@ -507,7 +520,7 @@ namespace CYPCore.Ledger
                     return VerifyResult.UnableToVerify;
                 }
 
-                var verifySloth = VerifySloth((uint)transaction.Vtime.I, transaction.Vtime.M,
+                var verifySloth = VerifySloth((uint) transaction.Vtime.I, transaction.Vtime.M,
                     transaction.Vtime.N.ToStr().ToBytes());
                 if (verifySloth == VerifyResult.UnableToVerify)
                 {
@@ -517,8 +530,7 @@ namespace CYPCore.Ledger
             }
             catch (Exception)
             {
-                _logger.Here()
-                    .Fatal("Unable to verify the transaction time");
+                _logger.Here().Fatal("Unable to verify the transaction time");
             }
 
             return VerifyResult.Succeed;
@@ -580,7 +592,7 @@ namespace CYPCore.Ledger
             {
                 var blocks = await _unitOfWork.HashChainRepository.WhereAsync(x =>
                     new ValueTask<bool>(x.Txs.Any(t => t.Vin.First().Key.Image.Xor(vin.Key.Image))));
-                if (blocks.Count > 1) return VerifyResult.UnableToVerify;
+                if (blocks.Any()) return VerifyResult.UnableToVerify;
             }
 
             return VerifyResult.Succeed;
@@ -826,11 +838,20 @@ namespace CYPCore.Ledger
             Guard.Argument(keyOffset, nameof(keyOffset)).NotNull();
             Guard.Argument(cols, nameof(cols)).NotZero().NotNegative();
             Guard.Argument(rows, nameof(rows)).NotZero().NotNegative();
-            var pcmOut = new Span<byte[]>(new[] { outputs[0].C, outputs[1].C });
+            
+            var index = 0;
+            var vOutputs = outputs.Select(x => x.T.ToString()).ToArray();
+            if (vOutputs.Contains(CoinType.Coinbase.ToString()) && vOutputs.Contains(CoinType.Coinstake.ToString()))
+            {
+                index++;
+            }
+
+            var pcmOut = new Span<byte[]>(new[] {outputs[index].C, outputs[index + 1].C});
             var pcmIn = keyOffset.Split(33).Select(x => x).ToArray().AsSpan();
             using var mlsag = new MLSAG();
             var preparemlsag = mlsag.Prepare(m, null, pcmOut.Length, pcmOut.Length, cols, rows, pcmIn, pcmOut, null);
             if (preparemlsag) return m;
+            
             _logger.Here().Fatal("Unable to verify the Multilayered Linkable Spontaneous Anonymous Group membership");
             return null;
         }
