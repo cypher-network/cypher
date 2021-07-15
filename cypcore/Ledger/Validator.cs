@@ -271,8 +271,8 @@ namespace CYPCore.Ledger
 
                 var payment = transaction.Vout[index].C;
                 var change = transaction.Vout[index + 1].C;
-                var commitSumBalance = pedersen.CommitSum(new List<byte[]> {payment, change}, new List<byte[]>());
-                if (!pedersen.VerifyCommitSum(new List<byte[]> {commitSumBalance}, new List<byte[]> {payment, change}))
+                var commitSumBalance = pedersen.CommitSum(new List<byte[]> { payment, change }, new List<byte[]>());
+                if (!pedersen.VerifyCommitSum(new List<byte[]> { commitSumBalance }, new List<byte[]> { payment, change }))
                     return VerifyResult.UnableToVerify;
             }
             catch (Exception ex)
@@ -520,7 +520,7 @@ namespace CYPCore.Ledger
                     return VerifyResult.UnableToVerify;
                 }
 
-                var verifySloth = VerifySloth((uint) transaction.Vtime.I, transaction.Vtime.M,
+                var verifySloth = VerifySloth((uint)transaction.Vtime.I, transaction.Vtime.M,
                     transaction.Vtime.N.ToStr().ToBytes());
                 if (verifySloth == VerifyResult.UnableToVerify)
                 {
@@ -605,7 +605,7 @@ namespace CYPCore.Ledger
         public async Task<VerifyResult> VerifyOutputCommitments(Transaction transaction)
         {
             Guard.Argument(transaction, nameof(transaction)).NotNull();
-            
+
             var offSets = transaction.Vin.Select(v => v.Key).SelectMany(k => k.Offsets.Split(33)).ToArray();
             foreach (var commit in offSets)
             {
@@ -616,7 +616,7 @@ namespace CYPCore.Ledger
                     _logger.Here().Fatal("Unable to find commitment {@Commit}", commit.ByteToHex());
                     return VerifyResult.UnableToVerify;
                 }
-                
+
                 var coinbase = blocks.SelectMany(block => block.Txs).SelectMany(x => x.Vout)
                     .FirstOrDefault(output => output.C.Xor(commit) && output.T == CoinType.Coinbase);
                 if (coinbase != null)
@@ -639,7 +639,7 @@ namespace CYPCore.Ledger
                 _logger.Here().Error("Unable verify commitment change locktime {@Commit}", commit.ByteToHex());
                 return verifyChangeLockTime;
             }
-            
+
             return VerifyResult.Succeed;
         }
 
@@ -858,7 +858,7 @@ namespace CYPCore.Ledger
             Guard.Argument(keyOffset, nameof(keyOffset)).NotNull();
             Guard.Argument(cols, nameof(cols)).NotZero().NotNegative();
             Guard.Argument(rows, nameof(rows)).NotZero().NotNegative();
-            
+
             var index = 0;
             var vOutputs = outputs.Select(x => x.T.ToString()).ToArray();
             if (vOutputs.Contains(CoinType.Coinbase.ToString()) && vOutputs.Contains(CoinType.Coinstake.ToString()))
@@ -866,12 +866,12 @@ namespace CYPCore.Ledger
                 index++;
             }
 
-            var pcmOut = new Span<byte[]>(new[] {outputs[index].C, outputs[index + 1].C});
+            var pcmOut = new Span<byte[]>(new[] { outputs[index].C, outputs[index + 1].C });
             var pcmIn = keyOffset.Split(33).Select(x => x).ToArray().AsSpan();
             using var mlsag = new MLSAG();
             var preparemlsag = mlsag.Prepare(m, null, pcmOut.Length, pcmOut.Length, cols, rows, pcmIn, pcmOut, null);
             if (preparemlsag) return m;
-            
+
             _logger.Here().Fatal("Unable to verify the Multilayered Linkable Spontaneous Anonymous Group membership");
             return null;
         }

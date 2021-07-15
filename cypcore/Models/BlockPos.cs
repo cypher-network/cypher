@@ -75,7 +75,7 @@ namespace CYPCore.Models
             {
                 results.Add(new ValidationResult("Argument is null", new[] { "Nonce" }));
             }
-            if (Nonce is {Length: > 77})
+            if (Nonce is { Length: > 77 })
             {
                 results.Add(new ValidationResult("Range exception", new[] { "Nonce" }));
             }
