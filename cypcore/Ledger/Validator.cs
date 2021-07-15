@@ -605,21 +605,41 @@ namespace CYPCore.Ledger
         public async Task<VerifyResult> VerifyOutputCommitments(Transaction transaction)
         {
             Guard.Argument(transaction, nameof(transaction)).NotNull();
+            
             var offSets = transaction.Vin.Select(v => v.Key).SelectMany(k => k.Offsets.Split(33)).ToArray();
-            var list = offSets.Where((value, index) => index % 2 == 0).ToArray();
-            foreach (var commit in list)
+            foreach (var commit in offSets)
             {
                 var blocks = await _unitOfWork.HashChainRepository.WhereAsync(x =>
                     new ValueTask<bool>(x.Txs.Any(v => v.Vout.Any(c => c.C.Xor(commit)))));
-                if (!blocks.Any()) return VerifyResult.UnableToVerify;
+                if (!blocks.Any())
+                {
+                    _logger.Here().Fatal("Unable to find commitment {@Commit}", commit.ByteToHex());
+                    return VerifyResult.UnableToVerify;
+                }
+                
                 var coinbase = blocks.SelectMany(block => block.Txs).SelectMany(x => x.Vout)
-                    .FirstOrDefault(output => output.T == CoinType.Coinbase);
-                if (coinbase == null) return VerifyResult.UnableToVerify;
-                var verifyCoinbaseLockTime =
-                    VerifyLockTime(new LockTime(Utils.UnixTimeToDateTime(coinbase.L)), coinbase.S);
-                if (verifyCoinbaseLockTime == VerifyResult.UnableToVerify) return verifyCoinbaseLockTime;
-            }
+                    .FirstOrDefault(output => output.C.Xor(commit) && output.T == CoinType.Coinbase);
+                if (coinbase != null)
+                {
+                    var verifyCoinbaseLockTime = VerifyLockTime(new LockTime(Utils.UnixTimeToDateTime(coinbase.L)),
+                        coinbase.S);
+                    if (verifyCoinbaseLockTime == VerifyResult.UnableToVerify)
+                    {
+                        _logger.Here().Error("Unable to verify commitment coinbase locktime {@Commit}",
+                            commit.ByteToHex());
+                        return verifyCoinbaseLockTime;
+                    }
+                }
 
+                var change = blocks.SelectMany(block => block.Txs).SelectMany(x => x.Vout)
+                    .FirstOrDefault(output => output.C.Xor(commit) && output.T == CoinType.Change);
+                if (change == null) continue;
+                var verifyChangeLockTime = VerifyLockTime(new LockTime(Utils.UnixTimeToDateTime(change.L)), change.S);
+                if (verifyChangeLockTime != VerifyResult.UnableToVerify) continue;
+                _logger.Here().Error("Unable verify commitment change locktime {@Commit}", commit.ByteToHex());
+                return verifyChangeLockTime;
+            }
+            
             return VerifyResult.Succeed;
         }
 
