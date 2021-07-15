@@ -184,7 +184,7 @@ namespace CYPCore.Ledger
                     _logger.Here().Fatal("Unable to create the block");
                     throw new Exception();
                 }
-
+                
                 var blockGraph = CreateBlockGraph(block, prevBlock);
                 await _graph.TryAddBlockGraph(blockGraph);
             }
