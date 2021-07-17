@@ -75,7 +75,8 @@ elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
   ARCHITECTURE_X64=("x86_64")
 
   if [[ " ${ARCHITECTURE_ARM[*]} " =~ " ${ARCHITECTURE} " ]]; then
-    ARCHITECTURE_UNIFIED="linux-arm"
+    echo "32-bit architectures are not supported. Found architecture ${ARCHITECTURE}"
+    exit 1
 
   elif [[ " ${ARCHITECTURE_ARM64[*]} " =~ " ${ARCHITECTURE} " ]]; then
     ARCHITECTURE_UNIFIED="linux-arm64"

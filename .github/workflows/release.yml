@@ -50,11 +50,6 @@ jobs:
         with:
           runtime: 'linux-x64'
 
-      - name: Create linux-arm package
-        uses: ./.github/actions/build-tar-gz
-        with:
-          runtime: 'linux-arm'
-
       - name: Create linux-arm64 package
         uses: ./.github/actions/build-tar-gz
         with:
