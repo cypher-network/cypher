@@ -26,8 +26,8 @@ namespace CYPCore.Ledger
 {
     public interface IGraph
     {
-        Task<VerifyResult> TryAddBlockGraph(BlockGraph blockGraph);
-        Task<VerifyResult> TryAddBlockGraph(byte[] blockGraphModel);
+        VerifyResult TryAddBlockGraph(BlockGraph blockGraph);
+        VerifyResult TryAddBlockGraph(byte[] blockGraphModel);
         Task<Transaction> GetTransaction(byte[] txnId);
         Task<IEnumerable<Models.Block>> GetBlocks(int skip, int take);
         Task<IEnumerable<Models.Block>> GetSafeguardBlocks();
@@ -122,11 +122,19 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="blockGraphModel"></param>
         /// <returns></returns>
-        public async Task<VerifyResult> TryAddBlockGraph(byte[] blockGraphModel)
+        public VerifyResult TryAddBlockGraph(byte[] blockGraphModel)
         {
-            var blockGraph = MessagePackSerializer.Deserialize<BlockGraph>(blockGraphModel);
-            await TryAddBlockGraph(blockGraph);
-            return VerifyResult.Succeed;
+            try
+            {
+                var blockGraph = MessagePackSerializer.Deserialize<BlockGraph>(blockGraphModel);
+                var tryAddBlockGraph = TryAddBlockGraph(blockGraph);
+                return tryAddBlockGraph;
+            }
+            catch (Exception ex)
+            {
+                _logger.Here().Error(ex, ex.Message);
+                return VerifyResult.Invalid;
+            }
         }
 
         /// <summary>
@@ -321,18 +329,23 @@ namespace CYPCore.Ledger
         /// <param name="block"></param>
         /// <param name="prevBlock"></param>
         /// <returns></returns>
-        private BlockGraph CopyBlockGraph(Models.Block block, Models.Block prevBlock)
+        private BlockGraph CopyBlockGraph(byte[] block, byte[] prevBlock)
         {
+            Guard.Argument(block, nameof(block)).NotNull();
+            Guard.Argument(prevBlock, nameof(prevBlock)).NotNull();
+
+            var next = MessagePackSerializer.Deserialize<Models.Block>(block);
+            var prev = MessagePackSerializer.Deserialize<Models.Block>(prevBlock);
             var blockGraph = new BlockGraph
             {
-                Block = new CYPCore.Consensus.Models.Block(Hasher.Hash(block.Height.ToBytes()).ToString(), _serfClient.ClientId,
-                    block.Height, MessagePackSerializer.Serialize(block)),
+                Block = new CYPCore.Consensus.Models.Block(Hasher.Hash(next.Height.ToBytes()).ToString(), _serfClient.ClientId,
+                    next.Height, block),
                 Prev = new CYPCore.Consensus.Models.Block
                 {
-                    Data = MessagePackSerializer.Serialize(prevBlock),
-                    Hash = Hasher.Hash(prevBlock.Height.ToBytes()).ToString(),
+                    Data = prevBlock,
+                    Hash = Hasher.Hash(prev.Height.ToBytes()).ToString(),
                     Node = _serfClient.ClientId,
-                    Round = prevBlock.Height
+                    Round = prev.Height
                 }
             };
             return blockGraph;
@@ -369,9 +382,7 @@ namespace CYPCore.Ledger
                                 {
                                     var saved = await SaveBlockGraph(blockGraph);
                                     if (!saved) return;
-                                    var block = MessagePackSerializer.Deserialize<Models.Block>(blockGraph.Block.Data);
-                                    var prev = MessagePackSerializer.Deserialize<Models.Block>(blockGraph.Prev.Data);
-                                    var copyBlockGraph = CopyBlockGraph(block, prev);
+                                    var copyBlockGraph = CopyBlockGraph(blockGraph.Block.Data, blockGraph.Prev.Data);
                                     copyBlockGraph = await SignBlockGraph(copyBlockGraph);
                                     var savedCopy = await SaveBlockGraph(copyBlockGraph);
                                     if (!savedCopy) return;

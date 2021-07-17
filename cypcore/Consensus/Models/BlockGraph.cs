@@ -23,7 +23,7 @@ namespace CYPCore.Consensus.Models
 
         public static bool operator !=(BlockGraph left, BlockGraph right) => !Equals(left, right);
 
-        public override bool Equals(object obj) => (obj is BlockGraph blockGraph) && Equals(blockGraph);
+        public override bool Equals(object obj) => obj is BlockGraph blockGraph && Equals(blockGraph);
 
         public bool Equals(BlockGraph other)
         {

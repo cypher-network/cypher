@@ -186,7 +186,7 @@ namespace CYPCore.Ledger
                 }
 
                 var blockGraph = CreateBlockGraph(block, prevBlock);
-                await _graph.TryAddBlockGraph(blockGraph);
+                _graph.TryAddBlockGraph(blockGraph);
             }
             catch (Exception ex)
             {
