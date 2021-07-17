@@ -39,7 +39,7 @@ namespace CYPCore.Controllers
         {
             try
             {
-                var added = await _graph.TryAddBlockGraph(blockGraphModel);
+                var added = _graph.TryAddBlockGraph(blockGraphModel);
                 return new ObjectResult(new { code = added == VerifyResult.Succeed ? StatusCodes.Status200OK : StatusCodes.Status500InternalServerError });
             }
             catch (Exception ex)

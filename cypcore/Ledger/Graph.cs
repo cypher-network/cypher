@@ -150,21 +150,19 @@ namespace CYPCore.Ledger
                 var pooledBlockGraph = _pooledBlockGraphs.FirstOrDefault(x =>
                     x.Block.Hash == blockGraph.Block.Hash && x.Block.Node == blockGraph.Block.Node &&
                     x.Block.Round == blockGraph.Block.Round && x.Deps.Count == blockGraph.Deps.Count);
-                if (pooledBlockGraph != null)
+                if (pooledBlockGraph == null)
                 {
-                    var block = MessagePackSerializer.Deserialize<Models.Block>(blockGraph.Block.Data);
-                    if (!pooledBlockGraph.PublicKey.Xor(block.BlockPos.PublicKey))
-                    {
-                        _pooledBlockGraphs.Add(blockGraph);
-                        OnBlockGraphAdd(new BlockGraphEventArgs(blockGraph));
-                    }
-                    else
-                    {
-                        return VerifyResult.AlreadyExists;
-                    }
+                    _pooledBlockGraphs.Add(blockGraph);
+                    OnBlockGraphAdd(new BlockGraphEventArgs(blockGraph));
                 }
                 else
                 {
+                    var block = MessagePackSerializer.Deserialize<Models.Block>(blockGraph.Block.Data);
+                    if (pooledBlockGraph.PublicKey.Xor(block.BlockPos.PublicKey))
+                    {
+                        return VerifyResult.AlreadyExists;
+                    }
+
                     _pooledBlockGraphs.Add(blockGraph);
                     OnBlockGraphAdd(new BlockGraphEventArgs(blockGraph));
                 }
