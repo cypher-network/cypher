@@ -142,23 +142,40 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="blockGraph"></param>
         /// <returns></returns>
-        public Task<VerifyResult> TryAddBlockGraph(BlockGraph blockGraph)
+        public VerifyResult TryAddBlockGraph(BlockGraph blockGraph)
         {
             Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
             try
             {
-                if (_pooledBlockGraphs.Contains(blockGraph)) return Task.FromResult(VerifyResult.AlreadyExists);
-
-                _pooledBlockGraphs.Add(blockGraph);
-                OnBlockGraphAdd(new BlockGraphEventArgs(blockGraph));
+                var pooledBlockGraph = _pooledBlockGraphs.FirstOrDefault(x =>
+                    x.Block.Hash == blockGraph.Block.Hash && x.Block.Node == blockGraph.Block.Node &&
+                    x.Block.Round == blockGraph.Block.Round && x.Deps.Count == blockGraph.Deps.Count);
+                if (pooledBlockGraph != null)
+                {
+                    var block = MessagePackSerializer.Deserialize<Models.Block>(blockGraph.Block.Data);
+                    if (!pooledBlockGraph.PublicKey.Xor(block.BlockPos.PublicKey))
+                    {
+                        _pooledBlockGraphs.Add(blockGraph);
+                        OnBlockGraphAdd(new BlockGraphEventArgs(blockGraph));
+                    }
+                    else
+                    {
+                        return VerifyResult.AlreadyExists;
+                    }
+                }
+                else
+                {
+                    _pooledBlockGraphs.Add(blockGraph);
+                    OnBlockGraphAdd(new BlockGraphEventArgs(blockGraph));
+                }
             }
             catch (Exception ex)
             {
                 _logger.Here().Error(ex, ex.Message);
-                return Task.FromResult(VerifyResult.Invalid);
+                return VerifyResult.Invalid;
             }
 
-            return Task.FromResult(VerifyResult.Succeed);
+            return VerifyResult.Succeed;
         }
 
         /// <summary>
