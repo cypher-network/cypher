@@ -44,7 +44,6 @@ namespace CYPCore.Ledger
     public class PosMinting : IPosMinting
     {
         public const uint StakeTimeSlot = 0x00000005;
-        public const uint DecideWinnerSlot = 0x0000000A;
 
         private readonly IGraph _graph;
         private readonly IMemoryPool _memoryPool;
@@ -57,7 +56,6 @@ namespace CYPCore.Ledger
         private readonly KeyPair _keyPair;
         private readonly StakingConfigurationOptions _stakingConfigurationOptions;
         private readonly Timer _stakingTimer;
-        private readonly Timer _decideWinnerTimer;
 
         public PosMinting(IGraph graph, IMemoryPool memoryPool, ISerfClient serfClient, IUnitOfWork unitOfWork,
             ISigning signing, IValidator validator, ISync sync, StakingConfigurationOptions stakingConfigurationOptions,
@@ -75,7 +73,6 @@ namespace CYPCore.Ledger
             _keyPair = _signing.GetOrUpsertKeyName(_signing.DefaultSigningKeyName).GetAwaiter().GetResult();
 
             _stakingTimer = new Timer(async _ => await Staking(), null, TimeSpan.FromSeconds(35), TimeSpan.FromSeconds(StakeTimeSlot));
-            _decideWinnerTimer = new Timer(async _ => await DecideWinner(), null, TimeSpan.FromSeconds(40), TimeSpan.FromSeconds(DecideWinnerSlot));
 
             applicationLifetime.ApplicationStopping.Register(OnApplicationStopping);
         }
@@ -89,7 +86,6 @@ namespace CYPCore.Ledger
         {
             _logger.Here().Information("Application stopping");
             _stakingTimer?.Change(Timeout.Infinite, 0);
-            _decideWinnerTimer?.Change(Timeout.Infinite, 0);
         }
 
         /// <summary>
@@ -201,76 +197,6 @@ namespace CYPCore.Ledger
         /// <summary>
         /// 
         /// </summary>
-        /// <returns></returns>
-        private async Task DecideWinner()
-        {
-            if (_sync.SyncRunning) return;
-            try
-            {
-                var height = await _unitOfWork.HashChainRepository.GetBlockHeightAsync();
-                var prevBlock = await _unitOfWork.HashChainRepository.GetAsync(block =>
-                    new ValueTask<bool>(block.Height == (ulong)height));
-                if (prevBlock == null) return;
-                var deliveredBlocks =
-                    await _unitOfWork.DeliveredRepository.WhereAsync(block =>
-                        new ValueTask<bool>(block.Height == (ulong)(height + 1)));
-                var blockWinners = deliveredBlocks.Select(deliveredBlock => new BlockWinner
-                {
-                    Block = deliveredBlock,
-                    Finish = new TimeSpan(deliveredBlock.BlockHeader.Locktime).Subtract(new TimeSpan(prevBlock.BlockHeader.Locktime)).Ticks
-                }).ToList();
-                if (blockWinners.Any() != true) return;
-                _logger.Here().Information("RunStakingWinnerAsync");
-                var winners = blockWinners.Where(winner =>
-                    winner.Finish <= blockWinners.Select(endTime => endTime.Finish).Min()).ToArray();
-                var blockWinner = winners.Length switch
-                {
-                    > 2 => winners.FirstOrDefault(winner =>
-                        winner.Block.BlockPos.Bits >= blockWinners.Select(x => x.Block.BlockPos.Bits).Max()),
-                    _ => winners.First()
-                };
-                if (blockWinner != null)
-                {
-                    _logger.Here().Information("RunStakingWinnerAsync we have a winner");
-                    var exists = await _validator.BlockExists(blockWinner.Block);
-                    if (exists == VerifyResult.AlreadyExists)
-                    {
-                        _logger.Here().Error("Block winner already exists");
-                        await RemoveDeliveredBlock(blockWinner);
-                        return;
-                    }
-
-                    var verifyBlockHeader = await _validator.VerifyBlock(blockWinner.Block);
-                    if (verifyBlockHeader == VerifyResult.UnableToVerify)
-                    {
-                        _logger.Here().Error("Unable to verify the block");
-                        await RemoveDeliveredBlock(blockWinner);
-                        return;
-                    }
-
-                    _logger.Here().Information("RunStakingWinnerAsync saving winner");
-                    var saved = await _unitOfWork.HashChainRepository.PutAsync(blockWinner.Block.ToIdentifier(),
-                        blockWinner.Block);
-                    if (!saved)
-                    {
-                        _logger.Here().Error("Unable to save the block winner");
-                        return;
-                    }
-                }
-
-                var removeDeliveredBlockTasks = new List<Task>();
-                blockWinners.ForEach(winner => { removeDeliveredBlockTasks.Add(RemoveDeliveredBlock(winner)); });
-                await Task.WhenAll(removeDeliveredBlockTasks);
-            }
-            catch (Exception ex)
-            {
-                _logger.Here().Error(ex, "Decide stake winner Failed");
-            }
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
         /// <param name="transaction"></param>
         /// <returns></returns>
         private async Task<Transaction> GetValidTransactionAsync(Transaction transaction)
@@ -279,13 +205,6 @@ namespace CYPCore.Ledger
             try
             {
                 var verifyTransaction = await _validator.VerifyTransaction(transaction);
-                var removed = _memoryPool.Remove(transaction);
-                if (removed == VerifyResult.UnableToVerify)
-                {
-                    _logger.Here().Error("Unable to remove the transaction from the memory pool {@TxnId}",
-                        transaction.TxnId);
-                }
-
                 if (verifyTransaction == VerifyResult.Succeed)
                 {
                     return transaction;
@@ -297,22 +216,6 @@ namespace CYPCore.Ledger
             }
 
             return null;
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="winner"></param>
-        /// <returns></returns>
-        private async Task RemoveDeliveredBlock(BlockWinner winner)
-        {
-            Guard.Argument(winner, nameof(winner)).NotNull();
-            var removed = await _unitOfWork.DeliveredRepository.RemoveAsync(winner.Block.ToIdentifier());
-            if (!removed)
-            {
-                _logger.Here().Error("Unable to remove potential block winner {@MerkelRoot}",
-                    winner.Block.Hash);
-            }
         }
 
         /// <summary>

@@ -20,6 +20,7 @@ using CYPCore.Serf;
 using Dawn;
 using MessagePack;
 using Serilog;
+using Block = CYPCore.Models.Block;
 using Interpreted = CYPCore.Consensus.Models.Interpreted;
 
 namespace CYPCore.Ledger
@@ -374,7 +375,7 @@ namespace CYPCore.Ledger
         {
             var activityTrackSubscription = _trackingBlockGraphAdded
                 .Where(data => data.EventArgs.BlockGraph.Block.Round == GetRound() + 1)
-                .GroupByUntil(item => item.EventArgs.Hash, g => g.Throttle(TimeSpan.FromSeconds(10)).Take(1))
+                .GroupByUntil(item => item.EventArgs.Hash, g => g.Throttle(TimeSpan.FromSeconds(1)).Take(1))
                 .SelectMany(group => group.Buffer(TimeSpan.FromSeconds(1), 500)).Subscribe(async blockGraphs =>
                 {
                     await Task.Run(async () =>
@@ -422,7 +423,7 @@ namespace CYPCore.Ledger
         /// </summary>
         private IDisposable TryAddBlockmaniaListener()
         {
-            var activityTrackSubscription = _trackingBlockGraphCompleted.Delay(TimeSpan.FromSeconds(10))
+            var activityTrackSubscription = _trackingBlockGraphCompleted.Delay(TimeSpan.FromSeconds(40))
                 .GroupBy(g => g.EventArgs.Hash).SelectMany(blockGraph => Observable.FromAsync(async () =>
                     await _unitOfWork.BlockGraphRepository.WhereAsync(x =>
                         new ValueTask<bool>(x.Block.Round == GetRound() + 1 && x.Block.Hash.Equals(blockGraph.Key)))))
@@ -430,7 +431,7 @@ namespace CYPCore.Ledger
                 {
                     try
                     {
-                        var nodeCount = blockgraphs.Select(n => n.Block.Node).Count();
+                        var nodeCount = blockgraphs.Select(n => n.Block.Node).Distinct().Count();
                         var f = (nodeCount - 1) / 3;
                         var quorum2F1 = 2 * f + 1;
                         if (nodeCount < quorum2F1) return;
@@ -466,10 +467,12 @@ namespace CYPCore.Ledger
             _logger.Here().Information("Delivered");
             try
             {
-                foreach (var next in deliver.Blocks.Where(x => x.Data != null))
+                var blocks = deliver.Blocks.Where(x => x.Data != null).ToArray();
+                foreach (var next in blocks)
                 {
                     var blockGraph = await _unitOfWork.BlockGraphRepository.GetAsync(x =>
-                        new ValueTask<bool>(x.Block.Hash.Equals(next.Hash) && x.Block.Round == next.Round));
+                        new ValueTask<bool>(x.Block.Hash.Equals(next.Hash) && x.Block.Node == next.Node &&
+                                            x.Block.Round == next.Round));
                     if (blockGraph == null)
                     {
                         _logger.Here()
@@ -480,7 +483,7 @@ namespace CYPCore.Ledger
                     }
 
                     await RemoveBlockGraph(blockGraph, next);
-                    var block = MessagePackSerializer.Deserialize<Models.Block>(next.Data);
+                    var block = MessagePackSerializer.Deserialize<Block>(next.Data);
                     var exists = await _validator.BlockExists(block);
                     if (exists == VerifyResult.AlreadyExists)
                     {
@@ -509,6 +512,86 @@ namespace CYPCore.Ledger
             catch (Exception ex)
             {
                 _logger.Here().Error(ex, "Delivered error");
+            }
+            finally
+            {
+                await DecideWinnerAsync();
+            }
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        private async Task DecideWinnerAsync()
+        {
+            try
+            {
+                var height = await _unitOfWork.HashChainRepository.GetBlockHeightAsync();
+                var prevBlock = await _unitOfWork.HashChainRepository.GetAsync(block =>
+                    new ValueTask<bool>(block.Height == (ulong)height));
+                if (prevBlock == null) return;
+                var deliveredBlocks = await _unitOfWork.DeliveredRepository.WhereAsync(block =>
+                    new ValueTask<bool>(block.Height == (ulong)(height + 1)));
+                if (deliveredBlocks.Any() != true) return;
+                _logger.Here().Information("DecideWinnerAsync");
+                var winners = deliveredBlocks.Where(x =>
+                    x.BlockPos.Solution == deliveredBlocks.Select(n => n.BlockPos.Solution).Min()).ToArray();
+                var blockWinner = winners.Length switch
+                {
+                    > 2 => winners.FirstOrDefault(winner =>
+                        winner.BlockPos.Solution >= deliveredBlocks.Select(x => x.BlockPos.Solution).Max()),
+                    _ => winners[0]
+                };
+                if (blockWinner != null)
+                {
+                    _logger.Here().Information("DecideWinnerAsync we have a winner");
+                    var exists = await _validator.BlockExists(blockWinner);
+                    if (exists == VerifyResult.AlreadyExists)
+                    {
+                        _logger.Here().Error("Block winner already exists");
+                        await RemoveDeliveredBlock(blockWinner);
+                        return;
+                    }
+
+                    var verifyBlockHeader = await _validator.VerifyBlock(blockWinner);
+                    if (verifyBlockHeader == VerifyResult.UnableToVerify)
+                    {
+                        _logger.Here().Error("Unable to verify the block");
+                        await RemoveDeliveredBlock(blockWinner);
+                        return;
+                    }
+
+                    _logger.Here().Information("DecideWinnerAsync saving winner");
+                    var saved = await _unitOfWork.HashChainRepository.PutAsync(blockWinner.ToIdentifier(), blockWinner);
+                    if (!saved)
+                    {
+                        _logger.Here().Error("Unable to save the block winner");
+                        return;
+                    }
+                }
+
+                var removeDeliveredBlockTasks = new List<Task>();
+                deliveredBlocks.ForEach(block => { removeDeliveredBlockTasks.Add(RemoveDeliveredBlock(block)); });
+                await Task.WhenAll(removeDeliveredBlockTasks);
+            }
+            catch (Exception ex)
+            {
+                _logger.Here().Error(ex, "Deciding winner Failed");
+            }
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="block"></param>
+        private async Task RemoveDeliveredBlock(Block block)
+        {
+            Guard.Argument(block, nameof(block)).NotNull();
+            var removed = await _unitOfWork.DeliveredRepository.RemoveAsync(block.ToIdentifier());
+            if (!removed)
+            {
+                _logger.Here().Error("Unable to remove potential block winner {@MerkelRoot}",
+                    block.Hash);
             }
         }
 
