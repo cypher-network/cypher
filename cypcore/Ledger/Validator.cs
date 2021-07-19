@@ -45,6 +45,7 @@ namespace CYPCore.Ledger
         ulong Reward(ulong solution, decimal runningDistribution);
         decimal NetworkShare(ulong solution, decimal runningDistribution);
         ulong Solution(byte[] vrfSig, byte[] kernel);
+        VerifyResult VerifyLotteryWinner(byte[] calculateVrfSig, byte[] kernel);
         long GetAdjustedTimeAsUnixTimestamp(uint timeStampMask);
         VerifyResult VerifyLockTime(LockTime target, string script);
         VerifyResult VerifyCommitSum(Transaction transaction);
@@ -382,6 +383,12 @@ namespace CYPCore.Ledger
             {
                 _logger.Here().Fatal("Unable to verify the Vrf Proof");
                 return verifyVrfProof;
+            }
+
+            var verifyLotteryWinner = VerifyLotteryWinner(block.BlockPos.VrfProof, hash);
+            if (verifyLotteryWinner == VerifyResult.UnableToVerify)
+            {
+                _logger.Here().Fatal("Unable to verify lottery winner");
             }
 
             var verifySolution = VerifySolution(block.BlockPos.VrfSig, hash,
@@ -818,6 +825,23 @@ namespace CYPCore.Ledger
             }
 
             return (ulong)itr;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="calculateVrfSig"></param>
+        /// <param name="kernel"></param>
+        /// <returns></returns>
+        public VerifyResult VerifyLotteryWinner(byte[] calculateVrfSig, byte[] kernel)
+        {
+            Guard.Argument(calculateVrfSig, nameof(calculateVrfSig)).NotNull().MaxCount(96);
+            Guard.Argument(kernel, nameof(kernel)).NotNull().MaxCount(32);
+
+            var v = new BigInteger(Hasher.Hash(calculateVrfSig).HexToByte());
+            var T = new BigInteger(kernel);
+
+            return v.CompareTo(T) <= 0 ? VerifyResult.Succeed : VerifyResult.UnableToVerify;
         }
 
         /// <summary>

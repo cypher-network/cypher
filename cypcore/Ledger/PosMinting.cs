@@ -2,7 +2,7 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
-using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Net.Http;
@@ -43,7 +43,7 @@ namespace CYPCore.Ledger
     /// </summary>
     public class PosMinting : IPosMinting
     {
-        public const uint StakeTimeSlot = 0x00000005;
+        public const uint StakeTimeSlot = 0x0000000A;
 
         private readonly IGraph _graph;
         private readonly IMemoryPool _memoryPool;
@@ -99,39 +99,32 @@ namespace CYPCore.Ledger
 
             try
             {
+                if (_stakingConfigurationOptions.OnOff != true)
+                {
+                    _stakingTimer?.Change(Timeout.Infinite, 0);
+                    return;
+                }
+
+                StakeRunning = true;
+
                 var height = await _unitOfWork.HashChainRepository.GetBlockHeightAsync();
                 var prevBlock =
                     await _unitOfWork.HashChainRepository.GetAsync(x =>
                         new ValueTask<bool>(x.Height == (ulong)height));
-                if (prevBlock == null)
-                {
-                    _logger.Here().Information("No previous block available for processing");
-                    return;
-                }
+                if (prevBlock == null) throw new Exception("No previous block available for processing");
 
                 var coinStakeTimestamp = _validator.GetAdjustedTimeAsUnixTimestamp(StakeTimeSlot);
                 if (coinStakeTimestamp <= prevBlock.BlockHeader.Locktime)
                 {
-                    _logger.Here()
-                        .Warning(
-                            "Current coinstake time {@Timestamp} is not greater than last search timestamp {@Locktime}",
-                            coinStakeTimestamp, prevBlock.BlockHeader.Locktime);
-                    return;
+                    throw new Exception(
+                        $"Current coinstake time {coinStakeTimestamp} is not greater than last search timestamp {prevBlock.BlockHeader.Locktime}");
                 }
 
                 var transactionModels = _memoryPool.Range(0, _stakingConfigurationOptions.TransactionsPerBlock);
-                if (_stakingConfigurationOptions.OnOff != true)
-                {
-                    transactionModels.ForEach(x => { _memoryPool.Remove(x); });
-                    return;
-                }
-
                 var transactionTasks = transactionModels.Select(GetValidTransactionAsync);
                 transactionModels = await Task.WhenAll(transactionTasks);
-                if (transactionModels.Any() != true) return;
+                if (transactionModels.Any() != true) throw new Exception("No transaction available for processing");
                 var transactions = transactionModels.ToList();
-
-                StakeRunning = true;
 
                 byte[] hash;
                 using (TangramStream ts = new())
@@ -140,6 +133,7 @@ namespace CYPCore.Ledger
                     {
                         try
                         {
+                            if (x == null) return;
                             var hasAnyErrors = x.Validate();
                             if (hasAnyErrors.Any() != true)
                             {
@@ -151,7 +145,7 @@ namespace CYPCore.Ledger
                             _logger.Here().Error("Unable to verify the transaction {@TxId}", x.TxnId.HexToByte());
                         }
                     });
-                    if (ts.ToArray().Length == 0) throw new Exception();
+                    if (ts.ToArray().Length == 0) throw new Exception("Stream size is zero");
                     hash = Hasher.Hash(ts.ToArray()).HexToByte();
                 }
 
@@ -159,34 +153,41 @@ namespace CYPCore.Ledger
                     _signing.CalculateVrfSignature(Curve.decodePrivatePoint(_keyPair.PrivateKey), hash);
                 var verifyVrfSignature = _signing.VerifyVrfSignature(Curve.decodePoint(_keyPair.PublicKey, 0),
                     hash, calculateVrfSignature);
-                var solution = _validator.Solution(verifyVrfSignature, hash);
-                if (solution == 0) throw new Exception();
-                var runningDistribution = await _validator.GetRunningDistribution();
-                var networkShare = _validator.NetworkShare(solution, runningDistribution);
-                var reward = _validator.Reward(solution, runningDistribution);
-                var bits = _validator.Difficulty(solution, networkShare);
-                var coinStakeTransaction = await CoinbaseTransactionAsync(bits, reward);
-                if (coinStakeTransaction == null)
+                if (_validator.VerifyLotteryWinner(calculateVrfSignature, hash) == VerifyResult.Succeed)
                 {
-                    _logger.Here().Error("Unable to create the coinstake transaction");
-                    throw new Exception();
-                }
+                    var solution = _validator.Solution(verifyVrfSignature, hash);
+                    if (solution == 0) throw new Exception("Solution is zero");
+                    var runningDistribution = await _validator.GetRunningDistribution();
+                    var networkShare = _validator.NetworkShare(solution, runningDistribution);
+                    var reward = _validator.Reward(solution, runningDistribution);
+                    var bits = _validator.Difficulty(solution, networkShare);
+                    var coinStakeTransaction = await CoinbaseTransactionAsync(bits, reward);
+                    if (coinStakeTransaction == null) throw new Exception("Unable to create coinstake transaction");
 
-                transactions.Insert(0, coinStakeTransaction);
-                var block = CreateBlock(transactions.ToArray(), calculateVrfSignature, verifyVrfSignature,
-                    solution, bits, prevBlock);
-                if (block == null)
+                    transactions.Insert(0, coinStakeTransaction);
+
+                    var block = CreateBlock(transactions.ToArray(), calculateVrfSignature, verifyVrfSignature, solution,
+                        bits, prevBlock);
+                    if (block == null) throw new Exception("Unable to create the block");
+                    _logger.Here().Information(
+                        "DateTime:{@DT} Running Distribution:{@RunningDistribution} Solution:{@Solution} Network Share:{@NetworkShare} Reward:{Reward} Bits:{@Bits}",
+                        DateTime.UtcNow.ToString(CultureInfo.InvariantCulture),
+                        runningDistribution.ToString(CultureInfo.InvariantCulture),
+                        solution.ToString(CultureInfo.InvariantCulture),
+                        networkShare.ToString(CultureInfo.InvariantCulture),
+                        reward.ToString(CultureInfo.InvariantCulture), bits.ToString(CultureInfo.InvariantCulture));
+
+                    _graph.TryAddBlockGraph(CreateBlockGraph(block, prevBlock));
+                    transactions.ForEach(x => _memoryPool.Remove(x));
+                }
+                else
                 {
-                    _logger.Here().Fatal("Unable to create the block");
-                    throw new Exception();
+                    _logger.Here().Information("Staking node was not selected as a winner for this round");
                 }
-
-                var blockGraph = CreateBlockGraph(block, prevBlock);
-                _graph.TryAddBlockGraph(blockGraph);
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, "PoS minting Failed");
+                _logger.Here().Error(ex, "Proof-Of-Stake minting failed");
             }
             finally
             {
