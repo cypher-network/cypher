@@ -68,7 +68,7 @@ namespace CYPCore.Ledger
     public class Validator : IValidator
     {
         public static readonly byte[] BlockZeroMerkel =
-            "c4cf99ce84c74cdaa353202ab19bc159f2396eb7a128f7758fb432f6092fb126".HexToByte();
+            "dc43cfd9fc842bbd59834199b0126b17820080c322418375ac8c4c0ad4dce497".HexToByte();
 
         public static readonly byte[] BlockZeroPreHash =
             "3030303030303030437970686572204e6574776f726b2076742e322e32303231".HexToByte();
@@ -416,7 +416,7 @@ namespace CYPCore.Ledger
             }
 
             if (block.BlockHeader.MerkleRoot.Xor(BlockZeroMerkel) &&
-                block.BlockHeader.PrevBlockHash.Xor(BlockZeroPreHash)) return VerifyResult.Succeed;
+                block.BlockHeader.PrevBlockHash.Xor(Hasher.Hash(BlockZeroPreHash).HexToByte())) return VerifyResult.Succeed;
 
             var prevBlock = await _unitOfWork.HashChainRepository.GetAsync(x =>
                 new ValueTask<bool>(x.Hash.Xor(block.BlockHeader.PrevBlockHash)));
