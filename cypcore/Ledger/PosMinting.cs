@@ -119,7 +119,7 @@ namespace CYPCore.Ledger
                     throw new Exception(
                         $"Current coinstake time {coinStakeTimestamp} is not greater than last search timestamp {prevBlock.BlockHeader.Locktime}");
                 }
-                
+
                 var transactionModels = _memoryPool.Range(0, _stakingConfigurationOptions.TransactionsPerBlock);
                 var transactionTasks = transactionModels.Select(GetValidTransactionAsync);
                 transactionModels = await Task.WhenAll(transactionTasks);
