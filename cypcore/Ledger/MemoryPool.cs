@@ -109,7 +109,7 @@ namespace CYPCore.Ledger
             Transaction transaction = null;
             try
             {
-                transaction = _pooledTransactions.FirstOrDefault(x => x.TxnId == transactionId.HexToByte());
+                transaction = _pooledTransactions.FirstOrDefault(x => x.TxnId.SequenceEqual(transactionId));
             }
             catch (Exception ex)
             {

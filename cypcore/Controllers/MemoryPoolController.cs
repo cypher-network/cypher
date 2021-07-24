@@ -5,6 +5,7 @@ using System;
 using System.Threading.Tasks;
 using CYPCore.Extensions;
 using CYPCore.Ledger;
+using MessagePack;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Serilog;
@@ -13,7 +14,7 @@ namespace CYPCore.Controllers
 {
     [Route("mem")]
     [ApiController]
-    public class MemoryPoolController
+    public class MemoryPoolController : Controller
     {
         private readonly IMemoryPool _memoryPool;
         private readonly ILogger _logger;
@@ -51,6 +52,33 @@ namespace CYPCore.Controllers
 
             return new StatusCodeResult(StatusCodes.Status500InternalServerError);
         }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        [HttpGet("transaction/{id}", Name = "GetMempoolTransaction")]
+        [ProducesResponseType(typeof(byte[]), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public IActionResult GetTransaction(string id)
+        {
+            try
+            {
+                var transaction = _memoryPool.Get(id.HexToByte());
+                if (transaction != null)
+                {
+                    var buffer = MessagePackSerializer.Serialize(transaction);
+                    return new ObjectResult(new { messagepack = buffer });
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Here().Error(ex, "Unable to get the memory pool transaction");
+            }
+
+            return NotFound();
+        }
+
 
         /// <summary>
         /// 
