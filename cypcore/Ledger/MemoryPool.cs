@@ -9,9 +9,11 @@ using Collections.Pooled;
 using Dawn;
 using Serilog;
 using CYPCore.Extensions;
+using CYPCore.Helper;
 using CYPCore.Models;
 using CYPCore.Network;
 using MessagePack;
+using NBitcoin;
 using Transaction = CYPCore.Models.Transaction;
 
 namespace CYPCore.Ledger
@@ -64,7 +66,16 @@ namespace CYPCore.Ledger
 
             Observable.Timer(TimeSpan.Zero, TimeSpan.FromHours(1)).Subscribe(x =>
             {
-                _pooledSeenTransactions.RemoveRange(0, Count());
+                var removeTransactionsBeforeTimestamp = Util.GetUtcNow().AddHours(-1).ToUnixTimestamp();
+                var removeTransactions = _pooledTransactions
+                    .Where(transaction => transaction.Vtime.L < removeTransactionsBeforeTimestamp)
+                    .ToList();
+
+                foreach (var removeTransaction in removeTransactions)
+                {
+                    _pooledTransactions.Remove(removeTransaction);
+                    _pooledSeenTransactions.Remove(removeTransaction.TxnId.ByteToHex());
+                }
             });
         }
 
