@@ -203,9 +203,12 @@ namespace CYPCore.Ledger
         private async Task<Transaction> GetValidTransactionAsync(Transaction transaction)
         {
             Guard.Argument(transaction, nameof(transaction)).NotNull();
+            var hasError = false;
+            var verifyTransaction = VerifyResult.Unknown;
+            
             try
             {
-                var verifyTransaction = await _validator.VerifyTransaction(transaction);
+                verifyTransaction = await _validator.VerifyTransaction(transaction);
                 if (verifyTransaction == VerifyResult.Succeed)
                 {
                     return transaction;
@@ -213,7 +216,20 @@ namespace CYPCore.Ledger
             }
             catch (Exception ex)
             {
+                hasError = true;
                 _logger.Here().Error(ex, "Unable to verify the transaction");
+            }
+            finally
+            {
+                if (hasError || verifyTransaction == VerifyResult.UnableToVerify)
+                {
+                    var removed = _memoryPool.Remove(transaction);
+                    if (removed != VerifyResult.Succeed)
+                    {
+                        _logger.Here().Error("Unable to remove memory pool transaction {@TxnId}",
+                            transaction.TxnId.ByteToHex());
+                    }
+                }
             }
 
             return null;
