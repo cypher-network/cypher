@@ -8,13 +8,11 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.AspNetCore.Hosting;
-
-using Autofac.Extensions.DependencyInjection;
 using Autofac;
-
 using CYPNode.StartupExtensions;
 using CYPCore.Consensus;
 using CYPCore.Extensions;
+using CYPCore.Models;
 using CYPCore.Network;
 using Polly;
 
@@ -22,6 +20,8 @@ namespace CYPNode
 {
     public class Startup
     {
+        private readonly IConfiguration _configuration;
+
         /// <summary>
         /// 
         /// </summary>
@@ -29,11 +29,8 @@ namespace CYPNode
         /// <param name="configuration"></param>
         public Startup(IWebHostEnvironment env, IConfiguration configuration)
         {
-            Configuration = configuration;
+            _configuration = configuration;
         }
-
-        public IConfiguration Configuration { get; private set; }
-        public ILifetimeScope AutofacContainer { get; private set; }
 
         /// <summary>
         ///
@@ -41,15 +38,20 @@ namespace CYPNode
         /// <param name="services"></param>
         public void ConfigureServices(IServiceCollection services)
         {
+            services.AddQueuePolicy(options =>
+            {
+                options.MaxConcurrentRequests = 750;
+                options.RequestQueueLimit = 15000;
+            });
             services.AddHttpClient<NetworkClient>().AddPolicyHandler(Policy.TimeoutAsync<HttpResponseMessage>(5));
             services.AddResponseCompression();
             services.AddMvc(option => option.EnableEndpointRouting = false).SetCompatibilityVersion(CompatibilityVersion.Version_3_0);
             services.AddControllers();
             services.AddSwaggerGenOptions();
             services.AddHttpContextAccessor();
-            services.AddOptions();
-            services.Configure<PbftOptions>(Configuration);
-            services.AddDataKeysProtection(Configuration);
+            services.AddOptions().Configure<NetworkSetting>(options => _configuration.GetSection("Network").Bind(options));
+            services.Configure<PbftOptions>(_configuration);
+            services.AddDataKeysProtection(_configuration);
         }
 
         /// <summary>
@@ -59,17 +61,17 @@ namespace CYPNode
         public void ConfigureContainer(ContainerBuilder builder)
         {
             builder.AddSerilog();
-            builder.AddNodeMonitorService(Configuration);
-            builder.AddSwimGossipClient(Configuration);
-            builder.AddSerfProcessService(Configuration);
-            builder.AddUnitOfWork(Configuration);
+            builder.AddNodeMonitorService(_configuration);
+            builder.AddSwimGossipClient(_configuration);
+            builder.AddSerfProcessService(_configuration);
+            builder.AddUnitOfWork(_configuration);
             builder.AddGraph();
-            builder.AddMemoryPool(Configuration);
+            builder.AddMemoryPool();
             builder.AddSigning();
             builder.AddValidator();
             builder.AddMembershipService();
-            builder.AddPosMinting(Configuration);
-            builder.AddSync(Configuration);
+            builder.AddPosMinting(_configuration);
+            builder.AddSync(_configuration);
             builder.AddLocalNode();
         }
 
@@ -80,12 +82,13 @@ namespace CYPNode
         /// <param name="lifetime"></param>
         public void Configure(IApplicationBuilder app, IHostApplicationLifetime lifetime)
         {
-            var pathBase = Configuration["PATH_BASE"];
+            var pathBase = _configuration["PATH_BASE"];
             if (!string.IsNullOrEmpty(pathBase))
             {
                 app.UsePathBase(pathBase);
             }
 
+            app.UseConcurrencyLimiter();
             app.UseStaticFiles();
             app.UseRouting();
             app.UseCors("default");
@@ -100,16 +103,6 @@ namespace CYPNode
                    c.OAuthClientId("cypherswaggerui");
                    c.OAuthAppName("CYPNode Swagger UI");
                });
-
-            AutofacContainer = app.ApplicationServices.GetAutofacRoot();
-
-            lifetime.ApplicationStarted.Register(() =>
-            {
-            });
-
-            lifetime.ApplicationStopping.Register(() =>
-            {
-            });
         }
     }
 }
