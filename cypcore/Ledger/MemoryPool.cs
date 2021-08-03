@@ -6,12 +6,11 @@ using System.Linq;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
 using Collections.Pooled;
-using Dawn;
-using Serilog;
 using CYPCore.Extensions;
 using CYPCore.Helper;
 using CYPCore.Models;
 using CYPCore.Network;
+using Dawn;
 using MessagePack;
 using NBitcoin;
 using Transaction = CYPCore.Models.Transaction;
@@ -27,8 +26,6 @@ namespace CYPCore.Ledger
         Transaction Get(byte[] hash);
         Transaction[] GetMany();
         Transaction[] Range(int skip, int take);
-        IObservable<Transaction> ObserveRange(int skip, int take);
-        IObservable<Transaction> ObserveTake(int take);
         VerifyResult Remove(Transaction transaction);
         int Count();
     }
@@ -49,8 +46,7 @@ namespace CYPCore.Ledger
         private const int MaxMemoryPoolTransactions = 10_000;
         private const int MaxMemoryPoolSeenTransactions = 50_000;
 
-        public MemoryPool(ILocalNode localNode, IValidator validator,
-            ILeakRateConfigurationOption leakRateConfigurationOption, ILogger logger)
+        public MemoryPool(ILocalNode localNode, IValidator validator, IOptions<NetworkSetting> networkSetting, ILogger logger)
         {
             _localNode = localNode;
             _validator = validator;
@@ -59,9 +55,9 @@ namespace CYPCore.Ledger
             _pooledSeenTransactions = new PooledList<string>(MaxMemoryPoolSeenTransactions);
             _leakyBucket = new LeakyBucket(new BucketConfiguration
             {
-                LeakRate = leakRateConfigurationOption.LeakRate,
-                LeakRateTimeSpan = TimeSpan.FromSeconds(leakRateConfigurationOption.LeakRateNumberOfSeconds),
-                MaxFill = leakRateConfigurationOption.MaxFill
+                LeakRate = networkSetting.Value.TransactionRateConfig.LeakRate,
+                LeakRateTimeSpan = TimeSpan.FromSeconds(networkSetting.Value.TransactionRateConfig.LeakRateNumberOfSeconds),
+                MaxFill = networkSetting.Value.TransactionRateConfig.MaxFill
             });
 
             Observable.Timer(TimeSpan.Zero, TimeSpan.FromHours(1)).Subscribe(x =>
@@ -149,35 +145,6 @@ namespace CYPCore.Ledger
         {
             Guard.Argument(skip, nameof(skip)).NotNegative();
             return _pooledTransactions.OrderByDescending(x => x.Vtime.I).Skip(skip).Take(take).Select(x => x).ToArray();
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="skip"></param>
-        /// <param name="take"></param>
-        /// <returns></returns>
-        public IObservable<Transaction> ObserveRange(int skip, int take)
-        {
-            return Observable.Defer(() =>
-            {
-                var transactions = Range(skip, take);
-                return transactions.ToObservable();
-            });
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="take"></param>
-        /// <returns></returns>
-        public IObservable<Transaction> ObserveTake(int take)
-        {
-            return Observable.Defer(() =>
-            {
-                var transactions = Range(0, take);
-                return transactions.ToObservable();
-            });
         }
 
         /// <summary>
