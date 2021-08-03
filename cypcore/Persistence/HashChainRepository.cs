@@ -35,7 +35,13 @@ namespace CYPCore.Persistence
             SetTableName(StoreDb.HashChainTable.ToString());
         }
 
-        public Task<bool> PutAsync(byte[] key, Block data)
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="key"></param>
+        /// <param name="data"></param>
+        /// <returns></returns>
+        public new Task<bool> PutAsync(byte[] key, Block data)
         {
             Guard.Argument(key, nameof(key)).NotNull();
             Guard.Argument(data, nameof(data)).NotNull();

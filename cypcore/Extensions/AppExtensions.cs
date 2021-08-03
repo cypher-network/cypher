@@ -51,19 +51,10 @@ namespace CYPCore.Extensions
         /// 
         /// </summary>
         /// <param name="builder"></param>
-        /// <param name="configuration"></param>
         /// <returns></returns>
-        public static ContainerBuilder AddMemoryPool(this ContainerBuilder builder, IConfiguration configuration)
+        public static ContainerBuilder AddMemoryPool(this ContainerBuilder builder)
         {
-            var transactionLeakRateConfigurationOption = new TransactionLeakRateConfigurationOption();
-            configuration.Bind("Network:TransactionRateConfig", transactionLeakRateConfigurationOption);
-            builder.Register(c =>
-            {
-                MemoryPool memoryPool =
-                    new(c.Resolve<ILocalNode>(), c.Resolve<IValidator>(), transactionLeakRateConfigurationOption, c
-                        .Resolve<Serilog.ILogger>());
-                return memoryPool;
-            }).As<IMemoryPool>().SingleInstance();
+            builder.RegisterType<MemoryPool>().As<IMemoryPool>().SingleInstance();
             return builder;
         }
 

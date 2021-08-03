@@ -6,11 +6,12 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using CYPCore.Extensions;
-using Serilog;
 using CYPCore.Models;
 using CYPCore.Network;
 using CYPCore.Persistence;
 using Dawn;
+using Serilog;
+using Block = CYPCore.Models.Block;
 
 namespace CYPCore.Ledger
 {
@@ -58,15 +59,22 @@ namespace CYPCore.Ledger
             if (SyncRunning) return;
             SyncRunning = true;
             _logger.Here().Information("Trying to Synchronize");
+
             try
             {
                 Dictionary<ulong, Peer> peers;
                 const int retryCount = 5;
                 var currentRetry = 0;
-                var jitterer = new Random();
+                var jitter = new Random();
                 for (; ; )
                 {
                     peers = await _localNode.GetPeers();
+                    if (peers == null)
+                    {
+                        _logger.Here().Warning("Peers are null ... Retrying");
+                        continue;
+                    }
+
                     if (peers.Count == 0)
                     {
                         _logger.Here().Warning("Peer count is zero. It's possible serf is busy... Retrying");
@@ -79,7 +87,7 @@ namespace CYPCore.Ledger
                     }
 
                     var retryDelay = TimeSpan.FromSeconds(Math.Pow(2, currentRetry)) +
-                                     TimeSpan.FromMilliseconds(jitterer.Next(0, 1000));
+                                     TimeSpan.FromMilliseconds(jitter.Next(0, 1000));
                     await Task.Delay(retryDelay);
                 }
 
@@ -118,12 +126,12 @@ namespace CYPCore.Ledger
                     .GroupBy(hash => new
                     {
                         Hash = BitConverter.ToString(hash.BlockHash.Hash),
-                        Height = hash.BlockHash.Height,
+                        hash.BlockHash.Height,
                     })
                     .Select(hash => new
                     {
-                        Hash = hash.Key.Hash,
-                        Height = hash.Key.Height,
+                        hash.Key.Hash,
+                        hash.Key.Height,
                         Count = hash.Count()
                     })
                     .OrderByDescending(element => element.Count)
@@ -139,7 +147,8 @@ namespace CYPCore.Ledger
                 }
                 else if (numPeersWithSameHash > networkBlockHashes.Count() / 2.0)
                 {
-                    _logger.Here().Information("Local node has same hash {@Hash} as majority of the network ({@NumSameHash} / {@NumPeers})",
+                    _logger.Here().Information(
+                        "Local node has same hash {@Hash} as majority of the network ({@NumSameHash} / {@NumPeers})",
                         localLastBlockHash, numPeersWithSameHash, networkBlockHashes.Count());
                 }
                 else
@@ -150,7 +159,8 @@ namespace CYPCore.Ledger
 
                     foreach (var hash in networkBlockHashesGrouped)
                     {
-                        _logger.Here().Debug("Hash {@Hash} with height {@Height} found {@Count} times", hash.Hash, hash.Height, hash.Count);
+                        _logger.Here().Debug("Hash {@Hash} with height {@Height} found {@Count} times", hash.Hash,
+                            hash.Height, hash.Count);
                     }
 
                     var synchronized = false;
@@ -164,7 +174,8 @@ namespace CYPCore.Ledger
                                 "Synchronizing chain with last block hash {@Hash} and height {@Height} from {@Peer} {@Version} {@Host}",
                                 hash.Hash, hash.Height, peer.Peer.NodeName, peer.Peer.NodeVersion, peer.Peer.Host);
 
-                            synchronized = await Synchronize(peer.Peer.Host, (ulong)localBlockHeight, (int)hash.Height);
+                            synchronized = await Synchronize(peer.Peer.Host, (ulong)localBlockHeight,
+                                (int)hash.Height);
                             if (!synchronized) continue;
                             _logger.Here().Information("Successfully synchronized with {@Peer} {@Version} {@Host}",
                                 peer.Peer.NodeName, peer.Peer.NodeVersion, peer.Peer.Host);
@@ -188,9 +199,11 @@ namespace CYPCore.Ledger
             {
                 _logger.Here().Error(ex, "Error while checking");
             }
-
-            _logger.Here().Information("Finish Synchronizing");
-            SyncRunning = false;
+            finally
+            {
+                _logger.Here().Information("Finish Synchronizing");
+                SyncRunning = false;
+            }
         }
 
         /// <summary>
