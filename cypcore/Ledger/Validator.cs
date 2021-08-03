@@ -17,12 +17,12 @@ using CYPCore.Persistence;
 using Dawn;
 using Libsecp256k1Zkp.Net;
 using libsignal.ecc;
-using Serilog;
 using NBitcoin;
 using NBitcoin.BouncyCastle.Math;
-using Transaction = CYPCore.Models.Transaction;
+using Serilog;
 using Block = CYPCore.Models.Block;
 using BlockHeader = CYPCore.Models.BlockHeader;
+using Transaction = CYPCore.Models.Transaction;
 using Util = CYPCore.Helper.Util;
 
 namespace CYPCore.Ledger
@@ -72,6 +72,8 @@ namespace CYPCore.Ledger
 
         public static readonly byte[] BlockZeroPreHash =
             "3030303030303030437970686572204e6574776f726b2076742e322e32303231".HexToByte();
+
+        public const uint SolutionTimeout = 0x0000014;
 
         private const decimal Distribution = 139_000_000;
         private readonly IUnitOfWork _unitOfWork;
@@ -512,7 +514,7 @@ namespace CYPCore.Ledger
             try
             {
                 var t = transaction.Vtime.I / 2.7 / 1000;
-                if (t < 5) return VerifyResult.UnableToVerify;
+                if (t < MemoryPool.TransactionTimeSlot) return VerifyResult.UnableToVerify;
                 var verifyLockTime = VerifyLockTime(new LockTime(Utils.UnixTimeToDateTime(transaction.Vtime.L)),
                     transaction.Vtime.S);
                 if (verifyLockTime == VerifyResult.UnableToVerify)
@@ -638,10 +640,40 @@ namespace CYPCore.Ledger
                     }
                 }
 
+                var coinstake = blocks.SelectMany(block => block.Txs).SelectMany(x => x.Vout)
+                    .FirstOrDefault(output => output.C.Xor(commit) && output.T == CoinType.Coinstake);
+                if (coinstake != null)
+                {
+                    var verifyCoinstakeLockTime = VerifyLockTime(new LockTime(Utils.UnixTimeToDateTime(coinstake.L)),
+                        coinstake.S);
+                    if (verifyCoinstakeLockTime == VerifyResult.UnableToVerify)
+                    {
+                        _logger.Here().Error("Unable to verify commitment coinstake locktime {@Commit}",
+                            commit.ByteToHex());
+                        return verifyCoinstakeLockTime;
+                    }
+                }
+
                 var change = blocks.SelectMany(block => block.Txs).SelectMany(x => x.Vout)
                     .FirstOrDefault(output => output.C.Xor(commit) && output.T == CoinType.Change);
                 if (change == null) continue;
-                var verifyChangeLockTime = VerifyLockTime(new LockTime(Utils.UnixTimeToDateTime(change.L)), change.S);
+                var lockTime = new LockTime(Utils.UnixTimeToDateTime(change.L));
+                var start = lockTime.Date;
+                var stop = DateTimeOffset.UtcNow;
+                var end = start.Subtract(stop);
+                if (end.Minutes != 10)
+                {
+                    var output = blocks.SelectMany(block => block.Txs).SelectMany(x => x.Vout)
+                        .Where(o => o.C.Xor(commit));
+                    var outputs = output.Select(x => x.T.ToString()).ToArray();
+                    if (!outputs.Contains(CoinType.Coinbase.ToString()) &&
+                        !outputs.Contains(CoinType.Coinstake.ToString()))
+                    {
+                        return VerifyResult.UnableToVerify;
+                    }
+                }
+
+                var verifyChangeLockTime = VerifyLockTime(lockTime, change.S);
                 if (verifyChangeLockTime != VerifyResult.UnableToVerify) continue;
                 _logger.Here().Error("Unable verify commitment change locktime {@Commit}", commit.ByteToHex());
                 return verifyChangeLockTime;
@@ -804,7 +836,7 @@ namespace CYPCore.Ledger
             long itr = 0;
             try
             {
-                var ct = new CancellationTokenSource(TimeSpan.FromSeconds(30)).Token;
+                var ct = new CancellationTokenSource(TimeSpan.FromSeconds(SolutionTimeout)).Token;
                 var calculating = true;
                 var target = new BigInteger(1, vrfSig);
                 var hashTarget = new BigInteger(1, kernel);
