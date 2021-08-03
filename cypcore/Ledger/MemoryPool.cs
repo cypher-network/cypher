@@ -12,7 +12,9 @@ using CYPCore.Models;
 using CYPCore.Network;
 using Dawn;
 using MessagePack;
+using Microsoft.Extensions.Options;
 using NBitcoin;
+using Serilog;
 using Transaction = CYPCore.Models.Transaction;
 
 namespace CYPCore.Ledger
