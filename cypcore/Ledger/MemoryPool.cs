@@ -40,7 +40,6 @@ namespace CYPCore.Ledger
         public const uint TransactionTimeSlot = 0x00000005;
 
         private readonly ILocalNode _localNode;
-        private readonly IValidator _validator;
         private readonly ILogger _logger;
         private readonly PooledList<Transaction> _pooledTransactions;
         private readonly PooledList<string> _pooledSeenTransactions;
@@ -48,10 +47,9 @@ namespace CYPCore.Ledger
         private const int MaxMemoryPoolTransactions = 10_000;
         private const int MaxMemoryPoolSeenTransactions = 50_000;
 
-        public MemoryPool(ILocalNode localNode, IValidator validator, IOptions<NetworkSetting> networkSetting, ILogger logger)
+        public MemoryPool(ILocalNode localNode, IOptions<NetworkSetting> networkSetting, ILogger logger)
         {
             _localNode = localNode;
-            _validator = validator;
             _logger = logger.ForContext("SourceContext", nameof(MemoryPool));
             _pooledTransactions = new PooledList<Transaction>(MaxMemoryPoolTransactions);
             _pooledSeenTransactions = new PooledList<string>(MaxMemoryPoolSeenTransactions);
@@ -62,7 +60,7 @@ namespace CYPCore.Ledger
                 MaxFill = networkSetting.Value.TransactionRateConfig.MaxFill
             });
 
-            Observable.Timer(TimeSpan.Zero, TimeSpan.FromHours(1)).Subscribe(x =>
+            Observable.Timer(TimeSpan.Zero, TimeSpan.FromHours(1)).Subscribe(_ =>
             {
                 var removeTransactionsBeforeTimestamp = Util.GetUtcNow().AddHours(-1).ToUnixTimestamp();
                 var removeTransactions = _pooledTransactions
