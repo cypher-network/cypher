@@ -130,33 +130,26 @@ namespace CYPCore.Ledger
                     if (transactionModels.Any() != true) throw new WarningException("No transaction available for processing");
                     var transactions = transactionModels.ToList();
 
-                    byte[] hash;
-                    using (TangramStream ts = new())
+                    using TangramStream ts = new();
+                    transactions.ForEach(x =>
                     {
-                        transactions.ForEach(x =>
+                        try
                         {
-                            try
-                            {
-                                if (x == null) return;
-                                var hasAnyErrors = x.Validate();
-                                if (hasAnyErrors.Any() != true)
-                                {
-                                    ts.Append(x.ToStream());
-                                }
-                            }
-                            catch (Exception)
-                            {
-                                _logger.Here().Error("Unable to verify the transaction {@TxId}", x.TxnId.HexToByte());
-                            }
-                        });
-                        if (ts.ToArray().Length == 0) throw new Exception("Stream size is zero");
-                        hash = Hasher.Hash(ts.ToArray()).HexToByte();
-                    }
+                            if (x == null) return;
+                            var hasAnyErrors = x.Validate();
+                            if (hasAnyErrors.Any()) return;
+                            ts.Append(x.ToStream());
+                        }
+                        catch (Exception)
+                        {
+                            _logger.Here().Error("Unable to verify the transaction {@TxId}", x.TxnId.HexToByte());
+                        }
+                    });
+                    if (ts.ToArray().Length == 0) throw new Exception("Stream size is zero");
+                    var hash = Hasher.Hash(ts.ToArray()).HexToByte();
 
-                    var calculateVrfSignature =
-                        _signing.CalculateVrfSignature(Curve.decodePrivatePoint(_keyPair.PrivateKey), hash);
-                    var verifyVrfSignature = _signing.VerifyVrfSignature(Curve.decodePoint(_keyPair.PublicKey, 0),
-                        hash, calculateVrfSignature);
+                    var calculateVrfSignature = _signing.CalculateVrfSignature(Curve.decodePrivatePoint(_keyPair.PrivateKey), hash);
+                    var verifyVrfSignature = _signing.VerifyVrfSignature(Curve.decodePoint(_keyPair.PublicKey, 0), hash, calculateVrfSignature);
                     if (_validator.VerifyLotteryWinner(calculateVrfSignature, hash) == VerifyResult.Succeed)
                     {
                         var solution = _validator.Solution(verifyVrfSignature, hash);
