@@ -82,6 +82,7 @@ namespace CYPCore.Ledger
                 ev => _blockGraphAddCompletedEventHandler += ev, ev => _blockGraphAddCompletedEventHandler -= ev);
 
             _blockmaniaListener = TryAddBlockmaniaListener();
+
             ReplayLastRound().SafeFireAndForget(exception => { _logger.Here().Error(exception, "Replay error"); });
 
             applicationLifetime.ApplicationStopping.Register(OnApplicationStopping);
@@ -107,6 +108,24 @@ namespace CYPCore.Ledger
             foreach (var blockGraph in blockGraphs)
             {
                 OnBlockGraphAddComplete(new BlockGraphEventArgs(blockGraph));
+            }
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        private async Task PruneBlockGraphsCache()
+        {
+            var blockGraphs =
+                await _unitOfWork.BlockGraphRepository.WhereAsync(x => new ValueTask<bool>(x.Block.Round % 50 == 0));
+            foreach (var blockGraph in blockGraphs)
+            {
+                var deleted = await _unitOfWork.BlockGraphRepository.RemoveAsync(blockGraph.ToIdentifier());
+                if (!deleted)
+                {
+                    _logger.Here().Error("Unable to verify remove {@Node} and round {@Round}", blockGraph.Block.Node,
+                        blockGraph.Block.Round);
+                }
             }
         }
 
@@ -485,6 +504,11 @@ namespace CYPCore.Ledger
                         {
                             blockmania.Add(next.EventArgs.BlockGraph);
                         }
+
+                        PruneBlockGraphsCache().SafeFireAndForget(exception =>
+                        {
+                            _logger.Here().Error(exception, "Prune BlockGraphs error");
+                        });
                     }
                     catch (Exception ex)
                     {
