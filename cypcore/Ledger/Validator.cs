@@ -239,7 +239,7 @@ namespace CYPCore.Ledger
                     index++;
                 }
 
-                if (transaction.Bp.Select((t, i) => bulletProof.Verify(transaction.Vout[i + index].C, t.Proof, null))
+                if (transaction.Bp.Select((t, i) => bulletProof.Verify(transaction.Vout[i + index].C, t.Proof, null!))
                     .Any(verified => !verified))
                 {
                     return VerifyResult.UnableToVerify;
