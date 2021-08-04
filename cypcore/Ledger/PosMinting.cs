@@ -138,6 +138,7 @@ namespace CYPCore.Ledger
                             if (x == null) return;
                             var hasAnyErrors = x.Validate();
                             if (hasAnyErrors.Any()) return;
+                            // ReSharper disable once AccessToDisposedClosure
                             ts.Append(x.ToStream());
                         }
                         catch (Exception)
