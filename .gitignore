@@ -2,6 +2,7 @@
 /.vscode
 /.vs
 .idea/.idea.cypher/.idea/riderModule.iml
+.idea/.idea.cypher/.idea/.gitignore
 
 # misc
 /bin

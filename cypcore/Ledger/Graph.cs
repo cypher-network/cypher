@@ -169,16 +169,13 @@ namespace CYPCore.Ledger
         {
             Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
             var tcs = new TaskCompletionSource<VerifyResult>();
-            _serialQueue.DispatchAsync(async () =>
+
+            async void TryAdd()
             {
                 VerifyResult verifyResult = default;
                 try
                 {
-                    var savedBlockGraph = await _unitOfWork.BlockGraphRepository.GetAsync(x =>
-                        new ValueTask<bool>(x.Block.Hash == blockGraph.Block.Hash &&
-                                            x.Block.Node == blockGraph.Block.Node &&
-                                            x.Block.Round == blockGraph.Block.Round &&
-                                            x.Deps.Count == blockGraph.Deps.Count));
+                    var savedBlockGraph = await _unitOfWork.BlockGraphRepository.GetAsync(x => new ValueTask<bool>(x.Block.Hash == blockGraph.Block.Hash && x.Block.Node == blockGraph.Block.Node && x.Block.Round == blockGraph.Block.Round && x.Deps.Count == blockGraph.Deps.Count));
                     if (savedBlockGraph == null)
                     {
                         await TrySaveAndPublishBlockGraph(blockGraph);
@@ -205,7 +202,9 @@ namespace CYPCore.Ledger
                 {
                     tcs.SetResult(verifyResult);
                 }
-            });
+            }
+
+            _serialQueue.DispatchAsync(TryAdd);
             return tcs.Task;
         }
 
@@ -405,7 +404,8 @@ namespace CYPCore.Ledger
         {
             Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
             var tcs = new TaskCompletionSource<bool>();
-            _serialQueue.DispatchAsync(async () =>
+
+            async void TrySave()
             {
                 try
                 {
@@ -414,54 +414,55 @@ namespace CYPCore.Ledger
                     switch (copy)
                     {
                         case false:
+                        {
+                            var signBlockGraph = await SignBlockGraph(blockGraph);
+                            var saved = await SaveBlockGraph(signBlockGraph);
+                            switch (saved)
                             {
-                                var signBlockGraph = await SignBlockGraph(blockGraph);
-                                var saved = await SaveBlockGraph(signBlockGraph);
-                                switch (saved)
-                                {
-                                    case false:
-                                        return;
-                                }
-
-                                await Publish(signBlockGraph);
-                                break;
+                                case false:
+                                    return;
                             }
+
+                            await Publish(signBlockGraph);
+                            break;
+                        }
                         default:
+                        {
+                            var saved = await SaveBlockGraph(blockGraph);
+                            switch (saved)
                             {
-                                var saved = await SaveBlockGraph(blockGraph);
-                                switch (saved)
-                                {
-                                    case false:
-                                        return;
-                                }
-
-                                var copyBlockGraph = CopyBlockGraph(blockGraph.Block.Data, blockGraph.Prev.Data);
-                                copyBlockGraph = await SignBlockGraph(copyBlockGraph);
-                                var savedCopy = await SaveBlockGraph(copyBlockGraph);
-                                switch (savedCopy)
-                                {
-                                    case false:
-                                        return;
-                                }
-
-                                await Publish(copyBlockGraph);
-
-                                OnBlockGraphAddComplete(new BlockGraphEventArgs(blockGraph));
-
-                                break;
+                                case false:
+                                    return;
                             }
+
+                            var copyBlockGraph = CopyBlockGraph(blockGraph.Block.Data, blockGraph.Prev.Data);
+                            copyBlockGraph = await SignBlockGraph(copyBlockGraph);
+                            var savedCopy = await SaveBlockGraph(copyBlockGraph);
+                            switch (savedCopy)
+                            {
+                                case false:
+                                    return;
+                            }
+
+                            await Publish(copyBlockGraph);
+
+                            OnBlockGraphAddComplete(new BlockGraphEventArgs(blockGraph));
+
+                            break;
+                        }
                     }
                 }
                 catch (Exception)
                 {
-                    _logger.Here().Error("Unable to add block for {@Node} and round {@Round}",
-                        blockGraph.Block.Node, blockGraph.Block.Round);
+                    _logger.Here().Error("Unable to add block for {@Node} and round {@Round}", blockGraph.Block.Node, blockGraph.Block.Round);
                 }
                 finally
                 {
                     tcs.SetResult(true);
                 }
-            });
+            }
+
+            _serialQueue.DispatchAsync(TrySave);
 
             return tcs.Task;
         }
