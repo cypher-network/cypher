@@ -102,7 +102,7 @@ namespace CYPCore.Ledger
             if (_sync.SyncRunning) return;
             if (StakeRunning) return;
 
-            _serialQueue.DispatchAsync(async () =>
+            async void TryStake()
             {
                 try
                 {
@@ -115,16 +115,13 @@ namespace CYPCore.Ledger
                     StakeRunning = true;
 
                     var height = await _unitOfWork.HashChainRepository.GetBlockHeightAsync();
-                    var prevBlock =
-                        await _unitOfWork.HashChainRepository.GetAsync(x =>
-                            new ValueTask<bool>(x.Height == (ulong)height));
+                    var prevBlock = await _unitOfWork.HashChainRepository.GetAsync(x => new ValueTask<bool>(x.Height == (ulong)height));
                     if (prevBlock == null) throw new WarningException("No previous block available for processing");
 
                     var coinStakeTimestamp = _validator.GetAdjustedTimeAsUnixTimestamp(StakeTimeSlot);
                     if (coinStakeTimestamp <= prevBlock.BlockHeader.Locktime)
                     {
-                        throw new Exception(
-                            $"Current coinstake time {coinStakeTimestamp} is not greater than last search timestamp {prevBlock.BlockHeader.Locktime}");
+                        throw new Exception($"Current coinstake time {coinStakeTimestamp} is not greater than last search timestamp {prevBlock.BlockHeader.Locktime}");
                     }
 
                     var transactionModels = _memoryPool.Range(0, _stakingConfigurationOptions.TransactionsPerBlock);
@@ -133,33 +130,27 @@ namespace CYPCore.Ledger
                     if (transactionModels.Any() != true) throw new WarningException("No transaction available for processing");
                     var transactions = transactionModels.ToList();
 
-                    byte[] hash;
-                    using (TangramStream ts = new())
+                    using TangramStream ts = new();
+                    transactions.ForEach(x =>
                     {
-                        transactions.ForEach(x =>
+                        try
                         {
-                            try
-                            {
-                                if (x == null) return;
-                                var hasAnyErrors = x.Validate();
-                                if (hasAnyErrors.Any() != true)
-                                {
-                                    ts.Append(x.ToStream());
-                                }
-                            }
-                            catch (Exception)
-                            {
-                                _logger.Here().Error("Unable to verify the transaction {@TxId}", x.TxnId.HexToByte());
-                            }
-                        });
-                        if (ts.ToArray().Length == 0) throw new Exception("Stream size is zero");
-                        hash = Hasher.Hash(ts.ToArray()).HexToByte();
-                    }
+                            if (x == null) return;
+                            var hasAnyErrors = x.Validate();
+                            if (hasAnyErrors.Any()) return;
+                            // ReSharper disable once AccessToDisposedClosure
+                            ts.Append(x.ToStream());
+                        }
+                        catch (Exception)
+                        {
+                            _logger.Here().Error("Unable to verify the transaction {@TxId}", x.TxnId.HexToByte());
+                        }
+                    });
+                    if (ts.ToArray().Length == 0) throw new Exception("Stream size is zero");
+                    var hash = Hasher.Hash(ts.ToArray()).HexToByte();
 
-                    var calculateVrfSignature =
-                        _signing.CalculateVrfSignature(Curve.decodePrivatePoint(_keyPair.PrivateKey), hash);
-                    var verifyVrfSignature = _signing.VerifyVrfSignature(Curve.decodePoint(_keyPair.PublicKey, 0),
-                        hash, calculateVrfSignature);
+                    var calculateVrfSignature = _signing.CalculateVrfSignature(Curve.decodePrivatePoint(_keyPair.PrivateKey), hash);
+                    var verifyVrfSignature = _signing.VerifyVrfSignature(Curve.decodePoint(_keyPair.PublicKey, 0), hash, calculateVrfSignature);
                     if (_validator.VerifyLotteryWinner(calculateVrfSignature, hash) == VerifyResult.Succeed)
                     {
                         var solution = _validator.Solution(verifyVrfSignature, hash);
@@ -173,17 +164,9 @@ namespace CYPCore.Ledger
 
                         transactions.Insert(0, coinStakeTransaction);
 
-                        var block = CreateBlock(transactions.ToArray(), calculateVrfSignature, verifyVrfSignature,
-                            solution,
-                            bits, prevBlock);
+                        var block = CreateBlock(transactions.ToArray(), calculateVrfSignature, verifyVrfSignature, solution, bits, prevBlock);
                         if (block == null) throw new Exception("Unable to create the block");
-                        _logger.Here().Information(
-                            "DateTime:{@DT} Running Distribution:{@RunningDistribution} Solution:{@Solution} Network Share:{@NetworkShare} Reward:{Reward} Bits:{@Bits}",
-                            DateTime.UtcNow.ToString(CultureInfo.InvariantCulture),
-                            runningDistribution.ToString(CultureInfo.InvariantCulture),
-                            solution.ToString(CultureInfo.InvariantCulture),
-                            networkShare.ToString(CultureInfo.InvariantCulture),
-                            reward.ToString(CultureInfo.InvariantCulture), bits.ToString(CultureInfo.InvariantCulture));
+                        _logger.Here().Information("DateTime:{@DT} Running Distribution:{@RunningDistribution} Solution:{@Solution} Network Share:{@NetworkShare} Reward:{Reward} Bits:{@Bits}", DateTime.UtcNow.ToString(CultureInfo.InvariantCulture), runningDistribution.ToString(CultureInfo.InvariantCulture), solution.ToString(CultureInfo.InvariantCulture), networkShare.ToString(CultureInfo.InvariantCulture), reward.ToString(CultureInfo.InvariantCulture), bits.ToString(CultureInfo.InvariantCulture));
 
                         await _graph.TryAddBlockGraph(CreateBlockGraph(block, prevBlock));
                         transactions.ForEach(x => _memoryPool.Remove(x));
@@ -205,7 +188,9 @@ namespace CYPCore.Ledger
                 {
                     StakeRunning = false;
                 }
-            });
+            }
+
+            _serialQueue.DispatchAsync(TryStake);
         }
 
         /// <summary>

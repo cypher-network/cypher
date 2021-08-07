@@ -169,16 +169,13 @@ namespace CYPCore.Ledger
         {
             Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
             var tcs = new TaskCompletionSource<VerifyResult>();
-            _serialQueue.DispatchAsync(async () =>
+
+            async void TryAdd()
             {
                 VerifyResult verifyResult = default;
                 try
                 {
-                    var savedBlockGraph = await _unitOfWork.BlockGraphRepository.GetAsync(x =>
-                        new ValueTask<bool>(x.Block.Hash == blockGraph.Block.Hash &&
-                                            x.Block.Node == blockGraph.Block.Node &&
-                                            x.Block.Round == blockGraph.Block.Round &&
-                                            x.Deps.Count == blockGraph.Deps.Count));
+                    var savedBlockGraph = await _unitOfWork.BlockGraphRepository.GetAsync(x => new ValueTask<bool>(x.Block.Hash == blockGraph.Block.Hash && x.Block.Node == blockGraph.Block.Node && x.Block.Round == blockGraph.Block.Round && x.Deps.Count == blockGraph.Deps.Count));
                     if (savedBlockGraph == null)
                     {
                         await TrySaveAndPublishBlockGraph(blockGraph);
@@ -205,7 +202,9 @@ namespace CYPCore.Ledger
                 {
                     tcs.SetResult(verifyResult);
                 }
-            });
+            }
+
+            _serialQueue.DispatchAsync(TryAdd);
             return tcs.Task;
         }
 
@@ -405,7 +404,8 @@ namespace CYPCore.Ledger
         {
             Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
             var tcs = new TaskCompletionSource<bool>();
-            _serialQueue.DispatchAsync(async () =>
+
+            async void TrySave()
             {
                 try
                 {
@@ -454,14 +454,15 @@ namespace CYPCore.Ledger
                 }
                 catch (Exception)
                 {
-                    _logger.Here().Error("Unable to add block for {@Node} and round {@Round}",
-                        blockGraph.Block.Node, blockGraph.Block.Round);
+                    _logger.Here().Error("Unable to add block for {@Node} and round {@Round}", blockGraph.Block.Node, blockGraph.Block.Round);
                 }
                 finally
                 {
                     tcs.SetResult(true);
                 }
-            });
+            }
+
+            _serialQueue.DispatchAsync(TrySave);
 
             return tcs.Task;
         }
