@@ -658,10 +658,9 @@ namespace CYPCore.Ledger
                     .FirstOrDefault(output => output.C.Xor(commit) && output.T == CoinType.Change);
                 if (change == null) continue;
                 var lockTime = new LockTime(Utils.UnixTimeToDateTime(change.L));
-                var start = lockTime.Date;
-                var stop = DateTimeOffset.UtcNow;
-                var end = start.Subtract(stop);
-                if (end.Minutes != 10)
+                var start = lockTime.Date.UtcTicks;
+                var stop = new TimeSpan(0, 10, 0);
+                if (start < stop.Ticks)
                 {
                     var output = blocks.SelectMany(block => block.Txs).SelectMany(x => x.Vout)
                         .Where(o => o.C.Xor(commit));
