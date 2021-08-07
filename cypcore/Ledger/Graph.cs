@@ -414,42 +414,42 @@ namespace CYPCore.Ledger
                     switch (copy)
                     {
                         case false:
-                        {
-                            var signBlockGraph = await SignBlockGraph(blockGraph);
-                            var saved = await SaveBlockGraph(signBlockGraph);
-                            switch (saved)
                             {
-                                case false:
-                                    return;
-                            }
+                                var signBlockGraph = await SignBlockGraph(blockGraph);
+                                var saved = await SaveBlockGraph(signBlockGraph);
+                                switch (saved)
+                                {
+                                    case false:
+                                        return;
+                                }
 
-                            await Publish(signBlockGraph);
-                            break;
-                        }
+                                await Publish(signBlockGraph);
+                                break;
+                            }
                         default:
-                        {
-                            var saved = await SaveBlockGraph(blockGraph);
-                            switch (saved)
                             {
-                                case false:
-                                    return;
+                                var saved = await SaveBlockGraph(blockGraph);
+                                switch (saved)
+                                {
+                                    case false:
+                                        return;
+                                }
+
+                                var copyBlockGraph = CopyBlockGraph(blockGraph.Block.Data, blockGraph.Prev.Data);
+                                copyBlockGraph = await SignBlockGraph(copyBlockGraph);
+                                var savedCopy = await SaveBlockGraph(copyBlockGraph);
+                                switch (savedCopy)
+                                {
+                                    case false:
+                                        return;
+                                }
+
+                                await Publish(copyBlockGraph);
+
+                                OnBlockGraphAddComplete(new BlockGraphEventArgs(blockGraph));
+
+                                break;
                             }
-
-                            var copyBlockGraph = CopyBlockGraph(blockGraph.Block.Data, blockGraph.Prev.Data);
-                            copyBlockGraph = await SignBlockGraph(copyBlockGraph);
-                            var savedCopy = await SaveBlockGraph(copyBlockGraph);
-                            switch (savedCopy)
-                            {
-                                case false:
-                                    return;
-                            }
-
-                            await Publish(copyBlockGraph);
-
-                            OnBlockGraphAddComplete(new BlockGraphEventArgs(blockGraph));
-
-                            break;
-                        }
                     }
                 }
                 catch (Exception)
