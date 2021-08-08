@@ -1,6 +1,7 @@
 // CYPNode by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
+using System;
 using System.Net.Http;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc;
@@ -15,6 +16,8 @@ using CYPCore.Extensions;
 using CYPCore.Models;
 using CYPCore.Network;
 using Polly;
+using Polly.Extensions.Http;
+using Serilog;
 
 namespace CYPNode
 {
@@ -43,7 +46,8 @@ namespace CYPNode
                 options.MaxConcurrentRequests = 750;
                 options.RequestQueueLimit = 15000;
             });
-            services.AddHttpClient<NetworkClient>().AddPolicyHandler(Policy.TimeoutAsync<HttpResponseMessage>(5));
+            services.AddHttpClient<NetworkClient>().SetHandlerLifetime(TimeSpan.FromMinutes(5))
+                .AddPolicyHandler(GetRetryPolicy());
             services.AddResponseCompression();
             services.AddMvc(option => option.EnableEndpointRouting = false).SetCompatibilityVersion(CompatibilityVersion.Version_3_0);
             services.AddControllers();
@@ -52,6 +56,20 @@ namespace CYPNode
             services.AddOptions().Configure<NetworkSetting>(options => _configuration.GetSection("Network").Bind(options));
             services.Configure<PbftOptions>(_configuration);
             services.AddDataKeysProtection(_configuration);
+        }
+        
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        private static IAsyncPolicy<HttpResponseMessage> GetRetryPolicy()
+        {
+            return HttpPolicyExtensions.HandleTransientHttpError()
+                .OrResult(msg => msg.StatusCode == System.Net.HttpStatusCode.NotFound).WaitAndRetryAsync(3,
+                    retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)), (exception, timeSpan, context) =>
+                    {
+                        Log.Error(exception.Exception.Message);
+                    });
         }
 
         /// <summary>
