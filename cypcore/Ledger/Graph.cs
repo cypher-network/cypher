@@ -470,52 +470,44 @@ namespace CYPCore.Ledger
         /// <summary>
         /// 
         /// </summary>
-        private IDisposable TryAddBlockmaniaListener()
+        private IDisposable BlockmaniaListener()
         {
             var activityTrackSubscription = _trackingBlockGraphCompleted
                 .Where(data => data.EventArgs.BlockGraph.Block.Round == GetRound() + 1)
                 .GroupByUntil(item => item.EventArgs.Hash,
-                    g => g.Throttle(TimeSpan.FromSeconds(BlockmaniaTimeSlot), NewThreadScheduler.Default).Take(1))
-                .SelectMany(group => group.Buffer(TimeSpan.FromSeconds(5), 500)).Subscribe(blockGraphs =>
-                {
-                    try
+                    g => g.Throttle(TimeSpan.FromSeconds(BlockmaniaTimeSlot), NewThreadScheduler.Default).ToArray())
+                .SelectMany(group => group.Buffer(TimeSpan.FromSeconds(5), 500)).SubscribeOn(Scheduler.Default).Subscribe(
+                    blockGraphs =>
                     {
-                        var graphNodeCount = blockGraphs.ToArray().Select(n => n.EventArgs.BlockGraph.Block.Node)
-                            .Distinct().ToArray().Length;
-                        var f = (graphNodeCount - 1) / 3;
-                        var quorum2F1 = 2 * f + 1;
-                        if (graphNodeCount < quorum2F1)
+                        try
                         {
-                            _logger.Here()
-                                .Warning(
-                                    "Unable to add blockgraph's to blockmania node count: {@NodeCount} quorum: {@Quorum}",
-                                    graphNodeCount, quorum2F1);
-                            return;
-                        }
+                            var graphNodeCount = blockGraphs.ToArray().Select(n => n.EventArgs.BlockGraph.Block.Node)
+                                .Distinct().ToArray().Length;
+                            var f = (graphNodeCount - 1) / 3;
+                            var quorum2F1 = 2 * f + 1;
+                            if (graphNodeCount < quorum2F1)
+                            {
+                                return;
+                            }
 
-                        var lastInterpreted = GetRound();
-                        var config = new Config(lastInterpreted, Array.Empty<ulong>(), _serfClient.ClientId,
-                            (ulong)graphNodeCount);
-                        var blockmania = new Blockmania(config, _logger) { NodeCount = graphNodeCount };
-                        blockmania.TrackingDelivered.Subscribe(x =>
-                        {
-                            Delivered(x.EventArgs.Interpreted).SafeFireAndForget();
-                        });
-                        foreach (var next in blockGraphs)
-                        {
-                            blockmania.Add(next.EventArgs.BlockGraph);
+                            var lastInterpreted = GetRound();
+                            var config = new Config(lastInterpreted, Array.Empty<ulong>(), _serfClient.ClientId,
+                                (ulong)graphNodeCount);
+                            var blockmania = new Blockmania(config, _logger) { NodeCount = graphNodeCount };
+                            blockmania.TrackingDelivered.Subscribe(x =>
+                            {
+                                Delivered(x.EventArgs.Interpreted).SafeFireAndForget();
+                            });
+                            foreach (var next in blockGraphs)
+                            {
+                                blockmania.Add(next.EventArgs.BlockGraph);
+                            }
                         }
-
-                        PruneBlockGraphsCache().SafeFireAndForget(exception =>
+                        catch (Exception ex)
                         {
-                            _logger.Here().Error(exception, "Prune BlockGraphs error");
-                        });
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.Here().Error(ex, "Process add blockmania error");
-                    }
-                }, exception => { _logger.Here().Error(exception, "Subscribe try add blockmania listener error"); });
+                            _logger.Here().Error(ex, "Process add blockmania error");
+                        }
+                    }, exception => { _logger.Here().Error(exception, "Subscribe try add blockmania listener error"); });
             return activityTrackSubscription;
         }
 
