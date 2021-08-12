@@ -119,7 +119,7 @@ namespace CYPCore.Ledger
             var handler = _blockGraphAddCompletedEventHandler;
             handler?.Invoke(this, e);
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -356,37 +356,37 @@ namespace CYPCore.Ledger
                 switch (copy)
                 {
                     case false:
-                    {
-                        var signBlockGraph = await SignBlockGraph(blockGraph);
-                        var saved = await SaveBlockGraph(signBlockGraph);
-                        switch (saved)
                         {
-                            case false: return;
-                        }
+                            var signBlockGraph = await SignBlockGraph(blockGraph);
+                            var saved = await SaveBlockGraph(signBlockGraph);
+                            switch (saved)
+                            {
+                                case false: return;
+                            }
 
-                        await Broadcast(signBlockGraph);
-                        break;
-                    }
+                            await Broadcast(signBlockGraph);
+                            break;
+                        }
                     default:
-                    {
-                        var saved = await SaveBlockGraph(blockGraph);
-                        switch (saved)
                         {
-                            case false: return;
-                        }
+                            var saved = await SaveBlockGraph(blockGraph);
+                            switch (saved)
+                            {
+                                case false: return;
+                            }
 
-                        var copyBlockGraph = CopyBlockGraph(blockGraph.Block.Data, blockGraph.Prev.Data);
-                        copyBlockGraph = await SignBlockGraph(copyBlockGraph);
-                        var savedCopy = await SaveBlockGraph(copyBlockGraph);
-                        switch (savedCopy)
-                        {
-                            case false: return;
-                        }
+                            var copyBlockGraph = CopyBlockGraph(blockGraph.Block.Data, blockGraph.Prev.Data);
+                            copyBlockGraph = await SignBlockGraph(copyBlockGraph);
+                            var savedCopy = await SaveBlockGraph(copyBlockGraph);
+                            switch (savedCopy)
+                            {
+                                case false: return;
+                            }
 
-                        await Broadcast(copyBlockGraph);
-                        OnBlockGraphAddComplete(new BlockGraphEventArgs(blockGraph));
-                        break;
-                    }
+                            await Broadcast(copyBlockGraph);
+                            OnBlockGraphAddComplete(new BlockGraphEventArgs(blockGraph));
+                            break;
+                        }
                 }
             }
             catch (Exception)

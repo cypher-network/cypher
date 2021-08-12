@@ -81,15 +81,15 @@ namespace CYPCore.Network
             {
                 if (peers.Any())
                 {
-                    var tasks = new List<Task>() ;
+                    var tasks = new List<Task>();
                     foreach (var peer in peers)
                     {
                         var t = new Task(async () => await _networkClient.SendAsync(data, topicType, peer.Host));
                         t.Start();
                         tasks.Add(t);
                     }
-                    
-                    Task.WaitAll(tasks.ToArray()); 
+
+                    Task.WaitAll(tasks.ToArray());
                 }
             }
             catch (Exception ex)

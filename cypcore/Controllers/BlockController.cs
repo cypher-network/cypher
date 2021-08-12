@@ -42,9 +42,9 @@ namespace CYPCore.Controllers
         {
             try
             {
-                var blockGraph  = await MessagePackSerializer.DeserializeAsync<BlockGraph>(new MemoryStream(blockGraphModel));
+                var blockGraph = await MessagePackSerializer.DeserializeAsync<BlockGraph>(new MemoryStream(blockGraphModel));
                 _graph.BlockGraphAgent.Publish(blockGraph);
-                return new ObjectResult(new {code = StatusCodes.Status200OK});
+                return new ObjectResult(new { code = StatusCodes.Status200OK });
             }
             catch (Exception ex)
             {

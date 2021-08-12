@@ -51,7 +51,7 @@ namespace CYPCore.Ledger
             _networkClient = networkClient;
             _syncWithSeedNodes = syncWithSeedNodes;
             _logger = logger.ForContext("SourceContext", nameof(Sync));
-            
+
             Observable.Timer(TimeSpan.FromSeconds(20), TimeSpan.FromMinutes(SyncTimeSlot)).Subscribe(_ =>
             {
                 Synchronize();
