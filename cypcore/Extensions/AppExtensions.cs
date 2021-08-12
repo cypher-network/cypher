@@ -256,11 +256,8 @@ namespace CYPCore.Extensions
             {
                 var sync = new Sync(c.Resolve<IUnitOfWork>(), c.Resolve<IValidator>(), c.Resolve<ILocalNode>(),
                     c.Resolve<NetworkClient>(), syncWithSeedNodesOnly, c.Resolve<Serilog.ILogger>());
-
                 return sync;
-
             }).As<ISync>().SingleInstance();
-            builder.RegisterType<SyncBackgroundService>().As<IHostedService>();
             return builder;
         }
 
