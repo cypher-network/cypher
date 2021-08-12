@@ -18,7 +18,7 @@ using CYPCore.Network;
 using CYPCore.Persistence;
 using CYPCore.Serf;
 using Dawn;
-using Dispatch;
+using Fibrous.Agents;
 using MessagePack;
 using Microsoft.Extensions.Hosting;
 using Serilog;
@@ -30,18 +30,17 @@ namespace CYPCore.Ledger
 {
     public interface IGraph
     {
-        Task<VerifyResult> TryAddBlockGraph(BlockGraph blockGraph);
-        Task<VerifyResult> TryAddBlockGraph(byte[] blockGraphModel);
         Task<Transaction> GetTransaction(byte[] txnId);
         Task<IEnumerable<Block>> GetBlocks(int skip, int take);
         Task<IEnumerable<Block>> GetSafeguardBlocks();
         Task<ulong> GetHeight();
         Task<BlockHash> GetHash(ulong height);
+        AsyncAgent<BlockGraph> BlockGraphAgent { get; }
     }
 
     public sealed class Graph : IGraph
     {
-        public const uint BlockmaniaTimeSlot = 0x0000007;
+        public const uint BlockmaniaTimeSlot = 0x000000A;
 
         private readonly IUnitOfWork _unitOfWork;
         private readonly ILocalNode _localNode;
@@ -50,7 +49,6 @@ namespace CYPCore.Ledger
         private readonly ISigning _signing;
         private readonly ILogger _logger;
         private readonly IObservable<EventPattern<BlockGraphEventArgs>> _trackingBlockGraphCompleted;
-        private readonly SerialQueue _serialQueue;
         private readonly IDisposable _blockmaniaListener;
 
         private class BlockGraphEventArgs : EventArgs
@@ -76,17 +74,18 @@ namespace CYPCore.Ledger
             _validator = validator;
             _signing = signing;
             _logger = logger;
-            _serialQueue = new SerialQueue();
-
             _trackingBlockGraphCompleted = Observable.FromEventPattern<BlockGraphEventArgs>(
                 ev => _blockGraphAddCompletedEventHandler += ev, ev => _blockGraphAddCompletedEventHandler -= ev);
-
-            _blockmaniaListener = TryAddBlockmaniaListener();
-
+            _blockmaniaListener = BlockmaniaListener();
+            BlockGraphAgent = new AsyncAgent<BlockGraph>(AddBlockGraph, exception => { _logger.Error(exception.Message); });
             ReplayLastRound().SafeFireAndForget(exception => { _logger.Here().Error(exception, "Replay error"); });
-
             applicationLifetime.ApplicationStopping.Register(OnApplicationStopping);
         }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public AsyncAgent<BlockGraph> BlockGraphAgent { get; }
 
         /// <summary>
         /// 
@@ -114,98 +113,45 @@ namespace CYPCore.Ledger
         /// <summary>
         /// 
         /// </summary>
-        private async Task PruneBlockGraphsCache()
-        {
-            var blockGraphs =
-                await _unitOfWork.BlockGraphRepository.WhereAsync(x => new ValueTask<bool>(x.Block.Round % 50 == 0));
-            foreach (var blockGraph in blockGraphs)
-            {
-                var deleted = await _unitOfWork.BlockGraphRepository.RemoveAsync(blockGraph.ToIdentifier());
-                if (!deleted)
-                {
-                    _logger.Here().Error("Unable to verify remove {@Node} and round {@Round}", blockGraph.Block.Node,
-                        blockGraph.Block.Round);
-                }
-            }
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
         /// <param name="e"></param>
         private void OnBlockGraphAddComplete(BlockGraphEventArgs e)
         {
             var handler = _blockGraphAddCompletedEventHandler;
             handler?.Invoke(this, e);
         }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="blockGraphModel"></param>
-        /// <returns></returns>
-        public async Task<VerifyResult> TryAddBlockGraph(byte[] blockGraphModel)
-        {
-            Guard.Argument(blockGraphModel, nameof(blockGraphModel)).NotNull();
-            try
-            {
-                var blockGraph = MessagePackSerializer.Deserialize<BlockGraph>(blockGraphModel);
-                var tryAddBlockGraph = await TryAddBlockGraph(blockGraph);
-                return tryAddBlockGraph;
-            }
-            catch (Exception ex)
-            {
-                _logger.Here().Error(ex, ex.Message);
-                return VerifyResult.Invalid;
-            }
-        }
-
+        
         /// <summary>
         /// 
         /// </summary>
         /// <param name="blockGraph"></param>
-        /// <returns></returns>
-        public Task<VerifyResult> TryAddBlockGraph(BlockGraph blockGraph)
+        private async Task AddBlockGraph(BlockGraph blockGraph)
         {
             Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
-            var tcs = new TaskCompletionSource<VerifyResult>();
-
-            async void TryAdd()
+            try
             {
-                VerifyResult verifyResult = default;
-                try
+                var savedBlockGraph = await _unitOfWork.BlockGraphRepository.GetAsync(x =>
+                    new ValueTask<bool>(x.Block.Hash == blockGraph.Block.Hash &&
+                                        x.Block.Node == blockGraph.Block.Node &&
+                                        x.Block.Round == blockGraph.Block.Round &&
+                                        x.Deps.Count == blockGraph.Deps.Count));
+                if (savedBlockGraph == null)
                 {
-                    var savedBlockGraph = await _unitOfWork.BlockGraphRepository.GetAsync(x => new ValueTask<bool>(x.Block.Hash == blockGraph.Block.Hash && x.Block.Node == blockGraph.Block.Node && x.Block.Round == blockGraph.Block.Round && x.Deps.Count == blockGraph.Deps.Count));
-                    if (savedBlockGraph == null)
-                    {
-                        await TrySaveAndPublishBlockGraph(blockGraph);
-                    }
-                    else
-                    {
-                        var block = MessagePackSerializer.Deserialize<Block>(blockGraph.Block.Data);
-                        if (savedBlockGraph.PublicKey.Xor(block.BlockPos.PublicKey))
-                        {
-                            verifyResult = VerifyResult.AlreadyExists;
-                        }
-                        else
-                        {
-                            await TrySaveAndPublishBlockGraph(blockGraph);
-                        }
-                    }
+                    await TryFinalizeBlockGraph(blockGraph);
                 }
-                catch (Exception ex)
+                else
                 {
-                    _logger.Here().Error(ex, ex.Message);
-                    verifyResult = VerifyResult.Invalid;
-                }
-                finally
-                {
-                    tcs.SetResult(verifyResult);
+                    var block = MessagePackSerializer.Deserialize<Block>(blockGraph.Block.Data);
+                    if (!savedBlockGraph.PublicKey.Xor(block.BlockPos.PublicKey) &&
+                        savedBlockGraph.Block.Round != blockGraph.Block.Round)
+                    {
+                        await TryFinalizeBlockGraph(blockGraph);
+                    }
                 }
             }
-
-            _serialQueue.DispatchAsync(TryAdd);
-            return tcs.Task;
+            catch (Exception ex)
+            {
+                _logger.Here().Error(ex, ex.Message);
+            }
         }
 
         /// <summary>
@@ -400,71 +346,54 @@ namespace CYPCore.Ledger
         /// 
         /// </summary>
         /// <returns></returns>
-        private Task TrySaveAndPublishBlockGraph(BlockGraph blockGraph)
+        private async Task TryFinalizeBlockGraph(BlockGraph blockGraph)
         {
             Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
-            var tcs = new TaskCompletionSource<bool>();
-
-            async void TrySave()
+            try
             {
-                try
+                var copy = false;
+                copy |= blockGraph.Block.Node != _serfClient.ClientId;
+                switch (copy)
                 {
-                    var copy = false;
-                    copy |= blockGraph.Block.Node != _serfClient.ClientId;
-                    switch (copy)
+                    case false:
                     {
-                        case false:
-                            {
-                                var signBlockGraph = await SignBlockGraph(blockGraph);
-                                var saved = await SaveBlockGraph(signBlockGraph);
-                                switch (saved)
-                                {
-                                    case false:
-                                        return;
-                                }
+                        var signBlockGraph = await SignBlockGraph(blockGraph);
+                        var saved = await SaveBlockGraph(signBlockGraph);
+                        switch (saved)
+                        {
+                            case false: return;
+                        }
 
-                                await Publish(signBlockGraph);
-                                break;
-                            }
-                        default:
-                            {
-                                var saved = await SaveBlockGraph(blockGraph);
-                                switch (saved)
-                                {
-                                    case false:
-                                        return;
-                                }
+                        await Broadcast(signBlockGraph);
+                        break;
+                    }
+                    default:
+                    {
+                        var saved = await SaveBlockGraph(blockGraph);
+                        switch (saved)
+                        {
+                            case false: return;
+                        }
 
-                                var copyBlockGraph = CopyBlockGraph(blockGraph.Block.Data, blockGraph.Prev.Data);
-                                copyBlockGraph = await SignBlockGraph(copyBlockGraph);
-                                var savedCopy = await SaveBlockGraph(copyBlockGraph);
-                                switch (savedCopy)
-                                {
-                                    case false:
-                                        return;
-                                }
+                        var copyBlockGraph = CopyBlockGraph(blockGraph.Block.Data, blockGraph.Prev.Data);
+                        copyBlockGraph = await SignBlockGraph(copyBlockGraph);
+                        var savedCopy = await SaveBlockGraph(copyBlockGraph);
+                        switch (savedCopy)
+                        {
+                            case false: return;
+                        }
 
-                                await Publish(copyBlockGraph);
-
-                                OnBlockGraphAddComplete(new BlockGraphEventArgs(blockGraph));
-
-                                break;
-                            }
+                        await Broadcast(copyBlockGraph);
+                        OnBlockGraphAddComplete(new BlockGraphEventArgs(blockGraph));
+                        break;
                     }
                 }
-                catch (Exception)
-                {
-                    _logger.Here().Error("Unable to add block for {@Node} and round {@Round}", blockGraph.Block.Node, blockGraph.Block.Round);
-                }
-                finally
-                {
-                    tcs.SetResult(true);
-                }
             }
-
-            _serialQueue.DispatchAsync(TrySave);
-
-            return tcs.Task;
+            catch (Exception)
+            {
+                _logger.Here().Error("Unable to add block for {@Node} and round {@Round}", blockGraph.Block.Node,
+                    blockGraph.Block.Round);
+            }
         }
 
         /// <summary>
@@ -705,7 +634,7 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="blockGraph"></param>
         /// <returns></returns>
-        private async Task Publish(BlockGraph blockGraph)
+        private async Task Broadcast(BlockGraph blockGraph)
         {
             Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
             try

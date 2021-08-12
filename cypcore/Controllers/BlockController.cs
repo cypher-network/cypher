@@ -2,8 +2,10 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using CYPCore.Consensus.Models;
 using CYPCore.Extensions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -11,6 +13,7 @@ using Serilog;
 using CYPCore.Ledger;
 using CYPCore.Models;
 using MessagePack;
+using Block = CYPCore.Models.Block;
 
 namespace CYPCore.Controllers
 {
@@ -39,12 +42,13 @@ namespace CYPCore.Controllers
         {
             try
             {
-                var added = await _graph.TryAddBlockGraph(blockGraphModel);
-                return new ObjectResult(new { code = added == VerifyResult.Succeed ? StatusCodes.Status200OK : StatusCodes.Status500InternalServerError });
+                var blockGraph  = await MessagePackSerializer.DeserializeAsync<BlockGraph>(new MemoryStream(blockGraphModel));
+                _graph.BlockGraphAgent.Publish(blockGraph);
+                return new ObjectResult(new {code = StatusCodes.Status200OK});
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, "Unable to add the block graph");
+                _logger.Here().Error(ex, "Unable to deserialize the blockgraph");
             }
 
             return new StatusCodeResult(StatusCodes.Status500InternalServerError);
