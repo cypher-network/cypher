@@ -272,6 +272,12 @@ namespace CYPCore.Extensions
             return builder;
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="builder"></param>
+        /// <param name="configuration"></param>
+        /// <returns></returns>
         public static ContainerBuilder AddNodeMonitorService(this ContainerBuilder builder,
             IConfiguration configuration)
         {
