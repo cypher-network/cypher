@@ -32,6 +32,7 @@
     <PackageReference Include="CliWrap" Version="3.3.2" />
     <PackageReference Include="Collections.Pooled" Version="1.0.82" />
     <PackageReference Include="Dawn.Guard" Version="1.12.0" />
+    <PackageReference Include="Fibrous" Version="5.0.0" />
     <PackageReference Include="libsecp256k1Zkp.Net" Version="1.1.9" />
     <PackageReference Include="libsignal-protocol-dotnet" Version="2.8.1" />
     <PackageReference Include="MessagePack" Version="2.2.85" />
@@ -45,7 +46,6 @@
     <PackageReference Include="RockDb.Native" Version="6.12.1" />
     <PackageReference Include="RocksDbNative" Version="6.2.2" />
     <PackageReference Include="RocksDbSharp" Version="6.2.2" />
-    <PackageReference Include="SerialQueue" Version="2.1.0" />
     <PackageReference Include="Serilog" Version="2.10.0" />
     <PackageReference Include="Serilog.Extensions.Logging.File" Version="2.0.0" />
     <PackageReference Include="Serilog.Sinks.Console" Version="4.0.0" />
