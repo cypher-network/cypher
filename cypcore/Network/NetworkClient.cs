@@ -58,13 +58,13 @@ namespace CYPCore.Network
                 //httpResponseMessage.EnsureSuccessStatusCode();
                 //content = await httpResponseMessage.Content.ReadAsStringAsync();
 
-                return new()
+                return new BlockHashPeer()
                 {
                     Peer = peer,
                     BlockHash = new()
                     {
                         Hash = remoteBlock.Last().ToHash(),
-                        Height = (ulong)networkBlockHeight.Remote.Height
+                        Height = networkBlockHeight.Remote.Height
                     }
                 };
             }
@@ -92,6 +92,7 @@ namespace CYPCore.Network
                 if (Uri.TryCreate($"{host}", UriKind.Absolute, out var uri))
                 {
                     await _semaphore.WaitAsync();
+
                     if (topicType == TopicType.AddBlockGraph)
                     {
                         var postResponse = await _httpClient.PostAsJsonAsync($"{host}/chain/blockgraph", data);

@@ -57,7 +57,7 @@ namespace CYPCore.Serf
     /// <summary>
     /// 
     /// </summary>
-    public class SerfClient : ISerfClient, IDisposable
+    public sealed class SerfClient : ISerfClient, IDisposable
     {
         public string ProcessError { get; set; }
         public bool ProcessStarted { get; set; }
@@ -181,7 +181,6 @@ namespace CYPCore.Serf
                 _responseReaderTask = ReadResponses(_cancellationTokenSource.Token, tcpSessionId);
 
                 var handshakeError = await Handshake(tcpSessionId);
-
                 if (handshakeError != null)
                 {
                     return TaskResult<SerfError>.CreateFailure(handshakeError);
@@ -595,7 +594,7 @@ namespace CYPCore.Serf
         /// 
         /// </summary>
         /// <param name="disposing"></param>
-        protected virtual void Dispose(bool disposing)
+        private void Dispose(bool disposing)
         {
             if (_disposed)
             {

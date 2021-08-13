@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reactive.Linq;
 using System.Threading.Tasks;
 using CYPCore.Extensions;
 using CYPCore.Models;
@@ -22,7 +23,7 @@ namespace CYPCore.Ledger
     {
         bool SyncRunning { get; }
         Task<bool> Synchronize(string host, ulong skip, int take);
-        Task Synchronize();
+        void Synchronize();
     }
 
     /// <summary>
@@ -30,8 +31,10 @@ namespace CYPCore.Ledger
     /// </summary>
     public class Sync : ISync
     {
+        public const uint SyncTimeSlot = 0x0000000A;
+
         public bool SyncRunning { get; private set; }
-        private const int BatchSize = 20;
+        private const int BatchSize = 100;
         private readonly IUnitOfWork _unitOfWork;
         private readonly IValidator _validator;
         private readonly ILocalNode _localNode;
@@ -48,162 +51,171 @@ namespace CYPCore.Ledger
             _networkClient = networkClient;
             _syncWithSeedNodes = syncWithSeedNodes;
             _logger = logger.ForContext("SourceContext", nameof(Sync));
+
+            Observable.Timer(TimeSpan.FromSeconds(20), TimeSpan.FromMinutes(SyncTimeSlot)).Subscribe(_ =>
+            {
+                Synchronize();
+            });
         }
 
         /// <summary>
         /// 
         /// </summary>
         /// <returns></returns>
-        public async Task Synchronize()
+        public void Synchronize()
         {
             if (SyncRunning) return;
             SyncRunning = true;
             _logger.Here().Information("Trying to Synchronize");
 
-            try
+            Task.Factory.StartNew(async () =>
             {
-                Dictionary<ulong, Peer> peers;
-                const int retryCount = 5;
-                var currentRetry = 0;
-                var jitter = new Random();
-                for (; ; )
+                try
                 {
-                    peers = await _localNode.GetPeers();
-                    if (peers == null)
+                    Dictionary<ulong, Peer> peers;
+                    const int retryCount = 5;
+                    var currentRetry = 0;
+                    var jitter = new Random();
+                    for (; ; )
                     {
-                        _logger.Here().Warning("Peers are null ... Retrying");
-                        continue;
-                    }
-
-                    if (peers.Count == 0)
-                    {
-                        _logger.Here().Warning("Peer count is zero. It's possible serf is busy... Retrying");
-                        currentRetry++;
-                    }
-
-                    if (currentRetry > retryCount || peers.Count != 0)
-                    {
-                        break;
-                    }
-
-                    var retryDelay = TimeSpan.FromSeconds(Math.Pow(2, currentRetry)) +
-                                     TimeSpan.FromMilliseconds(jitter.Next(0, 1000));
-                    await Task.Delay(retryDelay);
-                }
-
-                var localBlockHeight = await _unitOfWork.HashChainRepository.CountAsync();
-                var localLastBlock = await _unitOfWork.HashChainRepository.GetAsync(b =>
-                    new ValueTask<bool>(b.Height == (ulong)localBlockHeight));
-
-                var localLastBlockHash = string.Empty;
-                if (localLastBlock != null)
-                {
-                    localLastBlockHash = BitConverter.ToString(localLastBlock.ToHash());
-                }
-
-                Task<BlockHashPeer>[] networkPeerTasks;
-
-                if (_syncWithSeedNodes)
-                {
-                    networkPeerTasks =
-                        _localNode.SerfClient.SeedNodes.Seeds.Select(seed =>
-                                _networkClient.GetPeerLastBlockHashAsync(peers.First(x =>
-                                    x.Value.Host.Contains(seed[..^seed.IndexOf(":", StringComparison.Ordinal)])).Value))
-                            .ToArray();
-                }
-                else
-                {
-                    networkPeerTasks =
-                        peers.Values.Select(peer => _networkClient.GetPeerLastBlockHashAsync(peer)).ToArray();
-                }
-
-                var networkBlockHashes =
-                    new List<BlockHashPeer>(await Task.WhenAll(networkPeerTasks))
-                        .Where(element => element != null);
-
-                var networkBlockHashesGrouped = networkBlockHashes
-                    .Where(hash => hash != null)
-                    .GroupBy(hash => new
-                    {
-                        Hash = BitConverter.ToString(hash.BlockHash.Hash),
-                        hash.BlockHash.Height,
-                    })
-                    .Select(hash => new
-                    {
-                        hash.Key.Hash,
-                        hash.Key.Height,
-                        Count = hash.Count()
-                    })
-                    .OrderByDescending(element => element.Count)
-                    .ThenBy(element => element.Height);
-
-                var numPeersWithSameHash = networkBlockHashesGrouped
-                    .FirstOrDefault(element => element.Hash == localLastBlockHash)?
-                    .Count ?? 0;
-
-                if (!networkBlockHashes.Any())
-                {
-                    _logger.Here().Information("No remote block hashes found");
-                }
-                else if (numPeersWithSameHash > networkBlockHashes.Count() / 2.0)
-                {
-                    _logger.Here().Information(
-                        "Local node has same hash {@Hash} as majority of the network ({@NumSameHash} / {@NumPeers})",
-                        localLastBlockHash, numPeersWithSameHash, networkBlockHashes.Count());
-                }
-                else
-                {
-                    _logger.Here().Information(
-                        "Local node does not have same hash {@Hash} as majority of the network ({@NumSameHash} / {@NumPeers})",
-                        localLastBlockHash, numPeersWithSameHash, networkBlockHashes.Count());
-
-                    foreach (var hash in networkBlockHashesGrouped)
-                    {
-                        _logger.Here().Debug("Hash {@Hash} with height {@Height} found {@Count} times", hash.Hash,
-                            hash.Height, hash.Count);
-                    }
-
-                    var synchronized = false;
-                    foreach (var hash in networkBlockHashesGrouped)
-                    {
-                        foreach (var peer in networkBlockHashes.Where(element =>
-                            BitConverter.ToString(element.BlockHash.Hash) == hash.Hash &&
-                            element.BlockHash.Height == hash.Height))
+                        peers = await _localNode.GetPeers();
+                        if (peers == null)
                         {
-                            _logger.Here().Debug(
-                                "Synchronizing chain with last block hash {@Hash} and height {@Height} from {@Peer} {@Version} {@Host}",
-                                hash.Hash, hash.Height, peer.Peer.NodeName, peer.Peer.NodeVersion, peer.Peer.Host);
-
-                            synchronized = await Synchronize(peer.Peer.Host, (ulong)localBlockHeight,
-                                (int)hash.Height);
-                            if (!synchronized) continue;
-                            _logger.Here().Information("Successfully synchronized with {@Peer} {@Version} {@Host}",
-                                peer.Peer.NodeName, peer.Peer.NodeVersion, peer.Peer.Host);
-
-                            break;
+                            _logger.Here().Warning("Peers are null ... Retrying");
+                            continue;
                         }
 
-                        if (synchronized)
+                        if (peers.Count == 0)
+                        {
+                            _logger.Here().Warning("Peer count is zero. It's possible serf is busy... Retrying");
+                            currentRetry++;
+                        }
+
+                        if (currentRetry > retryCount || peers.Count != 0)
                         {
                             break;
                         }
+
+                        var retryDelay = TimeSpan.FromSeconds(Math.Pow(2, currentRetry)) +
+                                         TimeSpan.FromMilliseconds(jitter.Next(0, 1000));
+                        await Task.Delay(retryDelay);
                     }
 
-                    if (!synchronized)
+                    var localBlockHeight = await _unitOfWork.HashChainRepository.CountAsync();
+                    var localLastBlock = await _unitOfWork.HashChainRepository.GetAsync(b =>
+                        new ValueTask<bool>(b.Height == (ulong)localBlockHeight));
+
+                    var localLastBlockHash = string.Empty;
+                    if (localLastBlock != null)
                     {
-                        _logger.Here().Error("Unable to synchronize with remote peers");
+                        localLastBlockHash = BitConverter.ToString(localLastBlock.ToHash());
+                    }
+
+                    Task<BlockHashPeer>[] networkPeerTasks;
+
+                    if (_syncWithSeedNodes)
+                    {
+                        networkPeerTasks =
+                            _localNode.SerfClient.SeedNodes.Seeds.Select(seed =>
+                                    _networkClient.GetPeerLastBlockHashAsync(peers.First(x =>
+                                            x.Value.Host.Contains(seed[..^seed.IndexOf(":", StringComparison.Ordinal)]))
+                                        .Value))
+                                .ToArray();
+                    }
+                    else
+                    {
+                        networkPeerTasks =
+                            peers.Values.Select(peer => _networkClient.GetPeerLastBlockHashAsync(peer)).ToArray();
+                    }
+
+                    var networkBlockHashes =
+                        new List<BlockHashPeer>(await Task.WhenAll(networkPeerTasks))
+                            .Where(element => element != null);
+
+                    var networkBlockHashesGrouped = networkBlockHashes
+                        .Where(hash => hash != null)
+                        .GroupBy(hash => new
+                        {
+                            Hash = BitConverter.ToString(hash.BlockHash.Hash),
+                            hash.BlockHash.Height,
+                        })
+                        .Select(hash => new
+                        {
+                            hash.Key.Hash,
+                            hash.Key.Height,
+                            Count = hash.Count()
+                        })
+                        .OrderByDescending(element => element.Count)
+                        .ThenBy(element => element.Height);
+
+                    var numPeersWithSameHash = networkBlockHashesGrouped
+                        .FirstOrDefault(element => element.Hash == localLastBlockHash)?
+                        .Count ?? 0;
+
+                    if (!networkBlockHashes.Any())
+                    {
+                        _logger.Here().Information("No remote block hashes found");
+                    }
+                    else if (numPeersWithSameHash > networkBlockHashes.Count() / 2.0)
+                    {
+                        _logger.Here().Information(
+                            "Local node has same hash {@Hash} as majority of the network ({@NumSameHash} / {@NumPeers})",
+                            localLastBlockHash, numPeersWithSameHash, networkBlockHashes.Count());
+                    }
+                    else
+                    {
+                        _logger.Here().Information(
+                            "Local node does not have same hash {@Hash} as majority of the network ({@NumSameHash} / {@NumPeers})",
+                            localLastBlockHash, numPeersWithSameHash, networkBlockHashes.Count());
+
+                        foreach (var hash in networkBlockHashesGrouped)
+                        {
+                            _logger.Here().Debug("Hash {@Hash} with height {@Height} found {@Count} times", hash.Hash,
+                                hash.Height, hash.Count);
+                        }
+
+                        var synchronized = false;
+                        foreach (var hash in networkBlockHashesGrouped)
+                        {
+                            foreach (var peer in networkBlockHashes.Where(element =>
+                                BitConverter.ToString(element.BlockHash.Hash) == hash.Hash &&
+                                element.BlockHash.Height == hash.Height))
+                            {
+                                _logger.Here().Debug(
+                                    "Synchronizing chain with last block hash {@Hash} and height {@Height} from {@Peer} {@Version} {@Host}",
+                                    hash.Hash, hash.Height, peer.Peer.NodeName, peer.Peer.NodeVersion, peer.Peer.Host);
+
+                                synchronized = await Synchronize(peer.Peer.Host, (ulong)localBlockHeight,
+                                    (int)hash.Height);
+                                if (!synchronized) continue;
+                                _logger.Here().Information("Successfully synchronized with {@Peer} {@Version} {@Host}",
+                                    peer.Peer.NodeName, peer.Peer.NodeVersion, peer.Peer.Host);
+
+                                break;
+                            }
+
+                            if (synchronized)
+                            {
+                                break;
+                            }
+                        }
+
+                        if (!synchronized)
+                        {
+                            _logger.Here().Error("Unable to synchronize with remote peers");
+                        }
                     }
                 }
-            }
-            catch (Exception ex)
-            {
-                _logger.Here().Error(ex, "Error while checking");
-            }
-            finally
-            {
-                _logger.Here().Information("Finish Synchronizing");
-                SyncRunning = false;
-            }
+                catch (Exception ex)
+                {
+                    _logger.Here().Error(ex, "Error while checking");
+                }
+                finally
+                {
+                    SyncRunning = false;
+                    _logger.Here().Information("Finish Synchronizing");
+                }
+            });
         }
 
         /// <summary>

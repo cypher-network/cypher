@@ -17,6 +17,7 @@ using CYPCore.Models;
 using CYPCore.Network;
 using Polly;
 using Polly.Extensions.Http;
+using Polly.Timeout;
 using Serilog;
 
 namespace CYPNode
@@ -47,17 +48,19 @@ namespace CYPNode
                 options.RequestQueueLimit = 15000;
             });
             services.AddHttpClient<NetworkClient>().SetHandlerLifetime(TimeSpan.FromMinutes(5))
-                .AddPolicyHandler(GetRetryPolicy());
+                .AddPolicyHandler(GetRetryPolicy()).AddPolicyHandler(Policy.TimeoutAsync<HttpResponseMessage>(5));
             services.AddResponseCompression();
-            services.AddMvc(option => option.EnableEndpointRouting = false).SetCompatibilityVersion(CompatibilityVersion.Version_3_0);
+            services.AddMvc(option => option.EnableEndpointRouting = false)
+                .SetCompatibilityVersion(CompatibilityVersion.Version_3_0);
             services.AddControllers();
             services.AddSwaggerGenOptions();
             services.AddHttpContextAccessor();
-            services.AddOptions().Configure<NetworkSetting>(options => _configuration.GetSection("Network").Bind(options));
+            services.AddOptions()
+                .Configure<NetworkSetting>(options => _configuration.GetSection("Network").Bind(options));
             services.Configure<PbftOptions>(_configuration);
             services.AddDataKeysProtection(_configuration);
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -65,7 +68,7 @@ namespace CYPNode
         private static IAsyncPolicy<HttpResponseMessage> GetRetryPolicy()
         {
             return HttpPolicyExtensions.HandleTransientHttpError()
-                .OrResult(msg => msg.StatusCode == System.Net.HttpStatusCode.NotFound).WaitAndRetryAsync(3,
+                .Or<TimeoutRejectedException>().WaitAndRetryAsync(3,
                     retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)), (exception, timeSpan, context) =>
                     {
                         Log.Error(exception.Exception.Message);
@@ -89,8 +92,8 @@ namespace CYPNode
             builder.AddValidator();
             builder.AddMembershipService();
             builder.AddPosMinting(_configuration);
-            builder.AddSync(_configuration);
             builder.AddLocalNode();
+            builder.AddSync(_configuration);
         }
 
         /// <summary>

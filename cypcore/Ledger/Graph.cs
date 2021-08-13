@@ -18,7 +18,7 @@ using CYPCore.Network;
 using CYPCore.Persistence;
 using CYPCore.Serf;
 using Dawn;
-using Dispatch;
+using Fibrous.Agents;
 using MessagePack;
 using Microsoft.Extensions.Hosting;
 using Serilog;
@@ -30,18 +30,17 @@ namespace CYPCore.Ledger
 {
     public interface IGraph
     {
-        Task<VerifyResult> TryAddBlockGraph(BlockGraph blockGraph);
-        Task<VerifyResult> TryAddBlockGraph(byte[] blockGraphModel);
         Task<Transaction> GetTransaction(byte[] txnId);
         Task<IEnumerable<Block>> GetBlocks(int skip, int take);
         Task<IEnumerable<Block>> GetSafeguardBlocks();
         Task<ulong> GetHeight();
         Task<BlockHash> GetHash(ulong height);
+        AsyncAgent<BlockGraph> BlockGraphAgent { get; }
     }
 
     public sealed class Graph : IGraph
     {
-        public const uint BlockmaniaTimeSlot = 0x0000007;
+        public const uint BlockmaniaTimeSlot = 0x000000A;
 
         private readonly IUnitOfWork _unitOfWork;
         private readonly ILocalNode _localNode;
@@ -50,7 +49,6 @@ namespace CYPCore.Ledger
         private readonly ISigning _signing;
         private readonly ILogger _logger;
         private readonly IObservable<EventPattern<BlockGraphEventArgs>> _trackingBlockGraphCompleted;
-        private readonly SerialQueue _serialQueue;
         private readonly IDisposable _blockmaniaListener;
 
         private class BlockGraphEventArgs : EventArgs
@@ -76,17 +74,18 @@ namespace CYPCore.Ledger
             _validator = validator;
             _signing = signing;
             _logger = logger;
-            _serialQueue = new SerialQueue();
-
             _trackingBlockGraphCompleted = Observable.FromEventPattern<BlockGraphEventArgs>(
                 ev => _blockGraphAddCompletedEventHandler += ev, ev => _blockGraphAddCompletedEventHandler -= ev);
-
-            _blockmaniaListener = TryAddBlockmaniaListener();
-
+            _blockmaniaListener = BlockmaniaListener();
+            BlockGraphAgent = new AsyncAgent<BlockGraph>(AddBlockGraph, exception => { _logger.Error(exception.Message); });
             ReplayLastRound().SafeFireAndForget(exception => { _logger.Here().Error(exception, "Replay error"); });
-
             applicationLifetime.ApplicationStopping.Register(OnApplicationStopping);
         }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public AsyncAgent<BlockGraph> BlockGraphAgent { get; }
 
         /// <summary>
         /// 
@@ -114,24 +113,6 @@ namespace CYPCore.Ledger
         /// <summary>
         /// 
         /// </summary>
-        private async Task PruneBlockGraphsCache()
-        {
-            var blockGraphs =
-                await _unitOfWork.BlockGraphRepository.WhereAsync(x => new ValueTask<bool>(x.Block.Round % 50 == 0));
-            foreach (var blockGraph in blockGraphs)
-            {
-                var deleted = await _unitOfWork.BlockGraphRepository.RemoveAsync(blockGraph.ToIdentifier());
-                if (!deleted)
-                {
-                    _logger.Here().Error("Unable to verify remove {@Node} and round {@Round}", blockGraph.Block.Node,
-                        blockGraph.Block.Round);
-                }
-            }
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
         /// <param name="e"></param>
         private void OnBlockGraphAddComplete(BlockGraphEventArgs e)
         {
@@ -142,70 +123,35 @@ namespace CYPCore.Ledger
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="blockGraphModel"></param>
-        /// <returns></returns>
-        public async Task<VerifyResult> TryAddBlockGraph(byte[] blockGraphModel)
+        /// <param name="blockGraph"></param>
+        private async Task AddBlockGraph(BlockGraph blockGraph)
         {
-            Guard.Argument(blockGraphModel, nameof(blockGraphModel)).NotNull();
+            Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
             try
             {
-                var blockGraph = MessagePackSerializer.Deserialize<BlockGraph>(blockGraphModel);
-                var tryAddBlockGraph = await TryAddBlockGraph(blockGraph);
-                return tryAddBlockGraph;
+                var savedBlockGraph = await _unitOfWork.BlockGraphRepository.GetAsync(x =>
+                    new ValueTask<bool>(x.Block.Hash == blockGraph.Block.Hash &&
+                                        x.Block.Node == blockGraph.Block.Node &&
+                                        x.Block.Round == blockGraph.Block.Round &&
+                                        x.Deps.Count == blockGraph.Deps.Count));
+                if (savedBlockGraph == null)
+                {
+                    await TryFinalizeBlockGraph(blockGraph);
+                }
+                else
+                {
+                    var block = MessagePackSerializer.Deserialize<Block>(blockGraph.Block.Data);
+                    if (!savedBlockGraph.PublicKey.Xor(block.BlockPos.PublicKey) &&
+                        savedBlockGraph.Block.Round != blockGraph.Block.Round)
+                    {
+                        await TryFinalizeBlockGraph(blockGraph);
+                    }
+                }
             }
             catch (Exception ex)
             {
                 _logger.Here().Error(ex, ex.Message);
-                return VerifyResult.Invalid;
             }
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="blockGraph"></param>
-        /// <returns></returns>
-        public Task<VerifyResult> TryAddBlockGraph(BlockGraph blockGraph)
-        {
-            Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
-            var tcs = new TaskCompletionSource<VerifyResult>();
-
-            async void TryAdd()
-            {
-                VerifyResult verifyResult = default;
-                try
-                {
-                    var savedBlockGraph = await _unitOfWork.BlockGraphRepository.GetAsync(x => new ValueTask<bool>(x.Block.Hash == blockGraph.Block.Hash && x.Block.Node == blockGraph.Block.Node && x.Block.Round == blockGraph.Block.Round && x.Deps.Count == blockGraph.Deps.Count));
-                    if (savedBlockGraph == null)
-                    {
-                        await TrySaveAndPublishBlockGraph(blockGraph);
-                    }
-                    else
-                    {
-                        var block = MessagePackSerializer.Deserialize<Block>(blockGraph.Block.Data);
-                        if (savedBlockGraph.PublicKey.Xor(block.BlockPos.PublicKey))
-                        {
-                            verifyResult = VerifyResult.AlreadyExists;
-                        }
-                        else
-                        {
-                            await TrySaveAndPublishBlockGraph(blockGraph);
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.Here().Error(ex, ex.Message);
-                    verifyResult = VerifyResult.Invalid;
-                }
-                finally
-                {
-                    tcs.SetResult(verifyResult);
-                }
-            }
-
-            _serialQueue.DispatchAsync(TryAdd);
-            return tcs.Task;
         }
 
         /// <summary>
@@ -400,122 +346,82 @@ namespace CYPCore.Ledger
         /// 
         /// </summary>
         /// <returns></returns>
-        private Task TrySaveAndPublishBlockGraph(BlockGraph blockGraph)
+        private async Task TryFinalizeBlockGraph(BlockGraph blockGraph)
         {
             Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
-            var tcs = new TaskCompletionSource<bool>();
-
-            async void TrySave()
+            try
             {
-                try
+                var copy = blockGraph.Block.Node != _serfClient.ClientId;
+                if (copy)
                 {
-                    var copy = false;
-                    copy |= blockGraph.Block.Node != _serfClient.ClientId;
-                    switch (copy)
-                    {
-                        case false:
-                            {
-                                var signBlockGraph = await SignBlockGraph(blockGraph);
-                                var saved = await SaveBlockGraph(signBlockGraph);
-                                switch (saved)
-                                {
-                                    case false:
-                                        return;
-                                }
+                    var saved = await SaveBlockGraph(blockGraph);
+                    if (saved == false) return;
 
-                                await Publish(signBlockGraph);
-                                break;
-                            }
-                        default:
-                            {
-                                var saved = await SaveBlockGraph(blockGraph);
-                                switch (saved)
-                                {
-                                    case false:
-                                        return;
-                                }
+                    var copyBlockGraph = CopyBlockGraph(blockGraph.Block.Data, blockGraph.Prev.Data);
+                    copyBlockGraph = await SignBlockGraph(copyBlockGraph);
+                    var savedCopy = await SaveBlockGraph(copyBlockGraph);
+                    if (savedCopy == false) return;
 
-                                var copyBlockGraph = CopyBlockGraph(blockGraph.Block.Data, blockGraph.Prev.Data);
-                                copyBlockGraph = await SignBlockGraph(copyBlockGraph);
-                                var savedCopy = await SaveBlockGraph(copyBlockGraph);
-                                switch (savedCopy)
-                                {
-                                    case false:
-                                        return;
-                                }
-
-                                await Publish(copyBlockGraph);
-
-                                OnBlockGraphAddComplete(new BlockGraphEventArgs(blockGraph));
-
-                                break;
-                            }
-                    }
+                    await Broadcast(copyBlockGraph);
+                    OnBlockGraphAddComplete(new BlockGraphEventArgs(blockGraph));
                 }
-                catch (Exception)
+                else
                 {
-                    _logger.Here().Error("Unable to add block for {@Node} and round {@Round}", blockGraph.Block.Node, blockGraph.Block.Round);
-                }
-                finally
-                {
-                    tcs.SetResult(true);
+                    var signBlockGraph = await SignBlockGraph(blockGraph);
+                    var saved = await SaveBlockGraph(signBlockGraph);
+                    if (saved == false) return;
+
+                    await Broadcast(signBlockGraph);
                 }
             }
-
-            _serialQueue.DispatchAsync(TrySave);
-
-            return tcs.Task;
+            catch (Exception)
+            {
+                _logger.Here().Error("Unable to add block for {@Node} and round {@Round}", blockGraph.Block.Node,
+                    blockGraph.Block.Round);
+            }
         }
 
         /// <summary>
         /// 
         /// </summary>
-        private IDisposable TryAddBlockmaniaListener()
+        private IDisposable BlockmaniaListener()
         {
             var activityTrackSubscription = _trackingBlockGraphCompleted
                 .Where(data => data.EventArgs.BlockGraph.Block.Round == GetRound() + 1)
                 .GroupByUntil(item => item.EventArgs.Hash,
-                    g => g.Throttle(TimeSpan.FromSeconds(BlockmaniaTimeSlot), NewThreadScheduler.Default).Take(1))
-                .SelectMany(group => group.Buffer(TimeSpan.FromSeconds(5), 500)).Subscribe(blockGraphs =>
-                {
-                    try
+                    g => g.Throttle(TimeSpan.FromSeconds(BlockmaniaTimeSlot), NewThreadScheduler.Default).ToArray())
+                .SelectMany(group => group.Buffer(TimeSpan.FromSeconds(5), 500)).SubscribeOn(Scheduler.Default).Subscribe(
+                    blockGraphs =>
                     {
-                        var graphNodeCount = blockGraphs.ToArray().Select(n => n.EventArgs.BlockGraph.Block.Node)
-                            .Distinct().ToArray().Length;
-                        var f = (graphNodeCount - 1) / 3;
-                        var quorum2F1 = 2 * f + 1;
-                        if (graphNodeCount < quorum2F1)
+                        try
                         {
-                            _logger.Here()
-                                .Warning(
-                                    "Unable to add blockgraph's to blockmania node count: {@NodeCount} quorum: {@Quorum}",
-                                    graphNodeCount, quorum2F1);
-                            return;
-                        }
+                            var graphNodeCount = blockGraphs.ToArray().Select(n => n.EventArgs.BlockGraph.Block.Node)
+                                .Distinct().ToArray().Length;
+                            var f = (graphNodeCount - 1) / 3;
+                            var quorum2F1 = 2 * f + 1;
+                            if (graphNodeCount < quorum2F1)
+                            {
+                                return;
+                            }
 
-                        var lastInterpreted = GetRound();
-                        var config = new Config(lastInterpreted, Array.Empty<ulong>(), _serfClient.ClientId,
-                            (ulong)graphNodeCount);
-                        var blockmania = new Blockmania(config, _logger) { NodeCount = graphNodeCount };
-                        blockmania.TrackingDelivered.Subscribe(x =>
-                        {
-                            Delivered(x.EventArgs.Interpreted).SafeFireAndForget();
-                        });
-                        foreach (var next in blockGraphs)
-                        {
-                            blockmania.Add(next.EventArgs.BlockGraph);
+                            var lastInterpreted = GetRound();
+                            var config = new Config(lastInterpreted, Array.Empty<ulong>(), _serfClient.ClientId,
+                                (ulong)graphNodeCount);
+                            var blockmania = new Blockmania(config, _logger) { NodeCount = graphNodeCount };
+                            blockmania.TrackingDelivered.Subscribe(x =>
+                            {
+                                Delivered(x.EventArgs.Interpreted).SafeFireAndForget();
+                            });
+                            foreach (var next in blockGraphs)
+                            {
+                                blockmania.Add(next.EventArgs.BlockGraph);
+                            }
                         }
-
-                        PruneBlockGraphsCache().SafeFireAndForget(exception =>
+                        catch (Exception ex)
                         {
-                            _logger.Here().Error(exception, "Prune BlockGraphs error");
-                        });
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.Here().Error(ex, "Process add blockmania error");
-                    }
-                }, exception => { _logger.Here().Error(exception, "Subscribe try add blockmania listener error"); });
+                            _logger.Here().Error(ex, "Process add blockmania error");
+                        }
+                    }, exception => { _logger.Here().Error(exception, "Subscribe try add blockmania listener error"); });
             return activityTrackSubscription;
         }
 
@@ -713,7 +619,7 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="blockGraph"></param>
         /// <returns></returns>
-        private async Task Publish(BlockGraph blockGraph)
+        private async Task Broadcast(BlockGraph blockGraph)
         {
             Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
             try

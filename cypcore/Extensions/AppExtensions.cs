@@ -72,7 +72,7 @@ namespace CYPCore.Extensions
                 configuration.Bind("Staking", stakingConfigurationOptions);
                 var posMintingProvider = new PosMinting(c.Resolve<IGraph>(), c.Resolve<IMemoryPool>(),
                     c.Resolve<ISerfClient>(), c.Resolve<IUnitOfWork>(), c.Resolve<ISigning>(), c.Resolve<IValidator>(),
-                    c.Resolve<ISync>(), stakingConfigurationOptions, c.Resolve<Serilog.ILogger>(), c.Resolve<IHostApplicationLifetime>());
+                    c.Resolve<ISync>(), stakingConfigurationOptions, c.Resolve<Serilog.ILogger>());
                 return posMintingProvider;
             }).As<IStartable>().SingleInstance();
             return builder;
@@ -256,11 +256,8 @@ namespace CYPCore.Extensions
             {
                 var sync = new Sync(c.Resolve<IUnitOfWork>(), c.Resolve<IValidator>(), c.Resolve<ILocalNode>(),
                     c.Resolve<NetworkClient>(), syncWithSeedNodesOnly, c.Resolve<Serilog.ILogger>());
-
                 return sync;
-
             }).As<ISync>().SingleInstance();
-            builder.RegisterType<SyncBackgroundService>().As<IHostedService>();
             return builder;
         }
 
@@ -275,6 +272,12 @@ namespace CYPCore.Extensions
             return builder;
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="builder"></param>
+        /// <param name="configuration"></param>
+        /// <returns></returns>
         public static ContainerBuilder AddNodeMonitorService(this ContainerBuilder builder,
             IConfiguration configuration)
         {

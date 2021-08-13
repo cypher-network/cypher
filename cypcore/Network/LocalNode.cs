@@ -81,11 +81,15 @@ namespace CYPCore.Network
             {
                 if (peers.Any())
                 {
+                    var tasks = new List<Task>();
                     foreach (var peer in peers)
                     {
-                        Task.Run(async () => { await _networkClient.SendAsync(data, topicType, peer.Host); })
-                            .ConfigureAwait(false);
+                        var t = new Task(async () => await _networkClient.SendAsync(data, topicType, peer.Host));
+                        t.Start();
+                        tasks.Add(t);
                     }
+
+                    Task.WaitAll(tasks.ToArray());
                 }
             }
             catch (Exception ex)
@@ -121,7 +125,7 @@ namespace CYPCore.Network
             }
 
             var tcpSession = _serfClient.GetTcpSession(_tcpSession.SessionId);
-            _ = _serfClient.Connect(tcpSession.SessionId);
+            _ = await _serfClient.Connect(tcpSession.SessionId);
             if (!tcpSession.Ready)
             {
                 _logger.Here().Error("Serf client failed to connect");
