@@ -97,7 +97,7 @@ namespace CYPCore.Ledger
 
             try
             {
-                if (_stakingConfigurationOptions.OnOff != true)
+                if (_stakingConfigurationOptions.Enabled != true)
                 {
                     _timer.Dispose();
                     return;

@@ -351,42 +351,27 @@ namespace CYPCore.Ledger
             Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
             try
             {
-                var copy = false;
-                copy |= blockGraph.Block.Node != _serfClient.ClientId;
-                switch (copy)
+                var copy = blockGraph.Block.Node != _serfClient.ClientId;
+                if (copy)
                 {
-                    case false:
-                        {
-                            var signBlockGraph = await SignBlockGraph(blockGraph);
-                            var saved = await SaveBlockGraph(signBlockGraph);
-                            switch (saved)
-                            {
-                                case false: return;
-                            }
+                    var saved = await SaveBlockGraph(blockGraph);
+                    if (saved == false) return;
 
-                            await Broadcast(signBlockGraph);
-                            break;
-                        }
-                    default:
-                        {
-                            var saved = await SaveBlockGraph(blockGraph);
-                            switch (saved)
-                            {
-                                case false: return;
-                            }
+                    var copyBlockGraph = CopyBlockGraph(blockGraph.Block.Data, blockGraph.Prev.Data);
+                    copyBlockGraph = await SignBlockGraph(copyBlockGraph);
+                    var savedCopy = await SaveBlockGraph(copyBlockGraph);
+                    if (savedCopy == false) return;
 
-                            var copyBlockGraph = CopyBlockGraph(blockGraph.Block.Data, blockGraph.Prev.Data);
-                            copyBlockGraph = await SignBlockGraph(copyBlockGraph);
-                            var savedCopy = await SaveBlockGraph(copyBlockGraph);
-                            switch (savedCopy)
-                            {
-                                case false: return;
-                            }
+                    await Broadcast(copyBlockGraph);
+                    OnBlockGraphAddComplete(new BlockGraphEventArgs(blockGraph));
+                }
+                else
+                {
+                    var signBlockGraph = await SignBlockGraph(blockGraph);
+                    var saved = await SaveBlockGraph(signBlockGraph);
+                    if (saved == false) return;
 
-                            await Broadcast(copyBlockGraph);
-                            OnBlockGraphAddComplete(new BlockGraphEventArgs(blockGraph));
-                            break;
-                        }
+                    await Broadcast(signBlockGraph);
                 }
             }
             catch (Exception)
