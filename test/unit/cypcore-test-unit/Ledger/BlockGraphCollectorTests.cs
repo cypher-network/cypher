@@ -41,6 +41,8 @@ namespace cypcore_test_unit.Ledger
             }
         };
 
+        private BlockGraphCollectorTimedRound.CollectorConfig _config;
+
         [SetUp]
         public void Setup()
         {
@@ -49,9 +51,19 @@ namespace cypcore_test_unit.Ledger
                 .Setup(logger => logger.ForContext(It.IsAny<string>(), It.IsAny<string>(), false))
                 .Returns(_logger.Object);
 
+            _config = new()
+            {
+                GraceTime = TimeSpan.FromDays(1),
+                MaxBlocksPerRound = 1,
+                ProcessFunc = ProcessRound,
+                ProcessInNewThread = false,
+            };
+
             _blockGraphCollector = new BlockGraphCollector(
                 ProcessRound,
                 _logger.Object);
+
+            _blockGraphCollector.CollectorConfig = _config;
         }
 
         private struct ProcessResult
@@ -88,14 +100,6 @@ namespace cypcore_test_unit.Ledger
         {
             _processResults.Clear();
 
-            _blockGraphCollector.CollectorConfig = new BlockGraphCollectorTimedRound.CollectorConfig
-            {
-                GraceTime = TimeSpan.FromDays(1),
-                MaxBlocksPerRound = 1,
-                ProcessFunc = ProcessRound,
-                ProcessInNewThread = false,
-            };
-
             _blockGraphCollector.Add(blockGraph_3_5);
 
             Assert.AreEqual(1, _processResults.Count);
@@ -105,14 +109,6 @@ namespace cypcore_test_unit.Ledger
         public void Collector_ProcessedRound_DoesNotProcessAdditionalBlockGraphs()
         {
             _processResults.Clear();
-
-            _blockGraphCollector.CollectorConfig = new BlockGraphCollectorTimedRound.CollectorConfig
-            {
-                GraceTime = TimeSpan.FromDays(1),
-                MaxBlocksPerRound = 1,
-                ProcessFunc = ProcessRound,
-                ProcessInNewThread = false,
-            };
 
             _blockGraphCollector.Add(blockGraph_4_6);
             Assert.AreEqual(1, _processResults.Count);
@@ -126,13 +122,8 @@ namespace cypcore_test_unit.Ledger
         {
             _processResults.Clear();
 
-            _blockGraphCollector.CollectorConfig = new BlockGraphCollectorTimedRound.CollectorConfig
-            {
-                GraceTime = TimeSpan.FromDays(1),
-                MaxBlocksPerRound = 2,
-                ProcessFunc = ProcessRound,
-                ProcessInNewThread = false,
-            };
+            _config.MaxBlocksPerRound = 2;
+            _blockGraphCollector.CollectorConfig = _config;
 
             _blockGraphCollector.Add(blockGraph_3_5);
             Assert.AreEqual(0, _processResults.Count);
@@ -152,13 +143,9 @@ namespace cypcore_test_unit.Ledger
         {
             _processResults.Clear();
 
-            _blockGraphCollector.CollectorConfig = new BlockGraphCollectorTimedRound.CollectorConfig
-            {
-                GraceTime = TimeSpan.FromSeconds(3),
-                MaxBlocksPerRound = 10,
-                ProcessFunc = ProcessRound,
-                ProcessInNewThread = false,
-            };
+            _config.GraceTime = TimeSpan.FromSeconds(3);
+            _config.MaxBlocksPerRound = 10;
+            _blockGraphCollector.CollectorConfig = _config;
 
             _blockGraphCollector.Add(blockGraph_4_6);
             _blockGraphCollector.Add(blockGraph_5_6);

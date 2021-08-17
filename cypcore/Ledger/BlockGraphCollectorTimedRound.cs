@@ -14,7 +14,7 @@ namespace CYPCore.Ledger
         private readonly HashSet<BlockGraph> _blocks;
         private readonly ulong _round;
         private readonly CollectorConfig _config;
-        private System.Timers.Timer _timeout;
+        private Timer _timeout;
 
         private readonly object _roundClosedGuard = new();
         private bool _roundClosed = false;
@@ -47,8 +47,6 @@ namespace CYPCore.Ledger
             _timeout.AutoReset = false;
             _timeout.Elapsed += OnTimeout;
             _timeout.Enabled = true;
-
-            ResetTimer();
         }
 
         private void ResetTimer()
