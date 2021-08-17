@@ -4,9 +4,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reactive;
-using System.Reactive.Concurrency;
-using System.Reactive.Linq;
 using System.Threading.Tasks;
 using Blake3;
 using CYPCore.Consensus;
@@ -24,7 +21,6 @@ using Microsoft.Extensions.Hosting;
 using Serilog;
 using Block = CYPCore.Models.Block;
 using Interpreted = CYPCore.Consensus.Models.Interpreted;
-using TimeSpan = System.TimeSpan;
 
 namespace CYPCore.Ledger
 {
@@ -40,16 +36,13 @@ namespace CYPCore.Ledger
 
     public sealed class Graph : IGraph
     {
-        public const uint BlockmaniaTimeSlot = 0x000000A;
-
         private readonly IUnitOfWork _unitOfWork;
         private readonly ILocalNode _localNode;
         private readonly ISerfClient _serfClient;
         private readonly IValidator _validator;
         private readonly ISigning _signing;
         private readonly ILogger _logger;
-        private readonly IObservable<EventPattern<BlockGraphEventArgs>> _trackingBlockGraphCompleted;
-        private readonly IDisposable _blockmaniaListener;
+        private readonly BlockGraphCollector _blockGraphCollector;
 
         private class BlockGraphEventArgs : EventArgs
         {
@@ -63,7 +56,7 @@ namespace CYPCore.Ledger
             }
         }
 
-        private EventHandler<BlockGraphEventArgs> _blockGraphAddCompletedEventHandler;
+        private readonly EventHandler<BlockGraphEventArgs> _blockGraphAddCompletedEventHandler;
 
         public Graph(IUnitOfWork unitOfWork, ILocalNode localNode, ISerfClient serfClient, IValidator validator,
             ISigning signing, IHostApplicationLifetime applicationLifetime, ILogger logger)
@@ -73,13 +66,21 @@ namespace CYPCore.Ledger
             _serfClient = serfClient;
             _validator = validator;
             _signing = signing;
-            _logger = logger;
-            _trackingBlockGraphCompleted = Observable.FromEventPattern<BlockGraphEventArgs>(
-                ev => _blockGraphAddCompletedEventHandler += ev, ev => _blockGraphAddCompletedEventHandler -= ev);
-            _blockmaniaListener = BlockmaniaListener();
+            _logger = logger.ForContext("SourceContext", nameof(Graph));
+            _blockGraphCollector = new BlockGraphCollector(ProcessRound, _logger);
+            _blockGraphAddCompletedEventHandler += BlockGraphAddCompletedEventHandler;
+
             BlockGraphAgent = new AsyncAgent<BlockGraph>(AddBlockGraph, exception => { _logger.Error(exception.Message); });
             ReplayLastRound().SafeFireAndForget(exception => { _logger.Here().Error(exception, "Replay error"); });
             applicationLifetime.ApplicationStopping.Register(OnApplicationStopping);
+        }
+
+        private void BlockGraphAddCompletedEventHandler(object? _, BlockGraphEventArgs e)
+        {
+            if (e.BlockGraph.Block.Round == GetRound() + 1)
+            {
+                _blockGraphCollector.Add(e.BlockGraph);
+            }
         }
 
         /// <summary>
@@ -93,7 +94,6 @@ namespace CYPCore.Ledger
         private void OnApplicationStopping()
         {
             _logger.Here().Information("Application stopping");
-            _blockmaniaListener.Dispose();
         }
 
         /// <summary>
@@ -119,6 +119,42 @@ namespace CYPCore.Ledger
             var handler = _blockGraphAddCompletedEventHandler;
             handler?.Invoke(this, e);
         }
+
+        private void ProcessRound(HashSet<BlockGraph> blocks, ulong round, Action<bool> finishedCallback)
+        {
+            try
+            {
+                var nodeCount = blocks.DistinctBy(blockGraph => blockGraph.Block.Node).Count();
+
+                var f = (nodeCount - 1) / 3;
+                var quorum2F1 = 2 * f + 1;
+                if (nodeCount >= quorum2F1)
+                {
+                    var config = new Config(round, Array.Empty<ulong>(), _serfClient.ClientId, (ulong)nodeCount);
+                    var blockmania = new Blockmania(config, _logger) { NodeCount = nodeCount };
+                    blockmania.TrackingDelivered.Subscribe(x =>
+                    {
+                        Delivered(x.EventArgs.Interpreted);
+                    });
+                    foreach (var block in blocks)
+                    {
+                        blockmania.Add(block);
+                    }
+                }
+                else
+                {
+                    _logger.Here().Error("Quorum size not reached, not processing {@Round} {@NodeCount} {@F} {@Quorum}",
+                        round, nodeCount, f, quorum2F1);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Here().Error(ex, "Process add blockmania error");
+            }
+
+            finishedCallback(true);
+        }
+
 
         /// <summary>
         /// 
@@ -379,50 +415,6 @@ namespace CYPCore.Ledger
                 _logger.Here().Error("Unable to add block for {@Node} and round {@Round}", blockGraph.Block.Node,
                     blockGraph.Block.Round);
             }
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        private IDisposable BlockmaniaListener()
-        {
-            var activityTrackSubscription = _trackingBlockGraphCompleted
-                .Where(data => data.EventArgs.BlockGraph.Block.Round == GetRound() + 1)
-                .GroupByUntil(item => item.EventArgs.Hash,
-                    g => g.Throttle(TimeSpan.FromSeconds(BlockmaniaTimeSlot), NewThreadScheduler.Default).ToArray())
-                .SelectMany(group => group.Buffer(TimeSpan.FromSeconds(5), 500)).SubscribeOn(Scheduler.Default).Subscribe(
-                    blockGraphs =>
-                    {
-                        try
-                        {
-                            var graphNodeCount = blockGraphs.ToArray().Select(n => n.EventArgs.BlockGraph.Block.Node)
-                                .Distinct().ToArray().Length;
-                            var f = (graphNodeCount - 1) / 3;
-                            var quorum2F1 = 2 * f + 1;
-                            if (graphNodeCount < quorum2F1)
-                            {
-                                return;
-                            }
-
-                            var lastInterpreted = GetRound();
-                            var config = new Config(lastInterpreted, Array.Empty<ulong>(), _serfClient.ClientId,
-                                (ulong)graphNodeCount);
-                            var blockmania = new Blockmania(config, _logger) { NodeCount = graphNodeCount };
-                            blockmania.TrackingDelivered.Subscribe(x =>
-                            {
-                                Delivered(x.EventArgs.Interpreted).SafeFireAndForget();
-                            });
-                            foreach (var next in blockGraphs)
-                            {
-                                blockmania.Add(next.EventArgs.BlockGraph);
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.Here().Error(ex, "Process add blockmania error");
-                        }
-                    }, exception => { _logger.Here().Error(exception, "Subscribe try add blockmania listener error"); });
-            return activityTrackSubscription;
         }
 
         /// <summary>
