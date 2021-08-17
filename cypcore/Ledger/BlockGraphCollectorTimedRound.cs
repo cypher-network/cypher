@@ -92,7 +92,10 @@ namespace CYPCore.Ledger
         {
             lock (_roundClosedGuard)
             {
-                StartProcess();
+                if (!_roundClosed)
+                {
+                    StartProcess();
+                }
             }
         }
 
