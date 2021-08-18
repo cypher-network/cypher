@@ -139,7 +139,7 @@ namespace CYPCore.Ledger
                     var blockmania = new Blockmania(config, _logger) { NodeCount = nodeCount };
                     blockmania.TrackingDelivered.Subscribe(x =>
                     {
-                        Delivered(x.EventArgs.Interpreted);
+                        Delivered(x.EventArgs.Interpreted).SafeFireAndForget();
                     });
                     foreach (var block in blocks)
                     {
