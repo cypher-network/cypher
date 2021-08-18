@@ -116,10 +116,15 @@ namespace CYPCore.Ledger
         /// <param name="e"></param>
         private void OnBlockGraphAddComplete(BlockGraphEventArgs e)
         {
-            var handler = _blockGraphAddCompletedEventHandler;
-            handler?.Invoke(this, e);
+            _blockGraphAddCompletedEventHandler?.Invoke(this, e);
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="blocks"></param>
+        /// <param name="round"></param>
+        /// <param name="finishedCallback"></param>
         private void ProcessRound(HashSet<BlockGraph> blocks, ulong round, Action<bool> finishedCallback)
         {
             try
@@ -154,7 +159,6 @@ namespace CYPCore.Ledger
 
             finishedCallback(true);
         }
-
 
         /// <summary>
         /// 
