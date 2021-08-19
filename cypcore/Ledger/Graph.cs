@@ -436,8 +436,7 @@ namespace CYPCore.Ledger
                 foreach (var next in blocks)
                 {
                     var blockGraph = await _unitOfWork.BlockGraphRepository.GetAsync(x =>
-                        new ValueTask<bool>(x.Block.Hash.Equals(next.Hash) && x.Block.Node == next.Node &&
-                                            x.Block.Round == next.Round));
+                        new ValueTask<bool>(x.Block.Hash.Equals(next.Hash) && x.Block.Round == GetRound() + 1));
                     if (blockGraph == null)
                     {
                         _logger.Here()
