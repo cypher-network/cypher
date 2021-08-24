@@ -73,7 +73,7 @@ namespace CYPCore.Ledger
         public static readonly byte[] BlockZeroPreHash =
             "3030303030303030437970686572204e6574776f726b2076742e322e32303231".HexToByte();
 
-        public const uint SolutionTimeout = 0x0000014;
+        public const uint SolutionTimeout = 0x0000028;
 
         private const decimal Distribution = 139_000_000;
         private readonly IUnitOfWork _unitOfWork;
