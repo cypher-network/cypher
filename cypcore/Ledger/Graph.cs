@@ -40,7 +40,7 @@ namespace CYPCore.Ledger
     public sealed class Graph : IGraph
     {
         public const uint BlockmaniaTimeSlot = 0x000000A;
-        
+
         private readonly IUnitOfWork _unitOfWork;
         private readonly ILocalNode _localNode;
         private readonly ISerfClient _serfClient;
@@ -49,7 +49,7 @@ namespace CYPCore.Ledger
         private readonly ILogger _logger;
         private readonly IObservable<EventPattern<BlockGraphEventArgs>> _trackingBlockGraphCompleted;
         private readonly IDisposable _blockmaniaListener;
-        
+
         private class BlockGraphEventArgs : EventArgs
         {
             public BlockGraph BlockGraph { get; }
@@ -76,7 +76,7 @@ namespace CYPCore.Ledger
             _trackingBlockGraphCompleted = Observable.FromEventPattern<BlockGraphEventArgs>(
                 ev => _blockGraphAddCompletedEventHandler += ev, ev => _blockGraphAddCompletedEventHandler -= ev);
             _blockmaniaListener = BlockmaniaListener();
-            
+
             BlockGraphAgent = new AsyncAgent<BlockGraph>(AddBlockGraph, exception => { _logger.Error(exception.Message); });
             ReplayLastRound().SafeFireAndForget(exception => { _logger.Here().Error(exception, "Replay error"); });
             applicationLifetime.ApplicationStopping.Register(OnApplicationStopping);
@@ -144,8 +144,8 @@ namespace CYPCore.Ledger
                         if (nodeCount < quorum2F1) return;
                         var lastInterpreted = GetRound();
                         var config = new Config(lastInterpreted, Array.Empty<ulong>(), _serfClient.ClientId,
-                            (ulong) nodeCount);
-                        var blockmania = new Blockmania(config, _logger) {NodeCount = nodeCount};
+                            (ulong)nodeCount);
+                        var blockmania = new Blockmania(config, _logger) { NodeCount = nodeCount };
                         blockmania.TrackingDelivered.Subscribe(x =>
                         {
                             Delivered(x.EventArgs.Interpreted).SafeFireAndForget();

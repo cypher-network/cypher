@@ -45,7 +45,7 @@ namespace CYPCore.Ledger
     public class PosMinting : IPosMinting
     {
         public const uint StakeTimeSlot = 0x0000000A;
-        public const uint SlothTimeout = 0x0000014;
+        public const uint SlothTimeout = 0x0000028;
 
         private readonly IGraph _graph;
         private readonly IMemoryPool _memoryPool;
