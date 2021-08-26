@@ -76,7 +76,7 @@ namespace CYPCore.Ledger
         private const uint SolutionTimeout = 0x000003C;
         private const decimal Distribution = 139_000_000;
         private const decimal RewardPercentage = 0.1M;
-        
+
         private readonly IUnitOfWork _unitOfWork;
         private readonly ISigning _signing;
         private readonly ILogger _logger;
