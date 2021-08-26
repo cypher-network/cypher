@@ -73,9 +73,10 @@ namespace CYPCore.Ledger
         public static readonly byte[] BlockZeroPreHash =
             "3030303030303030437970686572204e6574776f726b2076742e322e32303231".HexToByte();
 
-        public const uint SolutionTimeout = 0x0000028;
-
+        private const uint SolutionTimeout = 0x000003C;
         private const decimal Distribution = 139_000_000;
+        private const decimal RewardPercentage = 0.1M;
+        
         private readonly IUnitOfWork _unitOfWork;
         private readonly ISigning _signing;
         private readonly ILogger _logger;
@@ -737,8 +738,8 @@ namespace CYPCore.Ledger
             Guard.Argument(solution, nameof(solution)).NotZero().NotNegative();
             Guard.Argument(runningDistribution, nameof(runningDistribution)).NotZero().NotNegative();
             var r = Distribution - runningDistribution;
-            var percentage = r / runningDistribution == 0 ? 0.1M : r / runningDistribution;
-            if (percentage != 0.1M)
+            var percentage = r / runningDistribution == 0 ? RewardPercentage : r / runningDistribution;
+            if (percentage != RewardPercentage)
             {
                 percentage += percentage * Convert.ToDecimal("1".PadRight(percentage.LeadingZeros(), '0'));
             }
