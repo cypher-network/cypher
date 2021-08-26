@@ -39,7 +39,7 @@ namespace CYPCore.Ledger
 
     public sealed class Graph : IGraph
     {
-        public const uint BlockmaniaTimeSlot = 0x000000A;
+        public const uint BlockmaniaTimeSlot = 0x0000003;
 
         private readonly IUnitOfWork _unitOfWork;
         private readonly ILocalNode _localNode;
