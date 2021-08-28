@@ -330,7 +330,11 @@ stop_service() {
 user_create_linux() {
   echo groupadd "$1"
   sudo groupadd -f "$1" >/dev/null
-  sudo adduser --system --gid $(getent group "$1" | cut -d: -f3) --no-create-home "$2" >/dev/null
+  if [ -f "/etc/arch-release" ]; then
+    sudo useradd --system --gid $(getent group "$1" | cut -d: -f3) --no-create-home "$2" >/dev/null
+  else
+    sudo adduser --system --gid $(getent group "$1" | cut -d: -f3) --no-create-home "$2" >/dev/null
+  fi
 }
 
 user_create_macos() {
