@@ -78,7 +78,7 @@ namespace CYPCore.Ledger
             _blockmaniaListener = BlockmaniaListener();
 
             BlockGraphAgent = new AsyncAgent<BlockGraph>(AddBlockGraph, exception => { _logger.Error(exception.Message); });
-            ReplayLastRound().SafeFireAndForget(exception => { _logger.Here().Error(exception, "Replay error"); });
+            ReplayRound().SafeFireAndForget(exception => { _logger.Here().Error(exception, "Replay error"); });
             applicationLifetime.ApplicationStopping.Register(OnApplicationStopping);
         }
 
@@ -99,7 +99,7 @@ namespace CYPCore.Ledger
         /// <summary>
         /// 
         /// </summary>
-        private async Task ReplayLastRound()
+        private async Task ReplayRound()
         {
             var blockGraphs =
                 await _unitOfWork.BlockGraphRepository.WhereAsync(x =>
