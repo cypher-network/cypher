@@ -44,8 +44,9 @@ namespace CYPCore.Ledger
     /// </summary>
     public class PosMinting : IPosMinting
     {
-        private const uint StakeTimeSlot = 0x0000000A;
-        private const uint SlothTimeout = 0x000003C;
+        private const uint PosStartTimeDueSeconds = 0x0000023;
+        private const uint StakeTimeSlotSeconds = 0x0000000A;
+        private const uint SlothTimeoutSeconds = 0x000003C;
 
         private readonly IGraph _graph;
         private readonly IMemoryPool _memoryPool;
@@ -73,7 +74,7 @@ namespace CYPCore.Ledger
             _stakingConfigurationOptions = stakingConfigurationOptions;
             _logger = logger.ForContext("SourceContext", nameof(PosMinting));
             _keyPair = _signing.GetOrUpsertKeyName(_signing.DefaultSigningKeyName).GetAwaiter().GetResult();
-            _timer = Observable.Timer(TimeSpan.FromSeconds(35), TimeSpan.FromSeconds(StakeTimeSlot)).Subscribe(_ =>
+            _timer = Observable.Timer(TimeSpan.FromSeconds(PosStartTimeDueSeconds), TimeSpan.FromSeconds(StakeTimeSlotSeconds)).Subscribe(_ =>
             {
                 Stake().SafeFireAndForget(exception =>
                 {
@@ -109,7 +110,7 @@ namespace CYPCore.Ledger
                 var prevBlock = await _unitOfWork.HashChainRepository.GetAsync(x => new ValueTask<bool>(x.Height == (ulong)height));
                 if (prevBlock == null) throw new WarningException("No previous block available for processing");
 
-                if (_validator.GetAdjustedTimeAsUnixTimestamp(StakeTimeSlot) <= prevBlock.BlockHeader.Locktime)
+                if (_validator.GetAdjustedTimeAsUnixTimestamp(StakeTimeSlotSeconds) <= prevBlock.BlockHeader.Locktime)
                 {
                     throw new Exception($"Current coinstake time slot is not greater than last search timestamp {prevBlock.BlockHeader.Locktime}");
                 }
@@ -271,11 +272,11 @@ namespace CYPCore.Ledger
                 x = -x;
             }
 
-            var ct = new CancellationTokenSource(TimeSpan.FromSeconds(SlothTimeout)).Token;
+            var ct = new CancellationTokenSource(TimeSpan.FromSeconds(SlothTimeoutSeconds)).Token;
             var sloth = new Sloth(ct);
             var nonce = sloth.Eval((int)bits, x);
             if (ct.IsCancellationRequested) return null;
-            var lockTime = _validator.GetAdjustedTimeAsUnixTimestamp(StakeTimeSlot);
+            var lockTime = _validator.GetAdjustedTimeAsUnixTimestamp(StakeTimeSlotSeconds);
             var block = new Block
             {
                 Hash = new byte[32],

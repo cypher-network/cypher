@@ -31,8 +31,9 @@ namespace CYPCore.Ledger
     /// </summary>
     public class Sync : ISync
     {
-        public const uint SyncTimeSlot = 0x0000000A;
-
+        private const uint SyncTimeSlotMinutes = 0x0000000A;
+        private const uint SyncStartTimeDueSeconds = 0x00000005;
+        
         public bool SyncRunning { get; private set; }
         private const int BatchSize = 100;
         private readonly IUnitOfWork _unitOfWork;
@@ -52,7 +53,7 @@ namespace CYPCore.Ledger
             _syncWithSeedNodes = syncWithSeedNodes;
             _logger = logger.ForContext("SourceContext", nameof(Sync));
 
-            Observable.Timer(TimeSpan.FromSeconds(20), TimeSpan.FromMinutes(SyncTimeSlot)).Subscribe(_ =>
+            Observable.Timer(TimeSpan.FromSeconds(SyncStartTimeDueSeconds), TimeSpan.FromMinutes(SyncTimeSlotMinutes)).Subscribe(_ =>
             {
                 Synchronize();
             });
