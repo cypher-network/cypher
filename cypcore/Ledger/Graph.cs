@@ -39,7 +39,7 @@ namespace CYPCore.Ledger
 
     public sealed class Graph : IGraph
     {
-        public const uint BlockmaniaTimeSlot = 0x0000003;
+        public const double BlockmaniaTimeSlotSeconds = 1.5;
 
         private readonly IUnitOfWork _unitOfWork;
         private readonly ILocalNode _localNode;
@@ -131,7 +131,7 @@ namespace CYPCore.Ledger
             var activityTrackSubscription = _trackingBlockGraphCompleted
                 .Where(data => data.EventArgs.BlockGraph.Block.Round == GetRound() + 1)
                 .GroupByUntil(item => item.EventArgs.Hash,
-                    g => g.Throttle(TimeSpan.FromSeconds(BlockmaniaTimeSlot), NewThreadScheduler.Default).Take(1))
+                    g => g.Throttle(TimeSpan.FromSeconds(BlockmaniaTimeSlotSeconds), NewThreadScheduler.Default).Take(1))
                 .SelectMany(group => group.Buffer(TimeSpan.FromSeconds(1), 500)).Subscribe(_ =>
                 {
                     try
