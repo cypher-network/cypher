@@ -65,7 +65,9 @@ namespace CYPCore.Network
             var peers = await GetPeers();
             if (!peers.Any())
             {
-                var seedPeers = _serfClient.SeedNodes.Seeds.Select(x => new Peer {Host = x});
+                // TODO: Temporary solution until we remove or fix Serf.
+                // Hard coding default ports for now as this won't cause any issues as long as we have some of the seed nodes with these settings.  
+                var seedPeers = _serfClient.SeedNodes.Seeds.Select(x => new Peer {Host = x.Replace("7946", "7000")});
                 await Broadcast(seedPeers.ToArray(), topicType, data);
                 return;
             }
