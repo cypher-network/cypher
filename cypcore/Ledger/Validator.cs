@@ -73,7 +73,7 @@ namespace CYPCore.Ledger
         public static readonly byte[] BlockZeroPreHash =
             "3030303030303030437970686572204e6574776f726b2076742e322e32303231".HexToByte();
 
-        private const uint SolutionTimeout = 0x000003C;
+        private const uint SolutionTimeoutSeconds = 0x000003C;
         private const decimal Distribution = 139_000_000;
         private const decimal RewardPercentage = 0.1M;
 
@@ -793,7 +793,7 @@ namespace CYPCore.Ledger
             long itr = 0;
             try
             {
-                var ct = new CancellationTokenSource(TimeSpan.FromSeconds(SolutionTimeout)).Token;
+                var ct = new CancellationTokenSource(TimeSpan.FromSeconds(SolutionTimeoutSeconds)).Token;
                 var calculating = true;
                 var target = new BigInteger(1, vrfSig);
                 var hashTarget = new BigInteger(1, kernel);

@@ -2,6 +2,7 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using System.Threading;
@@ -213,9 +214,9 @@ namespace CYPCore.Extensions
                     var connectResult = serfClient.Connect(tcpSession.SessionId).GetAwaiter().GetResult();
                     if (connectResult.Success)
                     {
-                        var seedNodesSection = configuration.GetSection("SeedNodes").GetChildren().ToList();
-                        if (!seedNodesSection.Any()) return serfService;
-                        var seedNodes = new SeedNode(seedNodesSection.Select(x => x.Value));
+                        var nodes = configuration.GetSection("SeedNodes").Get<List<string>>();
+                        if (!nodes.Any()) return serfService;
+                        var seedNodes = new SeedNode(nodes.Select(x => x));
                         serfService.JoinSeedNodes(seedNodes).GetAwaiter();
                     }
                     else

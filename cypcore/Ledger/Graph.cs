@@ -39,7 +39,7 @@ namespace CYPCore.Ledger
 
     public sealed class Graph : IGraph
     {
-        public const uint BlockmaniaTimeSlot = 0x0000003;
+        public const double BlockmaniaTimeSlotSeconds = 1.5;
 
         private readonly IUnitOfWork _unitOfWork;
         private readonly ILocalNode _localNode;
@@ -78,7 +78,7 @@ namespace CYPCore.Ledger
             _blockmaniaListener = BlockmaniaListener();
 
             BlockGraphAgent = new AsyncAgent<BlockGraph>(AddBlockGraph, exception => { _logger.Error(exception.Message); });
-            ReplayLastRound().SafeFireAndForget(exception => { _logger.Here().Error(exception, "Replay error"); });
+            ReplayRound().SafeFireAndForget(exception => { _logger.Here().Error(exception, "Replay error"); });
             applicationLifetime.ApplicationStopping.Register(OnApplicationStopping);
         }
 
@@ -99,7 +99,7 @@ namespace CYPCore.Ledger
         /// <summary>
         /// 
         /// </summary>
-        private async Task ReplayLastRound()
+        private async Task ReplayRound()
         {
             var blockGraphs =
                 await _unitOfWork.BlockGraphRepository.WhereAsync(x =>
@@ -131,7 +131,7 @@ namespace CYPCore.Ledger
             var activityTrackSubscription = _trackingBlockGraphCompleted
                 .Where(data => data.EventArgs.BlockGraph.Block.Round == GetRound() + 1)
                 .GroupByUntil(item => item.EventArgs.Hash,
-                    g => g.Throttle(TimeSpan.FromSeconds(BlockmaniaTimeSlot), NewThreadScheduler.Default).Take(1))
+                    g => g.Throttle(TimeSpan.FromSeconds(BlockmaniaTimeSlotSeconds), NewThreadScheduler.Default).Take(1))
                 .SelectMany(group => group.Buffer(TimeSpan.FromSeconds(1), 500)).Subscribe(_ =>
                 {
                     try
@@ -448,8 +448,7 @@ namespace CYPCore.Ledger
                                 next.Hash, next.Round, next.Node);
                         continue;
                     }
-
-                    await RemoveBlockGraph(blockGraph, next);
+                    
                     var block = MessagePackSerializer.Deserialize<Block>(next.Data);
                     var exists = await _validator.BlockExists(block);
                     if (exists == VerifyResult.AlreadyExists)
@@ -482,7 +481,14 @@ namespace CYPCore.Ledger
             }
             finally
             {
-                await DecideWinnerAsync();
+                try
+                {
+                    await DecideWinnerAsync();
+                }
+                catch (Exception ex)
+                {
+                    _logger.Here().Error(ex, "Decide winner error");
+                }
             }
         }
 
@@ -491,14 +497,17 @@ namespace CYPCore.Ledger
         /// </summary>
         private async Task DecideWinnerAsync()
         {
+            List<Block> deliveredBlocks = null;
+            long height = 0;
+            
             try
             {
-                var height = await _unitOfWork.HashChainRepository.GetBlockHeightAsync();
+                height = await _unitOfWork.HashChainRepository.GetBlockHeightAsync();
                 var prevBlock = await _unitOfWork.HashChainRepository.GetAsync(block =>
-                    new ValueTask<bool>(block.Height == (ulong)height));
+                    new ValueTask<bool>(block.Height == (ulong) height));
                 if (prevBlock == null) return;
-                var deliveredBlocks = await _unitOfWork.DeliveredRepository.WhereAsync(block =>
-                    new ValueTask<bool>(block.Height == (ulong)(height + 1)));
+                deliveredBlocks = await _unitOfWork.DeliveredRepository.WhereAsync(block =>
+                    new ValueTask<bool>(block.Height == (ulong) (height + 1)));
                 if (deliveredBlocks.Any() != true) return;
                 _logger.Here().Information("DecideWinnerAsync");
                 var winners = deliveredBlocks.Where(x =>
@@ -533,17 +542,23 @@ namespace CYPCore.Ledger
                     if (!saved)
                     {
                         _logger.Here().Error("Unable to save the block winner");
-                        return;
                     }
                 }
-
-                var removeDeliveredBlockTasks = new List<Task>();
-                deliveredBlocks.ForEach(block => { removeDeliveredBlockTasks.Add(RemoveDeliveredBlock(block)); });
-                await Task.WhenAll(removeDeliveredBlockTasks);
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, "Deciding winner Failed");
+                _logger.Here().Error(ex, "Deciding winner failed");
+            }
+            finally
+            {
+                var removeDeliveredBlockTasks = new List<Task>();
+                deliveredBlocks?.ForEach(block => { removeDeliveredBlockTasks.Add(RemoveDeliveredBlock(block)); });
+                await Task.WhenAll(removeDeliveredBlockTasks);
+                var removeBlockGraphTasks = new List<Task>();
+                var blockGraphs = await _unitOfWork.BlockGraphRepository.WhereAsync(block =>
+                    new ValueTask<bool>(block.Block.Round == (ulong) (height + 1)));
+                blockGraphs.ForEach(blockGraph => removeBlockGraphTasks.Add(RemoveBlockGraph(blockGraph)));
+                await Task.WhenAll(removeBlockGraphTasks);
             }
         }
 
@@ -566,19 +581,17 @@ namespace CYPCore.Ledger
         /// 
         /// </summary>
         /// <param name="blockGraph"></param>
-        /// <param name="next"></param>
         /// <returns></returns>
-        private async Task RemoveBlockGraph(BlockGraph blockGraph, Consensus.Models.Block next)
+        private async Task RemoveBlockGraph(BlockGraph blockGraph)
         {
             Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
-            Guard.Argument(next, nameof(next)).NotNull();
             var removed = await _unitOfWork.BlockGraphRepository.RemoveAsync(blockGraph.ToIdentifier());
             if (!removed)
             {
                 _logger.Here()
                     .Error(
                         "Unable to remove the block graph for block - Hash: {@Hash} Round: {@Round} from node {@Node}",
-                        next.Hash, next.Round, next.Node);
+                        blockGraph.Block.Hash, blockGraph.Block.Round, blockGraph.Block.Node);
             }
         }
 
