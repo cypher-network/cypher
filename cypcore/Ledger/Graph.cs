@@ -556,7 +556,7 @@ namespace CYPCore.Ledger
                 await Task.WhenAll(removeDeliveredBlockTasks);
                 var removeBlockGraphTasks = new List<Task>();
                 var blockGraphs = await _unitOfWork.BlockGraphRepository.WhereAsync(block =>
-                    new ValueTask<bool>(block.Block.Round == (ulong) (height + 1)));
+                    new ValueTask<bool>(block.Block.Round == GetRound()));
                 blockGraphs.ForEach(blockGraph => removeBlockGraphTasks.Add(RemoveBlockGraph(blockGraph)));
                 await Task.WhenAll(removeBlockGraphTasks);
             }
