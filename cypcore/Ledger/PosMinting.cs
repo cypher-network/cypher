@@ -164,7 +164,7 @@ namespace CYPCore.Ledger
                 }
                 else
                 {
-                    _logger.Here().Information("Staking node was not selected for this round");
+                    _logger.Here().Information("Staking node was not selected for round {@Round}" , height + 1);
                 }
             }
             catch (WarningException ex)
