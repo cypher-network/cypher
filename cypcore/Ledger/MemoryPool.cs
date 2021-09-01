@@ -66,8 +66,8 @@ namespace CYPCore.Ledger
                 var removeTransactions = _pooledTransactions
                     .Where(transaction => transaction.Vtime.L < removeTransactionsBeforeTimestamp)
                     .ToList();
-
-                foreach (var removeTransaction in removeTransactions.ToList())
+                
+                foreach (var removeTransaction in removeTransactions)
                 {
                     _pooledTransactions.Remove(removeTransaction);
                     _pooledSeenTransactions.Remove(removeTransaction.TxnId.ByteToHex());
