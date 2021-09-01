@@ -88,7 +88,7 @@ namespace CYPCore.Ledger
             
             Observable.Timer(TimeSpan.Zero, TimeSpan.FromHours(1)).Subscribe(_ =>
             {
-                foreach (var removeRejectedSeenBlockHash in _rejectSeenBlockHashes)
+                foreach (var removeRejectedSeenBlockHash in _rejectSeenBlockHashes.ToList())
                 {
                     _rejectSeenBlockHashes.Remove(removeRejectedSeenBlockHash);
                 }
