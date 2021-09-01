@@ -53,7 +53,6 @@ namespace CYPCore.Ledger
         private readonly IObservable<EventPattern<BlockGraphEventArgs>> _trackingBlockGraphCompleted;
         private readonly IDisposable _blockmaniaListener;
         private readonly PooledList<string> _rejectSeenBlockHashes;
-
         private readonly ReaderWriterLockSlim _sync = new();
         
         private class BlockGraphEventArgs : EventArgs
@@ -80,7 +79,6 @@ namespace CYPCore.Ledger
             _signing = signing;
             _logger = logger.ForContext("SourceContext", nameof(Graph));
             _rejectSeenBlockHashes = new PooledList<string>(MaxRejectedSeenBlockHashes);
-            
             _trackingBlockGraphCompleted = Observable.FromEventPattern<BlockGraphEventArgs>(
                 ev => _blockGraphAddCompletedEventHandler += ev, ev => _blockGraphAddCompletedEventHandler -= ev);
             _blockmaniaListener = BlockmaniaListener();
@@ -117,10 +115,8 @@ namespace CYPCore.Ledger
         /// </summary>
         private async Task ReplayRound()
         {
-            var blockGraphs =
-                await _unitOfWork.BlockGraphRepository.WhereAsync(x =>
-                    new ValueTask<bool>(x.Block.Round == GetRound() + 1));
-            foreach (var blockGraph in blockGraphs)
+            var blockGraphs = await _unitOfWork.BlockGraphRepository.SelectAsync(x => new ValueTask<BlockGraph>(x));
+            foreach (var blockGraph in blockGraphs.Where(blockGraph => blockGraph.Block.Round == NextRound()))
             {
                 OnBlockGraphAddComplete(new BlockGraphEventArgs(blockGraph));
             }
@@ -132,7 +128,7 @@ namespace CYPCore.Ledger
         /// <param name="e"></param>
         private void OnBlockGraphAddComplete(BlockGraphEventArgs e)
         {
-            if (e.BlockGraph.Block.Round == GetRound() + 1)
+            if (e.BlockGraph.Block.Round == NextRound())
             {
                 _blockGraphAddCompletedEventHandler?.Invoke(this, e);
             }
@@ -145,7 +141,7 @@ namespace CYPCore.Ledger
         private IDisposable BlockmaniaListener()
         {
             var activityTrackSubscription = _trackingBlockGraphCompleted
-                .Where(data => data.EventArgs.BlockGraph.Block.Round == GetRound() + 1)
+                .Where(data => data.EventArgs.BlockGraph.Block.Round == NextRound())
                 .GroupByUntil(item => item.EventArgs.Hash,
                     g => g.Throttle(TimeSpan.FromSeconds(BlockmaniaTimeSlotSeconds), NewThreadScheduler.Default).Take(1))
                 .SelectMany(group => group.Buffer(TimeSpan.FromSeconds(1), 500)).Subscribe(_ =>
@@ -153,7 +149,7 @@ namespace CYPCore.Ledger
                     try
                     {
                         var blockGraphs = _unitOfWork.BlockGraphRepository
-                            .WhereAsync(x => new ValueTask<bool>(x.Block.Round == GetRound() + 1)).AsTask().Result;
+                            .WhereAsync(x => new ValueTask<bool>(x.Block.Round == NextRound())).AsTask().Result;
                         var nodeCount = blockGraphs.Select(n => n.Block.Node).Distinct().Count();
                         var f = (nodeCount - 1) / 3;
                         var quorum2F1 = 2 * f + 1;
@@ -199,18 +195,21 @@ namespace CYPCore.Ledger
                 
                 var savedBlockGraph = await _unitOfWork.BlockGraphRepository.GetAsync(x =>
                     new ValueTask<bool>(x.Block.Hash == blockGraph.Block.Hash &&
-                                        x.Block.Node == blockGraph.Block.Node && x.Block.Round == GetRound() + 1));
+                                        x.Block.Node == blockGraph.Block.Node && x.Block.Round == NextRound()));
                 if (savedBlockGraph != null)
                 {
                     if (!savedBlockGraph.PublicKey.Xor(block.BlockPos.PublicKey) &&
-                        savedBlockGraph.Block.Round != GetRound() + 1)
+                        savedBlockGraph.Block.Round != NextRound())
                     {
                         await TryFinalizeBlockGraph(blockGraph);
                     }
                 }
                 else
                 {
-                    await TryFinalizeBlockGraph(blockGraph);
+                    if (blockGraph.Block.Round == NextRound())
+                    {
+                        await TryFinalizeBlockGraph(blockGraph);
+                    }
                 }
             }
             catch (Exception ex)
@@ -461,7 +460,7 @@ namespace CYPCore.Ledger
                 foreach (var next in blocks)
                 {
                     var blockGraph = await _unitOfWork.BlockGraphRepository.GetAsync(x =>
-                        new ValueTask<bool>(x.Block.Hash.Equals(next.Hash) && x.Block.Round == GetRound() + 1));
+                        new ValueTask<bool>(x.Block.Hash.Equals(next.Hash) && x.Block.Round == NextRound()));
                     if (blockGraph == null)
                     {
                         _logger.Here()
@@ -655,6 +654,15 @@ namespace CYPCore.Ledger
 
             return round;
         }
+        
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        private ulong NextRound()
+        {
+            return GetRound() + 1;
+        }
 
         /// <summary>
         /// 
@@ -666,13 +674,20 @@ namespace CYPCore.Ledger
             Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
             try
             {
-                var peers = await _localNode.GetPeers();
-                await _localNode.Broadcast(peers.Values.ToArray(), TopicType.AddBlockGraph,
-                    MessagePackSerializer.Serialize(blockGraph));
+                if (blockGraph.Block.Round == NextRound())
+                {
+                    var peers = await _localNode.GetPeers();
+                    if (peers.Any())
+                    {
+                        peers.ForEach(x => x.Value.BlockHeight = blockGraph.Block.Round);
+                        await _localNode.Broadcast(peers.Values.ToArray(), TopicType.AddBlockGraph,
+                            MessagePackSerializer.Serialize(blockGraph));
+                    }
+                }
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, "Publish error");
+                _logger.Here().Error(ex, "Broadcast error");
             }
         }
     }

@@ -94,7 +94,8 @@ namespace CYPCore.Network
                     var tasks = new List<Task>();
                     foreach (var peer in peers)
                     {
-                        var t = new Task(async () => await _networkClient.SendAsync(data, topicType, peer.Host));
+                        async void Action() => await _networkClient.SendAsync(data, topicType, peer.Host);
+                        var t = new Task(Action);
                         t.Start();
                         tasks.Add(t);
                     }

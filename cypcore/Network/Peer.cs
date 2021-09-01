@@ -10,6 +10,6 @@ namespace CYPCore.Network
         public ulong ClientId { get; set; }
         public string NodeName { get; set; }
         public string NodeVersion { get; set; }
-        public long BlockHeight { get; set; }
+        public ulong BlockHeight { get; set; }
     }
 }
