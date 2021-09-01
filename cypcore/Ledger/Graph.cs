@@ -7,6 +7,7 @@ using System.Linq;
 using System.Reactive;
 using System.Reactive.Concurrency;
 using System.Reactive.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Blake3;
 using Collections.Pooled;
@@ -53,6 +54,8 @@ namespace CYPCore.Ledger
         private readonly IDisposable _blockmaniaListener;
         private readonly PooledList<string> _rejectSeenBlockHashes;
 
+        private readonly ReaderWriterLockSlim _sync = new();
+        
         private class BlockGraphEventArgs : EventArgs
         {
             public BlockGraph BlockGraph { get; }
@@ -88,9 +91,9 @@ namespace CYPCore.Ledger
             
             Observable.Timer(TimeSpan.Zero, TimeSpan.FromHours(1)).Subscribe(_ =>
             {
-                foreach (var removeRejectedSeenBlockHash in _rejectSeenBlockHashes.ToList())
+                using (_sync.Write())
                 {
-                    _rejectSeenBlockHashes.Remove(removeRejectedSeenBlockHash);
+                    _rejectSeenBlockHashes.Clear();
                 }
             });
         }
@@ -186,18 +189,21 @@ namespace CYPCore.Ledger
             try
             {
                 var block = MessagePackSerializer.Deserialize<Block>(blockGraph.Block.Data);
-                if (_rejectSeenBlockHashes.Exists(x => x == block.Hash.ByteToHex()))
+                using (_sync.Read())
                 {
-                    return;
+                    if (_rejectSeenBlockHashes.Exists(x => x == block.Hash.ByteToHex()))
+                    {
+                        return;
+                    }
                 }
-
+                
                 var savedBlockGraph = await _unitOfWork.BlockGraphRepository.GetAsync(x =>
                     new ValueTask<bool>(x.Block.Hash == blockGraph.Block.Hash &&
                                         x.Block.Node == blockGraph.Block.Node && x.Block.Round == GetRound() + 1));
                 if (savedBlockGraph != null)
                 {
                     if (!savedBlockGraph.PublicKey.Xor(block.BlockPos.PublicKey) &&
-                        savedBlockGraph.Block.Round != await GetRoundAsync() + 1)
+                        savedBlockGraph.Block.Round != GetRound() + 1)
                     {
                         await TryFinalizeBlockGraph(blockGraph);
                     }
@@ -514,11 +520,10 @@ namespace CYPCore.Ledger
         private async Task DecideWinnerAsync()
         {
             List<Block> deliveredBlocks = null;
-            long height;
             
             try
             {
-                height = await _unitOfWork.HashChainRepository.GetBlockHeightAsync();
+                var height = await _unitOfWork.HashChainRepository.GetBlockHeightAsync();
                 var prevBlock = await _unitOfWork.HashChainRepository.GetAsync(block =>
                     new ValueTask<bool>(block.Height == (ulong) height));
                 if (prevBlock == null) return;
@@ -541,7 +546,10 @@ namespace CYPCore.Ledger
                     if (blockExists == VerifyResult.AlreadyExists)
                     {
                         _logger.Here().Error("Block winner already exists");
-                        _rejectSeenBlockHashes.Add(blockWinner.Hash.ByteToHex());
+                        using (_sync.Write())
+                        {
+                            _rejectSeenBlockHashes.Add(blockWinner.Hash.ByteToHex());
+                        }
                         return;
                     }
 
@@ -549,7 +557,10 @@ namespace CYPCore.Ledger
                     if (verifyBlockHeader == VerifyResult.UnableToVerify)
                     {
                         _logger.Here().Error("Unable to verify the block");
-                        _rejectSeenBlockHashes.Add(blockWinner.Hash.ByteToHex());
+                        using (_sync.Write())
+                        {
+                            _rejectSeenBlockHashes.Add(blockWinner.Hash.ByteToHex());
+                        }
                         return;
                     }
 
@@ -558,7 +569,10 @@ namespace CYPCore.Ledger
                     if (!saved)
                     {
                         _logger.Here().Error("Unable to save the block winner");
-                        _rejectSeenBlockHashes.Add(blockWinner.Hash.ByteToHex());
+                        using (_sync.Write())
+                        {
+                            _rejectSeenBlockHashes.Add(blockWinner.Hash.ByteToHex());  
+                        }
                     }
                 }
             }
