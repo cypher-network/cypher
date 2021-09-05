@@ -37,6 +37,7 @@ namespace CYPCore.Ledger
         Task<ulong> GetHeight();
         Task<BlockHash> GetHash(ulong height);
         AsyncAgent<BlockGraph> BlockGraphAgent { get; }
+        Task<VerifyResult> BlockGraphExists(BlockGraph blockGraph);
     }
 
     public sealed class Graph : IGraph
@@ -150,6 +151,9 @@ namespace CYPCore.Ledger
                     {
                         var blockGraphs = _unitOfWork.BlockGraphRepository
                             .WhereAsync(x => new ValueTask<bool>(x.Block.Round == NextRound())).AsTask().Result;
+
+                        if (blockGraphs.Count < 2) return;
+                        
                         var nodeCount = blockGraphs.Select(n => n.Block.Node).Distinct().Count();
                         var f = (nodeCount - 1) / 3;
                         var quorum2F1 = 2 * f + 1;
@@ -189,6 +193,8 @@ namespace CYPCore.Ledger
                 {
                     if (_rejectSeenBlockHashes.Exists(x => x == block.Hash.ByteToHex()))
                     {
+                        await RemoveDeliveredBlock(block);
+                        await RemoveBlockGraph(blockGraph);
                         return;
                     }
                 }
@@ -431,10 +437,20 @@ namespace CYPCore.Ledger
                 }
                 else
                 {
+                    var blockGraphExists = await BlockGraphExists(blockGraph);
+                    if (blockGraphExists == VerifyResult.AlreadyExists)
+                    {
+                        _logger.Here().Information("Block graph already exists for {@Node} and round {@Round}", blockGraph.Block.Node,
+                            blockGraph.Block.Round);
+                        
+                        OnBlockGraphAddComplete(new BlockGraphEventArgs(blockGraph));
+                        return;
+                    }
+                    
                     var signBlockGraph = await SignBlockGraph(blockGraph);
                     var saved = await SaveBlockGraph(signBlockGraph);
                     if (saved == false) return;
-
+                    
                     await Broadcast(signBlockGraph);
                 }
             }
@@ -464,37 +480,44 @@ namespace CYPCore.Ledger
                     if (blockGraph == null)
                     {
                         _logger.Here()
-                            .Error(
+                            .Warning(
                                 "Unable to find the matching block - Hash: {@Hash} Round: {@Round} from node {@Node}",
                                 next.Hash, next.Round, next.Node);
                         continue;
                     }
                     
                     var block = MessagePackSerializer.Deserialize<Block>(next.Data);
-                    var exists = await _validator.BlockExists(block);
-                    if (exists == VerifyResult.AlreadyExists)
+                    var blockExists = await _validator.BlockExists(block);
+                    if (blockExists == VerifyResult.AlreadyExists)
                     {
                         TryAddRejectedSeenBlockHash(block.Hash.ByteToHex());
+                        await RemoveDeliveredBlock(block);
+                        await RemoveBlockGraph(blockGraph);
                         continue;
                     }
 
                     var verifyBlockGraphSignatureNodeRound =
                         await _validator.VerifyBlockGraphSignatureNodeRound(blockGraph);
-                    if (verifyBlockGraphSignatureNodeRound == VerifyResult.Succeed)
+                    if (verifyBlockGraphSignatureNodeRound != VerifyResult.Succeed)
+                    {
+                        await RemoveBlockGraph(blockGraph);
+                        _logger.Here()
+                            .Error(
+                                "Unable to verify the node signatures - Hash: {@Hash} Round: {@Round} from node {@Node}",
+                                next.Hash, next.Round, next.Node);
+                    }
+                    else
                     {
                         var saved = await _unitOfWork.DeliveredRepository.PutAsync(block.ToIdentifier(), block);
                         if (!saved)
                         {
                             _logger.Here().Error("Unable to save the block: {@Hash}", block.Hash.ByteToHex());
                         }
-
-                        _logger.Here().Information("Saved block to Delivered");
-                        continue;
+                        else
+                        {
+                            _logger.Here().Information("Saved block to Delivered");
+                        }
                     }
-
-                    _logger.Here()
-                        .Error("Unable to verify the node signatures - Hash: {@Hash} Round: {@Round} from node {@Node}",
-                            next.Hash, next.Round, next.Node);
                 }
             }
             catch (Exception ex)
@@ -519,15 +542,13 @@ namespace CYPCore.Ledger
         /// </summary>
         private async Task DecideWinnerAsync()
         {
-            List<Block> deliveredBlocks = null;
-            
             try
             {
                 var height = await _unitOfWork.HashChainRepository.GetBlockHeightAsync();
                 var prevBlock = await _unitOfWork.HashChainRepository.GetAsync(block =>
                     new ValueTask<bool>(block.Height == (ulong) height));
                 if (prevBlock == null) return;
-                deliveredBlocks = await _unitOfWork.DeliveredRepository.WhereAsync(block =>
+                var deliveredBlocks = await _unitOfWork.DeliveredRepository.WhereAsync(block =>
                     new ValueTask<bool>(block.Height == (ulong) (height + 1)));
                 if (deliveredBlocks.Any() != true) return;
                 _logger.Here().Information("DecideWinnerAsync");
@@ -569,17 +590,34 @@ namespace CYPCore.Ledger
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, "Deciding winner failed");
+                _logger.Here().Error(ex, "Decide winner failed");
             }
             finally
             {
                 var removeDeliveredBlockTasks = new List<Task>();
-                deliveredBlocks?.ForEach(block => { removeDeliveredBlockTasks.Add(RemoveDeliveredBlock(block)); });
+                var deliveredBlocks =
+                    await _unitOfWork.DeliveredRepository.WhereAsync(
+                        x => new ValueTask<bool>(x.Height < NextRound()));
+                deliveredBlocks.ForEach(block =>
+                {
+                    async void Action() => await RemoveDeliveredBlock(block);
+                    var t = new Task(Action);
+                    t.Start();
+                    removeDeliveredBlockTasks.Add(t);
+                });
                 await Task.WhenAll(removeDeliveredBlockTasks);
+                
                 var removeBlockGraphTasks = new List<Task>();
-                var blockGraphs = await _unitOfWork.BlockGraphRepository.WhereAsync(block =>
-                    new ValueTask<bool>(block.Block.Round == GetRound()));
-                blockGraphs.ForEach(blockGraph => removeBlockGraphTasks.Add(RemoveBlockGraph(blockGraph)));
+                var blockGraphs =
+                    await _unitOfWork.BlockGraphRepository.WhereAsync(x =>
+                        new ValueTask<bool>(x.Block.Round < NextRound()));
+                blockGraphs.ForEach(blockGraph =>
+                {
+                    async void Action() => await RemoveBlockGraph(blockGraph);
+                    var t = new Task(Action);
+                    t.Start();
+                    removeBlockGraphTasks.Add(t);
+                });
                 await Task.WhenAll(removeBlockGraphTasks);
             }
         }
@@ -611,7 +649,7 @@ namespace CYPCore.Ledger
             if (!removed)
             {
                 _logger.Here()
-                    .Error(
+                    .Warning(
                         "Unable to remove the block graph for block - Hash: {@Hash} Round: {@Round} from node {@Node}",
                         blockGraph.Block.Hash, blockGraph.Block.Round, blockGraph.Block.Node);
             }
@@ -675,6 +713,10 @@ namespace CYPCore.Ledger
                         await _localNode.Broadcast(peers.Values.ToArray(), TopicType.AddBlockGraph,
                             MessagePackSerializer.Serialize(blockGraph));
                     }
+                    else
+                    {
+                        _logger.Here().Fatal("Broadcast failed no peers");
+                    }
                 }
             }
             catch (Exception ex)
@@ -682,6 +724,25 @@ namespace CYPCore.Ledger
                 _logger.Here().Error(ex, "Broadcast error");
             }
         }
+        
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="blockGraph"></param>
+        /// <returns></returns>
+        public async Task<VerifyResult> BlockGraphExists(BlockGraph blockGraph)
+        {
+            Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
+            var seen = await _unitOfWork.BlockGraphRepository.GetAsync(x =>
+                new ValueTask<bool>(x.Block.Hash.Equals(blockGraph.Block.Hash) &&
+                                    x.Block.Node == blockGraph.Block.Node && x.Block.Round == blockGraph.Block.Round));
+            return seen != null ? VerifyResult.AlreadyExists : VerifyResult.Succeed;
+        }
+        
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="hash"></param>
         private void TryAddRejectedSeenBlockHash(string hash)
         {
             _lock.EnterUpgradeableReadLock();

@@ -241,7 +241,7 @@ namespace CYPCore.Ledger
         /// <param name="block"></param>
         /// <param name="prevBlock"></param>
         /// <returns></returns>
-        private BlockGraph CreateBlockGraph(Block block, Block prevBlock)
+        private BlockGraph CreateBlockGraph(in Block block, in Block prevBlock)
         {
             Guard.Argument(block, nameof(block)).NotNull();
             Guard.Argument(prevBlock, nameof(prevBlock)).NotNull();
@@ -270,7 +270,7 @@ namespace CYPCore.Ledger
         /// <param name="bits"></param>
         /// <param name="previousBlock"></param>
         /// <returns></returns>
-        private Block CreateBlock(Transaction[] transactions, byte[] calculateVrfSignature, byte[] verifyVrfSignature,
+        private Block CreateBlock(in Transaction[] transactions, in byte[] calculateVrfSignature, in byte[] verifyVrfSignature,
             ulong solution, uint bits, Block previousBlock)
         {
             Guard.Argument(transactions, nameof(transactions)).NotNull();
@@ -394,6 +394,9 @@ namespace CYPCore.Ledger
             return transaction;
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
         public void Start()
         {
             // Empty
