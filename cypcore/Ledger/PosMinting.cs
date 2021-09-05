@@ -7,7 +7,6 @@ using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Numerics;
-using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Autofac;
@@ -46,7 +45,7 @@ namespace CYPCore.Ledger
     {
         private const uint PosStartTimeDueSeconds = 0x0000023;
         private const uint StakeTimeSlotSeconds = 0x0000000A;
-        private const uint SlothTimeoutSeconds = 0x000003C;
+        private const uint SlothTimeoutSeconds = 0x0000020;
 
         private readonly IGraph _graph;
         private readonly IMemoryPool _memoryPool;
@@ -58,8 +57,9 @@ namespace CYPCore.Ledger
         private readonly ILogger _logger;
         private readonly KeyPair _keyPair;
         private readonly StakingConfigurationOptions _stakingConfigurationOptions;
-        private readonly IDisposable _timer;
+        private readonly Timer _timer;
         private readonly ReaderWriterLockSlim _lock = new();
+        
         public PosMinting(IGraph graph, IMemoryPool memoryPool, ISerfClient serfClient, IUnitOfWork unitOfWork,
             ISigning signing, IValidator validator, ISync sync, StakingConfigurationOptions stakingConfigurationOptions,
             ILogger logger)
@@ -74,14 +74,17 @@ namespace CYPCore.Ledger
             _stakingConfigurationOptions = stakingConfigurationOptions;
             _logger = logger.ForContext("SourceContext", nameof(PosMinting));
             _keyPair = _signing.GetOrUpsertKeyName(_signing.DefaultSigningKeyName).GetAwaiter().GetResult();
-            _timer = Observable.Timer(TimeSpan.FromSeconds(PosStartTimeDueSeconds), TimeSpan.FromSeconds(StakeTimeSlotSeconds)).Subscribe(_ =>
-            {
-                Stake().SafeFireAndForget(exception =>
-                {
-                    StakeRunning = false;
-                    _logger.Here().Error(exception, "Stake error");
-                });
-            });
+            _timer = new Timer(Callback, null, TimeSpan.FromSeconds(PosStartTimeDueSeconds),
+                TimeSpan.FromSeconds(StakeTimeSlotSeconds));
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="_"></param>
+        private async void Callback(object _)
+        {
+            await Stake();
         }
 
         public bool StakeRunning { get; private set; }
@@ -103,11 +106,14 @@ namespace CYPCore.Ledger
             {
                 if (_stakingConfigurationOptions.Enabled != true)
                 {
-                    _timer.Dispose();
+                    await _timer.DisposeAsync();
                     return;
                 }
 
-                StakeRunning = true;
+                using (_lock.Write())
+                {
+                    StakeRunning = true;
+                }
 
                 var height = await _unitOfWork.HashChainRepository.GetBlockHeightAsync();
                 var prevBlock = await _unitOfWork.HashChainRepository.GetAsync(x => new ValueTask<bool>(x.Height == (ulong)height));
