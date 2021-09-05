@@ -73,7 +73,7 @@ namespace CYPCore.Ledger
         public static readonly byte[] BlockZeroPreHash =
             "3030303030303030437970686572204e6574776f726b2076742e322e32303231".HexToByte();
 
-        private const uint SolutionTimeoutSeconds = 0x000003C;
+        private const uint SolutionTimeoutSeconds = 0x0000020;
         private const decimal Distribution = 139_000_000;
         private const decimal RewardPercentage = 0.1M;
 
@@ -243,12 +243,13 @@ namespace CYPCore.Ledger
                 if (transaction.Bp.Select((t, i) => bulletProof.Verify(transaction.Vout[i + index].C, t.Proof, null!))
                     .Any(verified => !verified))
                 {
+                    _logger.Here().Fatal("Unable to verify the bullet proof");
                     return VerifyResult.UnableToVerify;
                 }
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, "Unable to verify the bullet proof");
+                _logger.Here().Error(ex, ex.Message);
                 return VerifyResult.UnableToVerify;
             }
 
@@ -264,7 +265,12 @@ namespace CYPCore.Ledger
             Guard.Argument(transaction, nameof(transaction)).NotNull();
             try
             {
-                if (transaction.Validate().Any()) return VerifyResult.UnableToVerify;
+                if (transaction.Validate().Any())
+                {
+                    _logger.Here().Error("Unable to validate transaction");
+                    return VerifyResult.UnableToVerify;
+                }
+                
                 using var pedersen = new Pedersen();
                 var index = 0;
                 var outputs = transaction.Vout.Select(x => x.T.ToString()).ToArray();
@@ -276,8 +282,13 @@ namespace CYPCore.Ledger
                 var payment = transaction.Vout[index].C;
                 var change = transaction.Vout[index + 1].C;
                 var commitSumBalance = pedersen.CommitSum(new List<byte[]> { payment, change }, new List<byte[]>());
-                if (!pedersen.VerifyCommitSum(new List<byte[]> { commitSumBalance }, new List<byte[]> { payment, change }))
+                if (!pedersen.VerifyCommitSum(new List<byte[]> { commitSumBalance },
+                    new List<byte[]> { payment, change }))
+                {
+                    _logger.Here().Fatal("Unable to verify committed sum");
                     return VerifyResult.UnableToVerify;
+                }
+
             }
             catch (Exception ex)
             {
@@ -475,7 +486,12 @@ namespace CYPCore.Ledger
         public async Task<VerifyResult> VerifyTransaction(Transaction transaction)
         {
             Guard.Argument(transaction, nameof(transaction)).NotNull();
-            if (transaction.Validate().Any()) return VerifyResult.UnableToVerify;
+            if (transaction.Validate().Any())
+            {
+                _logger.Here()
+                    .Fatal("Unable to validate transaction");
+                return VerifyResult.UnableToVerify;
+            }
             var verifyTransactionTime = VerifyTransactionTime(transaction);
             if (verifyTransactionTime == VerifyResult.UnableToVerify) return verifyTransactionTime;
             var verifySum = VerifyCommitSum(transaction);
@@ -602,7 +618,9 @@ namespace CYPCore.Ledger
             {
                 var blocks = await _unitOfWork.HashChainRepository.WhereAsync(x =>
                     new ValueTask<bool>(x.Txs.Any(t => t.Vin.First().Key.Image.Xor(vin.Key.Image))));
-                if (blocks.Any()) return VerifyResult.UnableToVerify;
+                if (!blocks.Any()) continue;
+                _logger.Here().Fatal("Unable to verify key image");
+                return VerifyResult.UnableToVerify;
             }
 
             return VerifyResult.Succeed;
@@ -632,7 +650,7 @@ namespace CYPCore.Ledger
                 var verifyCoinbaseLockTime = VerifyLockTime(new LockTime(Utils.UnixTimeToDateTime(coinbase.L)),
                     coinbase.S);
                 if (verifyCoinbaseLockTime != VerifyResult.UnableToVerify) continue;
-                _logger.Here().Error("Unable to verify coinbase commitment locktime {@Commit}", commit.ByteToHex());
+                _logger.Here().Fatal("Unable to verify coinbase commitment locktime {@Commit}", commit.ByteToHex());
                 return verifyCoinbaseLockTime;
             }
 

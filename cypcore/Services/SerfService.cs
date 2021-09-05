@@ -158,7 +158,7 @@ namespace CYPCore.Services
                                 _logger.Here().Information("Serf has started!");
                                 _serfClient.ProcessStarted = true;
                             }
-                            _logger.Here().Debug("Out> {@StdOut}", stdOut.Text);
+                            _logger.Here().Information("Out> {@StdOut}", stdOut.Text);
                             break;
                         case StandardErrorCommandEvent stdErr:
                             _logger.Here().Error("Err> {@StdErr}", stdErr.Text);
