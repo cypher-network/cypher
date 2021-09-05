@@ -53,7 +53,7 @@ namespace CYPCore.Ledger
         private readonly IObservable<EventPattern<BlockGraphEventArgs>> _trackingBlockGraphCompleted;
         private readonly IDisposable _blockmaniaListener;
         private readonly PooledList<string> _rejectSeenBlockHashes;
-        private readonly ReaderWriterLockSlim _sync = new();
+        private readonly ReaderWriterLockSlim _lock = new();
         
         private class BlockGraphEventArgs : EventArgs
         {
@@ -89,7 +89,7 @@ namespace CYPCore.Ledger
             
             Observable.Timer(TimeSpan.Zero, TimeSpan.FromHours(1)).Subscribe(_ =>
             {
-                using (_sync.Write())
+                using (_lock.Write())
                 {
                     _rejectSeenBlockHashes.Clear();
                 }
@@ -185,7 +185,7 @@ namespace CYPCore.Ledger
             try
             {
                 var block = MessagePackSerializer.Deserialize<Block>(blockGraph.Block.Data);
-                using (_sync.Read())
+                using (_lock.Read())
                 {
                     if (_rejectSeenBlockHashes.Exists(x => x == block.Hash.ByteToHex()))
                     {
@@ -474,6 +474,7 @@ namespace CYPCore.Ledger
                     var exists = await _validator.BlockExists(block);
                     if (exists == VerifyResult.AlreadyExists)
                     {
+                        TryAddRejectedSeenBlockHash(block.Hash.ByteToHex());
                         continue;
                     }
 
@@ -545,10 +546,7 @@ namespace CYPCore.Ledger
                     if (blockExists == VerifyResult.AlreadyExists)
                     {
                         _logger.Here().Error("Block winner already exists");
-                        using (_sync.Write())
-                        {
-                            _rejectSeenBlockHashes.Add(blockWinner.Hash.ByteToHex());
-                        }
+                        TryAddRejectedSeenBlockHash(blockWinner.Hash.ByteToHex());
                         return;
                     }
 
@@ -556,10 +554,7 @@ namespace CYPCore.Ledger
                     if (verifyBlockHeader == VerifyResult.UnableToVerify)
                     {
                         _logger.Here().Error("Unable to verify the block");
-                        using (_sync.Write())
-                        {
-                            _rejectSeenBlockHashes.Add(blockWinner.Hash.ByteToHex());
-                        }
+                        TryAddRejectedSeenBlockHash(blockWinner.Hash.ByteToHex());
                         return;
                     }
 
@@ -568,10 +563,7 @@ namespace CYPCore.Ledger
                     if (!saved)
                     {
                         _logger.Here().Error("Unable to save the block winner");
-                        using (_sync.Write())
-                        {
-                            _rejectSeenBlockHashes.Add(blockWinner.Hash.ByteToHex());  
-                        }
+                        TryAddRejectedSeenBlockHash(blockWinner.Hash.ByteToHex());
                     }
                 }
             }
@@ -688,6 +680,33 @@ namespace CYPCore.Ledger
             catch (Exception ex)
             {
                 _logger.Here().Error(ex, "Broadcast error");
+            }
+        }
+        private void TryAddRejectedSeenBlockHash(string hash)
+        {
+            _lock.EnterUpgradeableReadLock();
+            try
+            {
+                var exists = _rejectSeenBlockHashes.Exists(x => x == hash);
+                if (exists)
+                {
+                    _logger.Here().Information("Rejected block hash {@Hash} already exists", hash);
+                    return;
+                }
+                _lock.EnterWriteLock();
+                try
+                {
+                    _logger.Here().Information("New rejected block hash {@Hash}", hash);
+                    _rejectSeenBlockHashes.Add(hash);
+                }
+                finally
+                {
+                    _lock.ExitWriteLock();
+                }
+            }
+            finally
+            {
+                _lock.ExitUpgradeableReadLock();
             }
         }
     }

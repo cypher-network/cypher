@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reactive.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using CYPCore.Extensions;
 using CYPCore.Models;
@@ -42,7 +43,8 @@ namespace CYPCore.Ledger
         private readonly NetworkClient _networkClient;
         private readonly bool _syncWithSeedNodes;
         private readonly ILogger _logger;
-
+        private readonly ReaderWriterLockSlim _lock = new();
+        
         public Sync(IUnitOfWork unitOfWork, IValidator validator, ILocalNode localNode, NetworkClient networkClient,
             bool syncWithSeedNodes, ILogger logger)
         {
@@ -66,13 +68,17 @@ namespace CYPCore.Ledger
         public void Synchronize()
         {
             if (SyncRunning) return;
-            SyncRunning = true;
             _logger.Here().Information("Trying to Synchronize");
 
             Task.Factory.StartNew(async () =>
             {
                 try
                 {
+                    using (_lock.Write())
+                    {
+                        SyncRunning = true;
+                    }
+                    
                     Dictionary<ulong, Peer> peers;
                     const int retryCount = 5;
                     var currentRetry = 0;
@@ -213,7 +219,10 @@ namespace CYPCore.Ledger
                 }
                 finally
                 {
-                    SyncRunning = false;
+                    using (_lock.Write())
+                    {
+                        SyncRunning = false;
+                    }
                     _logger.Here().Information("Finish Synchronizing");
                 }
             });

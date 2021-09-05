@@ -59,7 +59,7 @@ namespace CYPCore.Ledger
         private readonly KeyPair _keyPair;
         private readonly StakingConfigurationOptions _stakingConfigurationOptions;
         private readonly IDisposable _timer;
-
+        private readonly ReaderWriterLockSlim _lock = new();
         public PosMinting(IGraph graph, IMemoryPool memoryPool, ISerfClient serfClient, IUnitOfWork unitOfWork,
             ISigning signing, IValidator validator, ISync sync, StakingConfigurationOptions stakingConfigurationOptions,
             ILogger logger)
@@ -93,9 +93,12 @@ namespace CYPCore.Ledger
         /// <exception cref="Exception"></exception>
         private async Task Stake()
         {
-            if (_sync.SyncRunning) return;
-            if (StakeRunning) return;
-
+            using (_lock.Read())
+            {
+                if (_sync.SyncRunning) return;
+                if (StakeRunning) return;
+            }
+            
             try
             {
                 if (_stakingConfigurationOptions.Enabled != true)
@@ -177,7 +180,10 @@ namespace CYPCore.Ledger
             }
             finally
             {
-                StakeRunning = false;
+                using (_lock.Write())
+                {
+                    StakeRunning = false;
+                }
             }
         }
 
