@@ -7,7 +7,6 @@ using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Numerics;
-using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Autofac;
@@ -46,7 +45,7 @@ namespace CYPCore.Ledger
     {
         private const uint PosStartTimeDueSeconds = 0x0000023;
         private const uint StakeTimeSlotSeconds = 0x0000000A;
-        private const uint SlothTimeoutSeconds = 0x000003C;
+        private const uint SlothTimeoutSeconds = 0x0000020;
 
         private readonly IGraph _graph;
         private readonly IMemoryPool _memoryPool;
@@ -58,8 +57,9 @@ namespace CYPCore.Ledger
         private readonly ILogger _logger;
         private readonly KeyPair _keyPair;
         private readonly StakingConfigurationOptions _stakingConfigurationOptions;
-        private readonly IDisposable _timer;
-
+        private readonly Timer _timer;
+        private readonly ReaderWriterLockSlim _lock = new();
+        
         public PosMinting(IGraph graph, IMemoryPool memoryPool, ISerfClient serfClient, IUnitOfWork unitOfWork,
             ISigning signing, IValidator validator, ISync sync, StakingConfigurationOptions stakingConfigurationOptions,
             ILogger logger)
@@ -74,14 +74,17 @@ namespace CYPCore.Ledger
             _stakingConfigurationOptions = stakingConfigurationOptions;
             _logger = logger.ForContext("SourceContext", nameof(PosMinting));
             _keyPair = _signing.GetOrUpsertKeyName(_signing.DefaultSigningKeyName).GetAwaiter().GetResult();
-            _timer = Observable.Timer(TimeSpan.FromSeconds(PosStartTimeDueSeconds), TimeSpan.FromSeconds(StakeTimeSlotSeconds)).Subscribe(_ =>
-            {
-                Stake().SafeFireAndForget(exception =>
-                {
-                    StakeRunning = false;
-                    _logger.Here().Error(exception, "Stake error");
-                });
-            });
+            _timer = new Timer(Callback, null, TimeSpan.FromSeconds(PosStartTimeDueSeconds),
+                TimeSpan.FromSeconds(StakeTimeSlotSeconds));
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="_"></param>
+        private async void Callback(object _)
+        {
+            await Stake();
         }
 
         public bool StakeRunning { get; private set; }
@@ -93,18 +96,24 @@ namespace CYPCore.Ledger
         /// <exception cref="Exception"></exception>
         private async Task Stake()
         {
-            if (_sync.SyncRunning) return;
-            if (StakeRunning) return;
-
+            using (_lock.Read())
+            {
+                if (_sync.SyncRunning) return;
+                if (StakeRunning) return;
+            }
+            
             try
             {
                 if (_stakingConfigurationOptions.Enabled != true)
                 {
-                    _timer.Dispose();
+                    await _timer.DisposeAsync();
                     return;
                 }
 
-                StakeRunning = true;
+                using (_lock.Write())
+                {
+                    StakeRunning = true;
+                }
 
                 var height = await _unitOfWork.HashChainRepository.GetBlockHeightAsync();
                 var prevBlock = await _unitOfWork.HashChainRepository.GetAsync(x => new ValueTask<bool>(x.Height == (ulong)height));
@@ -156,11 +165,13 @@ namespace CYPCore.Ledger
                     transactions.Insert(0, coinStakeTransaction);
 
                     var block = CreateBlock(transactions.ToArray(), calculateVrfSignature, verifyVrfSignature, solution, bits, prevBlock);
-                    if (block == null) throw new Exception("Unable to create the block");
-                    _logger.Here().Information("DateTime:{@DT} Running Distribution:{@RunningDistribution} Solution:{@Solution} Network Share:{@NetworkShare} Reward:{Reward} Bits:{@Bits}", DateTime.UtcNow.ToString(CultureInfo.InvariantCulture), runningDistribution.ToString(CultureInfo.InvariantCulture), solution.ToString(CultureInfo.InvariantCulture), networkShare.ToString(CultureInfo.InvariantCulture), reward.ToString(CultureInfo.InvariantCulture), bits.ToString(CultureInfo.InvariantCulture));
+                    if (block != null)
+                    {
+                        _logger.Here().Information("DateTime:{@DT} Running Distribution:{@RunningDistribution} Solution:{@Solution} Network Share:{@NetworkShare} Reward:{Reward} Bits:{@Bits}", DateTime.UtcNow.ToString(CultureInfo.InvariantCulture), runningDistribution.ToString(CultureInfo.InvariantCulture), solution.ToString(CultureInfo.InvariantCulture), networkShare.ToString(CultureInfo.InvariantCulture), reward.ToString(CultureInfo.InvariantCulture), bits.ToString(CultureInfo.InvariantCulture));
 
-                    _graph.BlockGraphAgent.Publish(CreateBlockGraph(block, prevBlock));
-                    transactions.ForEach(x => _memoryPool.Remove(x));
+                        _graph.BlockGraphAgent.Publish(CreateBlockGraph(block, prevBlock));
+                        transactions.ForEach(x => _memoryPool.Remove(x));
+                    }
                 }
                 else
                 {
@@ -177,7 +188,10 @@ namespace CYPCore.Ledger
             }
             finally
             {
-                StakeRunning = false;
+                using (_lock.Write())
+                {
+                    StakeRunning = false;
+                }
             }
         }
 
@@ -227,7 +241,7 @@ namespace CYPCore.Ledger
         /// <param name="block"></param>
         /// <param name="prevBlock"></param>
         /// <returns></returns>
-        private BlockGraph CreateBlockGraph(Block block, Block prevBlock)
+        private BlockGraph CreateBlockGraph(in Block block, in Block prevBlock)
         {
             Guard.Argument(block, nameof(block)).NotNull();
             Guard.Argument(prevBlock, nameof(prevBlock)).NotNull();
@@ -256,7 +270,7 @@ namespace CYPCore.Ledger
         /// <param name="bits"></param>
         /// <param name="previousBlock"></param>
         /// <returns></returns>
-        private Block CreateBlock(Transaction[] transactions, byte[] calculateVrfSignature, byte[] verifyVrfSignature,
+        private Block CreateBlock(in Transaction[] transactions, in byte[] calculateVrfSignature, in byte[] verifyVrfSignature,
             ulong solution, uint bits, Block previousBlock)
         {
             Guard.Argument(transactions, nameof(transactions)).NotNull();
@@ -265,48 +279,55 @@ namespace CYPCore.Ledger
             Guard.Argument(solution, nameof(solution)).NotZero().NotNegative();
             Guard.Argument(bits, nameof(bits)).NotZero().NotNegative();
             Guard.Argument(previousBlock, nameof(previousBlock)).NotNull();
-            var x = BigInteger.Parse(verifyVrfSignature.ByteToHex(),
-                NumberStyles.AllowHexSpecifier);
-            if (x.Sign <= 0)
+            Block block = null;
+            try
             {
-                x = -x;
+                var x = BigInteger.Parse(verifyVrfSignature.ByteToHex(), NumberStyles.AllowHexSpecifier);
+                if (x.Sign <= 0)
+                {
+                    x = -x;
+                }
+
+                var ct = new CancellationTokenSource(TimeSpan.FromSeconds(SlothTimeoutSeconds)).Token;
+                var sloth = new Sloth(ct);
+                var nonce = sloth.Eval((int)bits, x);
+                if (ct.IsCancellationRequested) return null;
+                var lockTime = _validator.GetAdjustedTimeAsUnixTimestamp(StakeTimeSlotSeconds);
+                block = new Block
+                {
+                    Hash = new byte[32],
+                    Height = 1 + previousBlock.Height,
+                    BlockHeader = new BlockHeader
+                    {
+                        Version = 0x2,
+                        Height = 1 + previousBlock.BlockHeader.Height,
+                        Locktime = lockTime,
+                        LocktimeScript =
+                            new Script(Op.GetPushOp(lockTime), OpcodeType.OP_CHECKLOCKTIMEVERIFY).ToString(),
+                        MerkleRoot =
+                            BlockHeader.ToMerkelRoot(previousBlock.BlockHeader.MerkleRoot, transactions),
+                        PrevBlockHash = previousBlock.Hash
+                    },
+                    NrTx = (ushort)transactions.Length,
+                    Txs = transactions,
+                    BlockPos = new BlockPos
+                    {
+                        Bits = bits,
+                        Nonce = nonce.ToBytes(),
+                        Solution = solution,
+                        VrfProof = calculateVrfSignature,
+                        VrfSig = verifyVrfSignature,
+                        PublicKey = _keyPair.PublicKey
+                    },
+                    Size = 1
+                };
+                block.Size = block.GetSize();
+                block.Hash = _validator.IncrementHasher(previousBlock.Hash, block.ToHash());
             }
-
-            var ct = new CancellationTokenSource(TimeSpan.FromSeconds(SlothTimeoutSeconds)).Token;
-            var sloth = new Sloth(ct);
-            var nonce = sloth.Eval((int)bits, x);
-            if (ct.IsCancellationRequested) return null;
-            var lockTime = _validator.GetAdjustedTimeAsUnixTimestamp(StakeTimeSlotSeconds);
-            var block = new Block
+            catch (Exception ex)
             {
-                Hash = new byte[32],
-                Height = 1 + previousBlock.Height,
-                BlockHeader = new BlockHeader
-                {
-                    Version = 0x2,
-                    Height = 1 + previousBlock.BlockHeader.Height,
-                    Locktime = lockTime,
-                    LocktimeScript =
-                        new Script(Op.GetPushOp(lockTime), OpcodeType.OP_CHECKLOCKTIMEVERIFY).ToString(),
-                    MerkleRoot = BlockHeader.ToMerkelRoot(previousBlock.BlockHeader.MerkleRoot, transactions),
-                    PrevBlockHash = previousBlock.Hash
-                },
-                NrTx = (ushort)transactions.Length,
-                Txs = transactions,
-                BlockPos = new BlockPos
-                {
-                    Bits = bits,
-                    Nonce = nonce.ToBytes(),
-                    Solution = solution,
-                    VrfProof = calculateVrfSignature,
-                    VrfSig = verifyVrfSignature,
-                    PublicKey = _keyPair.PublicKey
-                },
-                Size = 1
-            };
-
-            block.Size = block.GetSize();
-            block.Hash = _validator.IncrementHasher(previousBlock.Hash, block.ToHash());
+                _logger.Here().Error(ex, "Unable to create the block");
+            }
 
             return block;
         }
@@ -373,6 +394,9 @@ namespace CYPCore.Ledger
             return transaction;
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
         public void Start()
         {
             // Empty

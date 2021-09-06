@@ -762,13 +762,7 @@ namespace CYPCore.Consensus
         public void Add(BlockGraph data)
         {
             _logger.Here().Debug("Adding block to graph block.id: {@BlockId}", data.Block);
-
-            var task = Task.Factory.StartNew(async () =>
-            {
-                await _entries.Writer.WriteAsync(data);
-            });
-
-            task.Wait();
+            Task.Factory.StartNew(async () => { await _entries.Writer.WriteAsync(data); });
         }
     }
 }

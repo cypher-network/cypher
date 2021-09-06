@@ -42,11 +42,11 @@ namespace CYPNode
         /// <param name="services"></param>
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddQueuePolicy(options =>
-            {
-                options.MaxConcurrentRequests = 750;
-                options.RequestQueueLimit = 15000;
-            });
+            // services.AddQueuePolicy(options =>
+            // {
+            //     options.MaxConcurrentRequests = 750;
+            //     options.RequestQueueLimit = 15000;
+            // });
             services.AddHttpClient<NetworkClient>().SetHandlerLifetime(TimeSpan.FromMinutes(5))
                 .AddPolicyHandler(GetRetryPolicy()).AddPolicyHandler(Policy.TimeoutAsync<HttpResponseMessage>(5));
             services.AddResponseCompression();
@@ -108,8 +108,8 @@ namespace CYPNode
             {
                 app.UsePathBase(pathBase);
             }
-
-            app.UseConcurrencyLimiter();
+            
+            //app.UseConcurrencyLimiter();
             app.UseStaticFiles();
             app.UseRouting();
             app.UseCors("default");
