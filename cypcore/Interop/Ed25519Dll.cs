@@ -1,10 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Runtime.InteropServices;
-using System.Text;
+﻿using System.Runtime.InteropServices;
 
 namespace CYPCore.Interop
 {
+    /// <summary>
+    /// 
+    /// </summary>
     public static class Ed25519Dll
     {
         [DllImport("ed25519", EntryPoint = "ed25519_sign")]

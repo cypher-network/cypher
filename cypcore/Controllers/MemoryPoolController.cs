@@ -2,9 +2,12 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
+using System.IO;
 using System.Threading.Tasks;
 using CYPCore.Extensions;
 using CYPCore.Ledger;
+using CYPCore.Models;
+using Dawn;
 using MessagePack;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -18,68 +21,77 @@ namespace CYPCore.Controllers
     {
         private readonly IMemoryPool _memoryPool;
         private readonly ILogger _logger;
-
+    
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="memoryPool"></param>
+        /// <param name="logger"></param>
         public MemoryPoolController(IMemoryPool memoryPool, ILogger logger)
         {
             _memoryPool = memoryPool;
             _logger = logger.ForContext("SourceContext", nameof(MemoryPoolController));
         }
-
-        /// <summary>
+    
+        /// <summary>   
         /// 
         /// </summary>
-        /// <param name="transactionModel"></param>
+        /// <param name="data"></param>
         /// <returns></returns>
-        [HttpPost("transaction", Name = "AddTransaction")]
+        [HttpPost("transaction", Name = "NewTransaction")]
         [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> AddTransaction([FromBody] byte[] transactionModel)
+        public async Task<IActionResult> NewTransaction([FromBody] byte[] data)
         {
+            Guard.Argument(data, nameof(data)).NotNull().NotEmpty();
             try
             {
-                var added = await _memoryPool.Add(transactionModel);
+                await using var stream = new MemoryStream(data);
+                var transaction = await MessagePackSerializer.DeserializeAsync<Transaction>(stream);
+                var added = await _memoryPool.NewTransaction(transaction);
                 return added switch
                 {
                     VerifyResult.Succeed => new ObjectResult(StatusCodes.Status200OK),
                     VerifyResult.AlreadyExists => new ConflictObjectResult(StatusCodes.Status409Conflict),
-                    _ => new BadRequestObjectResult(StatusCodes.Status500InternalServerError),
+                    _ => new BadRequestObjectResult(StatusCodes.Status500InternalServerError)
                 };
             }
             catch (Exception ex)
             {
                 _logger.Here().Error(ex, "Unable to add the memory pool transaction");
             }
-
+    
             return new StatusCodeResult(StatusCodes.Status500InternalServerError);
         }
-
+    
         /// <summary>
         /// 
         /// </summary>
         /// <returns></returns>
-        [HttpGet("transaction/{id}", Name = "GetMempoolTransaction")]
+        [HttpGet("transaction/{id}", Name = "GetMemoryPoolTransaction")]
         [ProducesResponseType(typeof(byte[]), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public IActionResult GetTransaction(string id)
+        public async Task<IActionResult> GetTransaction(string id)
         {
+            Guard.Argument(id, nameof(id)).NotNull().NotEmpty().NotWhiteSpace();
             try
             {
                 var transaction = _memoryPool.Get(id.HexToByte());
-                if (transaction != null)
+                if (transaction is { })
                 {
-                    var buffer = MessagePackSerializer.Serialize(transaction);
-                    return new ObjectResult(new { messagepack = buffer });
+                    await using var stream = new MemoryStream();
+                    MessagePackSerializer.SerializeAsync(stream, transaction).Wait();
+                    return new ObjectResult(new { messagepack = stream.ToArray() });
                 }
             }
             catch (Exception ex)
             {
                 _logger.Here().Error(ex, "Unable to get the memory pool transaction");
             }
-
+    
             return NotFound();
         }
-
-
+        
         /// <summary>
         /// 
         /// </summary>
@@ -87,7 +99,7 @@ namespace CYPCore.Controllers
         [HttpGet("count", Name = "GetCount")]
         [ProducesResponseType(typeof(int), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public IActionResult GetCount()
+        public async Task<IActionResult> GetCount()
         {
             try
             {
@@ -98,7 +110,7 @@ namespace CYPCore.Controllers
             {
                 _logger.Here().Error(ex, "Unable to get the memory pool transaction count");
             }
-
+    
             return new StatusCodeResult(StatusCodes.Status500InternalServerError);
         }
     }

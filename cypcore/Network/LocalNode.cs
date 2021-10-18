@@ -5,96 +5,184 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using CYPCore.Cryptography;
 using Dawn;
 using Serilog;
 using CYPCore.Extensions;
-using CYPCore.Serf;
+using CYPCore.Helper;
 using CYPCore.Models;
+using CYPCore.Network.Messages;
+using CYPCore.Persistence;
+using MessagePack;
+using Microsoft.Extensions.Options;
+using NetMQ;
+using NetMQ.Sockets;
+using Proto;
+using Proto.DependencyInjection;
+using MemberState = CYPCore.GossipMesh.MemberState;
 
 namespace CYPCore.Network
 {
     /// <summary>
     /// 
     /// </summary>
-    public interface ILocalNode
+    public class LocalNode: IActor
     {
-        Task Broadcast(TopicType topicType, byte[] data);
-        Task Broadcast(Peer[] peers, TopicType topicType, byte[] data);
-        Task<Dictionary<ulong, Peer>> GetPeers();
-        void Ready();
-        Task Leave();
-        Task JoinSeedNodes();
-        Task<ulong[]> Nodes();
-        public ISerfClient SerfClient { get; }
-    }
-
-    /// <summary>
-    /// 
-    /// </summary>
-    public class LocalNode : ILocalNode
-    {
-        private readonly ISerfClient _serfClient;
-        private readonly NetworkClient _networkClient;
+        private const int SocketTryWaitTimeoutMilliseconds = 5000;
+        
+        private readonly ActorSystem _actorSystem;
+        private readonly PID _pidCryptoKeySign;
+        private readonly IGossipMemberStore _gossipMemberStore;
         private readonly ILogger _logger;
-        private TcpSession _tcpSession;
+        private readonly IOptions<AppOptions> _options;
+        private readonly MemStore<Peer> _peerMemStore = new();
 
-        public LocalNode(ISerfClient serfClient, NetworkClient networkClient, ILogger logger)
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="actorSystem"></param>
+        /// <param name="gossipMemberStore"></param>
+        /// <param name="options"></param>
+        /// <param name="logger"></param>
+        public LocalNode(ActorSystem actorSystem, IGossipMemberStore gossipMemberStore,
+            IOptions<AppOptions> options, ILogger logger)
         {
-            _serfClient = serfClient;
-            _networkClient = networkClient;
+            _actorSystem = actorSystem;
+            _pidCryptoKeySign = actorSystem.Root.Spawn(actorSystem.DI().PropsFor<CryptoKeySign>());
+            _gossipMemberStore = gossipMemberStore;
+            _options = options;
             _logger = logger.ForContext("SourceContext", nameof(LocalNode));
-            SerfClient = _serfClient;
-        }
-
-        public void Ready()
-        {
-            _tcpSession = _serfClient.TcpSessionsAddOrUpdate(
-                new TcpSession(_serfClient.SerfConfigurationOptions.Listening).Connect(_serfClient
-                    .SerfConfigurationOptions.RPC));
         }
 
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="topicType"></param>
-        /// <param name="data"></param>
+        /// <param name="context"></param>
         /// <returns></returns>
-        public async Task Broadcast(TopicType topicType, byte[] data)
+        public Task ReceiveAsync(IContext context) => context.Message switch
         {
-            Guard.Argument(data, nameof(data)).NotNull();
-            var peers = await GetPeers();
-            if (!peers.Any())
+            LocalNodeDetailsRequest => OnGetDetails(context),
+            GossipGraphRequest => OnGetGossipGraph(context),
+            BroadcastAutoRequest broadcastRequest => OnBroadcast(broadcastRequest, context),
+            BroadcastManualRequest broadcastManualRequest => OnBroadcast(broadcastManualRequest),
+            PeersMemStoreRequest peersMemStoreRequest => OnTryGetPeers(peersMemStoreRequest, context),
+            _ => Task.CompletedTask
+        };
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="context"></param>
+        /// <returns></returns>
+        private async Task OnGetDetails(IContext context)
+        {
+            Guard.Argument(context, nameof(context)).NotNull();
+            var keyPairResponse = await _actorSystem.Root.RequestAsync<KeyPairResponse>(_pidCryptoKeySign,
+                new KeyPairRequest(CryptoKeySign.DefaultSigningKeyName));
+            context.Respond(new LocalNodeDetailsResponse(
+                Util.ToHashIdentifier(keyPairResponse.KeyPair.PublicKey.ByteToHex()), _options.Value.Name,
+                _options.Value.RestApi, _options.Value.Gossip.Listening, Util.GetAssemblyVersion()));
+        }
+        
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="context"></param>
+        /// <returns></returns>
+        private Task OnGetGossipGraph(IContext context)
+        {
+            Guard.Argument(context, nameof(context)).NotNull();
+            context.Respond(new GossipGraphResponse( _gossipMemberStore.GetGraph()));
+            return Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="broadcastRequest"></param>
+        /// <param name="context"></param>
+        /// <returns></returns>
+        private async Task OnBroadcast(BroadcastAutoRequest broadcastRequest, IContext context)
+        {
+            Guard.Argument(broadcastRequest, nameof(broadcastRequest)).NotNull();
+
+            var props = Props(_actorSystem, _gossipMemberStore, _options, _logger);
+            var self = context.Spawn(props);
+            var peersMemStoreResponse =
+                await context.RequestAsync<PeersMemStoreResponse>(self, new PeersMemStoreRequest());
+            var snapshot = peersMemStoreResponse.MemStore.GetMemSnapshot().SnapshotAsync();
+            var peers = await snapshot.ToArrayAsync();
+            if (peers.Any())
             {
-                // TODO: Temporary solution until we remove or fix Serf.
-                // Hard coding default ports for now as this won't cause any issues as long as we have some of the seed nodes with these settings.  
-                var seedPeers = _serfClient.SeedNodes.Seeds.Select(x => new Peer {Host = x.Replace("7946", "7000")});
-                await Broadcast(seedPeers.ToArray(), topicType, data);
+                await OnBroadcast(new BroadcastManualRequest(peers.Select(x => x.Value).ToArray(),
+                    broadcastRequest.TopicType, broadcastRequest.Data));
                 return;
             }
 
-            await Broadcast(peers.Values.ToArray(), topicType, data);
+            _logger.Here().Fatal("No peers found for Broadcast");
         }
 
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="peers"></param>
-        /// <param name="topicType"></param>
-        /// <param name="data"></param>
+        /// <param name="broadcastManualRequest"></param>
         /// <returns></returns>
-        public Task Broadcast(Peer[] peers, TopicType topicType, byte[] data)
+        private Task OnBroadcast(BroadcastManualRequest broadcastManualRequest)
         {
-            Guard.Argument(data, nameof(data)).NotNull();
-            Guard.Argument(peers, nameof(peers)).NotNull();
-            _logger.Here().Information("Broadcasting {@TopicType} to nodes {@Nodes}", topicType, peers);
+            Guard.Argument(broadcastManualRequest, nameof(broadcastManualRequest)).NotNull();
+            _logger.Here().Information("Broadcasting {@TopicType} to nodes {@Nodes}", broadcastManualRequest.TopicType, broadcastManualRequest.Peers);
             try
             {
-                if (peers.Any())
+                if (broadcastManualRequest.Peers.Any())
                 {
                     var tasks = new List<Task>();
-                    foreach (var peer in peers)
+                    foreach (var peer in broadcastManualRequest.Peers)
                     {
-                        async void Action() => await _networkClient.SendAsync(data, topicType, peer.Host);
+                        if (peer is null) continue;
+
+                        void Action()
+                        {
+                            var command = broadcastManualRequest.TopicType switch
+                            {
+                                TopicType.AddTransaction => CommandMessage.Transaction,
+                                _ => CommandMessage.BlockGraph
+                            };
+                            using var dealerSocket = new DealerSocket($">tcp://{peer.Listening}");
+                            dealerSocket.Options.Identity = Util.RandomDealerIdentity();
+                            var message = new NetMQMessage();
+                            message.Append(command.ToString());
+                            message.Append(MessagePackSerializer.Serialize(new[] { new Parameter { Value = broadcastManualRequest.Data } }));
+                            dealerSocket.SendMultipartMessage(message);
+                            if (dealerSocket.TryReceiveFrameString(
+                                TimeSpan.FromMilliseconds(SocketTryWaitTimeoutMilliseconds), out var msg))
+                            {
+                                if (command == CommandMessage.Transaction)
+                                {
+                                    var newTransactionResponse =
+                                        MessagePackSerializer.Deserialize<NewTransactionResponse>(msg.HexToByte());
+                                    if (!newTransactionResponse.OK)
+                                    {
+                                        _logger.Here().Error("Unable to forward new transaction to {@peer}",
+                                            peer.Listening);
+                                    }
+                                }
+                                else if (command == CommandMessage.BlockGraph)
+                                {
+                                    var newBlockGraphResponse =
+                                        MessagePackSerializer.Deserialize<NewBlockGraphResponse>(msg.HexToByte());
+                                    if (!newBlockGraphResponse.OK)
+                                    {
+                                        _logger.Here().Error("Unable to forward new blockgraph to {@host}",
+                                            peer.Listening);
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                _logger.Here().Error("Dead peer {@peer}", peer.Listening);
+                            }
+                        }
+
                         var t = new Task(Action);
                         t.Start();
                         tasks.Add(t);
@@ -102,10 +190,14 @@ namespace CYPCore.Network
 
                     Task.WaitAll(tasks.ToArray());
                 }
+                else
+                {
+                    _logger.Here().Fatal("Broadcast failed. No peers");
+                }
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, "Error while bootstrapping clients");
+                _logger.Here().Error(ex, "Error broadcast");
             }
 
             return Task.CompletedTask;
@@ -114,130 +206,135 @@ namespace CYPCore.Network
         /// <summary>
         /// 
         /// </summary>
-        /// <returns></returns>
-        public async Task<ulong[]> Nodes()
+        /// <param name="peersMemStoreRequest"></param>
+        /// <param name="context"></param>
+        private async Task OnTryGetPeers(PeersMemStoreRequest peersMemStoreRequest, IContext context)
         {
-            var peers = await GetPeers();
-            if (peers == null) return null;
-            var totalNodes = (ulong)peers.Count;
-            return totalNodes != 0 ? peers.Keys.ToArray() : null;
+            Guard.Argument(peersMemStoreRequest, nameof(peersMemStoreRequest)).NotNull();
+            Guard.Argument(context, nameof(context)).NotNull();
+            try
+            {
+                var tasks = new List<Task>();
+                foreach (var node in _gossipMemberStore.GetGraph().Nodes)
+                {
+                    async void Action() => await GetPeer(node, peersMemStoreRequest.ShouldUpdateHeight);
+                    var t = new Task(Action);
+                    t.Start();
+                    tasks.Add(t);
+                }
+
+                await Task.WhenAll(tasks.ToArray());
+                context.Respond(new PeersMemStoreResponse(_peerMemStore));
+                return;
+            }
+            catch (Exception ex)
+            {
+                _logger.Here().Error(ex.Message);
+            }
+            
+            context.Respond(new PeersMemStoreResponse(null));
         }
 
         /// <summary>
         /// 
         /// </summary>
-        /// <returns></returns>
-        public async Task<Dictionary<ulong, Peer>> GetPeers()
+        /// <param name="node"></param>
+        /// <param name="updateHeight"></param>
+        private Task GetPeer(GossipGraph.Node node, bool updateHeight)
         {
-            var peers = new Dictionary<ulong, Peer>();
+            Guard.Argument(node, nameof(node)).NotNull();
+            if (node.State is MemberState.Dead or MemberState.Left or MemberState.Pruned)
+            {
+                if (!_peerMemStore.TryGet(node.Id.GetHashCode().ToBytes(), out _)) return Task.CompletedTask;
+                _peerMemStore.Delete(node.Id.GetHashCode().ToBytes());
+                return Task.CompletedTask;
+            }
             
             try
             {
-                if (_tcpSession == null)
+                if (_peerMemStore.Contains(node.Id.GetHashCode().ToBytes()) && updateHeight)
                 {
-                    Ready();
-                }
-
-                var tcpSession = _serfClient.GetTcpSession(_tcpSession.SessionId);
-                _ = await _serfClient.Connect(tcpSession.SessionId);
-                if (!tcpSession.Ready)
-                {
-                    _logger.Here().Error("Serf client failed to connect");
-                    return null;
-                }
-
-                var membersResult = await _serfClient.Members(tcpSession.SessionId);
-                var members = membersResult.Value.Members.ToList();
-                foreach (var member in members.Where(member =>
-                    _serfClient.Name != member.Name &&
-                    member.Status == "alive" &&
-                    member.Tags.ContainsKey("pubkey") &&
-                    member.Tags.ContainsKey("rest")))
-                {
-                    try
+                    var value = GetPeerOrHeight(node, CommandMessage.GetBlockCount);
+                    if (!_peerMemStore.TryGet(node.Id.GetHashCode().ToBytes(), out var peer)) return Task.CompletedTask;
+                    if (string.IsNullOrEmpty(value)) return Task.CompletedTask;
+                    var blockCountResponse = MessagePackSerializer.Deserialize<BlockCountResponse>(value.HexToByte());
+                    if (blockCountResponse is { })
                     {
-                        if (_serfClient.ClientId == Helper.Util.HashToId(member.Tags["pubkey"])) continue;
-                        member.Tags.TryGetValue("rest", out var restEndpoint);
-                        if (string.IsNullOrEmpty(restEndpoint)) continue;
-                        if (!Uri.TryCreate($"{restEndpoint}", UriKind.Absolute, out var uri)) continue;
-                        if (uri.Host is "0.0.0.0" or "::0")
-                        {
-                            continue;
-                        }
-
-                        member.Tags.TryGetValue("nodeversion", out var nodeVersion);
-
-                        var peer = new Peer
-                        {
-                            Host = uri.OriginalString,
-                            ClientId = Helper.Util.HashToId(member.Tags["pubkey"]),
-                            PublicKey = member.Tags["pubkey"],
-                            NodeName = member.Name,
-                            NodeVersion = nodeVersion ?? string.Empty
-                        };
-                        if (peers.ContainsKey(peer.ClientId)) continue;
-                        if (peers.TryAdd(peer.ClientId, peer)) continue;
-                        _logger.Here().Error("Failed adding or exists in remote nodes: {@Node}", member.Name);
+                        peer.BlockHeight = (ulong)blockCountResponse.Count;
                     }
-                    catch (Exception ex)
-                    {
-                        _logger.Here().Error(ex, "Error reading member");
-                    }
+                    return Task.CompletedTask;
                 }
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, "Error reading members");
+                _logger.Here().Error(ex, "Error getting peer height information {@Host}", node.Ip.ToString());
+            }
+
+            try
+            {
+                if (_peerMemStore.Contains(node.Id.GetHashCode().ToBytes())) return Task.CompletedTask;
+                var value = GetPeerOrHeight(node, CommandMessage.GetPeer);
+                if (string.IsNullOrEmpty(value)) return Task.CompletedTask;
+                var peerResponse = MessagePackSerializer.Deserialize<PeerResponse>(value.HexToByte());
+                if (peerResponse is { })
+                {
+                    _peerMemStore.Put(node.Id.GetHashCode().ToBytes(), peerResponse.Peer);
+                    return Task.CompletedTask;
+                }
+                
+                _logger.Here().Error("Dead peer {@peer}", node.Ip.ToString());
+            }
+            catch (Exception ex)
+            {
+                _logger.Here().Error(ex, "Error getting peer information {@Host}", node.Ip.ToString());
             }
             
-            return peers;
-        }
-
-        public ISerfClient SerfClient { get; }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <returns></returns>
-        public async Task Leave()
-        {
-            if (_tcpSession == null)
-            {
-                Ready();
-            }
-
-            var tcpSession = _serfClient.GetTcpSession(_tcpSession.SessionId);
-            _ = _serfClient.Connect(tcpSession.SessionId);
-            if (!tcpSession.Ready)
-            {
-                _logger.Here().Error("Serf client failed to connect");
-                return;
-            }
-
-            var leaveResult = await _serfClient.Leave(tcpSession.SessionId);
+            return Task.CompletedTask;
         }
 
         /// <summary>
         /// 
         /// </summary>
+        /// <param name="node"></param>
+        /// <param name="command"></param>
         /// <returns></returns>
-        public async Task JoinSeedNodes()
+        private string GetPeerOrHeight(GossipGraph.Node node, CommandMessage command)
         {
-            if (_tcpSession == null)
+            Guard.Argument(node, nameof(node)).NotNull();
+            Guard.Argument(command, nameof(command)).In(CommandMessage.GetBlockCount, CommandMessage.GetBlockHeight, CommandMessage.GetPeer);
+            try
             {
-                Ready();
+                using var dealerSocket = new DealerSocket($">tcp://{node.Id}");
+                dealerSocket.Options.Identity = Util.RandomDealerIdentity();
+                dealerSocket.SendFrame(command.ToString());
+                if (dealerSocket.TryReceiveFrameString(TimeSpan.FromMilliseconds(SocketTryWaitTimeoutMilliseconds), out var msg))
+                {
+                    return msg;
+                }
+                
+                _logger.Here().Warning("Dead message {@peer}", node.Ip.ToString());
+            }
+            catch (Exception ex)
+            {
+                _logger.Here().Error(ex.Message);
             }
 
-            var tcpSession = _serfClient.GetTcpSession(_tcpSession.SessionId);
-            _ = _serfClient.Connect(tcpSession.SessionId);
-            if (!tcpSession.Ready)
-            {
-                _logger.Here().Error("Serf client failed to connect");
-                return;
-            }
-
-            var seedNodes = new SeedNode(_serfClient.SeedNodes.Seeds.Select(x => x));
-            var joinResult = await _serfClient.Join(seedNodes.Seeds, tcpSession.SessionId);
+            return string.Empty;
+        }
+        
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="actorSystem"></param>
+        /// <param name="gossipMemberStore"></param>
+        /// <param name="options"></param>
+        /// <param name="logger"></param>
+        /// <returns></returns>
+        public  static Props Props(ActorSystem actorSystem, IGossipMemberStore gossipMemberStore,
+            IOptions<AppOptions> options, ILogger logger)
+        {
+            var props = Proto.Props.FromProducer(() => new LocalNode(actorSystem, gossipMemberStore, options, logger));
+            return props;
         }
     }
 }

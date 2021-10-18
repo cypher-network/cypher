@@ -33,7 +33,7 @@ namespace CYPCore.Models
         /// <returns></returns>
         public byte[] ToStream()
         {
-            using Helper.TangramStream ts = new();
+            using Helper.BufferStream ts = new();
             ts.Append(FriendlyName)
                 .Append(Payload);
             return ts.ToArray();

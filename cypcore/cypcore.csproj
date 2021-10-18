@@ -1,10 +1,10 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net5.0</TargetFramework>
     <Platforms>AnyCPU;x64</Platforms>
     <RootNamespace>CYPCore</RootNamespace>
-    <AssemblyVersion>0.0.53.0</AssemblyVersion>
+    <AssemblyVersion>0.1.0.4</AssemblyVersion>
   </PropertyGroup>
   
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
@@ -29,20 +29,19 @@
     <PackageReference Include="Autofac.Extensions.DependencyInjection" Version="7.1.0" />
     <PackageReference Include="AutofacSerilogIntegration" Version="5.0.0" />
     <PackageReference Include="Blake3" Version="0.3.0" />
-    <PackageReference Include="CliWrap" Version="3.3.2" />
-    <PackageReference Include="Collections.Pooled" Version="1.0.82" />
     <PackageReference Include="Dawn.Guard" Version="1.12.0" />
-    <PackageReference Include="Fibrous" Version="5.0.0" />
     <PackageReference Include="libsecp256k1Zkp.Net" Version="1.1.9" />
     <PackageReference Include="libsignal-protocol-dotnet" Version="2.8.1" />
-    <PackageReference Include="MessagePack" Version="2.2.85" />
-    <PackageReference Include="Microsoft.AspNetCore.ConcurrencyLimiter" Version="5.0.8" />
+    <PackageReference Include="MessagePack" Version="2.3.85" />
+    <PackageReference Include="Microsoft.AspNetCore.ConcurrencyLimiter" Version="5.0.10" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc" Version="2.2.0" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="5.0.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Systemd" Version="5.0.1" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="5.0.0" />
     <PackageReference Include="Microsoft.Extensions.Http.Polly" Version="5.0.1" />
     <PackageReference Include="NBitcoin" Version="5.0.83" />
-    <PackageReference Include="Polly" Version="7.2.2" />
+    <PackageReference Include="NetMQ" Version="4.0.1.6" />
+    <PackageReference Include="Proto.Actor" Version="0.24.0" />
     <PackageReference Include="RockDb.Native" Version="6.12.1" />
     <PackageReference Include="RocksDbNative" Version="6.2.2" />
     <PackageReference Include="RocksDbSharp" Version="6.2.2" />
@@ -56,7 +55,6 @@
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Consensus\" />
-    <Folder Include="Messages\" />
     <Folder Include="Services\" />
     <Folder Include="Extensions\" />
     <Folder Include="Persistence\" />
@@ -66,23 +64,6 @@
     <Folder Include="Controllers\" />
   </ItemGroup>
   <ItemGroup>
-    <None Remove="libs\libhydrogen.a" />
-    <None Remove="Serf\Terminal\osx\serf" />
-    <None Remove="Serf\Terminal\windows\serf.exe" />
-    <None Remove="Serf\Terminal\linux\serf" />
-  </ItemGroup>
-  <ItemGroup>
-    <Compile Remove="LibSodium\ICrypto.cs" />
-  </ItemGroup>
-  <ItemGroup>
-    <Content Include="Serf\Terminal\osx\serf">
-            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Serf\Terminal\windows\serf.exe">
-            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Serf\Terminal\linux\serf">
-            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
+    <Content Include="GossipMesh\GossipMesh.Core.csproj" />
   </ItemGroup>
 </Project>

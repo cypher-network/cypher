@@ -3,16 +3,22 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using CYPCore.Extensions;
+using Dawn;
 using Serilog;
 using RocksDbSharp;
 using MessagePack;
 
 namespace CYPCore.Persistence
 {
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
     public interface IRepository<T>
     {
         Task<long> CountAsync();
@@ -32,7 +38,11 @@ namespace CYPCore.Persistence
         Task<IList<T>> TakeLongAsync(long take);
         IAsyncEnumerable<T> Iterate();
     }
-
+    
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
     public class Repository<T> : IRepository<T> where T : class
     {
         private readonly IStoreDb _storeDb;
@@ -42,6 +52,11 @@ namespace CYPCore.Persistence
 
         private string _tableName;
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="storeDb"></param>
+        /// <param name="logger"></param>
         protected Repository(IStoreDb storeDb, ILogger logger)
         {
             _storeDb = storeDb;
@@ -80,7 +95,7 @@ namespace CYPCore.Persistence
 
                     for (iterator.Seek(_tableName.ToBytes()); iterator.Valid(); iterator.Next())
                     {
-                        if (new string(iterator.Key().ToStr()).StartsWith(new string(_tableName)))
+                        if (new string(iterator.Key().FromBytes()).StartsWith(new string(_tableName)))
                         {
                             Interlocked.Increment(ref count);
                         }
@@ -100,19 +115,19 @@ namespace CYPCore.Persistence
         /// </summary>
         /// <param name="key"></param>
         /// <returns></returns>
-        public Task<T> GetAsync(byte[] key)
+        public async Task<T> GetAsync(byte[] key)
         {
-            T entry = default;
-
+            Guard.Argument(key, nameof(key)).NotNull().NotEmpty();
             try
             {
                 using (_sync.Read())
                 {
                     var cf = _storeDb.Rocks.GetColumnFamily(_tableName);
                     var value = _storeDb.Rocks.Get(StoreDb.Key(_tableName, key), cf, _readOptions);
-                    if (value != null)
+                    if (value is { })
                     {
-                        entry = MessagePackSerializer.Deserialize<T>(value);
+                        var entry = await DeserializeAsync(value);
+                        return entry;
                     }
                 }
             }
@@ -121,7 +136,7 @@ namespace CYPCore.Persistence
                 _logger.Here().Error(ex, "Error while reading database");
             }
 
-            return Task.FromResult(entry);
+            return default;
         }
 
         /// <summary>
@@ -131,8 +146,7 @@ namespace CYPCore.Persistence
         /// <returns></returns>
         public Task<T> GetAsync(Func<T, ValueTask<bool>> expression)
         {
-            T entry = default;
-
+            Guard.Argument(expression, nameof(expression)).NotNull();
             try
             {
                 using (_sync.Read())
@@ -140,7 +154,8 @@ namespace CYPCore.Persistence
                     var first = Iterate().FirstOrDefaultAwaitAsync(expression);
                     if (first.IsCompleted)
                     {
-                        entry = first.Result;
+                        var entry = first.Result;
+                        return Task.FromResult(entry);
                     }
                 }
             }
@@ -149,7 +164,7 @@ namespace CYPCore.Persistence
                 _logger.Here().Error(ex, "Error while reading database");
             }
 
-            return Task.FromResult(entry);
+            return Task.FromResult<T>(null);
         }
 
         /// <summary>
@@ -159,16 +174,14 @@ namespace CYPCore.Persistence
         /// <returns></returns>
         public Task<bool> RemoveAsync(byte[] key)
         {
-            var removed = false;
-
+            Guard.Argument(key, nameof(key)).NotNull().MaxCount(64);
             try
             {
                 using (_sync.Write())
                 {
                     var cf = _storeDb.Rocks.GetColumnFamily(_tableName);
                     _storeDb.Rocks.Remove(StoreDb.Key(_tableName, key), cf);
-
-                    removed = true;
+                    return Task.FromResult(true);
                 }
             }
             catch (Exception ex)
@@ -176,28 +189,26 @@ namespace CYPCore.Persistence
                 _logger.Here().Error(ex, "Error while removing from database");
             }
 
-            return Task.FromResult(removed);
+            return Task.FromResult(false);
         }
 
         /// <summary>
         /// 
         /// </summary>
         /// <returns></returns>
-        public Task<T> FirstAsync()
+        public async Task<T> FirstAsync()
         {
-            T entry = default;
-
             try
             {
                 using (_sync.Read())
                 {
                     var cf = _storeDb.Rocks.GetColumnFamily(_tableName);
                     using var iterator = _storeDb.Rocks.NewIterator(cf, _readOptions);
-
                     iterator.SeekToFirst();
                     if (iterator.Valid())
                     {
-                        entry = MessagePackSerializer.Deserialize<T>(iterator.Value());
+                        var entry = await DeserializeAsync(iterator.Value());
+                        return entry;
                     }
                 }
             }
@@ -206,7 +217,7 @@ namespace CYPCore.Persistence
                 _logger.Here().Error(ex, "Error while reading database");
             }
 
-            return Task.FromResult(entry);
+            return default;
         }
 
         /// <summary>
@@ -215,19 +226,18 @@ namespace CYPCore.Persistence
         /// <param name="key"></param>
         /// <param name="data"></param>
         /// <returns></returns>
-        public Task<bool> PutAsync(byte[] key, T data)
+        public async Task<bool> PutAsync(byte[] key, T data)
         {
-            var saved = false;
-
+            Guard.Argument(key, nameof(key)).NotNull().MaxCount(64);
+            Guard.Argument(data, nameof(data)).NotNull();
             try
             {
                 using (_sync.Write())
                 {
                     var cf = _storeDb.Rocks.GetColumnFamily(_tableName);
-                    var buffer = MessagePackSerializer.Serialize(data);
-
+                    var buffer = await SerializeAsync(data);
                     _storeDb.Rocks.Put(StoreDb.Key(_tableName, key), buffer, cf);
-                    saved = true;
+                    return true;
                 }
             }
             catch (Exception ex)
@@ -235,7 +245,7 @@ namespace CYPCore.Persistence
                 _logger.Here().Error(ex, "Error while storing in database");
             }
 
-            return Task.FromResult(saved);
+            return false;
         }
 
         /// <summary>
@@ -244,6 +254,7 @@ namespace CYPCore.Persistence
         /// <param name="tableName"></param>
         public void SetTableName(string tableName)
         {
+            Guard.Argument(tableName, nameof(tableName)).NotNull().NotEmpty().NotWhiteSpace();
             using (_sync.Write())
             {
                 _tableName = tableName;
@@ -256,20 +267,19 @@ namespace CYPCore.Persistence
         /// <param name="skip"></param>
         /// <param name="take"></param>
         /// <returns></returns>
-        public Task<IList<T>> RangeAsync(long skip, int take)
+        public async Task<IList<T>> RangeAsync(long skip, int take)
         {
+            Guard.Argument(skip, nameof(skip)).Negative();
+            Guard.Argument(take, nameof(take)).Negative();
             IList<T> entries = new List<T>(take);
-
             try
             {
                 using (_sync.Read())
                 {
                     long iSkip = 0;
                     var iTake = 0;
-
                     var cf = _storeDb.Rocks.GetColumnFamily(_tableName);
                     using var iterator = _storeDb.Rocks.NewIterator(cf, _readOptions);
-
                     for (iterator.SeekToFirst(); iterator.Valid(); iterator.Next())
                     {
                         iSkip++;
@@ -278,8 +288,7 @@ namespace CYPCore.Persistence
                             if (iSkip % skip != 0) continue;
                         }
 
-                        entries.Add(MessagePackSerializer.Deserialize<T>(iterator.Value()));
-
+                        entries.Add(await DeserializeAsync(iterator.Value()));
                         iTake++;
                         if (iTake % take == 0)
                         {
@@ -293,28 +302,26 @@ namespace CYPCore.Persistence
                 _logger.Here().Error(ex, "Error while reading database");
             }
 
-            return Task.FromResult(entries);
+            return entries;
         }
 
         /// <summary>
         /// 
         /// </summary>
         /// <returns></returns>
-        public Task<T> LastAsync()
+        public async Task<T> LastAsync()
         {
-            T entry = default;
-
             try
             {
                 using (_sync.Read())
                 {
                     var cf = _storeDb.Rocks.GetColumnFamily(_tableName);
                     using var iterator = _storeDb.Rocks.NewIterator(cf, _readOptions);
-
                     iterator.SeekToLast();
                     if (iterator.Valid())
                     {
-                        entry = MessagePackSerializer.Deserialize<T>(iterator.Value());
+                        var entry = await DeserializeAsync(iterator.Value());
+                        return entry;
                     }
                 }
             }
@@ -323,7 +330,7 @@ namespace CYPCore.Persistence
                 _logger.Here().Error(ex, "Error while reading database");
             }
 
-            return Task.FromResult(entry);
+            return default;
         }
 
         /// <summary>
@@ -333,13 +340,13 @@ namespace CYPCore.Persistence
         /// <returns></returns>
         public ValueTask<List<T>> WhereAsync(Func<T, ValueTask<bool>> expression)
         {
-            ValueTask<List<T>> entries = default;
-
+            Guard.Argument(expression, nameof(expression)).NotNull();
             try
             {
                 using (_sync.Read())
                 {
-                    entries = Iterate().WhereAwait(expression).ToListAsync();
+                    var entries = Iterate().WhereAwait(expression).ToListAsync();
+                    return entries;
                 }
             }
             catch (Exception ex)
@@ -347,7 +354,7 @@ namespace CYPCore.Persistence
                 _logger.Here().Error(ex, "Error while reading database");
             }
 
-            return entries;
+            return default;
         }
 
         /// <summary>
@@ -357,13 +364,13 @@ namespace CYPCore.Persistence
         /// <returns></returns>
         public ValueTask<List<T>> SelectAsync(Func<T, ValueTask<T>> selector)
         {
-            ValueTask<List<T>> entries = default;
-
+            Guard.Argument(selector, nameof(selector)).NotNull();
             try
             {
                 using (_sync.Read())
                 {
-                    entries = Iterate().SelectAwait(selector).ToListAsync();
+                    var entries = Iterate().SelectAwait(selector).ToListAsync();
+                    return entries;
                 }
             }
             catch (Exception ex)
@@ -371,7 +378,7 @@ namespace CYPCore.Persistence
                 _logger.Here().Error(ex, "Error while reading database");
             }
 
-            return entries;
+            return default;
         }
 
         /// <summary>
@@ -381,13 +388,13 @@ namespace CYPCore.Persistence
         /// <returns></returns>
         public ValueTask<List<T>> SkipAsync(int skip)
         {
-            ValueTask<List<T>> entries = default;
-
+            Guard.Argument(skip, nameof(skip)).NotNegative();
             try
             {
                 using (_sync.Read())
                 {
-                    entries = Iterate().Skip(skip).ToListAsync();
+                    var entries = Iterate().Skip(skip).ToListAsync();
+                    return entries;
                 }
             }
             catch (Exception ex)
@@ -395,7 +402,7 @@ namespace CYPCore.Persistence
                 _logger.Here().Error(ex, "Error while reading database");
             }
 
-            return entries;
+            return default;
         }
 
         /// <summary>
@@ -405,13 +412,13 @@ namespace CYPCore.Persistence
         /// <returns></returns>
         public ValueTask<List<T>> TakeAsync(int take)
         {
-            ValueTask<List<T>> entries = default;
-
+            Guard.Argument(take, nameof(take)).NotNegative();
             try
             {
                 using (_sync.Read())
                 {
-                    entries = Iterate().Take(take).ToListAsync();
+                    var entries = Iterate().Take(take).ToListAsync();
+                    return entries;
                 }
             }
             catch (Exception ex)
@@ -419,7 +426,7 @@ namespace CYPCore.Persistence
                 _logger.Error(ex, "Error while reading database");
             }
 
-            return entries;
+            return default;
         }
 
         /// <summary>
@@ -427,24 +434,21 @@ namespace CYPCore.Persistence
         /// </summary>
         /// <param name="take"></param>
         /// <returns></returns>
-        public Task<IList<T>> TakeLongAsync(long take)
+        public async Task<IList<T>> TakeLongAsync(long take)
         {
+            Guard.Argument(take, nameof(take)).NotNegative();
             IList<T> entries = new List<T>();
-
             try
             {
                 using (_sync.Read())
                 {
                     take = take == 0 ? 1 : take;
                     var iTake = 0;
-
                     var cf = _storeDb.Rocks.GetColumnFamily(_tableName);
                     using var iterator = _storeDb.Rocks.NewIterator(cf, _readOptions);
-
                     for (iterator.SeekToFirst(); iterator.Valid(); iterator.Next())
                     {
-                        entries.Add(MessagePackSerializer.Deserialize<T>(iterator.Value()));
-
+                        entries.Add(await DeserializeAsync(iterator.Value()));
                         iTake++;
                         if (iTake % take == 0)
                         {
@@ -458,7 +462,7 @@ namespace CYPCore.Persistence
                 _logger.Here().Error(ex, "Error while reading database");
             }
 
-            return Task.FromResult(entries);
+            return entries;
         }
 
         /// <summary>
@@ -471,14 +475,35 @@ namespace CYPCore.Persistence
         {
             var cf = _storeDb.Rocks.GetColumnFamily(_tableName);
             using var iterator = _storeDb.Rocks.NewIterator(cf, _readOptions);
-
             for (iterator.Seek(_tableName.ToBytes()); iterator.Valid(); iterator.Next())
             {
-                if (!new string(iterator.Key().ToStr()).StartsWith(new string(_tableName))) continue;
+                if (!new string(iterator.Key().FromBytes()).StartsWith(new string(_tableName))) continue;
                 if (!iterator.Valid()) continue;
-
-                yield return MessagePackSerializer.Deserialize<T>(iterator.Value()); ;
+                yield return await DeserializeAsync(iterator.Value());
             }
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="data"></param>
+        /// <returns></returns>
+        private async Task<byte[]> SerializeAsync(T data)
+        {
+            await using var stream = new MemoryStream();
+            MessagePackSerializer.SerializeAsync(stream, data).Wait();
+            return stream.ToArray();
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="data"></param>
+        /// <returns></returns>
+        private async Task<T> DeserializeAsync(byte[] data)
+        {
+            await using var stream = new MemoryStream(data);
+            return await MessagePackSerializer.DeserializeAsync<T>(stream);
         }
     }
 }

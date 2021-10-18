@@ -7,11 +7,17 @@ using RocksDbSharp;
 
 namespace CYPCore.Persistence
 {
+    /// <summary>
+    /// 
+    /// </summary>
     public interface IStoreDb
     {
         RocksDb Rocks { get; }
     }
 
+    /// <summary>
+    /// 
+    /// </summary>
     public sealed class StoreDb : IStoreDb, IDisposable
     {
         private readonly string _name;
@@ -20,19 +26,9 @@ namespace CYPCore.Persistence
         private bool _disposedValue;
         public RocksDb Rocks { get; }
 
-        public static readonly StoreDb BlockGraphTable = new(1, "BlockGraphTable");
-        public static readonly StoreDb DataProtectionTable = new(2, "DataProtectionTable");
-        public static readonly StoreDb DeliveredTable = new(3, "DeliveredTable");
-        public static readonly StoreDb KeyImageTable = new(4, "KeyImageTable");
-        //TODO: remove
-        private static readonly StoreDb StagingTable = new(5, "StagingTable");
-        //----------------
-        public static readonly StoreDb TransactionTable = new(6, "TransactionTable");
-        public static readonly StoreDb HashChainTable = new(7, "HashChainTable");
-        //TODO: remove
-        public static readonly StoreDb TrieTable = new(8, "TrieTable");
-        //----------------
-
+        public static readonly StoreDb DataProtectionTable = new(1, "DataProtectionTable");
+        public static readonly StoreDb HashChainTable = new(2, "HashChainTable");
+        
         private StoreDb(int value, string name)
         {
             _value = value;
@@ -82,17 +78,12 @@ namespace CYPCore.Persistence
         /// <returns></returns>
         private static ColumnFamilies ColumnFamilies(BlockBasedTableOptions blockBasedTableOptions)
         {
+            //TODO: Cleanup redundant tables..
             var columnFamilies = new ColumnFamilies
             {
                 {"default", new ColumnFamilyOptions().OptimizeForPointLookup(256)},
-                {BlockGraphTable.ToString(), ColumnFamilyOptions(blockBasedTableOptions)},
                 {DataProtectionTable.ToString(), ColumnFamilyOptions(blockBasedTableOptions)},
-                {DeliveredTable.ToString(), ColumnFamilyOptions(blockBasedTableOptions)},
-                {KeyImageTable.ToString(), ColumnFamilyOptions(blockBasedTableOptions)},
-                {StagingTable.ToString(), ColumnFamilyOptions(blockBasedTableOptions)},
-                {TransactionTable.ToString(), ColumnFamilyOptions(blockBasedTableOptions)},
-                {HashChainTable.ToString(), ColumnFamilyOptions(blockBasedTableOptions)},
-                {TrieTable.ToString(), ColumnFamilyOptions(blockBasedTableOptions)}
+                {HashChainTable.ToString(), ColumnFamilyOptions(blockBasedTableOptions)}
             };
             return columnFamilies;
         }

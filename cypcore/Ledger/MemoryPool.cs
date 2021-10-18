@@ -2,18 +2,21 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
-using Collections.Pooled;
 using CYPCore.Extensions;
 using CYPCore.Helper;
 using CYPCore.Models;
 using CYPCore.Network;
+using CYPCore.Network.Messages;
+using CYPCore.Persistence;
 using Dawn;
 using MessagePack;
-using Microsoft.Extensions.Options;
 using NBitcoin;
+using Proto;
+using Proto.DependencyInjection;
 using Serilog;
 using Transaction = CYPCore.Models.Transaction;
 
@@ -24,11 +27,11 @@ namespace CYPCore.Ledger
     /// </summary>
     public interface IMemoryPool
     {
-        public Task<VerifyResult> Add(byte[] transactionModel);
-        Transaction Get(byte[] hash);
-        Transaction[] GetMany();
-        Transaction[] Range(int skip, int take);
-        VerifyResult Remove(Transaction transaction);
+        Task<VerifyResult> NewTransaction(Transaction transaction);
+        Transaction Get(in byte[] hash);
+        Task<Transaction[]> GetMany();
+        Task<Transaction[]> GetVerifiedTransactions(int skip, int take);
+        VerifyResult Delete(in Transaction transaction);
         int Count();
     }
 
@@ -37,40 +40,36 @@ namespace CYPCore.Ledger
     /// </summary>
     public class MemoryPool : IMemoryPool
     {
-        public const uint TransactionTimeSlot = 0x00000005;
+        public const uint TransactionDefaultTimeDelayFromSeconds = 5;
 
-        private readonly ILocalNode _localNode;
+        private readonly ActorSystem _actorSystem;
+        private readonly PID _pidLocalNode;
+        private readonly IValidator _validator;
         private readonly ILogger _logger;
-        private readonly PooledList<Transaction> _pooledTransactions;
-        private readonly PooledList<string> _pooledSeenTransactions;
-        private readonly LeakyBucket _leakyBucket;
-        private const int MaxMemoryPoolTransactions = 10_000;
-        private const int MaxMemoryPoolSeenTransactions = 50_000;
+        private readonly MemStore<Transaction> _memStoreTransactions = new();
+        private readonly MemStore<string> _memStoreSeenTransactions = new();
 
-        public MemoryPool(ILocalNode localNode, IOptions<NetworkSetting> networkSetting, ILogger logger)
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="actorSystem"></param>
+        /// <param name="validator"></param>
+        /// <param name="logger"></param>
+        public MemoryPool(ActorSystem actorSystem, IValidator validator, ILogger logger)
         {
-            _localNode = localNode;
+            _actorSystem = actorSystem;
+            _pidLocalNode = actorSystem.Root.Spawn(actorSystem.DI().PropsFor<LocalNode>());
+            _validator = validator;
             _logger = logger.ForContext("SourceContext", nameof(MemoryPool));
-            _pooledTransactions = new PooledList<Transaction>(MaxMemoryPoolTransactions);
-            _pooledSeenTransactions = new PooledList<string>(MaxMemoryPoolSeenTransactions);
-            _leakyBucket = new LeakyBucket(new BucketConfiguration
-            {
-                LeakRate = networkSetting.Value.TransactionRateConfig.LeakRate,
-                LeakRateTimeSpan = TimeSpan.FromSeconds(networkSetting.Value.TransactionRateConfig.LeakRateNumberOfSeconds),
-                MaxFill = networkSetting.Value.TransactionRateConfig.MaxFill
-            });
-
             Observable.Timer(TimeSpan.Zero, TimeSpan.FromHours(1)).Subscribe(_ =>
             {
                 var removeTransactionsBeforeTimestamp = Util.GetUtcNow().AddHours(-1).ToUnixTimestamp();
-                var removeTransactions = _pooledTransactions
-                    .Where(transaction => transaction.Vtime.L < removeTransactionsBeforeTimestamp)
-                    .ToList();
-                
-                foreach (var removeTransaction in removeTransactions)
+                var snapshot = _memStoreTransactions.GetMemSnapshot().SnapshotAsync().ToEnumerable();
+                var removeTransactions = snapshot.Where(x => x.Value.Vtime.L < removeTransactionsBeforeTimestamp);
+                foreach (var (key, _) in removeTransactions)
                 {
-                    _pooledTransactions.Remove(removeTransaction);
-                    _pooledSeenTransactions.Remove(removeTransaction.TxnId.ByteToHex());
+                    _memStoreTransactions.Delete(key);
+                    _memStoreSeenTransactions.Delete(key);
                 }
             });
         }
@@ -78,31 +77,37 @@ namespace CYPCore.Ledger
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="transactionModel"></param>
+        /// <param name="transaction"></param>
         /// <returns></returns>
-        public async Task<VerifyResult> Add(byte[] transactionModel)
+        public Task<VerifyResult> NewTransaction(Transaction transaction)
         {
-            Guard.Argument(transactionModel, nameof(transactionModel)).NotNull();
+            Guard.Argument(transaction, nameof(transaction)).NotNull();
             try
             {
-                await _leakyBucket.Wait();
-
-                var transaction = MessagePackSerializer.Deserialize<Transaction>(transactionModel);
-                if (transaction.Validate().Any()) return VerifyResult.Invalid;
-                if (!_pooledSeenTransactions.Contains(transaction.TxnId.ByteToHex()))
+                var outputs = transaction.Vout.Select(x => x.T.ToString()).ToArray();
+                if (outputs.Contains(CoinType.Coinbase.ToString()) && outputs.Contains(CoinType.Coinstake.ToString()))
                 {
-                    _pooledSeenTransactions.Add(transaction.TxnId.ByteToHex());
-                    _pooledTransactions.Add(transaction);
-                    await _localNode.Broadcast(TopicType.AddTransaction, transactionModel);
+                    _logger.Here().Fatal("Blocked coinstake transaction with {@txnId}", transaction.TxnId.ByteToHex());
+                    return Task.FromResult(VerifyResult.Invalid);
+                }
+
+                if (transaction.Validate().Any()) return Task.FromResult(VerifyResult.Invalid);
+                if (!_memStoreSeenTransactions.Contains(transaction.TxnId))
+                {
+                    _memStoreTransactions.Put(transaction.TxnId, transaction);
+                    _memStoreSeenTransactions.Put(transaction.TxnId, transaction.TxnId.ByteToHex());
+                    _actorSystem.Root.Send(_pidLocalNode,
+                        new BroadcastAutoRequest(TopicType.AddTransaction,
+                            MessagePackSerializer.Serialize(transaction)));
                 }
             }
             catch (Exception ex)
             {
                 _logger.Here().Error(ex, ex.Message);
-                return VerifyResult.Invalid;
+                return Task.FromResult(VerifyResult.Invalid);
             }
 
-            return VerifyResult.Succeed;
+            return Task.FromResult(VerifyResult.Succeed);
         }
 
         /// <summary>
@@ -110,13 +115,13 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="transactionId"></param>
         /// <returns></returns>
-        public Transaction Get(byte[] transactionId)
+        public Transaction Get(in byte[] transactionId)
         {
             Guard.Argument(transactionId, nameof(transactionId)).NotNull().MaxCount(32);
             Transaction transaction = null;
             try
             {
-                transaction = _pooledTransactions.FirstOrDefault(x => x.TxnId.SequenceEqual(transactionId));
+                _memStoreTransactions.TryGet(transactionId, out transaction);
             }
             catch (Exception ex)
             {
@@ -130,9 +135,9 @@ namespace CYPCore.Ledger
         /// 
         /// </summary>
         /// <returns></returns>
-        public Transaction[] GetMany()
+        public async Task<Transaction[]> GetMany()
         {
-            return _pooledTransactions.Select(x => x).ToArray();
+            return await _memStoreTransactions.GetMemSnapshot().SnapshotAsync().Select(x => x.Value).ToArrayAsync();
         }
 
         /// <summary>
@@ -141,10 +146,24 @@ namespace CYPCore.Ledger
         /// <param name="skip"></param>
         /// <param name="take"></param>
         /// <returns></returns>
-        public Transaction[] Range(int skip, int take)
+        public async Task<Transaction[]> GetVerifiedTransactions(int skip, int take)
         {
             Guard.Argument(skip, nameof(skip)).NotNegative();
-            return _pooledTransactions.OrderByDescending(x => x.Vtime.I).Skip(skip).Take(take).Select(x => x).ToArray();
+            Guard.Argument(take, nameof(take)).NotNegative();
+            var validTransactions = new List<Transaction>();
+            await foreach (var transaction in _memStoreTransactions.GetMemSnapshot().SnapshotAsync()
+                .Select(x => x.Value).OrderByDescending(x => x.Vtime.I))
+            {
+                var verifyTransaction = await _validator.VerifyTransaction(transaction);
+                if (verifyTransaction == VerifyResult.Succeed)
+                {
+                    validTransactions.Add(transaction);
+                }
+
+                _memStoreTransactions.Delete(transaction.TxnId);
+            }
+
+            return validTransactions.ToArray();
         }
 
         /// <summary>
@@ -152,20 +171,19 @@ namespace CYPCore.Ledger
         /// </summary>
         /// <param name="transaction"></param>
         /// <returns></returns>
-        public VerifyResult Remove(Transaction transaction)
+        public VerifyResult Delete(in Transaction transaction)
         {
             Guard.Argument(transaction, nameof(transaction)).NotNull();
-            var removed = false;
             try
             {
-                removed = _pooledTransactions.Remove(transaction);
+                _memStoreTransactions.Delete(transaction.TxnId);
             }
             catch (Exception ex)
             {
                 _logger.Here().Error(ex, "Unable to remove transaction with {@TxnId}", transaction.TxnId);
             }
 
-            return removed ? VerifyResult.Succeed : VerifyResult.Invalid;
+            return _memStoreTransactions.Contains(transaction.TxnId) ? VerifyResult.Succeed : VerifyResult.Invalid;
         }
 
         /// <summary>
@@ -174,7 +192,7 @@ namespace CYPCore.Ledger
         /// <returns></returns>
         public int Count()
         {
-            return _pooledTransactions.Count;
+            return _memStoreTransactions.Count();
         }
     }
 }
