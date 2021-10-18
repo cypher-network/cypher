@@ -3,6 +3,7 @@
 
 using System;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Security;
 
 namespace CYPCore.Extensions
@@ -34,6 +35,21 @@ namespace CYPCore.Extensions
                 bytes[i] = (byte)(lo | hi << 4);
             }
             return bytes;
+        }
+        
+        public static void ZeroString(this string value)
+        {
+            var handle = GCHandle.Alloc(value, GCHandleType.Pinned);
+            unsafe
+            {
+                var pValue = (char*)handle.AddrOfPinnedObject();
+                for (int index = 0; index < value.Length; index++)
+                {
+                    pValue[index] = char.MinValue;
+                }
+            }
+
+            handle.Free();
         }
     }
 }

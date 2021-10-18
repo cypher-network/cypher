@@ -54,7 +54,7 @@ namespace CYPCore.Models
         {
             if (Validate().Any()) return null;
 
-            using var ts = new Helper.TangramStream();
+            using var ts = new Helper.BufferStream();
             ts.Append(Key.Image)
                 .Append(Key.Offsets);
             return ts.ToArray(); ;

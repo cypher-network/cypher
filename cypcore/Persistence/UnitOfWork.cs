@@ -1,51 +1,57 @@
 ﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
+using System;
 using Microsoft.AspNetCore.DataProtection.Repositories;
 
 using Serilog;
-using Serilog.Core;
 
 namespace CYPCore.Persistence
 {
+    /// <summary>
+    /// 
+    /// </summary>
     public interface IUnitOfWork
     {
         IStoreDb StoreDb { get; }
         IXmlRepository DataProtectionKeys { get; }
         IDataProtectionRepository DataProtectionPayload { get; }
-        IDeliveredRepository DeliveredRepository { get; }
-        ITransactionRepository TransactionRepository { get; }
-        IBlockGraphRepository BlockGraphRepository { get; }
-        IImageRepository ImageRepository { get; }
         IHashChainRepository HashChainRepository { get; }
+        void Dispose();
     }
 
-    public class UnitOfWork : IUnitOfWork
+    /// <summary>
+    /// 
+    /// </summary>
+    public class UnitOfWork : IUnitOfWork, IDisposable
     {
         public IStoreDb StoreDb { get; }
 
         public IXmlRepository DataProtectionKeys { get; }
         public IDataProtectionRepository DataProtectionPayload { get; }
-        public IDeliveredRepository DeliveredRepository { get; }
-        public ITransactionRepository TransactionRepository { get; }
-        public IBlockGraphRepository BlockGraphRepository { get; }
-        public IImageRepository ImageRepository { get; }
         public IHashChainRepository HashChainRepository { get; }
 
         private readonly ILogger _logger;
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="folderDb"></param>
+        /// <param name="logger"></param>
         public UnitOfWork(string folderDb, ILogger logger)
         {
             StoreDb = new StoreDb(folderDb);
-
             _logger = logger.ForContext("SourceContext", nameof(UnitOfWork));
-
             DataProtectionPayload = new DataProtectionRepository(StoreDb, logger);
-            DeliveredRepository = new DeliveredRepository(StoreDb, logger);
-            TransactionRepository = new TransactionRepository(StoreDb, logger);
-            BlockGraphRepository = new BlockGraphRepository(StoreDb, logger);
-            ImageRepository = new ImageRepository(StoreDb, logger);
             HashChainRepository = new HashChainRepository(StoreDb, logger);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public void Dispose()
+        {
+            StoreDb.Rocks.Dispose();
         }
     }
 }

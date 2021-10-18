@@ -27,13 +27,12 @@ namespace CYPCore.Consensus.Models
 
         public bool Equals(BlockGraph other)
         {
-            return other is not null && (Block.Hash, Block.Node, Block.Round, Deps.Count) == (other.Block.Hash, other.Block.Node,
-                other.Block.Round, other.Deps.Count);
+            return ToHash().Xor(other?.ToHash());
         }
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(Block, Deps, Prev);
+            return HashCode.Combine(Block, Prev);
         }
 
         public T Cast<T>()
@@ -62,8 +61,7 @@ namespace CYPCore.Consensus.Models
         /// <returns></returns>
         public byte[] ToStream()
         {
-            using var ts = new Helper.TangramStream();
-
+            using var ts = new Helper.BufferStream();
             if (Block != null)
             {
                 ts
@@ -76,13 +74,22 @@ namespace CYPCore.Consensus.Models
             if (Prev != null)
             {
                 ts
-                    .Append(Prev.Data ?? Array.Empty<byte>())
-                    .Append(Prev.Hash ?? string.Empty)
+                    .Append(Prev.Data)
+                    .Append(Prev.Hash)
                     .Append(Prev.Node)
                     .Append(Prev.Round);
             }
 
             return ts.ToArray();
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        public byte[] Serialize()
+        {
+            return MessagePackSerializer.Serialize(this);
         }
     }
 }

@@ -16,6 +16,7 @@ namespace CYPCore.Consensus.Models
         [Key(1)] public ulong Node { get; set; }
         [Key(2)] public ulong Round { get; set; }
         [Key(3)] public byte[] Data { get; set; }
+        [Key(4)] public string DataHash { get; set; }
 
         public Block()
         {
@@ -38,12 +39,13 @@ namespace CYPCore.Consensus.Models
             Round = round;
         }
 
-        public Block(string hash, ulong node, ulong round, byte[] data)
+        public Block(string hash, ulong node, ulong round, byte[] data, string dataHash)
         {
             Hash = hash;
             Node = node;
             Round = round;
             Data = data;
+            DataHash = dataHash;
         }
 
         public bool Valid() => Hash != string.Empty;

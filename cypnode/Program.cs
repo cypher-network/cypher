@@ -5,6 +5,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Configuration;
@@ -12,7 +13,7 @@ using Autofac.Extensions.DependencyInjection;
 using Serilog;
 using CYPCore.Models;
 using CYPCore.Helper;
-using CYPNode.UI;
+using CYPNode.Setup;
 
 namespace CYPNode
 {
@@ -26,35 +27,26 @@ namespace CYPNode
         /// </summary>
         /// <param name="args"></param>
         /// <returns></returns>
-        public static int Main(string[] args)
+        public async static Task<int> Main(string[] args)
         {
             var appsettingsExists = File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, AppSettingsFile));
-
             if (args.FirstOrDefault(arg => arg == "--configure") != null)
             {
-                if (appsettingsExists)
-                {
-                    // Do not return an error; this check is part of the application installation process
-                    Console.WriteLine($"{AppSettingsFile} already exists. Please remove file before running configuration again");
-                    return 0;
-                }
-
-                var ui = new TerminalUserInterface();
-                var nc = new Configuration.Configuration(ui);
-                return 0;
+                var commands = args.Where(x => x != "--configure");
+                var configSettings = new Config();
+                return configSettings.Init(commands.ToArray());
             }
 
             if (!appsettingsExists)
             {
-                Console.Error.WriteLine($"{AppSettingsFile} not found. Please create one running 'cypnode --configure'");
+                Console.Error.WriteLine($"{AppSettingsFile} not found.");
                 return 1;
             }
 
             var config = new ConfigurationBuilder()
 
                 .SetBasePath(Directory.GetCurrentDirectory())
-                .AddJsonFile(AppSettingsFile, false)
-                .AddJsonFile(AppSettingsFileDev, true)
+                .AddJsonFile(AppSettingsFile, false,true)
                 .AddCommandLine(args)
                 .Build();
 
@@ -69,15 +61,7 @@ namespace CYPNode
             {
                 throw new Exception(string.Format($"No \"{@logSectionName}\" section found in appsettings.json", logSectionName));
             }
-
-            if (config.GetValue<bool>("Log:FirstChanceException"))
-            {
-                AppDomain.CurrentDomain.FirstChanceException += (sender, e) =>
-                {
-                    Log.Error(e.Exception, e.Exception.Message);
-                };
-            }
-
+            
             try
             {
                 Log.Information("Starting web host");
@@ -100,8 +84,8 @@ namespace CYPNode
 
                 using var host = builder.Build();
 
-                host.Run();
-                host.WaitForShutdown();
+                await host.RunAsync();
+                await host.WaitForShutdownAsync();
                 Log.Information("Ran cleanup code inside using host block.");
             }
             catch (ObjectDisposedException)
@@ -126,11 +110,11 @@ namespace CYPNode
                 .UseServiceProviderFactory(new AutofacServiceProviderFactory())
                 .ConfigureWebHostDefaults(webBuilder =>
                 {
-                    ApiConfigurationOptions apiConfigurationOptions = new();
-                    configurationRoot.Bind("Api", apiConfigurationOptions);
+                    AppOptions appConfigurationOptions = new();
+                    configurationRoot.Bind("Node", appConfigurationOptions);
 
                     webBuilder.UseStartup<Startup>()
-                        .UseUrls(apiConfigurationOptions.Listening)
+                        .UseUrls(appConfigurationOptions.RestApi)
                         .UseSerilog();
                 });
     }

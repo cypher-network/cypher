@@ -4,9 +4,11 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.Linq;
 using Blake3;
 using Newtonsoft.Json;
 using CYPCore.Extensions;
+using CYPCore.Ledger;
 using MessagePack;
 
 namespace CYPCore.Models
@@ -77,34 +79,42 @@ namespace CYPCore.Models
             {
                 results.Add(new ValidationResult("Argument is null", new[] { "TxnId" }));
             }
+
             if (TxnId != null && TxnId.Length != 32)
             {
                 results.Add(new ValidationResult("Range exception", new[] { "TxnId" }));
             }
+
             if (Mix < 0)
             {
                 results.Add(new ValidationResult("Range exception", new[] { "Mix" }));
             }
+
             if (Mix != 22)
             {
                 results.Add(new ValidationResult("Range exception", new[] { "Mix" }));
             }
+
             if (Rct == null)
             {
                 results.Add(new ValidationResult("Argument is null", new[] { "Rct" }));
             }
+
             if (Ver != 0x2)
             {
                 results.Add(new ValidationResult("Incorrect number", new[] { "Ver" }));
             }
+
             if (Vin == null)
             {
                 results.Add(new ValidationResult("Argument is null", new[] { "Vin" }));
             }
+
             if (Vout == null)
             {
                 results.Add(new ValidationResult("Argument is null", new[] { "Vout" }));
             }
+
             if (Bp != null)
             {
                 foreach (var bp in Bp)
@@ -112,6 +122,7 @@ namespace CYPCore.Models
                     results.AddRange(bp.Validate());
                 }
             }
+
             if (Vin != null)
             {
                 foreach (var vi in Vin)
@@ -119,6 +130,7 @@ namespace CYPCore.Models
                     results.AddRange(vi.Validate());
                 }
             }
+
             if (Vout != null)
             {
                 foreach (var vo in Vout)
@@ -126,6 +138,7 @@ namespace CYPCore.Models
                     results.AddRange(vo.Validate());
                 }
             }
+
             if (Rct != null)
             {
                 foreach (var rct in Rct)
@@ -133,14 +146,21 @@ namespace CYPCore.Models
                     results.AddRange(rct.Validate());
                 }
             }
-            if (Vtime == null)
+
+            var outputs = Vout.Select(x => x.T.ToString()).ToArray();
+            if (outputs.Contains(CoinType.Payment.ToString()) && outputs.Contains(CoinType.Change.ToString()))
             {
-                results.Add(new ValidationResult("Argument is null", new[] { "Vtime" }));
+                if (Vtime == null)
+                {
+                    results.Add(new ValidationResult("Argument is null", new[] { "Vtime" }));
+                }
+
+                if (Vtime != null)
+                {
+                    results.AddRange(Vtime.Validate());
+                }
             }
-            if (Vtime != null)
-            {
-                results.AddRange(Vtime.Validate());
-            }
+
             return results;
         }
 
@@ -168,7 +188,7 @@ namespace CYPCore.Models
         /// <returns></returns>
         public byte[] ToStream()
         {
-            using var ts = new Helper.TangramStream();
+            using var ts = new Helper.BufferStream();
             ts
                 .Append(Mix)
                 .Append(Ver);
@@ -195,6 +215,15 @@ namespace CYPCore.Models
                     .Append(vout.P)
                     .Append(vout.S ?? string.Empty)
                     .Append(vout.T.ToString());
+
+                if (vout.T is not (CoinType.Coinbase or CoinType.Coinstake))
+                {
+                    ts.Append(vout.D ?? Array.Empty<byte>());
+                }
+                else
+                {
+                    ts.Append(vout.D);
+                }
             }
 
             foreach (var rct in Rct)
@@ -206,14 +235,17 @@ namespace CYPCore.Models
                     .Append(rct.S);
             }
 
-            ts
-                .Append(Vtime.I)
-                .Append(Vtime.L)
-                .Append(Vtime.M)
-                .Append(Vtime.N)
-                .Append(Vtime.S)
-                .Append(Vtime.W);
-
+            if (Vtime != null)
+            {
+                ts
+                    .Append(Vtime.I)
+                    .Append(Vtime.L)
+                    .Append(Vtime.M)
+                    .Append(Vtime.N)
+                    .Append(Vtime.S)
+                    .Append(Vtime.W);
+            }
+            
             return ts.ToArray();
         }
 

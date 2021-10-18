@@ -9,17 +9,18 @@ namespace cypcore_test_unit.PoS
 {
     public class DistributionTests
     {
-        private const decimal Distribution = 139_000_000;
+        private const decimal Distribution = 21_000_000;
 
         [Test]
         public void PosDistribution()
         {
+            var solu = 491383ul;
             var runningDistribution = Distribution;
-            runningDistribution -= NetworkShare(1678616, runningDistribution);
-            var netShare = NetworkShare(1678616, runningDistribution);
+            runningDistribution -= NetworkShare(solu, runningDistribution);
+            var netShare = NetworkShare(solu, runningDistribution);
             runningDistribution -= netShare;
 
-            var v1 = VerifyNetworkShare(1678616, netShare, runningDistribution);
+            var v1 = VerifyNetworkShare(solu, netShare, runningDistribution);
 
             Assert.True(v1 == VerifyResult.Succeed ? true : false);
 
@@ -31,7 +32,7 @@ namespace cypcore_test_unit.PoS
 
             for (var i = 0; i < 10; i++)
             {
-                var keyPair = CYPCore.Cryptography.Signing.GenerateKeyPair();
+                var keyPair = CYPCore.Cryptography.CryptoKeySign.GenerateKeyPair();
                 var hash = NBitcoin.Crypto.Hashes.DoubleSHA256(new byte[i]);
                 var calculateVrfSignature =
                     Curve.calculateVrfSignature(Curve.decodePrivatePoint(keyPair.PrivateKey), hash.ToBytes(false));

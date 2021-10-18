@@ -10,18 +10,23 @@ using System.Reflection;
 using System.IO;
 using System.Security;
 using System.Numerics;
-using System.Security.Cryptography;
 using CYPCore.Extensions;
 using System.Runtime.InteropServices;
+using Blake3;
 
 namespace CYPCore.Helper
 {
+    /// <summary>
+    /// 
+    /// </summary>
     public static class Util
     {
         private const string HexUpper = "0123456789ABCDEF";
 
-        private static readonly Random Random = new Random();
-
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
         public static byte[] GetZeroBytes()
         {
             byte[] bytes = Array.Empty<byte>();
@@ -33,25 +38,32 @@ namespace CYPCore.Helper
             return bytes;
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
         public static string GetAssemblyVersion()
         {
             return Assembly.GetExecutingAssembly().GetName().Version.ToString();
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
         public static string EntryAssemblyPath()
         {
             return Path.GetDirectoryName(Assembly.GetEntryAssembly()?.Location);
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        /// <exception cref="NotSupportedException"></exception>
         public static OSPlatform GetOperatingSystemPlatform()
         {
-            foreach (var platform in new[]
-            {
-                OSPlatform.Linux,
-                OSPlatform.FreeBSD,
-                OSPlatform.OSX,
-                OSPlatform.Windows
-            })
+            foreach (var platform in new[] { OSPlatform.Linux, OSPlatform.FreeBSD, OSPlatform.OSX, OSPlatform.Windows })
             {
                 if (RuntimeInformation.IsOSPlatform(platform))
                 {
@@ -62,28 +74,46 @@ namespace CYPCore.Helper
             throw new NotSupportedException();
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        public static byte[] RandomDealerIdentity()
+        {
+            return Hasher.Hash(Guid.NewGuid().ToByteArray()).HexToByte();
+        }
+        
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="value"></param>
+        /// <param name="delimiter"></param>
+        /// <returns></returns>
         public static string Pop(string value, string delimiter)
         {
-            var stack = new Stack<string>(value.Split(new string[] { delimiter }, StringSplitOptions.None));
+            var stack = new Stack<string>(value.Split(new[] { delimiter }, StringSplitOptions.None));
             return stack.Pop();
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="s"></param>
+        /// <returns></returns>
+        /// <exception cref="NullReferenceException"></exception>
         public static byte[] ToArray(this SecureString s)
         {
-            if (s == null)
-                throw new NullReferenceException();
-            if (s.Length == 0)
-                return Array.Empty<byte>();
+            if (s == null) throw new NullReferenceException();
+            if (s.Length == 0) return Array.Empty<byte>();
             var result = new List<byte>();
-            IntPtr ptr = SecureStringMarshal.SecureStringToGlobalAllocAnsi(s);
+            var ptr = SecureStringMarshal.SecureStringToGlobalAllocAnsi(s);
             try
             {
-                int i = 0;
+                var i = 0;
                 do
                 {
-                    byte b = Marshal.ReadByte(ptr, i++);
-                    if (b == 0)
-                        break;
+                    var b = Marshal.ReadByte(ptr, i++);
+                    if (b == 0) break;
                     result.Add(b);
                 } while (true);
             }
@@ -95,10 +125,16 @@ namespace CYPCore.Helper
             return result.ToArray();
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="a"></param>
+        /// <param name="n"></param>
+        /// <returns></returns>
         public static BigInteger Mod(BigInteger a, BigInteger n)
         {
             var result = a % n;
-            if ((result < 0 && n > 0) || (result > 0 && n < 0))
+            if (result < 0 && n > 0 || result > 0 && n < 0)
             {
                 result += n;
             }
@@ -106,23 +142,11 @@ namespace CYPCore.Helper
             return result;
         }
 
-        public static byte[] Combine(byte[] first, byte[] second)
-        {
-            byte[] ret = new byte[first.Length + second.Length];
-            Buffer.BlockCopy(first, 0, ret, 0, first.Length);
-            Buffer.BlockCopy(second, 0, ret, first.Length, second.Length);
-            return ret;
-        }
-
-        public static byte[] Combine(byte[] first, byte[] second, byte[] third)
-        {
-            byte[] ret = new byte[first.Length + second.Length + third.Length];
-            Buffer.BlockCopy(first, 0, ret, 0, first.Length);
-            Buffer.BlockCopy(second, 0, ret, first.Length, second.Length);
-            Buffer.BlockCopy(third, 0, ret, second.Length, third.Length);
-            return ret;
-        }
-
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="arrays"></param>
+        /// <returns></returns>
         public static byte[] Combine(params byte[][] arrays)
         {
             byte[] ret = new byte[arrays.Sum(x => x.Length)];
@@ -136,14 +160,18 @@ namespace CYPCore.Helper
             return ret;
         }
 
-        public static ulong HashToId(string hash, int xBase = 5)
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="hash"></param>
+        /// <param name="xBase"></param>
+        /// <returns></returns>
+        /// <exception cref="ArgumentNullException"></exception>
+        public static ulong ToHashIdentifier(string hash, int xBase = 5)
         {
-            if (hash == null)
-                throw new ArgumentNullException(nameof(hash));
-
+            if (hash == null) throw new ArgumentNullException(nameof(hash));
             var v = new StringBuilder();
             ulong id;
-
             try
             {
                 for (int i = 6; i < 12; i++)
@@ -152,9 +180,8 @@ namespace CYPCore.Helper
                     v.Append(new char[] { HexUpper[c >> 4], HexUpper[c & 0x0f] });
                 }
 
-                var byteHex = Sha384ManagedHash(v.ToString().ToBytes());
-
-                id = (ulong)BitConverter.ToInt64(byteHex, 0);
+                var byteHex = Hasher.Hash(v.ToString().ToBytes());
+                id = (ulong)BitConverter.ToInt64(byteHex.HexToByte(), 0);
                 id = (ulong)Convert.ToInt64(id.ToString().Substring(0, xBase));
             }
             catch (Exception)
@@ -165,71 +192,29 @@ namespace CYPCore.Helper
             return id;
         }
 
-        public static byte[] Sha384ManagedHash(byte[] data)
-        {
-            SHA384 sHA384 = new SHA384Managed();
-            return sHA384.ComputeHash(data);
-        }
-
-        public static byte[] Sha256ManagedHash(byte[] data)
-        {
-            SHA256 sHA256 = new SHA256Managed();
-            return sHA256.ComputeHash(data);
-        }
-
-        public static BigInteger Exp(BigInteger a, BigInteger exponent, BigInteger n)
-        {
-            if (exponent < 0)
-                throw new Exception("Cannot raise a BigInteger to a negative power.", null);
-
-            if (n < new BigInteger(2))
-                throw new Exception("Cannot perform a modulo operation against a BigInteger less than 2.", null);
-
-            if (BigInteger.Abs(a) >= n)
-            {
-                a %= n;
-            }
-
-            if (a.Sign == 1)
-            {
-                a += n;
-            }
-
-            if (a == new BigInteger())
-                return new BigInteger();
-
-            BigInteger res = new BigInteger(1);
-            BigInteger factor = new BigInteger(a.ToByteArray());
-
-            while (exponent > new BigInteger())
-            {
-                if (exponent % new BigInteger(2) == new BigInteger())
-                    res = (res * factor) % n;
-                exponent /= new BigInteger(2);
-                factor = (factor * factor) % n;
-            }
-
-            return res;
-        }
-
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="host"></param>
+        /// <returns></returns>
         public static bool IsLocalIpAddress(string host)
         {
             try
             {
-                IPAddress[] hostIPs = Dns.GetHostAddresses(host);
-                IPAddress[] localIPs = Dns.GetHostAddresses(Dns.GetHostName());
-
-                foreach (IPAddress hostIP in hostIPs)
+                var hostIPs = Dns.GetHostAddresses(host);
+                var localIPs = Dns.GetHostAddresses(Dns.GetHostName());
+                foreach (var hostIp in hostIPs)
                 {
-                    if (IPAddress.IsLoopback(hostIP)) return true;
-                    foreach (IPAddress localIP in localIPs)
+                    if (IPAddress.IsLoopback(hostIp)) return true;
+                    if (localIPs.Contains(hostIp))
                     {
-                        if (hostIP.Equals(localIP)) return true;
+                        return true;
                     }
                 }
             }
             catch
             {
+                // ignored
             }
 
             return false;
@@ -243,7 +228,6 @@ namespace CYPCore.Helper
         public static IPEndPoint TryParseAddress(string uriString)
         {
             IPEndPoint endPoint = null;
-
             if (Uri.TryCreate($"http://{uriString}", UriKind.Absolute, out Uri url) &&
                 IPAddress.TryParse(url.Host, out IPAddress ip))
             {
@@ -253,28 +237,42 @@ namespace CYPCore.Helper
             return endPoint;
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
         public static DateTime GetUtcNow()
         {
             return DateTime.UtcNow;
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
         public static DateTime GetAdjustedTime()
         {
             return GetUtcNow().Add(TimeSpan.Zero);
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
         public static long GetAdjustedTimeAsUnixTimestamp()
         {
             return new DateTimeOffset(GetAdjustedTime()).ToUnixTimeSeconds();
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
         public static class ConfigurationFile
         {
             private const string AppSettingsFilename = "appsettings.json";
 
             public static string Local() => Path.Combine(
-                Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? string.Empty,
-                AppSettingsFilename);
+                Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? string.Empty, AppSettingsFilename);
 
             private static string SystemDefaultLinux() =>
                 Path.Combine("/etc", "tangram", "cypher", AppSettingsFilename);
@@ -283,13 +281,11 @@ namespace CYPCore.Helper
                 throw new Exception("No macOS system default implemented yet");
 
             private static string SystemDefaultWindows() => Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
-                AppSettingsFilename);
+                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), AppSettingsFilename);
 
             public static string SystemDefault()
             {
                 var platform = GetOperatingSystemPlatform();
-
                 if (platform == OSPlatform.Linux)
                 {
                     return SystemDefaultLinux();
@@ -307,6 +303,49 @@ namespace CYPCore.Helper
 
                 throw new Exception("Unsupported operating system");
             }
+        }
+        
+        /// <summary>
+        /// 
+        /// </summary>
+        private static readonly DateTimeOffset UnixRef = new(1970, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="dt"></param>
+        /// <returns></returns>
+        public static uint DateTimeToUnixTime(DateTimeOffset dt)
+        {
+            return (uint)DateTimeToUnixTimeLong(dt);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="dt"></param>
+        /// <returns></returns>
+        /// <exception cref="ArgumentOutOfRangeException"></exception>
+        private static ulong DateTimeToUnixTimeLong(DateTimeOffset dt)
+        {
+            dt = dt.ToUniversalTime();
+            if (dt < UnixRef)
+                throw new ArgumentOutOfRangeException("The supplied datetime can't be expressed in unix timestamp");
+            var result = (dt - UnixRef).TotalSeconds;
+            if (result > UInt32.MaxValue)
+                throw new ArgumentOutOfRangeException("The supplied datetime can't be expressed in unix timestamp");
+            return (ulong)result;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="timestamp"></param>
+        /// <returns></returns>
+        public static DateTimeOffset UnixTimeToDateTime(long timestamp)
+        {
+            var span = TimeSpan.FromSeconds(timestamp);
+            return UnixRef + span;
         }
     }
 }

@@ -8,10 +8,19 @@ using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using CYPCore.Extensions;
+using CYPCore.Helper;
 using CYPCore.Models;
 using CYPCore.Network;
+using CYPCore.Network.Commands;
+using CYPCore.Network.Messages;
 using CYPCore.Persistence;
 using Dawn;
+using MessagePack;
+using Microsoft.Extensions.Hosting;
+using NetMQ;
+using NetMQ.Sockets;
+using Proto;
+using Proto.DependencyInjection;
 using Serilog;
 using Block = CYPCore.Models.Block;
 
@@ -24,40 +33,55 @@ namespace CYPCore.Ledger
     {
         bool SyncRunning { get; }
         Task<bool> Synchronize(string host, ulong skip, int take);
-        void Synchronize();
+        Task Synchronize();
+        void Dispose();
     }
 
     /// <summary>
     /// 
     /// </summary>
-    public class Sync : ISync
+    public class Sync : ISync, IDisposable
     {
-        private const uint SyncTimeSlotMinutes = 0x0000000A;
-        private const uint SyncStartTimeDueSeconds = 0x00000005;
+        private const int SocketTryReceiveFromMilliseconds = 5000;
+        private const uint SyncEveryFromMinutes = 10;
+        private const uint SyncStartUpTimeFromMilliseconds = 3000;
         
         public bool SyncRunning { get; private set; }
-        private const int BatchSize = 100;
-        private readonly IUnitOfWork _unitOfWork;
+        
+        private readonly ActorSystem _actorSystem;
+        private readonly PID _pidShimCommand;
+        private readonly PID _pidLocalNode;
         private readonly IValidator _validator;
-        private readonly ILocalNode _localNode;
-        private readonly NetworkClient _networkClient;
-        private readonly bool _syncWithSeedNodes;
         private readonly ILogger _logger;
         private readonly ReaderWriterLockSlim _lock = new();
-        
-        public Sync(IUnitOfWork unitOfWork, IValidator validator, ILocalNode localNode, NetworkClient networkClient,
-            bool syncWithSeedNodes, ILogger logger)
-        {
-            _unitOfWork = unitOfWork;
-            _validator = validator;
-            _localNode = localNode;
-            _networkClient = networkClient;
-            _syncWithSeedNodes = syncWithSeedNodes;
-            _logger = logger.ForContext("SourceContext", nameof(Sync));
+        private readonly IHostApplicationLifetime _applicationLifetime;
 
-            Observable.Timer(TimeSpan.FromSeconds(SyncStartTimeDueSeconds), TimeSpan.FromMinutes(SyncTimeSlotMinutes)).Subscribe(_ =>
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="actorSystem"></param>
+        /// <param name="validator"></param>
+        /// <param name="applicationLifetime"></param>
+        /// <param name="logger"></param>
+        public Sync(ActorSystem actorSystem, IValidator validator,
+            IHostApplicationLifetime applicationLifetime, ILogger logger)
+        {
+            _actorSystem = actorSystem;
+            _pidShimCommand = actorSystem.Root.Spawn(actorSystem.DI().PropsFor<ShimCommands>());
+            _pidLocalNode = actorSystem.Root.Spawn(actorSystem.DI().PropsFor<LocalNode>());
+            _validator = validator;
+            _applicationLifetime = applicationLifetime;
+            _logger = logger.ForContext("SourceContext", nameof(Sync));
+            Observable.Timer(TimeSpan.FromMilliseconds(SyncStartUpTimeFromMilliseconds),
+                TimeSpan.FromMinutes(SyncEveryFromMinutes)).Subscribe(_ =>
             {
-                Synchronize();
+                async void Action()
+                {
+                    await Synchronize();
+                }
+
+                var task = new Task(Action);
+                task.Start();
             });
         }
 
@@ -65,12 +89,11 @@ namespace CYPCore.Ledger
         /// 
         /// </summary>
         /// <returns></returns>
-        public void Synchronize()
+        public async Task Synchronize()
         {
             if (SyncRunning) return;
-            _logger.Here().Information("Trying to Synchronize");
-
-            Task.Factory.StartNew(async () =>
+            _logger.Here().Information("SYNCHRONIZATION [STARTED]");
+            await Task.Factory.StartNew(async () =>
             {
                 try
                 {
@@ -79,137 +102,76 @@ namespace CYPCore.Ledger
                         SyncRunning = true;
                     }
                     
-                    Dictionary<ulong, Peer> peers;
+                    var blockCountResponse =
+                        await _actorSystem.Root.RequestAsync<BlockCountResponse>(_pidShimCommand,
+                            new BlockCountRequest());
+                    
+                    _logger.Here().Information("OPENING block height [{@height}]", blockCountResponse.Count);
+                    
                     const int retryCount = 5;
                     var currentRetry = 0;
                     var jitter = new Random();
-                    for (; ; )
+                    for (;;)
                     {
-                        peers = await _localNode.GetPeers();
-                        if (peers == null)
+                        if (_applicationLifetime.ApplicationStopping.IsCancellationRequested)
                         {
-                            _logger.Here().Warning("Peers are null ... Retrying");
-                            continue;
+                            return;
                         }
 
-                        if (peers.Count == 0)
-                        {
-                            _logger.Here().Warning("Peer count is zero. It's possible serf is busy... Retrying");
-                            currentRetry++;
-                        }
-
-                        if (currentRetry > retryCount || peers.Count != 0)
-                        {
-                            break;
-                        }
-
-                        var retryDelay = TimeSpan.FromSeconds(Math.Pow(2, currentRetry)) +
-                                         TimeSpan.FromMilliseconds(jitter.Next(0, 1000));
-                        await Task.Delay(retryDelay);
+                        var forward = await WaitForPeers(currentRetry, retryCount, jitter);
+                        if (forward) break;
+                        currentRetry++;
                     }
 
-                    var localBlockHeight = await _unitOfWork.HashChainRepository.CountAsync();
-                    var localLastBlock = await _unitOfWork.HashChainRepository.GetAsync(b =>
-                        new ValueTask<bool>(b.Height == (ulong)localBlockHeight));
-
-                    var localLastBlockHash = string.Empty;
-                    if (localLastBlock != null)
+                    var peersMemStoreResponse =
+                        await _actorSystem.Root.RequestAsync<PeersMemStoreResponse>(_pidLocalNode,
+                            new PeersMemStoreRequest(true));
+                    var snapshot = peersMemStoreResponse.MemStore.GetMemSnapshot().SnapshotAsync();
+                    var peers = await snapshot.ToArrayAsync();
+                    if (peers.Any())
                     {
-                        localLastBlockHash = BitConverter.ToString(localLastBlock.ToHash());
-                    }
-
-                    Task<BlockHashPeer>[] networkPeerTasks;
-
-                    if (_syncWithSeedNodes)
-                    {
-                        networkPeerTasks =
-                            _localNode.SerfClient.SeedNodes.Seeds.Select(seed =>
-                                    _networkClient.GetPeerLastBlockHashAsync(peers.First(x =>
-                                            x.Value.Host.Contains(seed[..^seed.IndexOf(":", StringComparison.Ordinal)]))
-                                        .Value))
-                                .ToArray();
-                    }
-                    else
-                    {
-                        networkPeerTasks =
-                            peers.Values.Select(peer => _networkClient.GetPeerLastBlockHashAsync(peer)).ToArray();
-                    }
-
-                    var networkBlockHashes =
-                        new List<BlockHashPeer>(await Task.WhenAll(networkPeerTasks))
-                            .Where(element => element != null);
-
-                    var networkBlockHashesGrouped = networkBlockHashes
-                        .Where(hash => hash != null)
-                        .GroupBy(hash => new
-                        {
-                            Hash = BitConverter.ToString(hash.BlockHash.Hash),
-                            hash.BlockHash.Height,
-                        })
-                        .Select(hash => new
-                        {
-                            hash.Key.Hash,
-                            hash.Key.Height,
-                            Count = hash.Count()
-                        })
-                        .OrderByDescending(element => element.Count)
-                        .ThenBy(element => element.Height);
-
-                    var numPeersWithSameHash = networkBlockHashesGrouped
-                        .FirstOrDefault(element => element.Hash == localLastBlockHash)?
-                        .Count ?? 0;
-
-                    if (!networkBlockHashes.Any())
-                    {
-                        _logger.Here().Information("No remote block hashes found");
-                    }
-                    else if (numPeersWithSameHash > networkBlockHashes.Count() / 2.0)
-                    {
-                        _logger.Here().Information(
-                            "Local node has same hash {@Hash} as majority of the network ({@NumSameHash} / {@NumPeers})",
-                            localLastBlockHash, numPeersWithSameHash, networkBlockHashes.Count());
-                    }
-                    else
-                    {
-                        _logger.Here().Information(
-                            "Local node does not have same hash {@Hash} as majority of the network ({@NumSameHash} / {@NumPeers})",
-                            localLastBlockHash, numPeersWithSameHash, networkBlockHashes.Count());
-
-                        foreach (var hash in networkBlockHashesGrouped)
-                        {
-                            _logger.Here().Debug("Hash {@Hash} with height {@Height} found {@Count} times", hash.Hash,
-                                hash.Height, hash.Count);
-                        }
-
                         var synchronized = false;
-                        foreach (var hash in networkBlockHashesGrouped)
+                        blockCountResponse =
+                            await _actorSystem.Root.RequestAsync<BlockCountResponse>(_pidShimCommand,
+                                new BlockCountRequest());
+
+                        //TODO: Divide/peer blocks into chunks.  Currently getting everything from the first (SWIM) selected peer.
+                        foreach (var peer in peers.Select(x => x.Value))
                         {
-                            foreach (var peer in networkBlockHashes.Where(element =>
-                                BitConverter.ToString(element.BlockHash.Hash) == hash.Hash &&
-                                element.BlockHash.Height == hash.Height))
+                            if (peer is null)
                             {
-                                _logger.Here().Debug(
-                                    "Synchronizing chain with last block hash {@Hash} and height {@Height} from {@Peer} {@Version} {@Host}",
-                                    hash.Hash, hash.Height, peer.Peer.NodeName, peer.Peer.NodeVersion, peer.Peer.Host);
-
-                                synchronized = await Synchronize(peer.Peer.Host, (ulong)localBlockHeight,
-                                    (int)hash.Height);
-                                if (!synchronized) continue;
-                                _logger.Here().Information("Successfully synchronized with {@Peer} {@Version} {@Host}",
-                                    peer.Peer.NodeName, peer.Peer.NodeVersion, peer.Peer.Host);
-
-                                break;
+                                _logger.Here().Error("Peer returned as null");
+                                continue;
                             }
 
-                            if (synchronized)
+                            if (blockCountResponse.Count >= (long)peer.BlockHeight)
                             {
-                                break;
+                                var localNodeDetailsResponse =
+                                    await _actorSystem.Root.RequestAsync<LocalNodeDetailsResponse>(_pidLocalNode,
+                                        new LocalNodeDetailsRequest());
+                                _logger.Here().Information(
+                                    "[LOCAL node:({@localNodeId}) block height: ({@LocalHeight})] > or = [REMOTE node:({@remoteNodeId}) block height: ({@RemoteBlockHeight})])",
+                                    localNodeDetailsResponse.Identifier, blockCountResponse.Count, peer.ClientId,
+                                    peer.BlockHeight);
+                                _logger.Here().Information("[CONTINUE]");
+                                continue;
                             }
+
+                            synchronized = await Synchronize(peer.Listening, (ulong)blockCountResponse.Count,
+                                (int)peer.BlockHeight);
+                            if (!synchronized) continue;
+                            _logger.Here().Information("Successfully SYNCHRONIZED with {@Host}", peer.RestApi);
+                            break;
                         }
 
                         if (!synchronized)
                         {
-                            _logger.Here().Error("Unable to synchronize with remote peers");
+                            _logger.Here().Warning("Unable to SYNCHRONIZE WITH REMOTE PEER(S)");
+                            blockCountResponse =
+                                await _actorSystem.Root.RequestAsync<BlockCountResponse>(_pidShimCommand,
+                                    new BlockCountRequest());
+                            _logger.Here().Information("LOCAL NODE block height: ({@LocalHeight})",
+                                blockCountResponse.Count);
                         }
                     }
                 }
@@ -223,74 +185,177 @@ namespace CYPCore.Ledger
                     {
                         SyncRunning = false;
                     }
-                    _logger.Here().Information("Finish Synchronizing");
+
+                    _logger.Here().Information("SYNCHRONIZATION [ENDED]");
                 }
-            });
+            }, _applicationLifetime.ApplicationStopping);
         }
 
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="host"></param>
+        /// <param name="currentRetry"></param>
+        /// <param name="retryCount"></param>
+        /// <param name="jitter"></param>
+        /// <returns></returns>
+        private async Task<bool> WaitForPeers(int currentRetry, int retryCount, Random jitter)
+        {
+            Guard.Argument(currentRetry, nameof(currentRetry)).NotNegative();
+            Guard.Argument(retryCount, nameof(retryCount)).NotNegative();
+            Guard.Argument(jitter, nameof(jitter)).NotNull();
+            var peersMemStoreResponse = await _actorSystem.Root.RequestAsync<PeersMemStoreResponse>(_pidLocalNode,
+                new PeersMemStoreRequest(true));
+            var snapshot = peersMemStoreResponse.MemStore.GetMemSnapshot().SnapshotAsync();
+            var peers = await snapshot.ToArrayAsync();
+            if (!peers.Any())
+            {
+                _logger.Here().Warning("Waiting for peers... Retrying");
+            }
+
+            if (currentRetry >= retryCount || peers?.Length != 0)
+            {
+                return true;
+            }
+
+            var retryDelay = TimeSpan.FromSeconds(Math.Pow(2, currentRetry)) +
+                             TimeSpan.FromMilliseconds(jitter.Next(0, 1000));
+            await Task.Delay(retryDelay);
+            return false;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="listening"></param>
         /// <param name="skip"></param>
         /// <param name="take"></param>
         /// <returns></returns>
-        public async Task<bool> Synchronize(string host, ulong skip, int take)
+        public async Task<bool> Synchronize(string listening, ulong skip, int take)
         {
-            Guard.Argument(host, nameof(host)).NotNull().NotEmpty().NotWhiteSpace();
+            Guard.Argument(listening, nameof(listening)).NotNull().NotEmpty().NotWhiteSpace();
             Guard.Argument(skip, nameof(skip)).NotNegative();
             Guard.Argument(take, nameof(take)).NotNegative();
-
+            var isSynchronized = false;
             try
             {
-                var numberOfBatches = (int)Math.Ceiling((double)take / BatchSize);
-                numberOfBatches = numberOfBatches == 0 ? 1 : numberOfBatches;
-                var networkBlockTasks = new List<Task<IList<Block>>>();
-                for (var i = 0; i < numberOfBatches; i++)
+                var blocks = await FetchBlocks(listening, skip, take);
+                if (blocks.Any() != true) return false;
+                if (skip == 0)
                 {
-                    networkBlockTasks.Add(_networkClient.GetBlocksAsync(host, (ulong)(i + (int)(1 * skip)), BatchSize));
+                    _logger.Here().Warning("FIRST TIME THE CHAIN IS BOOTSTRAPPING");
                 }
-
-                var blockHeaders = await Task.WhenAll(networkBlockTasks);
-                foreach (var blocks in blockHeaders)
+                else
                 {
-                    if (blocks.Any() != true) continue;
-
-                    foreach (var block in blocks.OrderBy(x => x.Height))
+                    _logger.Here().Information("CONTINUE BOOTSTRAPPING");
+                    //TODO: Apply sliding window algorithm.
+                    var forkingBlocks = await FetchBlocks(listening, 0, (int)skip);
+                    if (forkingBlocks.Any() != true) return false;
+                    blocks.AddRange(forkingBlocks);
+                    _logger.Here().Information("CHECKING fork rule");
+                    var verifyForkRule = await _validator.VerifyForkRule(blocks.OrderBy(x => x.Height).ToArray());
+                    if (verifyForkRule == VerifyResult.UnableToVerify)
                     {
-                        try
-                        {
-                            var verifyBlockHeader = await _validator.VerifyBlock(block);
-                            if (verifyBlockHeader != VerifyResult.Succeed)
-                            {
-                                return false;
-                            }
-
-                            var saved = await _unitOfWork.HashChainRepository.PutAsync(block.ToIdentifier(),
-                                block);
-                            if (saved) continue;
-
-                            _logger.Here().Error("Unable to save block: {@Hash}", block.Hash);
-                            return false;
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.Here().Error(ex, "Unable to save block: {@Hash}", block.Hash);
-                            return false;
-                        }
+                        _logger.Here().Information("Fork rule check [UNABLE TO VERIFY]");
+                        return false;
                     }
 
-                    var localHeight = await _unitOfWork.HashChainRepository.CountAsync();
-                    _logger.Here().Information("Local node block height set to ({@LocalHeight})", localHeight);
+                    _logger.Here().Information("Fork rule check [OK]");
+                }
+
+                _logger.Here().Information("SYNCHRONIZING ({@blockCount}) Block(s)", blocks.Count);
+                foreach (var block in blocks.OrderBy(x => x.Height).Skip((int)skip))
+                {
+                    try
+                    {
+                        _logger.Here().Information("SYNCING block height: ({@height})", block.Height);
+                        var verifyBlockHeader = await _validator.VerifyBlock(block);
+                        if (verifyBlockHeader != VerifyResult.Succeed)
+                        {
+                            return false;
+                        }
+
+                        _logger.Here().Information("SYNCHRONIZED [OK]");
+                        var saveBlockResponse =
+                            await _actorSystem.Root.RequestAsync<SaveBlockResponse>(_pidShimCommand,
+                                new SaveBlockRequest(block));
+                        if (saveBlockResponse.OK) continue;
+                        _logger.Here().Error("Unable to save block: {@Hash}", block.Hash);
+                        return false;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.Here().Error(ex, "Unable to save block: {@Hash}", block.Hash);
+                        return false;
+                    }
                 }
             }
             catch (Exception ex)
             {
-                _logger.Here().Error(ex, "Failed to synchronize node");
+                _logger.Here().Error(ex, "SYNCHRONIZATION [FAILED]");
                 return false;
             }
+            finally
+            {
+                var blockCountResponse =
+                    await _actorSystem.Root.RequestAsync<BlockCountResponse>(_pidShimCommand,
+                        new BlockCountRequest());
+                _logger.Here().Information("Local node block height set to ({@LocalHeight})", blockCountResponse.Count);
+                if (blockCountResponse.Count == take) isSynchronized = true;
+            }
 
-            return true;
+            return isSynchronized;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="listening"></param>
+        /// <param name="skip"></param>
+        /// <param name="take"></param>
+        /// <returns></returns>
+        private Task<List<Block>> FetchBlocks(string listening, ulong skip, int take)
+        {
+            Guard.Argument(listening, nameof(listening)).NotNull().NotEmpty().NotWhiteSpace();
+            Guard.Argument(skip, nameof(skip)).NotNegative();
+            Guard.Argument(take, nameof(take)).NotNegative();
+            _logger.Here().Information("Synchronizing with {@host} ({@skip})/({@take})", listening, skip, take);
+            try
+            {
+                _logger.Here().Information("Fetching ({@range}) block(s)", take - (int)skip);
+                using var dealerSocket = new DealerSocket($">tcp://{listening}");
+                dealerSocket.Options.Identity = Util.RandomDealerIdentity();
+                var message = new NetMQMessage();
+                message.Append(CommandMessage.GetBlocks.ToString());
+                message.Append(MessagePackSerializer.Serialize(new Parameter[]
+                {
+                    new() { Value = skip.ToBytes() }, new() { Value = take.ToBytes() }
+                }));
+                dealerSocket.SendMultipartMessage(message);
+                if (dealerSocket.TryReceiveFrameString(TimeSpan.FromMilliseconds(SocketTryReceiveFromMilliseconds),
+                    out var msg))
+                {
+                    var blocksResponse = MessagePackSerializer.Deserialize<BlocksResponse>(msg.HexToByte());
+                    _logger.Here().Information("Finished with ({@blockCount}) block(s)", blocksResponse.Blocks.Count);
+                    return Task.FromResult(blocksResponse.Blocks);
+                }
+
+                _logger.Here().Warning("Dead message {@peer}", listening);
+            }
+            catch (Exception ex)
+            {
+                _logger.Here().Error(ex.Message);
+            }
+
+            return Task.FromResult<List<Block>>(null);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public void Dispose()
+        {
+            _lock?.Dispose();
+            Console.WriteLine("Stopping");
         }
     }
 }

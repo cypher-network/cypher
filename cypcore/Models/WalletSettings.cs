@@ -5,10 +5,9 @@ namespace CYPCore.Models
 {
     public class WalletSettings
     {
-        public string Address { get; set; }
+
         public string Identifier { get; set; }
         public string Passphrase { get; set; }
-        public string SendPaymentEndpoint { get; set; }
-        public string Url { get; set; }
+        public string Advertise { get; set; }
     }
 }

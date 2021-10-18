@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using Blake3;
@@ -39,7 +40,7 @@ namespace CYPCore.Models
         {
             if (Validate().Any()) return null;
 
-            using var ts = new Helper.TangramStream();
+            using var ts = new Helper.BufferStream();
 
             ts.Append(Version)
                 .Append(PrevBlockHash)
@@ -56,16 +57,16 @@ namespace CYPCore.Models
         /// <param name="prevMerkelRoot"></param>
         /// <param name="transactions"></param>
         /// <returns></returns>
-        public static byte[] ToMerkelRoot(byte[] prevMerkelRoot, IEnumerable<Transaction> transactions)
+        public static byte[] ToMerkelRoot(in byte[] prevMerkelRoot, in ImmutableArray<Transaction> transactions)
         {
             Guard.Argument(prevMerkelRoot, nameof(prevMerkelRoot)).NotNull().MaxCount(32);
-            Guard.Argument(transactions, nameof(transactions)).NotNull();
+            Guard.Argument(transactions, nameof(transactions)).NotEmpty();
             var hasher = Hasher.New();
             hasher.Update(prevMerkelRoot);
             foreach (var transaction in transactions)
             {
                 var hasAnyErrors = transaction.Validate();
-                if (hasAnyErrors.Any()) throw new ArithmeticException("Unable to verify the transaction");
+                if (hasAnyErrors.Any()) throw new ArithmeticException("Unable to validate the transaction");
                 hasher.Update(transaction.ToStream());
             }
 

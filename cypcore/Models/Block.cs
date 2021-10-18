@@ -12,15 +12,15 @@ using Validator = CYPCore.Ledger.Validator;
 namespace CYPCore.Models
 {
     [MessagePackObject]
-    public class Block
+    public record Block
     {
         [MessagePack.Key(0)] public byte[] Hash { get; set; }
-        [MessagePack.Key(1)] public ulong Height { get; set; }
+        [MessagePack.Key(1)] public ulong Height { get; init; }
         [MessagePack.Key(2)] public ushort Size { get; set; }
-        [MessagePack.Key(3)] public BlockHeader BlockHeader { get; set; }
-        [MessagePack.Key(4)] public ushort NrTx { get; set; }
-        [MessagePack.Key(5)] public IList<Transaction> Txs { get; set; } = new List<Transaction>();
-        [MessagePack.Key(6)] public BlockPos BlockPos { get; set; }
+        [MessagePack.Key(3)] public BlockHeader BlockHeader { get; init; }
+        [MessagePack.Key(4)] public ushort NrTx { get; init; }
+        [MessagePack.Key(5)] public IList<Transaction> Txs { get; init; } = new List<Transaction>();
+        [MessagePack.Key(6)] public BlockPos BlockPos { get; init; }
 
         /// <summary>
         /// 
@@ -48,7 +48,7 @@ namespace CYPCore.Models
         {
             if (Validate().Any()) return null;
 
-            using var ts = new Helper.TangramStream();
+            using var ts = new Helper.BufferStream();
             ts.Append(Height);
             if (Size != 0 && Size != 1)
             {
@@ -115,6 +115,15 @@ namespace CYPCore.Models
             }
             results.AddRange(BlockPos.Validate());
             return results;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        public byte[] Serialize()
+        {
+            return MessagePackSerializer.Serialize(this);
         }
     }
 }

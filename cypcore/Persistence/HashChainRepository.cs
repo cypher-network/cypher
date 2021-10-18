@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -14,18 +15,29 @@ using Serilog;
 
 namespace CYPCore.Persistence
 {
+    /// <summary>
+    /// 
+    /// </summary>
     public interface IHashChainRepository : IRepository<Block>
     {
         ValueTask<List<Block>> OrderByRangeAsync(Func<Block, ulong> selector, int skip, int take);
         new Task<bool> PutAsync(byte[] key, Block data);
     }
 
+    /// <summary>
+    /// 
+    /// </summary>
     public class HashChainRepository : Repository<Block>, IHashChainRepository
     {
         private readonly IStoreDb _storeDb;
         private readonly ILogger _logger;
         private readonly ReaderWriterLockSlim _sync = new();
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="storeDb"></param>
+        /// <param name="logger"></param>
         public HashChainRepository(IStoreDb storeDb, ILogger logger)
             : base(storeDb, logger)
         {
@@ -41,27 +53,24 @@ namespace CYPCore.Persistence
         /// <param name="key"></param>
         /// <param name="data"></param>
         /// <returns></returns>
-        public new Task<bool> PutAsync(byte[] key, Block data)
+        public new async Task<bool> PutAsync(byte[] key, Block data)
         {
-            Guard.Argument(key, nameof(key)).NotNull();
+            Guard.Argument(key, nameof(key)).NotNull().MaxCount(64);
             Guard.Argument(data, nameof(data)).NotNull();
-
             if (data.Validate().Any())
             {
-                return Task.FromResult(false);
+                return false;
             }
 
-            var saved = false;
             try
             {
                 using (_sync.Write())
                 {
                     var cf = _storeDb.Rocks.GetColumnFamily(StoreDb.HashChainTable.ToString());
-                    var buffer = MessagePackSerializer.Serialize(data);
-
-                    _storeDb.Rocks.Put(StoreDb.Key(StoreDb.HashChainTable.ToString(), key), buffer, cf);
-
-                    saved = true;
+                    await using var stream = new MemoryStream();
+                    MessagePackSerializer.SerializeAsync(stream, data).Wait();
+                    _storeDb.Rocks.Put(StoreDb.Key(StoreDb.HashChainTable.ToString(), key), stream.ToArray(), cf);
+                    return true;
                 }
             }
             catch (Exception ex)
@@ -69,7 +78,7 @@ namespace CYPCore.Persistence
                 _logger.Here().Error(ex, "Error while storing in database");
             }
 
-            return Task.FromResult(saved);
+            return false;
         }
 
         /// <summary>
@@ -81,8 +90,10 @@ namespace CYPCore.Persistence
         /// <returns></returns>
         public ValueTask<List<Block>> OrderByRangeAsync(Func<Block, ulong> selector, int skip, int take)
         {
+            Guard.Argument(selector, nameof(selector)).NotNull();
+            Guard.Argument(skip, nameof(skip)).NotNegative();
+            Guard.Argument(take, nameof(take)).NotNegative();
             ValueTask<List<Block>> entries = default;
-
             try
             {
                 using (_sync.Read())

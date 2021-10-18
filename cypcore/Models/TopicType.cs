@@ -5,10 +5,6 @@ namespace CYPCore.Models
 {
     public enum TopicType : sbyte
     {
-        AddBlock,
-        AddBlocks,
-        AddMemoryPool,
-        AddMemoryPools,
         AddTransaction,
         AddBlockGraph
     }

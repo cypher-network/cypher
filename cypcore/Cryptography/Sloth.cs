@@ -8,6 +8,9 @@ using CYPCore.Helper;
 
 namespace CYPCore.Cryptography
 {
+    /// <summary>
+    /// 
+    /// </summary>
     public class Sloth
     {
         private const string PrimeBit256 =
@@ -15,6 +18,10 @@ namespace CYPCore.Cryptography
 
         private readonly CancellationToken _stoppingToken;
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="stoppingToken"></param>
         public Sloth(CancellationToken stoppingToken)
         {
             _stoppingToken = stoppingToken;

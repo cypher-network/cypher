@@ -77,7 +77,7 @@ namespace CYPCore.Models
         /// <returns></returns>
         public byte[] ToStream()
         {
-            using var ts = new Helper.TangramStream();
+            using var ts = new Helper.BufferStream();
             ts.Append(Hash)
                 .Append(Node)
                 .Append(PreviousHash ?? string.Empty)

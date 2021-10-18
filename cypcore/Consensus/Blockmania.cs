@@ -13,6 +13,7 @@ using CYPCore.Consensus.Messages;
 using CYPCore.Consensus.States;
 using CYPCore.Consensus.Models;
 using CYPCore.Extensions;
+using Dawn;
 using Serilog;
 
 namespace CYPCore.Consensus
@@ -47,7 +48,6 @@ namespace CYPCore.Consensus
         public event EventHandler<InterpretedEventArgs> DeliveredEventHandler;
 
         public List<BlockInfo> Blocks;
-        public Func<Task<Interpreted>> Action;
         public Dictionary<Block, ulong> Max;
         public int NodeCount;
         public ulong[] Nodes;
@@ -60,18 +60,7 @@ namespace CYPCore.Consensus
         public Dictionary<Block, State> Statess;
         public ulong TotalNodes;
         public List<Reached> Consensus;
-
-        public Blockmania(ILogger logger)
-        {
-            _logger = logger.ForContext("SourceContext", nameof(Blockmania));
-            Blocks = new List<BlockInfo>();
-            Max = new Dictionary<Block, ulong>();
-            Resolved = new Dictionary<ulong, Dictionary<ulong, string>>();
-            Statess = new Dictionary<Block, State>();
-            _graphMutex = new Mutex();
-            Consensus = new List<Reached>();
-        }
-
+        
         public Blockmania(Config cfg, ILogger logger)
         {
             _logger = logger.ForContext("SourceContext", nameof(Blockmania));
@@ -91,11 +80,9 @@ namespace CYPCore.Consensus
             _graphMutex = new Mutex();
             _entries = Channel.CreateBounded<BlockGraph>(10000);
             Consensus = new List<Reached>();
-
-
+            
             TrackingDelivered = Observable.FromEventPattern<InterpretedEventArgs>(
                 ev => DeliveredEventHandler += ev, ev => DeliveredEventHandler -= ev);
-
 
             _logger.Here().Debug("Blockmania configuration: {@Self}, {@Round}, {@NodeCount}, {@Nodes}, {@TotalNodes}, {@f}, {@Quorumf1}, {@Quorum2f}, {@Quorum2f1}",
                 Self, Round, NodeCount, Nodes, TotalNodes,
@@ -759,10 +746,13 @@ namespace CYPCore.Consensus
         /// 
         /// </summary>
         /// <param name="data"></param>
-        public void Add(BlockGraph data)
+        /// <param name="cancellationToken"></param>
+        public async Task Add(BlockGraph data, CancellationToken cancellationToken)
         {
+            Guard.Argument(data, nameof(data)).NotNull();
+            Guard.Argument(cancellationToken, nameof(cancellationToken)).HasValue();
             _logger.Here().Debug("Adding block to graph block.id: {@BlockId}", data.Block);
-            Task.Factory.StartNew(async () => { await _entries.Writer.WriteAsync(data); });
+            await Task.Factory.StartNew( () => {  _entries.Writer.WriteAsync(data, cancellationToken); }, cancellationToken);
         }
     }
 }

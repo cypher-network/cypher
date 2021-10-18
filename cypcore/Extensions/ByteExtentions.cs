@@ -1,6 +1,7 @@
 ﻿// CYPCore by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -9,11 +10,11 @@ namespace CYPCore.Extensions
 {
     public static class ByteExtensions
     {
-        public static byte[] ToBytes<T>(this T arg) => Encoding.UTF8.GetBytes(arg.ToString());
+        public static byte[] ToBytes<T>(this T arg) => Encoding.UTF8.GetBytes(arg.ToString() ?? string.Empty);
 
         public static string ByteToHex(this byte[] data) => Byte2Hex(data);
 
-        public static string ToStr(this byte[] data) => Encoding.UTF8.GetString(data);
+        public static string FromBytes(this byte[] data) => Encoding.UTF8.GetString(data);
 
         private static string Byte2Hex(byte[] bytes)
         {
@@ -51,6 +52,11 @@ namespace CYPCore.Extensions
             }
 
             return x == 0;
+        }
+        
+        public static byte[] EnsureNotNull(this byte[] source)
+        {
+            return source ?? Array.Empty<byte>();
         }
     }
 }

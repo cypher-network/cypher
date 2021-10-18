@@ -5,6 +5,9 @@ using System.Threading.Tasks;
 
 namespace CYPCore.Network
 {
+    /// <summary>
+    /// 
+    /// </summary>
     public class LeakyBucket
     {
         private readonly BucketConfiguration _bucketConfiguration;
@@ -13,6 +16,10 @@ namespace CYPCore.Network
 
         private Task _leakTask;
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="bucketConfiguration"></param>
         public LeakyBucket(BucketConfiguration bucketConfiguration)
         {
             _bucketConfiguration = bucketConfiguration;

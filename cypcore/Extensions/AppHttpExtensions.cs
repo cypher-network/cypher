@@ -5,6 +5,5 @@ namespace CYPCore.Extensions
 {
     public static class AppHttpExtensions
     {
-
     }
 }

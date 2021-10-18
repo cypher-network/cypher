@@ -1,8 +1,15 @@
 ﻿using System;
 namespace CYPCore.Helper
 {
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
     public class TaskResult<T>
     {
+        /// <summary>
+        /// 
+        /// </summary>
         public TaskResult()
         {
 
