@@ -10,7 +10,7 @@ namespace CYPCore.Network
     /// <summary>
     /// 
     /// </summary>
-    public class MemberListener: IMemberListener
+    public class MemberListener : IMemberListener
     {
         private readonly IGossipMemberStore _gossipMemberStore;
         private readonly IGossipMemberEventsStore _gossipMemberEvents;
@@ -28,7 +28,7 @@ namespace CYPCore.Network
             _gossipMemberEvents = gossipMemberEvents;
             _logger = logger;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>

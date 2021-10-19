@@ -46,7 +46,7 @@ namespace CYPNode
             var config = new ConfigurationBuilder()
 
                 .SetBasePath(Directory.GetCurrentDirectory())
-                .AddJsonFile(AppSettingsFile, false,true)
+                .AddJsonFile(AppSettingsFile, false, true)
                 .AddCommandLine(args)
                 .Build();
 
@@ -61,7 +61,7 @@ namespace CYPNode
             {
                 throw new Exception(string.Format($"No \"{@logSectionName}\" section found in appsettings.json", logSectionName));
             }
-            
+
             try
             {
                 Log.Information("Starting web host");

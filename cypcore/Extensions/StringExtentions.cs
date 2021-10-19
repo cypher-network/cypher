@@ -36,7 +36,7 @@ namespace CYPCore.Extensions
             }
             return bytes;
         }
-        
+
         public static void ZeroString(this string value)
         {
             var handle = GCHandle.Alloc(value, GCHandleType.Pinned);

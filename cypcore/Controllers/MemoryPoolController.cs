@@ -2,13 +2,11 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
-using System.IO;
 using System.Threading.Tasks;
 using CYPCore.Extensions;
 using CYPCore.Ledger;
 using CYPCore.Models;
 using Dawn;
-using MessagePack;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Serilog;
@@ -21,7 +19,7 @@ namespace CYPCore.Controllers
     {
         private readonly IMemoryPool _memoryPool;
         private readonly ILogger _logger;
-    
+
         /// <summary>
         /// 
         /// </summary>
@@ -32,7 +30,7 @@ namespace CYPCore.Controllers
             _memoryPool = memoryPool;
             _logger = logger.ForContext("SourceContext", nameof(MemoryPoolController));
         }
-    
+
         /// <summary>   
         /// 
         /// </summary>
@@ -46,8 +44,7 @@ namespace CYPCore.Controllers
             Guard.Argument(data, nameof(data)).NotNull().NotEmpty();
             try
             {
-                await using var stream = new MemoryStream(data);
-                var transaction = await MessagePackSerializer.DeserializeAsync<Transaction>(stream);
+                var transaction = await Helper.Util.DeserializeAsync<Transaction>(data);
                 var added = await _memoryPool.NewTransaction(transaction);
                 return added switch
                 {
@@ -60,10 +57,10 @@ namespace CYPCore.Controllers
             {
                 _logger.Here().Error(ex, "Unable to add the memory pool transaction");
             }
-    
+
             return new StatusCodeResult(StatusCodes.Status500InternalServerError);
         }
-    
+
         /// <summary>
         /// 
         /// </summary>
@@ -79,19 +76,17 @@ namespace CYPCore.Controllers
                 var transaction = _memoryPool.Get(id.HexToByte());
                 if (transaction is { })
                 {
-                    await using var stream = new MemoryStream();
-                    MessagePackSerializer.SerializeAsync(stream, transaction).Wait();
-                    return new ObjectResult(new { messagepack = stream.ToArray() });
+                    return new ObjectResult(new { messagepack = await Helper.Util.SerializeAsync(transaction) });
                 }
             }
             catch (Exception ex)
             {
                 _logger.Here().Error(ex, "Unable to get the memory pool transaction");
             }
-    
+
             return NotFound();
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -110,7 +105,7 @@ namespace CYPCore.Controllers
             {
                 _logger.Here().Error(ex, "Unable to get the memory pool transaction count");
             }
-    
+
             return new StatusCodeResult(StatusCodes.Status500InternalServerError);
         }
     }

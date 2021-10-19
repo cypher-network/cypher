@@ -78,7 +78,7 @@ namespace CYPCore.Persistence
         /// 
         /// </summary>
         /// <param name="innerData"></param>
-        public MemSnapshot(ConcurrentDictionary<byte[], TItem> innerData )
+        public MemSnapshot(ConcurrentDictionary<byte[], TItem> innerData)
         {
             _immutableData = innerData.ToImmutableDictionary(BinaryComparer.Default);
         }
@@ -92,7 +92,7 @@ namespace CYPCore.Persistence
                 if (item is null) _innerData.TryRemove(key, out _);
                 else _innerData[key] = item;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -126,7 +126,7 @@ namespace CYPCore.Persistence
             Guard.Argument(value, nameof(value)).HasValue();
             _writeBatch[key.EnsureNotNull()] = value;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -145,7 +145,7 @@ namespace CYPCore.Persistence
             item = default;
             return false;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -163,8 +163,8 @@ namespace CYPCore.Persistence
         /// <returns></returns>
         public int Count()
         {
-            return _immutableData.Count;;
+            return _immutableData.Count; ;
         }
-        
+
     }
 }

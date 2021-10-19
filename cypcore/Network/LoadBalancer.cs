@@ -12,7 +12,6 @@ using CYPCore.Models;
 using CYPCore.Network.Commands;
 using CYPCore.Network.Messages;
 using CYPCore.Persistence;
-using MessagePack;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using NetMQ;
@@ -46,7 +45,7 @@ namespace CYPCore.Network
     /// <summary>
     /// 
     /// </summary>
-    public class LoadBalancer : ILoadBalancer, IDisposable
+    public class LoadBalancer : ILoadBalancer
     {
         private readonly IHostApplicationLifetime _applicationLifetime;
         private readonly RouterSocket _frontend;
@@ -89,7 +88,7 @@ namespace CYPCore.Network
                 _poller.Run();
             }, _applicationLifetime.ApplicationStopping);
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -113,7 +112,7 @@ namespace CYPCore.Network
             NewCommand((byte)CommandMessage.GetSafeguardBlocks);
             NewCommand((byte)CommandMessage.Transaction);
             NewCommand((byte)CommandMessage.BlockGraph);
-            NewCommand((byte)CommandMessage.GetPoSTransaction);
+            NewCommand((byte)CommandMessage.GetPosTransaction);
             NewCommand((byte)CommandMessage.GetTransactionBlockIndex);
         }
 
@@ -121,7 +120,7 @@ namespace CYPCore.Network
         /// 
         /// </summary>
         private string BackEndAddress => _backendAddress.Replace("@", "");
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -148,7 +147,7 @@ namespace CYPCore.Network
             }
             return port;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -166,7 +165,7 @@ namespace CYPCore.Network
                     Parameter[] parameters = null;
                     if (msg.Count() >= 3)
                     {
-                        parameters = MessagePackSerializer.Deserialize<Parameter[]>(msg[2].Buffer);
+                        parameters = await Helper.Util.DeserializeAsync<Parameter[]>(msg[2].Buffer);
                     }
 
                     switch (command)
@@ -202,8 +201,8 @@ namespace CYPCore.Network
                         case CommandMessage.GetSafeguardBlocks:
                             await OnSafeguardBlocks(msg[0].ToByteArray());
                             break;
-                        case CommandMessage.GetPoSTransaction:
-                            await OnPoSTransaction(msg[0].ToByteArray(), parameters[0].Value);
+                        case CommandMessage.GetPosTransaction:
+                            await OnPosTransaction(msg[0].ToByteArray(), parameters[0].Value);
                             break;
                         case CommandMessage.GetTransactionBlockIndex:
                             await OnTransactionBlockIndex(msg[0].ToByteArray(), parameters[0].Value);
@@ -249,7 +248,7 @@ namespace CYPCore.Network
             var socketCommandEx = new RequestSocketCommand<BlockCountResponse, BlockCountRequest>();
             await socketCommandEx.Execute(key, BackEndAddress, new BlockCountRequest());
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -259,7 +258,7 @@ namespace CYPCore.Network
             var socketCommandEx = new RequestSocketCommand<BlockHeightResponse, BlockHeightRequest>();
             await socketCommandEx.Execute(key, BackEndAddress, new BlockHeightRequest());
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -281,7 +280,7 @@ namespace CYPCore.Network
         {
             var socketCommandEx = new RequestSocketCommand<SaveBlockResponse, SaveBlockRequest>();
             await socketCommandEx.Execute(key, BackEndAddress,
-                new SaveBlockRequest(MessagePackSerializer.Deserialize<Block>(block)));
+                new SaveBlockRequest(await Helper.Util.DeserializeAsync<Block>(block)));
         }
 
         /// <summary>
@@ -315,9 +314,9 @@ namespace CYPCore.Network
         {
             var socketCommandEx = new RequestSocketCommand<NewTransactionResponse, NewTransactionRequest>();
             await socketCommandEx.Execute(key, BackEndAddress,
-                new NewTransactionRequest(MessagePackSerializer.Deserialize<Transaction>(transaction)));
+                new NewTransactionRequest(await Helper.Util.DeserializeAsync<Transaction>(transaction)));
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -327,18 +326,18 @@ namespace CYPCore.Network
         {
             var socketCommandEx = new RequestSocketCommand<NewBlockGraphResponse, NewBlockGraphRequest>();
             await socketCommandEx.Execute(key, BackEndAddress,
-                new NewBlockGraphRequest(MessagePackSerializer.Deserialize<BlockGraph>(blockGraph)));
+                new NewBlockGraphRequest(await Helper.Util.DeserializeAsync<BlockGraph>(blockGraph)));
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
         /// <param name="key"></param>
         /// <param name="transactionId"></param>
-        private async Task OnPoSTransaction(byte[] key, byte[] transactionId)
+        private async Task OnPosTransaction(byte[] key, byte[] transactionId)
         {
-            var socketCommandEx = new RequestSocketCommand<PoSPoolTransactionResponse, PoSPoolTransactionRequest>();
-            await socketCommandEx.Execute(key, BackEndAddress, new PoSPoolTransactionRequest(transactionId));
+            var socketCommandEx = new RequestSocketCommand<PosPoolTransactionResponse, PosPoolTransactionRequest>();
+            await socketCommandEx.Execute(key, BackEndAddress, new PosPoolTransactionRequest(transactionId));
         }
 
         /// <summary>
@@ -349,9 +348,9 @@ namespace CYPCore.Network
         private async Task OnTransactionBlockIndex(byte[] key, byte[] transactionId)
         {
             var socketCommandEx = new RequestSocketCommand<TransactionBlockIndexResponse, TransactionBlockIndexRequest>();
-            await socketCommandEx.Execute(key, BackEndAddress, new TransactionBlockIndexRequest(transactionId));  
+            await socketCommandEx.Execute(key, BackEndAddress, new TransactionBlockIndexRequest(transactionId));
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -359,9 +358,16 @@ namespace CYPCore.Network
         /// <param name="e"></param>
         private void OnBackendReady(object sender, NetMQSocketEventArgs e)
         {
-            var message = new NetMQMessage();
-            if (!e.Socket.TryReceiveMultipartMessage(ref message)) return;
-            _frontend.SendMultipartMessage(message);
+            try
+            {
+                var message = new NetMQMessage();
+                if (!e.Socket.TryReceiveMultipartMessage(ref message)) return;
+                _frontend.SendMultipartMessage(message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.StackTrace);
+            }
         }
 
         /// <summary>

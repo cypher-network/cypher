@@ -9,7 +9,7 @@ namespace CYPCore.Services
         /// 
         /// </summary>
         internal static IServiceProvider ServiceProvider;
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -18,7 +18,7 @@ namespace CYPCore.Services
         {
             ServiceProvider = serviceProvider;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>

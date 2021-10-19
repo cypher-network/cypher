@@ -21,11 +21,11 @@ namespace CYPCore.Network
     {
         Task StartAsync();
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
-    public class GossipServer: IGossipServer, IDisposable
+    public class GossipServer : IGossipServer, IDisposable
     {
         private Gossiper _gossiper;
 
@@ -53,7 +53,7 @@ namespace CYPCore.Network
             _applicationLifetime = applicationLifetime;
             _logger = logger;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -84,7 +84,8 @@ namespace CYPCore.Network
             {
                 var options = new GossiperOptions
                 {
-                    SeedMembers = _seeds, MemberListeners = new List<IMemberListener> { _memberListener }
+                    SeedMembers = _seeds,
+                    MemberListeners = new List<IMemberListener> { _memberListener }
                 };
                 gossiper = new Gossiper((ushort)_nodeIp.Port, 0x01, (ushort)_nodeIp.Port, options, _cancellationTokenSource.Token, _logger);
                 await gossiper.StartAsync();

@@ -25,7 +25,7 @@ namespace CYPNode.Setup
         private CommandOption _optionGossipPort;
         private CommandOption _optionStakingEnable;
         private CommandOption _optionReward;
-        
+
         private class TextInput<T>
         {
             private readonly Func<string, bool> _validation;
@@ -217,7 +217,7 @@ namespace CYPNode.Setup
                 Console.WriteLine("[Enabled staking requires wallet settings]");
                 return 1;
             }
-            
+
             if (_optionReward.HasValue())
             {
                 var rewardAddress = _optionReward.Value();
@@ -230,7 +230,7 @@ namespace CYPNode.Setup
                     jTokenWalletAddress.Replace(rewardAddress);
                 }
             }
-            
+
             File.WriteAllText(_filePath, JToken.FromObject(_jObject).ToString());
             Console.WriteLine("Settings updated");
             return 0;

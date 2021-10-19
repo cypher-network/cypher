@@ -58,7 +58,8 @@ namespace CYPCore.Ledger
         Task<decimal> CurrentRunningDistribution(ulong solution);
         Task<decimal> GetRunningDistribution();
         VerifyResult VerifyNetworkShare(ulong solution, decimal previousNetworkShare, decimal runningDistributionTotal);
-        Task<VerifyResult> BlockExists(Block block);
+        Task<VerifyResult> BlockExists(byte[] hash);
+        Task<VerifyResult> BlockHeightExists(ulong height);
         byte[] IncrementHasher(byte[] previous, byte[] next);
         Task<VerifyResult> VerifyBlockHash(Block block);
         Task<VerifyResult> VerifyVrfProof(byte[] publicKey, byte[] vrfProof, byte[] message, byte[] vrfSig);
@@ -170,13 +171,26 @@ namespace CYPCore.Ledger
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="block"></param>
+        /// <param name="height"></param>
         /// <returns></returns>
-        public async Task<VerifyResult> BlockExists(Block block)
+        public async Task<VerifyResult> BlockHeightExists(ulong height)
         {
-            Guard.Argument(block, nameof(block)).NotNull();
+            Guard.Argument(height, nameof(height)).NotNegative();
             var seen =
-                await _unitOfWork.HashChainRepository.GetAsync(x => new ValueTask<bool>(x.Height == block.Height));
+                await _unitOfWork.HashChainRepository.GetAsync(x => new ValueTask<bool>(x.Height == height));
+            return seen is not null ? VerifyResult.AlreadyExists : VerifyResult.Succeed;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="hash"></param>
+        /// <returns></returns>
+        public async Task<VerifyResult> BlockExists(byte[] hash)
+        {
+            Guard.Argument(hash, nameof(hash)).NotEmpty().NotEmpty().MaxCount(64);
+            var seen =
+                await _unitOfWork.HashChainRepository.GetAsync(x => new ValueTask<bool>(x.Hash.Xor(hash)));
             return seen is not null ? VerifyResult.AlreadyExists : VerifyResult.Succeed;
         }
 
@@ -190,7 +204,7 @@ namespace CYPCore.Ledger
             Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
             try
             {
-                var verifySignatureManualResponse =  await _actorSystem.Root.RequestAsync<VerifySignatureManualResponse>(
+                var verifySignatureManualResponse = await _actorSystem.Root.RequestAsync<VerifySignatureManualResponse>(
                     _pidCryptoKeySign,
                     new VerifySignatureManualRequest(blockGraph.Signature, blockGraph.PublicKey,
                         blockGraph.ToHash()));
@@ -649,7 +663,7 @@ namespace CYPCore.Ledger
                 var block = await _unitOfWork.HashChainRepository.GetAsync(x =>
                     new ValueTask<bool>(x.Txs.Any(c => c.Vin[0].Key.Image.Xor(vin.Key.Image))));
                 if (block is null) continue;
-                _logger.Here().Fatal("Unable to verify key image");
+                _logger.Here().Fatal("Unable to verify. Key Image Already Exists");
                 return VerifyResult.KeyImageAlreadyExists;
             }
 
@@ -881,7 +895,7 @@ namespace CYPCore.Ledger
             }, ct);
             return tcs.Task.Result;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -958,7 +972,7 @@ namespace CYPCore.Ledger
 
             return VerifyResult.UnableToVerify;
         }
-        
+
         /// <summary>
         /// </summary>
         /// <param name="m"></param>

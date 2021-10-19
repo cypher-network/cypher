@@ -15,7 +15,7 @@ namespace CYPCore.Network
         GossipGraph.Node AddOrUpdateNode(MemberEvent memberEvent);
         GossipGraph GetGraph();
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -24,7 +24,7 @@ namespace CYPCore.Network
         private readonly object _memberGraphLocker = new();
         private readonly Dictionary<IPEndPoint, GossipGraph.Node> _nodes = new();
         private readonly Random _random = new();
-        
+
         /// <summary>
         /// 
         /// </summary>

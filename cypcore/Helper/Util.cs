@@ -12,7 +12,9 @@ using System.Security;
 using System.Numerics;
 using CYPCore.Extensions;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using Blake3;
+using MessagePack;
 
 namespace CYPCore.Helper
 {
@@ -82,7 +84,7 @@ namespace CYPCore.Helper
         {
             return Hasher.Hash(Guid.NewGuid().ToByteArray()).HexToByte();
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -304,12 +306,12 @@ namespace CYPCore.Helper
                 throw new Exception("Unsupported operating system");
             }
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
         private static readonly DateTimeOffset UnixRef = new(1970, 1, 1, 0, 0, 0, TimeSpan.Zero);
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -346,6 +348,30 @@ namespace CYPCore.Helper
         {
             var span = TimeSpan.FromSeconds(timestamp);
             return UnixRef + span;
+        }
+
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="data"></param>
+        /// <returns></returns>
+        public static async Task<byte[]> SerializeAsync<T>(T data)
+        {
+            await using var stream = new MemoryStream();
+            MessagePackSerializer.SerializeAsync(stream, data).Wait();
+            return stream.ToArray();
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="data"></param>
+        /// <returns></returns>
+        public static async Task<T> DeserializeAsync<T>(byte[] data)
+        {
+            await using var stream = new MemoryStream(data);
+            return await MessagePackSerializer.DeserializeAsync<T>(stream);
         }
     }
 }

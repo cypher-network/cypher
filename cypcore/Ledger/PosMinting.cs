@@ -41,12 +41,13 @@ namespace CYPCore.Ledger
         public bool StakeRunning { get; }
         Transaction Get(in byte[] transactionId);
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
     internal record CoinStake
     {
+        public byte[] TransactionId { get; init; }
         public ulong Solution { get; init; }
         public uint Bits { get; init; }
     }
@@ -60,7 +61,7 @@ namespace CYPCore.Ledger
         public byte[] Hash { get; init; }
         public byte[] VerifiedVrfSignature { get; init; }
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -68,7 +69,7 @@ namespace CYPCore.Ledger
     {
         private const uint BlockProposalTimeFromSeconds = 5;
         private const uint VerifiedDelayFunctionsCancellationTimeoutFromMilliseconds = 32000;
-        
+
         private readonly ActorSystem _actorSystem;
         private readonly PID _pidShimCommand;
         private readonly PID _pidCryptoKeySign;
@@ -123,17 +124,17 @@ namespace CYPCore.Ledger
         public Transaction Get(in byte[] transactionId)
         {
             Guard.Argument(transactionId, nameof(transactionId)).NotNull().MaxCount(32);
-            Transaction transaction = null;
             try
             {
-                _memStoreTransactions.TryGet(transactionId, out transaction);
+                _memStoreTransactions.TryGet(transactionId, out var transaction);
+                return transaction;
             }
             catch (Exception ex)
             {
                 _logger.Here().Error(ex, "Unable to find transaction with {@txnId}", transactionId.ByteToHex());
             }
 
-            return transaction;
+            return null;
         }
 
         /// <summary>
@@ -174,18 +175,18 @@ namespace CYPCore.Ledger
         {
             try
             {
-                if (_sync.SyncRunning)
-                    return;
-
+                if (_sync.SyncRunning) return;
                 StakeRunning = true;
                 var heightResponse =
-                    await _actorSystem.Root.RequestAsync<BlockHeightResponse>(_pidShimCommand, new BlockHeightRequest());
+                    await _actorSystem.Root.RequestAsync<BlockHeightResponse>(_pidShimCommand,
+                        new BlockHeightRequest());
                 var lastBlockResponse =
                     await _actorSystem.Root.RequestAsync<LastBlockResponse>(_pidShimCommand, new LastBlockRequest());
                 if (lastBlockResponse.Block is null)
                     throw new WarningException("No previous block available for processing");
                 var prevBlock = lastBlockResponse.Block;
-                if (_validator.GetAdjustedTimeAsUnixTimestamp(BlockProposalTimeFromSeconds) <= prevBlock.BlockHeader.Locktime)
+                if (_validator.GetAdjustedTimeAsUnixTimestamp(BlockProposalTimeFromSeconds) <=
+                    prevBlock.BlockHeader.Locktime)
                 {
                     throw new Exception(
                         $"Current staking timeslot is smaller than last searched timestamp {prevBlock.BlockHeader.Locktime}");
@@ -195,7 +196,8 @@ namespace CYPCore.Ledger
                 if (_validator.VerifyKernel(kernel.CalculatedVrfSignature, kernel.Hash) == VerifyResult.Succeed)
                 {
                     var coinStake = await SetupCoinstake(kernel);
-                    var snapshot = await _memStoreTransactions.GetMemSnapshot().SnapshotAsync().ToArrayAsync(cancellationToken: _stoppingToken);
+                    var snapshot = await _memStoreTransactions.GetMemSnapshot().SnapshotAsync()
+                        .ToArrayAsync(cancellationToken: _stoppingToken);
                     var transactions = snapshot.OrderBy(t => t.Value.Vtime).Select(x => x.Value).ToImmutableArray();
                     var block = await NewBlock(transactions, kernel, coinStake, prevBlock);
                     if (block is { })
@@ -203,6 +205,7 @@ namespace CYPCore.Ledger
                         var blockGraph = NewBlockGraph(in block, in prevBlock);
                         if (blockGraph is { })
                         {
+                            if (await DoesBlockHeightExits(block, coinStake)) return;
                             var newBlockGraphResponse =
                                 await _actorSystem.Root.RequestAsync<NewBlockGraphResponse>(_pidShimCommand,
                                     new NewBlockGraphRequest(blockGraph));
@@ -238,6 +241,41 @@ namespace CYPCore.Ledger
                 StakeRunning = false;
                 Poll();
             }
+        }
+
+        /// <summary>
+        ///  It's highly likely that this node fell behind when competing for the block.
+        /// Ensure we don't send an unnecessary payload, delete the coinstake transaction but
+        /// verify and keep regular transactions as new ones could have been added.
+        /// </summary>
+        /// <param name="block"></param>
+        /// <param name="coinStake"></param>
+        /// <returns></returns>
+        private async Task<bool> DoesBlockHeightExits(Block block, CoinStake coinStake)
+        {
+            var blockExists = await _validator.BlockHeightExists(block.Height);
+            if (blockExists != VerifyResult.AlreadyExists) return false;
+            _logger.Here().Warning("Block height already exists");
+
+            // Delete coinstake transaction.
+            _memStoreTransactions.Delete(coinStake.TransactionId);
+
+            // Remove any regular transactions that might have already been added to the chain.
+            await foreach (var transaction in _memStoreTransactions.GetMemSnapshot().SnapshotAsync()
+                .Select(x => x.Value).WithCancellation(_stoppingToken))
+            {
+                var verifyTransaction = await _validator.VerifyTransaction(transaction);
+                if (verifyTransaction != VerifyResult.Succeed)
+                {
+                    _memStoreTransactions.Delete(transaction.TxnId);
+                }
+            }
+
+            // Tell the wallet to reload itself as we have deleted the coinstake transaction.
+            await _nodeWallet.ReloadQueued();
+
+            // Back to block proposal.
+            return true;
         }
 
         /// <summary>
@@ -293,7 +331,7 @@ namespace CYPCore.Ledger
                 VerifiedVrfSignature = verifyVrfSignatureResponse.Signature
             };
         }
-    
+
         /// <summary>
         /// 
         /// </summary>
@@ -315,6 +353,7 @@ namespace CYPCore.Ledger
             return new CoinStake
             {
                 Bits = bits,
+                TransactionId = transaction.TxnId,
                 Solution = solution
             };
         }
@@ -365,7 +404,7 @@ namespace CYPCore.Ledger
 
             return null;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -468,7 +507,7 @@ namespace CYPCore.Ledger
             }, ct);
             return tcs.Task;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>

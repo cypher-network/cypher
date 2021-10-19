@@ -5,7 +5,6 @@ using System;
 using System.Threading.Tasks;
 using CYPCore.Extensions;
 using CYPCore.Services;
-using MessagePack;
 using Microsoft.Extensions.DependencyInjection;
 using NetMQ;
 using NetMQ.Sockets;
@@ -52,7 +51,7 @@ namespace CYPCore.Network.Commands
                 _dealerSocket.Options.Identity = key;
                 var response = await _actorSystem.Root.RequestAsync<TResponse>(_pid, request);
                 await _actorSystem.Root.StopAsync(_pid);
-                _dealerSocket.SendFrame(MessagePackSerializer.Serialize(response).ByteToHex());
+                _dealerSocket.SendFrame((await Helper.Util.SerializeAsync(response)).ByteToHex());
                 return;
             }
             catch (Exception ex)

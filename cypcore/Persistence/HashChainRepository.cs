@@ -67,9 +67,8 @@ namespace CYPCore.Persistence
                 using (_sync.Write())
                 {
                     var cf = _storeDb.Rocks.GetColumnFamily(StoreDb.HashChainTable.ToString());
-                    await using var stream = new MemoryStream();
-                    MessagePackSerializer.SerializeAsync(stream, data).Wait();
-                    _storeDb.Rocks.Put(StoreDb.Key(StoreDb.HashChainTable.ToString(), key), stream.ToArray(), cf);
+                    _storeDb.Rocks.Put(StoreDb.Key(StoreDb.HashChainTable.ToString(), key),
+                        await Helper.Util.SerializeAsync(data), cf);
                     return true;
                 }
             }
@@ -93,12 +92,12 @@ namespace CYPCore.Persistence
             Guard.Argument(selector, nameof(selector)).NotNull();
             Guard.Argument(skip, nameof(skip)).NotNegative();
             Guard.Argument(take, nameof(take)).NotNegative();
-            ValueTask<List<Block>> entries = default;
             try
             {
                 using (_sync.Read())
                 {
-                    entries = Iterate().OrderBy(selector).Skip(skip).Take(take).ToListAsync();
+                    var entries = Iterate().OrderBy(selector).Skip(skip).Take(take).ToListAsync();
+                    return entries;
                 }
             }
             catch (Exception ex)
@@ -106,7 +105,7 @@ namespace CYPCore.Persistence
                 _logger.Here().Error(ex, "Error while reading database");
             }
 
-            return entries;
+            return default;
         }
     }
 }

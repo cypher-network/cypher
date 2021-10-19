@@ -53,7 +53,7 @@ namespace CYPCore.Extensions
 
             return x == 0;
         }
-        
+
         public static byte[] EnsureNotNull(this byte[] source)
         {
             return source ?? Array.Empty<byte>();

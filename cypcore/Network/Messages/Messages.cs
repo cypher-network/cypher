@@ -46,7 +46,7 @@ namespace CYPCore.Network.Messages
         [Key(0)] public Transaction Transaction { get; set; }
     }
     public record MemoryPoolTransactionRequest(byte[] TransactionId);
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -148,16 +148,16 @@ namespace CYPCore.Network.Messages
 
         [Key(0)] public byte[] TransactionId { get; }
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
     [MessagePackObject]
-    public record PoSPoolTransactionResponse
+    public record PosPoolTransactionResponse
     {
         [Key(0)] public Transaction Transaction { get; set; }
     }
-    public record PoSPoolTransactionRequest(byte[] TransactionId);
+    public record PosPoolTransactionRequest(byte[] TransactionId);
 
     /// <summary>
     /// 
@@ -165,14 +165,14 @@ namespace CYPCore.Network.Messages
     [MessagePackObject(true)]
     public record BroadcastAutoResponse;
     public record BroadcastAutoRequest(TopicType TopicType, byte[] Data);
-    
+
     /// <summary>
     /// 
     /// </summary>
     [MessagePackObject(true)]
     public record BroadcastManualResponse;
     public record BroadcastManualRequest(Peer[] Peers, TopicType TopicType, byte[] Data);
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -180,7 +180,7 @@ namespace CYPCore.Network.Messages
     [MessagePackObject(true)]
     public record PeersMemStoreResponse(MemStore<Peer> MemStore);
     public record PeersMemStoreRequest(bool ShouldUpdateHeight = false);
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -188,7 +188,7 @@ namespace CYPCore.Network.Messages
     [MessagePackObject(true)]
     public record GossipGraphResponse(GossipGraph GossipGraph);
     public record GossipGraphRequest;
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -201,7 +201,7 @@ namespace CYPCore.Network.Messages
     public record LocalNodeDetailsResponse(ulong Identifier, string Name, string RestApi, string Listening, string Version);
 
     public record LocalNodeDetailsRequest;
-    
+
 
     /// <summary>
     /// 
@@ -210,7 +210,7 @@ namespace CYPCore.Network.Messages
     [MessagePackObject(true)]
     public record KeyPairResponse(KeyPair KeyPair);
     public record KeyPairRequest(string KeyName);
-    
+
 
     /// <summary>
     /// 
@@ -220,7 +220,7 @@ namespace CYPCore.Network.Messages
     [MessagePackObject(true)]
     public record SignatureResponse(byte[] Signature, byte[] PublicKey);
     public record SignatureRequest(string KeyName, byte[] Message);
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -228,7 +228,7 @@ namespace CYPCore.Network.Messages
     [MessagePackObject(true)]
     public record VerifySignatureAutoResponse(bool Ok);
     public record VerifySignatureAutoRequest(byte[] Signature, byte[] Message, string KeyName);
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -236,7 +236,7 @@ namespace CYPCore.Network.Messages
     [MessagePackObject(true)]
     public record VerifySignatureManualResponse(bool Ok);
     public record VerifySignatureManualRequest(byte[] Signature, byte[] PublicKey, byte[] Message);
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -244,7 +244,7 @@ namespace CYPCore.Network.Messages
     [MessagePackObject(true)]
     public record CalculateVrfResponse(byte[] Signature);
     public record CalculateVrfRequest(ECPrivateKey EcPrivateKey, byte[] Message);
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -252,7 +252,7 @@ namespace CYPCore.Network.Messages
     [MessagePackObject(true)]
     public record VerifyVrfSignatureResponse(byte[] Signature);
     public record VerifyVrfSignatureRequest(ECPublicKey EcPublicKey, byte[] Signature, byte[] Message);
-    
+
     /// <summary>
     /// 
     /// </summary>

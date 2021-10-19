@@ -13,7 +13,6 @@ using CYPCore.Helper;
 using CYPCore.Models;
 using CYPCore.Network.Messages;
 using CYPCore.Persistence;
-using MessagePack;
 using Microsoft.Extensions.Options;
 using NetMQ;
 using NetMQ.Sockets;
@@ -26,10 +25,10 @@ namespace CYPCore.Network
     /// <summary>
     /// 
     /// </summary>
-    public class LocalNode: IActor
+    public class LocalNode : IActor
     {
         private const int SocketTryWaitTimeoutMilliseconds = 5000;
-        
+
         private readonly ActorSystem _actorSystem;
         private readonly PID _pidCryptoKeySign;
         private readonly IGossipMemberStore _gossipMemberStore;
@@ -83,7 +82,7 @@ namespace CYPCore.Network
                 Util.ToHashIdentifier(keyPairResponse.KeyPair.PublicKey.ByteToHex()), _options.Value.Name,
                 _options.Value.RestApi, _options.Value.Gossip.Listening, Util.GetAssemblyVersion()));
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -92,7 +91,7 @@ namespace CYPCore.Network
         private Task OnGetGossipGraph(IContext context)
         {
             Guard.Argument(context, nameof(context)).NotNull();
-            context.Respond(new GossipGraphResponse( _gossipMemberStore.GetGraph()));
+            context.Respond(new GossipGraphResponse(_gossipMemberStore.GetGraph()));
             return Task.CompletedTask;
         }
 
@@ -140,7 +139,7 @@ namespace CYPCore.Network
                     {
                         if (peer is null) continue;
 
-                        void Action()
+                        async void Action()
                         {
                             var command = broadcastManualRequest.TopicType switch
                             {
@@ -151,7 +150,7 @@ namespace CYPCore.Network
                             dealerSocket.Options.Identity = Util.RandomDealerIdentity();
                             var message = new NetMQMessage();
                             message.Append(command.ToString());
-                            message.Append(MessagePackSerializer.Serialize(new[] { new Parameter { Value = broadcastManualRequest.Data } }));
+                            message.Append(await Util.SerializeAsync(new[] { new Parameter { Value = broadcastManualRequest.Data } }));
                             dealerSocket.SendMultipartMessage(message);
                             if (dealerSocket.TryReceiveFrameString(
                                 TimeSpan.FromMilliseconds(SocketTryWaitTimeoutMilliseconds), out var msg))
@@ -159,7 +158,7 @@ namespace CYPCore.Network
                                 if (command == CommandMessage.Transaction)
                                 {
                                     var newTransactionResponse =
-                                        MessagePackSerializer.Deserialize<NewTransactionResponse>(msg.HexToByte());
+                                        await Util.DeserializeAsync<NewTransactionResponse>(msg.HexToByte());
                                     if (!newTransactionResponse.OK)
                                     {
                                         _logger.Here().Error("Unable to forward new transaction to {@peer}",
@@ -169,7 +168,7 @@ namespace CYPCore.Network
                                 else if (command == CommandMessage.BlockGraph)
                                 {
                                     var newBlockGraphResponse =
-                                        MessagePackSerializer.Deserialize<NewBlockGraphResponse>(msg.HexToByte());
+                                        await Util.DeserializeAsync<NewBlockGraphResponse>(msg.HexToByte());
                                     if (!newBlockGraphResponse.OK)
                                     {
                                         _logger.Here().Error("Unable to forward new blockgraph to {@host}",
@@ -231,7 +230,7 @@ namespace CYPCore.Network
             {
                 _logger.Here().Error(ex.Message);
             }
-            
+
             context.Respond(new PeersMemStoreResponse(null));
         }
 
@@ -240,29 +239,29 @@ namespace CYPCore.Network
         /// </summary>
         /// <param name="node"></param>
         /// <param name="updateHeight"></param>
-        private Task GetPeer(GossipGraph.Node node, bool updateHeight)
+        private async Task GetPeer(GossipGraph.Node node, bool updateHeight)
         {
             Guard.Argument(node, nameof(node)).NotNull();
             if (node.State is MemberState.Dead or MemberState.Left or MemberState.Pruned)
             {
-                if (!_peerMemStore.TryGet(node.Id.GetHashCode().ToBytes(), out _)) return Task.CompletedTask;
+                if (!_peerMemStore.TryGet(node.Id.GetHashCode().ToBytes(), out _)) return;
                 _peerMemStore.Delete(node.Id.GetHashCode().ToBytes());
-                return Task.CompletedTask;
+                return;
             }
-            
+
             try
             {
                 if (_peerMemStore.Contains(node.Id.GetHashCode().ToBytes()) && updateHeight)
                 {
                     var value = GetPeerOrHeight(node, CommandMessage.GetBlockCount);
-                    if (!_peerMemStore.TryGet(node.Id.GetHashCode().ToBytes(), out var peer)) return Task.CompletedTask;
-                    if (string.IsNullOrEmpty(value)) return Task.CompletedTask;
-                    var blockCountResponse = MessagePackSerializer.Deserialize<BlockCountResponse>(value.HexToByte());
+                    if (!_peerMemStore.TryGet(node.Id.GetHashCode().ToBytes(), out var peer)) return;
+                    if (string.IsNullOrEmpty(value)) return;
+                    var blockCountResponse = await Util.DeserializeAsync<BlockCountResponse>(value.HexToByte());
                     if (blockCountResponse is { })
                     {
                         peer.BlockHeight = (ulong)blockCountResponse.Count;
                     }
-                    return Task.CompletedTask;
+                    return;
                 }
             }
             catch (Exception ex)
@@ -272,24 +271,24 @@ namespace CYPCore.Network
 
             try
             {
-                if (_peerMemStore.Contains(node.Id.GetHashCode().ToBytes())) return Task.CompletedTask;
+                if (_peerMemStore.Contains(node.Id.GetHashCode().ToBytes())) return;
                 var value = GetPeerOrHeight(node, CommandMessage.GetPeer);
-                if (string.IsNullOrEmpty(value)) return Task.CompletedTask;
-                var peerResponse = MessagePackSerializer.Deserialize<PeerResponse>(value.HexToByte());
+                if (string.IsNullOrEmpty(value)) return;
+                var peerResponse = await Util.DeserializeAsync<PeerResponse>(value.HexToByte());
                 if (peerResponse is { })
                 {
                     _peerMemStore.Put(node.Id.GetHashCode().ToBytes(), peerResponse.Peer);
-                    return Task.CompletedTask;
+                    return;
                 }
-                
+
                 _logger.Here().Error("Dead peer {@peer}", node.Ip.ToString());
             }
             catch (Exception ex)
             {
                 _logger.Here().Error(ex, "Error getting peer information {@Host}", node.Ip.ToString());
             }
-            
-            return Task.CompletedTask;
+
+            return;
         }
 
         /// <summary>
@@ -311,7 +310,7 @@ namespace CYPCore.Network
                 {
                     return msg;
                 }
-                
+
                 _logger.Here().Warning("Dead message {@peer}", node.Ip.ToString());
             }
             catch (Exception ex)
@@ -321,7 +320,7 @@ namespace CYPCore.Network
 
             return string.Empty;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -330,7 +329,7 @@ namespace CYPCore.Network
         /// <param name="options"></param>
         /// <param name="logger"></param>
         /// <returns></returns>
-        public  static Props Props(ActorSystem actorSystem, IGossipMemberStore gossipMemberStore,
+        public static Props Props(ActorSystem actorSystem, IGossipMemberStore gossipMemberStore,
             IOptions<AppOptions> options, ILogger logger)
         {
             var props = Proto.Props.FromProducer(() => new LocalNode(actorSystem, gossipMemberStore, options, logger));

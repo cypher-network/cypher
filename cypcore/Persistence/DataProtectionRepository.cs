@@ -28,7 +28,7 @@ namespace CYPCore.Persistence
         private readonly IStoreDb _storeDb;
         private readonly ILogger _logger;
         private readonly ReaderWriterLockSlim _sync = new();
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -41,7 +41,7 @@ namespace CYPCore.Persistence
             _logger = logger;
             SetTableName(StoreDb.DataProtectionTable.ToString());
         }
-        
+
         /// <summary>
         /// 
         /// </summary>

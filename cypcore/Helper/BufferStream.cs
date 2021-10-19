@@ -21,7 +21,7 @@ namespace CYPCore.Helper
         {
             return _buffer.Length;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
