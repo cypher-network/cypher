@@ -39,6 +39,7 @@ namespace CYPCore.Wallet
         Task SaveQueued(List<Transaction> transactions);
         Task<List<Transaction>> LoadQueued();
         Task DeleteQueued();
+        public Task ReloadQueued();
     }
 
     /// <summary>
@@ -129,7 +130,7 @@ namespace CYPCore.Wallet
         /// <summary>
         /// 
         /// </summary>
-        private async Task ReloadQueued()
+        public async Task ReloadQueued()
         {
             try
             {
@@ -170,9 +171,9 @@ namespace CYPCore.Wallet
                 {
                     var (spendKey, scanKey) = Unlock(_session);
                     var outputs = (from v in transaction.Vout
-                        let uncover = spendKey.Uncover(scanKey, new PubKey(v.E))
-                        where uncover.PubKey.ToBytes().SequenceEqual(v.P)
-                        select v.Cast()).ToList();
+                                   let uncover = spendKey.Uncover(scanKey, new PubKey(v.E))
+                                   where uncover.PubKey.ToBytes().SequenceEqual(v.P)
+                                   select v.Cast()).ToList();
                     if (!outputs.Any())
                         return new Tuple<Transaction, string>(null, "Stealth address does not control this transaction");
                     transaction.Vout = outputs.ToArray();
@@ -186,7 +187,7 @@ namespace CYPCore.Wallet
 
             return new Tuple<Transaction, string>(null, "Unable to find the transaction");
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -341,17 +342,21 @@ namespace CYPCore.Wallet
                     }
                 }
 
-                tx.Vout = tx.Vout.Where(v => v is not null).ToArray();
-                if (!tx.Vout.Any()) continue;
-                _session.MemStoreTransactions.Delete(tx.TxnId);
+                tx.Vout = tx.Vout.Where(vout => vout is { }).ToArray();
+                if (!tx.Vout.Any())
+                {
+                    _session.MemStoreTransactions.Delete(tx.TxnId);
+                    continue;
+                }
+
                 _session.MemStoreTransactions.Put(tx.TxnId, tx);
             }
 
             var spendable = from tx in snapshot
-                from output in tx.Value.Vout
-                let spendingAmount = Amount(output, scanKey)
-                where spendingAmount != 0
-                select new { Commitment = output, Total = Amount(output, scanKey) };
+                            from output in tx.Value.Vout
+                            let spendingAmount = Amount(output, scanKey)
+                            where spendingAmount != 0
+                            select new { Commitment = output, Total = Amount(output, scanKey) };
             var spending = spendable.First(x => x.Total >= amount);
             return new Tuple<Vout, ulong>(spending.Commitment, spending.Total);
         }
@@ -372,7 +377,7 @@ namespace CYPCore.Wallet
             var mlsag = new MLSAG();
             return mlsag.ToKeyImage(oneTimeSpendKey.ToHex().HexToByte(), oneTimeSpendKey.PubKey.ToBytes());
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -394,7 +399,7 @@ namespace CYPCore.Wallet
 
             return false;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -462,7 +467,7 @@ namespace CYPCore.Wallet
                     $"Unable to make the transaction. Inner error message {generateTransaction.NonSuccessMessage.message}")
                 : new Tuple<Transaction, string>(generateTransaction.Value, null);
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -501,47 +506,47 @@ namespace CYPCore.Wallet
             var transactions = safeguardBlocks.SelectMany(x => x.Txs).ToArray();
             transactions.Shuffle();
             for (var k = 0; k < nRows - 1; ++k)
-            for (var i = 0; i < nCols; ++i)
-            {
-                if (i == index)
+                for (var i = 0; i < nCols; ++i)
                 {
+                    if (i == index)
+                    {
+                        try
+                        {
+                            var message = Message(session.Spending, scanKey);
+                            var oneTimeSpendKey = spendKey.Uncover(scanKey, new PubKey(session.Spending.E));
+                            sk[0] = oneTimeSpendKey.ToHex().HexToByte();
+                            blinds[0] = message.Blind;
+                            pcmIn[i + k * nCols] = pedersen.Commit(message.Amount, message.Blind);
+                            pkIn[i + k * nCols] = oneTimeSpendKey.PubKey.ToBytes();
+                            fixed (byte* mm = m, pk = pkIn[i + k * nCols])
+                            {
+                                Util.MemCpy(&mm[(i + k * nCols) * 33], pk, 33);
+                            }
+
+                            continue;
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.Here().Error("Unable to create main ring member");
+                            throw new Exception(ex.StackTrace);
+                        }
+                    }
+
                     try
                     {
-                        var message = Message(session.Spending, scanKey);
-                        var oneTimeSpendKey = spendKey.Uncover(scanKey, new PubKey(session.Spending.E));
-                        sk[0] = oneTimeSpendKey.ToHex().HexToByte();
-                        blinds[0] = message.Blind;
-                        pcmIn[i + k * nCols] = pedersen.Commit(message.Amount, message.Blind);
-                        pkIn[i + k * nCols] = oneTimeSpendKey.PubKey.ToBytes();
+                        pcmIn[i + k * nCols] = transactions[i].Vout[0].C;
+                        pkIn[i + k * nCols] = transactions[i].Vout[0].P;
                         fixed (byte* mm = m, pk = pkIn[i + k * nCols])
                         {
                             Util.MemCpy(&mm[(i + k * nCols) * 33], pk, 33);
                         }
-
-                        continue;
                     }
                     catch (Exception ex)
                     {
-                        _logger.Here().Error("Unable to create main ring member");
+                        _logger.Here().Error("Unable to create ring member");
                         throw new Exception(ex.StackTrace);
                     }
                 }
-
-                try
-                {
-                    pcmIn[i + k * nCols] = transactions[i].Vout[0].C;
-                    pkIn[i + k * nCols] = transactions[i].Vout[0].P;
-                    fixed (byte* mm = m, pk = pkIn[i + k * nCols])
-                    {
-                        Util.MemCpy(&mm[(i + k * nCols) * 33], pk, 33);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.Here().Error("Unable to create ring member");
-                    throw new Exception(ex.StackTrace);
-                }
-            }
 
             return m;
         }
@@ -642,7 +647,8 @@ namespace CYPCore.Wallet
                 _logger.Error(ex.Message);
                 return TaskResult<Transaction>.CreateFailure(JObject.FromObject(new
                 {
-                    success = false, message = ex.Message
+                    success = false,
+                    message = ex.Message
                 }));
             }
         }
@@ -696,13 +702,15 @@ namespace CYPCore.Wallet
             {
                 return TaskResult<ProofStruct>.CreateFailure(JObject.FromObject(new
                 {
-                    success = false, message = ex.Message
+                    success = false,
+                    message = ex.Message
                 }));
             }
 
             return TaskResult<ProofStruct>.CreateFailure(JObject.FromObject(new
             {
-                success = false, message = "Bulletproof Verify failed."
+                success = false,
+                message = "Bulletproof Verify failed."
             }));
         }
 
@@ -791,7 +799,7 @@ namespace CYPCore.Wallet
 
             return 0;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -826,7 +834,7 @@ namespace CYPCore.Wallet
             var stealth = new BitcoinStealthAddress(address, _network);
             return stealth.ScanPubKey;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -836,7 +844,7 @@ namespace CYPCore.Wallet
             File.WriteAllTextAsync(FileName, JsonConvert.SerializeObject(transactions));
             return Task.FromResult(0);
         }
-        
+
         /// <summary>
         /// 
         /// </summary>

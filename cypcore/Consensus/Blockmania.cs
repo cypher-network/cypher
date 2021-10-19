@@ -60,7 +60,7 @@ namespace CYPCore.Consensus
         public Dictionary<Block, State> Statess;
         public ulong TotalNodes;
         public List<Reached> Consensus;
-        
+
         public Blockmania(Config cfg, ILogger logger)
         {
             _logger = logger.ForContext("SourceContext", nameof(Blockmania));
@@ -80,7 +80,7 @@ namespace CYPCore.Consensus
             _graphMutex = new Mutex();
             _entries = Channel.CreateBounded<BlockGraph>(10000);
             Consensus = new List<Reached>();
-            
+
             TrackingDelivered = Observable.FromEventPattern<InterpretedEventArgs>(
                 ev => DeliveredEventHandler += ev, ev => DeliveredEventHandler -= ev);
 
@@ -752,7 +752,7 @@ namespace CYPCore.Consensus
             Guard.Argument(data, nameof(data)).NotNull();
             Guard.Argument(cancellationToken, nameof(cancellationToken)).HasValue();
             _logger.Here().Debug("Adding block to graph block.id: {@BlockId}", data.Block);
-            await Task.Factory.StartNew( () => {  _entries.Writer.WriteAsync(data, cancellationToken); }, cancellationToken);
+            await Task.Factory.StartNew(() => { _entries.Writer.WriteAsync(data, cancellationToken); }, cancellationToken);
         }
     }
 }

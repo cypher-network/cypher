@@ -108,7 +108,7 @@ namespace CYPCore.Extensions
                 logger.Error(ex.Message);
             }
         }
-        
+
         public static Task WaitOneAsync(this WaitHandle waitHandle)
         {
             if (waitHandle == null)
@@ -118,7 +118,7 @@ namespace CYPCore.Extensions
             var rwh = ThreadPool.RegisterWaitForSingleObject(waitHandle,
                 delegate { tcs.TrySetResult(true); }, null, -1, true);
             var t = tcs.Task;
-            t.ContinueWith( (antecedent) => rwh.Unregister(null));
+            t.ContinueWith((antecedent) => rwh.Unregister(null));
             return t;
         }
     }

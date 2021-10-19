@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reactive;
 using System.Reactive.Concurrency;
@@ -42,7 +43,7 @@ namespace CYPCore.Ledger
     /// <summary>
     /// 
     /// </summary>
-    public sealed class Graph: IGraph, IDisposable
+    public sealed class Graph : IGraph, IDisposable
     {
         private const double OnRoundThrottleFromSeconds = 1.5;
 
@@ -124,13 +125,15 @@ namespace CYPCore.Ledger
             try
             {
                 if (blockGraph.Block.Round != NextRound()) return VerifyResult.UnableToVerify;
-                if (!_memStoreBlockGraph.Contains(blockGraph.ToIdentifier()))
+                if (await DoesBlockHeightExist(blockGraph) != VerifyResult.Succeed) return VerifyResult.AlreadyExists;
+                if (_memStoreBlockGraph.TryGet(blockGraph.ToIdentifier(), out _)) return VerifyResult.AlreadyExists;
+                _logger.Here().Information("Node {@Node} Round {@Round} Current {@Current} Next {@Next}",
+                    blockGraph.Block.Node, blockGraph.Block.Round, GetRound().Result, NextRound());
+
+                var finalized = await TryFinalize(blockGraph);
+                if (finalized != true)
                 {
-                    var finalized = await TryFinalize(blockGraph);
-                    if (finalized != true)
-                    {
-                        return VerifyResult.UnableToVerify;
-                    }
+                    return VerifyResult.UnableToVerify;
                 }
             }
             catch (Exception ex)
@@ -140,7 +143,7 @@ namespace CYPCore.Ledger
 
             return VerifyResult.Succeed;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -152,7 +155,7 @@ namespace CYPCore.Ledger
             Transaction transaction = null;
             try
             {
-                var localNodeDetailsResponse = await _actorSystem.Root.RequestAsync<LocalNodeDetailsResponse>(_pidLocalNode,  new LocalNodeDetailsRequest());
+                var localNodeDetailsResponse = await _actorSystem.Root.RequestAsync<LocalNodeDetailsResponse>(_pidLocalNode, new LocalNodeDetailsRequest());
                 var snapshot = await _memStoreBlockGraph.GetMemSnapshot().SnapshotAsync().ToArrayAsync();
                 var blocks = snapshot
                     .Where(x => x.Value.Block.Node == localNodeDetailsResponse.Identifier && x.Value.Block.Round == NextRound())
@@ -402,7 +405,7 @@ namespace CYPCore.Ledger
                 try
                 {
                     if (deliveredBlock.Round != NextRound()) continue;
-                    var block = MessagePackSerializer.Deserialize<Block>(deliveredBlock.Data);
+                    var block = await Helper.Util.DeserializeAsync<Block>(deliveredBlock.Data);
                     _memStoreDelivered.Put(block.ToIdentifier(), block);
                 }
                 catch (Exception ex)
@@ -432,8 +435,8 @@ namespace CYPCore.Ledger
                 _logger.Here().Information("Potential winners");
                 foreach (var (_, winner) in winners)
                 {
-                    _logger.Here().Information("Hash {@Hash} Solution {@Sol}", winner.Hash.ByteToHex(),
-                        winner.BlockPos.Solution);
+                    _logger.Here().Information("Hash {@Hash} Solution {@Sol} Node {@Node}", winner.Hash.ByteToHex(),
+                        winner.BlockPos.Solution, Helper.Util.ToHashIdentifier(winner.BlockPos.PublicKey.ByteToHex()));
                 }
 
                 (_, Block block) = winners.Length switch
@@ -446,7 +449,7 @@ namespace CYPCore.Ledger
                 {
                     if (block.Height != NextRound()) return;
                     _logger.Here().Information("DecideWinnerAsync we have a winner {@Hash}", block.Hash.ByteToHex());
-                    var blockExists = await _validator.BlockExists(block);
+                    var blockExists = await _validator.BlockHeightExists(block.Height);
                     if (blockExists == VerifyResult.AlreadyExists)
                     {
                         _logger.Here().Error("Block winner already exists");
@@ -459,7 +462,7 @@ namespace CYPCore.Ledger
                         _logger.Here().Error("Unable to verify the block");
                         return;
                     }
-                    
+
                     var saveBlockResponse =
                         await _actorSystem.Root.RequestAsync<SaveBlockResponse>(_pidShimCommand, new SaveBlockRequest(block));
                     if (!saveBlockResponse.OK)
@@ -488,7 +491,7 @@ namespace CYPCore.Ledger
         /// <returns></returns>
         private async Task<ulong> GetRound()
         {
-            var response = await _actorSystem.Root.RequestAsync<BlockHeightResponse>(_pidShimCommand,  new BlockHeightRequest());
+            var response = await _actorSystem.Root.RequestAsync<BlockHeightResponse>(_pidShimCommand, new BlockHeightRequest());
             return (ulong)response.Count;
         }
 
@@ -525,7 +528,7 @@ namespace CYPCore.Ledger
                         peers.ForEach(x => x.BlockHeight = blockGraph.Block.Round);
                         _actorSystem.Root.Send(_pidLocalNode,
                             new BroadcastManualRequest(peers, TopicType.AddBlockGraph,
-                                MessagePackSerializer.Serialize(blockGraph)));
+                                await Helper.Util.SerializeAsync(blockGraph)));
                     }
                     else
                     {
@@ -537,6 +540,20 @@ namespace CYPCore.Ledger
             {
                 _logger.Here().Error(ex, "Broadcast error");
             }
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="blockGraph"></param>
+        /// <returns></returns>
+        private async Task<VerifyResult> DoesBlockHeightExist(BlockGraph blockGraph)
+        {
+            var block = await Helper.Util.DeserializeAsync<Block>(blockGraph.Block.Data);
+            var verifyBlockExists = await _validator.BlockHeightExists(block.Height);
+            if (verifyBlockExists != VerifyResult.AlreadyExists) return VerifyResult.Succeed;
+            _logger.Here().Warning("Block height already exists");
+            return VerifyResult.AlreadyExists;
         }
 
         /// <summary>

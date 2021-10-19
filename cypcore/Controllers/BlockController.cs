@@ -33,7 +33,7 @@ namespace CYPCore.Controllers
         public BlockController(ActorSystem actorSystem, ILogger logger)
         {
             _actorSystem = actorSystem;
-            _pid= _actorSystem.Root.Spawn(_actorSystem.DI().PropsFor<ShimCommands>());
+            _pid = _actorSystem.Root.Spawn(_actorSystem.DI().PropsFor<ShimCommands>());
             _logger = logger.ForContext("SourceContext", nameof(BlockController));
         }
 
@@ -52,9 +52,7 @@ namespace CYPCore.Controllers
                     await _actorSystem.Root.RequestAsync<SafeguardBlocksResponse>(_pid,
                         new SafeguardBlocksRequest(147));
                 await _actorSystem.Root.StopAsync(_pid);
-                await using var stream = new MemoryStream();
-                MessagePackSerializer.SerializeAsync(stream, response.Blocks).Wait();
-                return new ObjectResult(new { messagepack = stream.ToArray() });
+                return new ObjectResult(new { messagepack = await Helper.Util.SerializeAsync(response.Blocks) });
             }
             catch (Exception ex)
             {
@@ -86,7 +84,7 @@ namespace CYPCore.Controllers
 
             return NotFound();
         }
-        
+
         /// <summary>
         /// 
         /// </summary>

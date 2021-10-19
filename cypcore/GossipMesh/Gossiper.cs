@@ -27,7 +27,7 @@ namespace CYPCore.GossipMesh
         private readonly GossiperOptions _options;
         private readonly ILogger _logger;
         private readonly CancellationToken _cancellationToken;
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -305,7 +305,7 @@ namespace CYPCore.GossipMesh
                         }
                     }
                 }
-                catch (Exception ex) when(ex is not TaskCanceledException)
+                catch (Exception ex) when (ex is not TaskCanceledException)
                 {
                     _logger.LogError(ex, "Gossip.Mesh threw an unhandled exception \n{message} \n{stacktrace}",
                         ex.Message, ex.StackTrace);

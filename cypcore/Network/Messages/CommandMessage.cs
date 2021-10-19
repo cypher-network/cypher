@@ -3,7 +3,7 @@
 
 namespace CYPCore.Network.Messages
 {
-    public enum CommandMessage: byte
+    public enum CommandMessage : byte
     {
         Version = 0x00,
         GetPeer = 0x10,
@@ -16,7 +16,7 @@ namespace CYPCore.Network.Messages
         Transaction = 0x21,
         BlockGraph = 0x22,
         GetSafeguardBlocks = 0x23,
-        GetPoSTransaction = 0x24,
+        GetPosTransaction = 0x24,
         GetTransactionBlockIndex = 0x25,
     }
 }

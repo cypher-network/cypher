@@ -112,7 +112,7 @@ namespace CYPCore.Extensions
             {
                 var appConfigurationOptions = new AppOptions();
                 configuration.Bind("Node", appConfigurationOptions);
-                var logger = new SerilogLoggerProvider(c.Resolve<ILogger>()).CreateLogger(nameof(IGossipServer));
+                var logger = new SerilogLoggerProvider(c.Resolve<ILogger>()).CreateLogger(nameof(GossipServer));
                 var seedNodes = appConfigurationOptions.Gossip.SeedNodes != null
                     ? new IPEndPoint[appConfigurationOptions.Gossip.SeedNodes.Count]
                     : Array.Empty<IPEndPoint>();
@@ -176,7 +176,7 @@ namespace CYPCore.Extensions
                 system.WithServiceProvider(provider);
                 return system;
             });
-            
+
             services.AddTransient<ShimCommands>();
             services.AddTransient<LocalNode>();
             services.AddTransient<CryptoKeySign>();
@@ -221,7 +221,7 @@ namespace CYPCore.Extensions
             builder.RegisterType<NodeMonitorService>().As<IHostedService>();
             return builder;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>

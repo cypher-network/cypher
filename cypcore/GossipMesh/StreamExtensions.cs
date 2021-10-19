@@ -102,7 +102,7 @@ namespace CYPCore.GossipMesh
             if (ipEndPoint == null)
             {
                 throw new ArgumentNullException(nameof(ipEndPoint));
-            }            
+            }
 
             stream.WriteIPAddress(ipEndPoint.Address);
             stream.WritePort((ushort)ipEndPoint.Port);

@@ -1,3 +1,6 @@
+// CYPNode by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+// To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
+
 using System;
 using System.Threading.Tasks;
 using CYPCore.Extensions;
@@ -25,7 +28,7 @@ namespace CYPCore.Controllers
             _nodeWallet = nodeWallet;
             _logger = logger;
         }
-        
+
         [HttpPost("login", Name = "Login")]
         [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
@@ -37,14 +40,14 @@ namespace CYPCore.Controllers
                 if (success)
                 {
                     return new ObjectResult(new { code = StatusCodes.Status200OK });
-                    
+
                 }
             }
             catch (Exception ex)
             {
                 _logger.Here().Error(ex.Message);
             }
-            
+
             return new ObjectResult(new { code = StatusCodes.Status401Unauthorized });
         }
     }

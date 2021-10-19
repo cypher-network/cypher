@@ -20,7 +20,7 @@ namespace CYPCore.Cryptography
     /// <summary>
     /// 
     /// </summary>
-    public class CryptoKeySign: IActor
+    public class CryptoKeySign : IActor
     {
         private readonly IDataProtectionProvider _dataProtectionProvider;
         private readonly ILogger _logger;
@@ -43,7 +43,7 @@ namespace CYPCore.Cryptography
             _unitOfWork = unitOfWork;
             _logger = logger.ForContext("SourceContext", nameof(CryptoKeySign));
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -87,7 +87,7 @@ namespace CYPCore.Cryptography
                         return;
                     }
                 }
-                
+
                 context.Respond(new KeyPairResponse(GetKeyPair()));
                 return;
             }
@@ -99,7 +99,7 @@ namespace CYPCore.Cryptography
             {
                 _logger.Here().Error(ex, "Cannot get keypair");
             }
-            
+
             context.Respond(new KeyPairResponse(null));
         }
 
@@ -135,7 +135,7 @@ namespace CYPCore.Cryptography
             {
                 _logger.Here().Error(ex, "Unable to create the signature");
             }
-            
+
             context.Respond(new SignatureResponse(null, null));
         }
 
@@ -224,7 +224,7 @@ namespace CYPCore.Cryptography
             context.Respond(new VerifyVrfSignatureResponse(signature));
             return Task.CompletedTask;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -239,7 +239,7 @@ namespace CYPCore.Cryptography
             return new KeyPair(Convert.FromBase64String(message.PrivateKey),
                 Convert.FromBase64String(message.PublicKey));
         }
-        
+
         /// <summary>
         /// 
         /// </summary>

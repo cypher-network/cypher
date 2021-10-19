@@ -44,7 +44,7 @@ namespace CYPCore.Network.Commands
             _serviceScopeFactory = serviceScopeFactory;
             _logger = logger;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -58,7 +58,7 @@ namespace CYPCore.Network.Commands
             BlocksRequest getBlocksRequest => OnGetBlocks(getBlocksRequest, context),
             BlockHeightRequest => OnGetBlockHeight(context),
             MemoryPoolTransactionRequest memoryPoolTransactionRequest => OnGetMemoryPoolTransaction(memoryPoolTransactionRequest, context),
-            PoSPoolTransactionRequest posPoolTransactionRequest => OnGetPoSPoolTransaction(posPoolTransactionRequest, context),
+            PosPoolTransactionRequest posPoolTransactionRequest => OnGetPoSPoolTransaction(posPoolTransactionRequest, context),
             NewBlockGraphRequest newBlockGraphRequest => OnNewBlockGraph(newBlockGraphRequest, context),
             NewTransactionRequest newTransactionRequest => OnNewTransaction(newTransactionRequest, context),
             SafeguardBlocksRequest safeguardBlocksRequest => OnGetSafeguardBlocks(safeguardBlocksRequest, context),
@@ -100,7 +100,7 @@ namespace CYPCore.Network.Commands
                 {
                     _logger.Here().Error(ex.Message);
                 }
-                
+
                 context.Respond(new CoinstakePropagatingResponse(false));
             });
         }
@@ -137,7 +137,7 @@ namespace CYPCore.Network.Commands
                 context.Respond(new TransactionBlockIndexResponse(0));
             });
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -195,7 +195,7 @@ namespace CYPCore.Network.Commands
                 context.Respond(new BlocksResponse());
             });
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -260,14 +260,14 @@ namespace CYPCore.Network.Commands
                 return Task.CompletedTask;
             });
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
         /// <param name="posPoolTransactionRequest"></param>
         /// <param name="context"></param>
         /// <returns></returns>
-        private async Task OnGetPoSPoolTransaction(PoSPoolTransactionRequest posPoolTransactionRequest,
+        private async Task OnGetPoSPoolTransaction(PosPoolTransactionRequest posPoolTransactionRequest,
             IContext context)
         {
             Guard.Argument(posPoolTransactionRequest, nameof(posPoolTransactionRequest)).NotNull();
@@ -281,7 +281,7 @@ namespace CYPCore.Network.Commands
                     var transaction = posMinting.Get(posPoolTransactionRequest.TransactionId);
                     if (transaction is { })
                     {
-                        context.Respond(new PoSPoolTransactionResponse { Transaction = transaction });
+                        context.Respond(new PosPoolTransactionResponse { Transaction = transaction });
                         return Task.CompletedTask;
                     }
                 }
@@ -290,7 +290,7 @@ namespace CYPCore.Network.Commands
                     _logger.Here().Error(ex.Message);
                 }
 
-                context.Respond(new PoSPoolTransactionResponse());
+                context.Respond(new PosPoolTransactionResponse());
                 return Task.CompletedTask;
             });
         }
@@ -353,7 +353,7 @@ namespace CYPCore.Network.Commands
                     using var scope = _serviceScopeFactory.CreateScope();
                     var graph = scope.ServiceProvider.GetRequiredService<IGraph>();
                     var verifiedResult = await graph.NewBlockGraph(newBlockGraphRequest.BlockGraph);
-                    if (verifiedResult == VerifyResult.Succeed)
+                    if (verifiedResult is VerifyResult.Succeed or VerifyResult.AlreadyExists)
                     {
                         context.Respond(new NewBlockGraphResponse { OK = true });
                         return;
@@ -496,7 +496,7 @@ namespace CYPCore.Network.Commands
                 {
                     _logger.Here().Error(ex.Message);
                 }
-                
+
                 context.Respond(new TransactionResponse());
             });
         }

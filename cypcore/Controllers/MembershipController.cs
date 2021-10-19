@@ -24,7 +24,7 @@ namespace CYPCore.Controllers
         private readonly PID _pidShimCommand;
         private readonly PID _pidLocalNode;
         private readonly ILogger _logger;
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -37,7 +37,7 @@ namespace CYPCore.Controllers
             _pidLocalNode = _actorSystem.Root.Spawn(_actorSystem.DI().PropsFor<LocalNode>());
             _logger = logger.ForContext("SourceContext", nameof(MembershipController));
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -63,7 +63,7 @@ namespace CYPCore.Controllers
 
             return NotFound();
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -71,13 +71,13 @@ namespace CYPCore.Controllers
         [HttpGet("/peer", Name = "GetMember")]
         [ProducesResponseType(typeof(byte[]), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult>GetMember()
+        public async Task<IActionResult> GetMember()
         {
             try
             {
                 var response = await _actorSystem.Root.RequestAsync<PeerResponse>(_pidShimCommand, new PeerRequest());
                 await _actorSystem.Root.StopAsync(_pidShimCommand);
-                return new ObjectResult(new { peer = response.Peer});
+                return new ObjectResult(new { peer = response.Peer });
             }
             catch (Exception ex)
             {
@@ -86,7 +86,7 @@ namespace CYPCore.Controllers
 
             return NotFound();
         }
-        
+
         /// <summary>
         /// 
         /// </summary>

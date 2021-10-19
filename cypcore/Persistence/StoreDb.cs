@@ -28,7 +28,7 @@ namespace CYPCore.Persistence
 
         public static readonly StoreDb DataProtectionTable = new(1, "DataProtectionTable");
         public static readonly StoreDb HashChainTable = new(2, "HashChainTable");
-        
+
         private StoreDb(int value, string name)
         {
             _value = value;

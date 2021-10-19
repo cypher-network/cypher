@@ -16,7 +16,7 @@ namespace CYPCore.Persistence
     public class MemStore<TItem>
     {
         private readonly ConcurrentDictionary<byte[], TItem> _innerData = new(BinaryComparer.Default);
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -34,7 +34,7 @@ namespace CYPCore.Persistence
         {
             _innerData.Remove(key, out _);
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -46,7 +46,7 @@ namespace CYPCore.Persistence
             Guard.Argument(value, nameof(value)).HasValue();
             _innerData[key.EnsureNotNull()] = value;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -65,7 +65,7 @@ namespace CYPCore.Persistence
             item = default;
             return false;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>

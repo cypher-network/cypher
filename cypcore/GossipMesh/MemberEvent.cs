@@ -10,7 +10,7 @@ namespace CYPCore.GossipMesh
     public class MemberEvent
     {
         public IPEndPoint SenderGossipEndPoint;
-        public DateTime ReceivedDateTime; 
+        public DateTime ReceivedDateTime;
 
         public MemberState State { get; private set; }
         public IPAddress IP { get; private set; }

@@ -45,9 +45,9 @@ namespace CYPCore.Ledger
         private const int SocketTryReceiveFromMilliseconds = 5000;
         private const uint SyncEveryFromMinutes = 10;
         private const uint SyncStartUpTimeFromMilliseconds = 3000;
-        
+
         public bool SyncRunning { get; private set; }
-        
+
         private readonly ActorSystem _actorSystem;
         private readonly PID _pidShimCommand;
         private readonly PID _pidLocalNode;
@@ -101,17 +101,17 @@ namespace CYPCore.Ledger
                     {
                         SyncRunning = true;
                     }
-                    
+
                     var blockCountResponse =
                         await _actorSystem.Root.RequestAsync<BlockCountResponse>(_pidShimCommand,
                             new BlockCountRequest());
-                    
+
                     _logger.Here().Information("OPENING block height [{@height}]", blockCountResponse.Count);
-                    
+
                     const int retryCount = 5;
                     var currentRetry = 0;
                     var jitter = new Random();
-                    for (;;)
+                    for (; ; )
                     {
                         if (_applicationLifetime.ApplicationStopping.IsCancellationRequested)
                         {

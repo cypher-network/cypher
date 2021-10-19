@@ -8,7 +8,6 @@ using System.Linq;
 using Blake3;
 using Newtonsoft.Json;
 using CYPCore.Extensions;
-using CYPCore.Ledger;
 using MessagePack;
 
 namespace CYPCore.Models
@@ -57,7 +56,7 @@ namespace CYPCore.Models
     }
 
     [MessagePackObject]
-    public class Transaction : IEquatable<Transaction>, ITransaction
+    public class Transaction : IEquatable<Transaction>, IComparable<Transaction>, ITransaction
     {
         [MessagePack.Key(0)] public byte[] TxnId { get; set; }
         [MessagePack.Key(1)] public Bp[] Bp { get; set; }
@@ -245,7 +244,7 @@ namespace CYPCore.Models
                     .Append(Vtime.S)
                     .Append(Vtime.W);
             }
-            
+
             return ts.ToArray();
         }
 
@@ -288,7 +287,7 @@ namespace CYPCore.Models
         /// <returns></returns>
         public override int GetHashCode()
         {
-            return HashCode.Combine(TxnId);
+            return HashCode.Combine(TxnId.ByteToHex());
         }
 
         /// <summary>
@@ -300,6 +299,21 @@ namespace CYPCore.Models
         {
             var json = JsonConvert.SerializeObject(this);
             return JsonConvert.DeserializeObject<T>(json);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="other"></param>
+        /// <returns></returns>
+        public int CompareTo(Transaction other)
+        {
+            if (ReferenceEquals(this, other)) return 0;
+            if (ReferenceEquals(null, other)) return 1;
+            var txIdComparison = string.Compare(TxnId.ByteToHex(), other.TxnId.ByteToHex(), StringComparison.Ordinal);
+            return txIdComparison != 0
+                ? txIdComparison
+                : string.Compare(TxnId.ByteToHex(), other.TxnId.ByteToHex(), StringComparison.Ordinal);
         }
     }
 }

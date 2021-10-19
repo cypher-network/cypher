@@ -38,7 +38,7 @@ namespace CYPCore.Persistence
         Task<IList<T>> TakeLongAsync(long take);
         IAsyncEnumerable<T> Iterate();
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -126,7 +126,7 @@ namespace CYPCore.Persistence
                     var value = _storeDb.Rocks.Get(StoreDb.Key(_tableName, key), cf, _readOptions);
                     if (value is { })
                     {
-                        var entry = await DeserializeAsync(value);
+                        var entry = await Helper.Util.DeserializeAsync<T>(value);
                         return entry;
                     }
                 }
@@ -207,7 +207,7 @@ namespace CYPCore.Persistence
                     iterator.SeekToFirst();
                     if (iterator.Valid())
                     {
-                        var entry = await DeserializeAsync(iterator.Value());
+                        var entry = await Helper.Util.DeserializeAsync<T>(iterator.Value());
                         return entry;
                     }
                 }
@@ -235,7 +235,7 @@ namespace CYPCore.Persistence
                 using (_sync.Write())
                 {
                     var cf = _storeDb.Rocks.GetColumnFamily(_tableName);
-                    var buffer = await SerializeAsync(data);
+                    var buffer = await Helper.Util.SerializeAsync(data);
                     _storeDb.Rocks.Put(StoreDb.Key(_tableName, key), buffer, cf);
                     return true;
                 }
@@ -288,7 +288,7 @@ namespace CYPCore.Persistence
                             if (iSkip % skip != 0) continue;
                         }
 
-                        entries.Add(await DeserializeAsync(iterator.Value()));
+                        entries.Add(await Helper.Util.DeserializeAsync<T>(iterator.Value()));
                         iTake++;
                         if (iTake % take == 0)
                         {
@@ -320,7 +320,7 @@ namespace CYPCore.Persistence
                     iterator.SeekToLast();
                     if (iterator.Valid())
                     {
-                        var entry = await DeserializeAsync(iterator.Value());
+                        var entry = await Helper.Util.DeserializeAsync<T>(iterator.Value());
                         return entry;
                     }
                 }
@@ -448,7 +448,7 @@ namespace CYPCore.Persistence
                     using var iterator = _storeDb.Rocks.NewIterator(cf, _readOptions);
                     for (iterator.SeekToFirst(); iterator.Valid(); iterator.Next())
                     {
-                        entries.Add(await DeserializeAsync(iterator.Value()));
+                        entries.Add(await Helper.Util.DeserializeAsync<T>(iterator.Value()));
                         iTake++;
                         if (iTake % take == 0)
                         {
@@ -479,31 +479,8 @@ namespace CYPCore.Persistence
             {
                 if (!new string(iterator.Key().FromBytes()).StartsWith(new string(_tableName))) continue;
                 if (!iterator.Valid()) continue;
-                yield return await DeserializeAsync(iterator.Value());
+                yield return await Helper.Util.DeserializeAsync<T>(iterator.Value());
             }
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="data"></param>
-        /// <returns></returns>
-        private async Task<byte[]> SerializeAsync(T data)
-        {
-            await using var stream = new MemoryStream();
-            MessagePackSerializer.SerializeAsync(stream, data).Wait();
-            return stream.ToArray();
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="data"></param>
-        /// <returns></returns>
-        private async Task<T> DeserializeAsync(byte[] data)
-        {
-            await using var stream = new MemoryStream(data);
-            return await MessagePackSerializer.DeserializeAsync<T>(stream);
         }
     }
 }

@@ -25,7 +25,7 @@ namespace CYPNode
     {
         private readonly IConfiguration _configuration;
         public ILifetimeScope AutofacContainer { get; private set; }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -56,7 +56,7 @@ namespace CYPNode
             services.AddSingleton<IGossipMemberEventsStore, GossipMemberEventsStore>();
             services.AddSingleton<IMemberListener, MemberListener>();
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -82,7 +82,7 @@ namespace CYPNode
         public void Configure(IApplicationBuilder app, IHostApplicationLifetime lifetime)
         {
             ServiceActivator.Configure(app.ApplicationServices);
-            
+
             var pathBase = _configuration["PATH_BASE"];
             if (!string.IsNullOrEmpty(pathBase))
             {
@@ -103,8 +103,8 @@ namespace CYPNode
                    c.OAuthClientId("cypherswaggerui");
                    c.OAuthAppName("CYPNode Swagger UI");
                });
-            
-            
+
+
             AutofacContainer = app.ApplicationServices.GetAutofacRoot();
 
             lifetime.ApplicationStarted.Register(() =>
@@ -115,7 +115,7 @@ namespace CYPNode
 
             lifetime.ApplicationStopping.Register(() =>
             {
-                
+
             });
         }
     }
