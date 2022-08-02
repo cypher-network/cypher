@@ -11,7 +11,7 @@ public static class LedgerConstant
     public const double
         OnRoundThrottleFromSeconds =
             1.5; // Block size will have an effect. Should increase/decrease.
-    
+
     // Validator
     public const int SolutionCancellationTimeoutFromMilliseconds = 10_000;
     public const decimal Distribution = 21_000_000M;
@@ -24,13 +24,13 @@ public static class LedgerConstant
         "E76BC3FEE881F72FA257DA08305F06DFB7CCC1BB926F7943FE9E7E45A394EF54".HexToByte();
     public static readonly byte[] BlockZeroPrevHash =
         "303030303063797068657270756E6B7330777269746530636F64653030303030".HexToByte();
-    
+
     // PPoS
     public const uint BlockProposalTimeFromSeconds = 5;
     public const uint WaitSyncTimeFromSeconds = 5;
     public const uint WaitPPoSEnabledTimeFromSeconds = 5;
     public const int SlothCancellationTimeoutFromMilliseconds = 60_000;
-    
+
     // MemPool
     public const uint TransactionDefaultTimeDelayFromSeconds = 5;
 }

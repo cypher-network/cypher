@@ -22,7 +22,7 @@ public record BlockCountRequest;
 /// </summary>
 /// <param name="Count"></param>
 [MessagePackObject]
-public record BlockHeightResponse([property: Key(0)]long Count);
+public record BlockHeightResponse([property: Key(0)] long Count);
 public record BlockHeightRequest;
 
 /// <summary>
@@ -50,7 +50,7 @@ public record TransactionResponse([property: Key(0)] Transaction Transaction);
 /// </summary>
 /// <param name="TransactionId"></param>
 [MessagePackObject]
-public record TransactionRequest( [property: Key(0)] byte[] TransactionId);
+public record TransactionRequest([property: Key(0)] byte[] TransactionId);
 
 /// <summary>
 /// </summary>
@@ -75,7 +75,7 @@ public record JoinPeerRequest;
 /// </summary>
 /// <param name="Ok"></param>
 [MessagePackObject]
-public record NewBlockGraphResponse([property:Key(0)] bool Ok);
+public record NewBlockGraphResponse([property: Key(0)] bool Ok);
 public record NewBlockGraphRequest(BlockGraph BlockGraph);
 
 /// <summary>
@@ -92,7 +92,7 @@ public record NewTransactionRequest(Transaction Transaction);
 /// <param name="Blocks"></param>
 /// <param name="Error"></param>
 [MessagePackObject]
-public record SafeguardBlocksResponse([property: Key(0)] IReadOnlyList<Block> Blocks, [property:Key(1)] string Error);
+public record SafeguardBlocksResponse([property: Key(0)] IReadOnlyList<Block> Blocks, [property: Key(1)] string Error);
 /// <summary>
 /// 
 /// </summary>
@@ -173,7 +173,7 @@ public record PosPoolTransactionRequest(byte[] TransactionId);
 /// <summary>
 /// </summary>
 [MessagePackObject, Serializable]
-public record PeerDiscoveryResponse([property:Key(0)] Peer[] Peers);
+public record PeerDiscoveryResponse([property: Key(0)] Peer[] Peers);
 
 /// <summary>
 /// </summary>
@@ -216,9 +216,9 @@ public record VerifyVrfSignatureRequest(ECPublicKey EcPublicKey, byte[] Signatur
 /// </summary>
 /// <param name="TransactionId"></param>
 [MessagePackObject]
-public record TransactionBlockIndexRequest([property:Key(0)] byte[] TransactionId);
+public record TransactionBlockIndexRequest([property: Key(0)] byte[] TransactionId);
 /// <summary>
 /// </summary>
 /// <param name="Index"></param>
 [MessagePackObject]
-public record TransactionBlockIndexResponse([property:Key(0)] ulong Index);
+public record TransactionBlockIndexResponse([property: Key(0)] ulong Index);

@@ -30,7 +30,7 @@ public struct Peer : IComparable<Peer>
         if (Equals(null, other)) return 1;
         return Advertise.Xor(other.Advertise) ? 0 : 1;
     }
-    
+
 
     /// <summary>
     /// </summary>

@@ -77,7 +77,7 @@ public class Repository<T> : IRepository<T> where T : class, new()
         var height = await CountAsync() - 1;
         return height;
     }
-    
+
     /// <summary>
     /// </summary>
     /// <returns></returns>
@@ -126,7 +126,7 @@ public class Repository<T> : IRepository<T> where T : class, new()
                 if (value is { })
                 {
                     await using var stream = Util.Manager.GetStream(value.AsSpan()) as RecyclableMemoryStream;
-                    var entry = MessagePackSerializer.Deserialize<T>(stream);
+                    var entry = await MessagePackSerializer.DeserializeAsync<T>(stream);
                     return entry;
                 }
             }
@@ -143,7 +143,7 @@ public class Repository<T> : IRepository<T> where T : class, new()
     /// </summary>
     /// <param name="expression"></param>
     /// <returns></returns>
-    public Task<T> GetAsync(Func<T, ValueTask<bool>> expression)
+    public async Task<T> GetAsync(Func<T, ValueTask<bool>> expression)
     {
         Guard.Argument(expression, nameof(expression)).NotNull();
         try
@@ -153,8 +153,8 @@ public class Repository<T> : IRepository<T> where T : class, new()
                 var first = IterateAsync().FirstOrDefaultAwaitAsync(expression);
                 if (first.IsCompleted)
                 {
-                    var entry = first.Result;
-                    return Task.FromResult(entry);
+                    var entry = await first;
+                    return entry;
                 }
             }
         }
@@ -163,7 +163,7 @@ public class Repository<T> : IRepository<T> where T : class, new()
             _logger.Here().Error(ex, "Error while reading database");
         }
 
-        return Task.FromResult<T>(null);
+        return null;
     }
 
     /// <summary>
@@ -268,7 +268,7 @@ public class Repository<T> : IRepository<T> where T : class, new()
             return _tableName;
         }
     }
-    
+
     /// <summary>
     /// 
     /// </summary>

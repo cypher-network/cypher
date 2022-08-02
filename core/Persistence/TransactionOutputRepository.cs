@@ -11,17 +11,17 @@ namespace CypherNetwork.Persistence;
 /// </summary>
 public interface ITransactionOutputRepository : IRepository<TransactionOutput>
 {
-    
+
 }
 
 /// <summary>
 /// 
 /// </summary>
-public class TransactionOutputRepository: Repository<TransactionOutput>, ITransactionOutputRepository
+public class TransactionOutputRepository : Repository<TransactionOutput>, ITransactionOutputRepository
 {
     private readonly ILogger _logger;
     private readonly IStoreDb _storeDb;
-    
+
     public TransactionOutputRepository(IStoreDb storeDb, ILogger logger) : base(storeDb, logger)
     {
         _storeDb = storeDb;

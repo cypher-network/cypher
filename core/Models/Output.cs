@@ -14,7 +14,7 @@ public record Output
     [MessagePack.Key(1)] public byte[] E { get; init; }
     [MessagePack.Key(2)] public byte[] N { get; init; }
     [MessagePack.Key(3)] public CoinType T { get; init; }
-    
+
     /// <summary>
     /// 
     /// </summary>

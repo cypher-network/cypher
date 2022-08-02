@@ -13,7 +13,7 @@ public record Interpreted
     public IList<Block> Blocks { get; } = new List<Block>();
     public ulong Consumed { get; }
     public ulong Round { get; }
-    
+
     /// <summary>
     /// 
     /// </summary>

@@ -5,7 +5,7 @@ using Microsoft.Toolkit.HighPerformance;
 
 namespace CypherNetwork.Helper;
 
-public sealed class Alloc: IDisposable
+public sealed class Alloc : IDisposable
 {
     public IntPtr Ptr { get; private set; }
     public int Length { get; private set; }

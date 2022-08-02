@@ -80,7 +80,7 @@ public static class Program
 ╚════██║██║ ██║       ╚██╔╝  ██╔═══╝  ██║
 ███████║╚██╗╚██████╗   ██║   ██║     ██╔╝
 ╚═▀▀▀══╝ ╚═╝ ╚═════╝   ╚═╝   ╚═╝     ╚═╝ v{Util.GetAssemblyVersion()}");
-            
+
             Console.WriteLine();
             Console.ResetColor();
             Log.Information("Starting Cypher...");

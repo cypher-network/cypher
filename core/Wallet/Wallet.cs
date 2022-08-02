@@ -44,7 +44,7 @@ public struct WalletTransaction
 {
     public readonly Transaction Transaction;
     public readonly string Message;
-    
+
     public WalletTransaction(Transaction transaction, string message)
     {
         Transaction = transaction;
@@ -91,14 +91,14 @@ public class NodeWallet : INodeWallet
             if (session.KeySet is null) return new WalletTransaction(default, "Node wallet login required");
             if (session.CacheTransactions.Count == 0)
                 return new WalletTransaction(default, "Node wallet payments required");
-            var (spendKey, scanKey) = Unlock();
+            var (spendKey, scanKey) = await UnlockAsync();
             if (spendKey == null || scanKey == null)
                 return new WalletTransaction(default, "Unable to unlock node wallet");
             _logger.Information("Coinstake Amount: [{@Amount}]", amount);
             session.Amount = amount.MulCoin();
             session.Reward = reward;
             session.RecipientAddress = address;
-            var (commitment, total) = GetSpending(session.Amount);
+            var (commitment, total) = await GetSpendingAsync(session.Amount);
             if (commitment is null)
                 return new WalletTransaction(default,
                     "No available commitment for this payment. Please load more funds");
@@ -106,7 +106,7 @@ public class NodeWallet : INodeWallet
             session.Change = total - session.Amount;
             if (session.Amount > total)
                 return new WalletTransaction(default, "The stake amount exceeds the available commitment amount");
-            var (transaction, message) = RingConfidentialTransaction(session);
+            var (transaction, message) = await RingConfidentialTransactionAsync(session);
             if (transaction.IsDefault()) return new WalletTransaction(default, message);
             var validator = _cypherNetworkCore.Validator();
             var verifyOutputCommitments = await validator.VerifyCommitmentOutputsAsync(transaction);
@@ -118,7 +118,7 @@ public class NodeWallet : INodeWallet
                 return new WalletTransaction(default,
                     $"Unable to create coinstake Commitment: [{verifyOutputCommitments}] Key image: [{verifyKeyImage}]");
             }
-    
+
             foreach (var vout in transaction.Vout)
             {
                 if (vout.T == CoinType.Coinbase) continue;
@@ -145,11 +145,11 @@ public class NodeWallet : INodeWallet
     /// <summary>
     /// </summary>
     /// <returns></returns>
-    private (Key, Key) Unlock()
+    private async Task<(Key, Key)> UnlockAsync()
     {
         try
         {
-            var session = AsyncHelper.RunSync(async delegate
+            var session = await AsyncHelper.RunSyncAsync(async delegate
             {
                 var value = await _cypherNetworkCore.WalletSession();
                 return value;
@@ -185,13 +185,13 @@ public class NodeWallet : INodeWallet
     /// <summary>
     /// </summary>
     /// <returns></returns>
-    private Tuple<Output, ulong> GetSpending(ulong amount)
+    private async Task<Tuple<Output, ulong>> GetSpendingAsync(ulong amount)
     {
         try
         {
             var freeBalances = new List<Balance>();
-            var (_, scan) = Unlock();
-            var balances = GetBalances();
+            var (_, scan) = await UnlockAsync();
+            var balances = await GetBalancesAsync();
             freeBalances.AddRange(balances.Where(balance => amount <= balance.Total).OrderByDescending(x => x.Total));
             if (!freeBalances.Any()) return new Tuple<Output, ulong>(default, 0);
             var spendAmount = freeBalances.Select(x => x.Total).Aggregate((x, y) => x - amount < y - amount ? x : y);
@@ -211,28 +211,28 @@ public class NodeWallet : INodeWallet
     /// <summary>
     /// </summary>
     /// <returns></returns>
-    private Balance[] GetBalances()
+    private async Task<Balance[]> GetBalancesAsync()
     {
         var balances = new List<Balance>();
         try
         {
-            var session = AsyncHelper.RunSync(async delegate
+            var session = await AsyncHelper.RunSyncAsync(async delegate
             {
                 var value = await _cypherNetworkCore.WalletSession();
                 return value;
             });
-            var (_, scan) = Unlock();
+            var (_, scan) = await UnlockAsync();
             var outputs = session.CacheTransactions.GetItems()
                 .Where(x => !session.CacheConsumed.GetItems().Any(c => x.C.Xor(c.Commit))).ToArray();
             if (!outputs.Any()) return Enumerable.Empty<Balance>().ToArray();
             balances.AddRange(from vout in outputs.ToArray()
-                let coinType = vout.T
-                where coinType is CoinType.Change or CoinType.Payment or CoinType.Coinstake
-                let isSpent = IsSpent(vout, session)
-                where isSpent != true
-                let amount = Amount(vout, scan)
-                where amount != 0
-                select new Balance { Commitment = vout, Total = amount });
+                              let coinType = vout.T
+                              where coinType is CoinType.Change or CoinType.Payment or CoinType.Coinstake
+                              let isSpent = await IsSpentAsync(vout, session)
+                              where isSpent != true
+                              let amount = Amount(vout, scan)
+                              where amount != 0
+                              select new Balance { Commitment = vout, Total = amount });
         }
         catch (Exception ex)
         {
@@ -248,24 +248,24 @@ public class NodeWallet : INodeWallet
     /// <param name="output"></param>
     /// <param name="session"></param>
     /// <returns></returns>
-    private bool IsSpent(Output output, IWalletSession session)
+    private async Task<bool> IsSpentAsync(Output output, IWalletSession session)
     {
         Guard.Argument(output, nameof(output)).NotNull();
         Guard.Argument(session, nameof(session)).NotNull();
-        var (spend, scan) = Unlock();
+        var (spend, scan) = await UnlockAsync();
         var oneTimeSpendKey = spend.Uncover(scan, new PubKey(output.E));
         using var mlsag = new MLSAG();
         var imageKey = mlsag.ToKeyImage(oneTimeSpendKey.ToHex().HexToByte(), oneTimeSpendKey.PubKey.ToBytes());
-        var result = AsyncHelper.RunSync(async () =>
+        var result = await AsyncHelper.RunSyncAsync(async () =>
             await _cypherNetworkCore.Validator().VerifyKeyImageNotExistsAsync(imageKey));
         if (result != VerifyResult.Succeed) session.CacheTransactions.Remove(output.C);
         return result != VerifyResult.Succeed;
     }
-    
+
     /// <summary>
     /// </summary>
     /// <returns></returns>
-    private Tuple<Transaction, string> RingConfidentialTransaction(IWalletSession session)
+    private async Task<Tuple<Transaction, string>> RingConfidentialTransactionAsync(IWalletSession session)
     {
         using var secp256K1 = new Secp256k1();
         using var pedersen = new Pedersen();
@@ -285,7 +285,7 @@ public class NodeWallet : INodeWallet
         var ss = new byte[nCols * nRows * 32];
         var blindSum = new byte[32];
         var pkIn = new Span<byte[]>(new byte[nCols * 1][]);
-        m = RingMembers(ref session, blinds, sk, nRows, nCols, index, m, pcmIn, pkIn);
+        m = await RingMembersAsync(ref session, blinds, sk, nRows, nCols, index, m, pcmIn, pkIn);
         if (m == null) return new Tuple<Transaction, string>(default, "Unable to create ring members");
         blinds[1] = pedersen.BlindSwitch(session.Amount, secp256K1.CreatePrivateKey());
         blinds[2] = pedersen.BlindSwitch(session.Change, secp256K1.CreatePrivateKey());
@@ -309,7 +309,7 @@ public class NodeWallet : INodeWallet
         if (!success) return new Tuple<Transaction, string>(default, "MLSAG Verify failed");
 
         var offsets = Offsets(pcmIn, nCols);
-        var generateTransaction = GenerateTransaction(ref session, m, nCols, pcmOut, blinds, preimage, pc, ki, ss,
+        var generateTransaction = await GenerateTransactionAsync(ref session, m, nCols, pcmOut, blinds, preimage, pc, ki, ss,
             bulletChange.Value.proof, offsets);
         session.Amount = 0;
         session.Reward = 0;
@@ -333,7 +333,7 @@ public class NodeWallet : INodeWallet
     /// <param name="pkIn"></param>
     /// <returns></returns>
     /// <exception cref="Exception"></exception>
-    private unsafe byte[] RingMembers(ref IWalletSession session, Span<byte[]> blinds, Span<byte[]> sk, int nRows,
+    private unsafe async Task<byte[]> RingMembersAsync(ref IWalletSession session, Span<byte[]> blinds, Span<byte[]> sk, int nRows,
         int nCols, int index, byte[] m, Span<byte[]> pcmIn, Span<byte[]> pkIn)
     {
         Guard.Argument(session, nameof(session)).NotNull();
@@ -343,76 +343,76 @@ public class NodeWallet : INodeWallet
         Guard.Argument(m, nameof(m)).NotNull().NotEmpty();
         using var pedersen = new Pedersen();
         using var secp256K1 = new Secp256k1();
-        var (spendKey, scanKey) = Unlock();
+        var (spendKey, scanKey) = await UnlockAsync();
         var transactions = session.GetSafeGuardBlocks()
             .SelectMany(x => x.Txs).ToArray();
         transactions.Shuffle();
-        
+
         for (var k = 0; k < nRows - 1; ++k)
-        for (var i = 0; i < nCols; ++i)
-        {
-            if (index == i)
+            for (var i = 0; i < nCols; ++i)
+            {
+                if (index == i)
+                    try
+                    {
+                        var message = Message(session.Spending, scanKey);
+                        var oneTimeSpendKey = spendKey.Uncover(scanKey, new PubKey(session.Spending.E));
+                        sk[0] = oneTimeSpendKey.ToHex().HexToByte();
+                        blinds[0] = message.Blind;
+                        pcmIn[i + k * nCols] = pedersen.Commit(message.Amount, message.Blind);
+                        session.CacheConsumed.Add(pcmIn[i + k * nCols],
+                            new Consumed(pcmIn[i + k * nCols], DateTime.UtcNow));
+                        pkIn[i + k * nCols] = oneTimeSpendKey.PubKey.ToBytes();
+                        fixed (byte* mm = m, pk = pkIn[i + k * nCols])
+                        {
+                            Util.MemCpy(&mm[(i + k * nCols) * 33], pk, 33);
+                        }
+
+                        continue;
+                    }
+                    catch (Exception)
+                    {
+                        _logger.Here().Error("Unable to create inner ring member");
+                        return null;
+                    }
+
                 try
                 {
-                    var message = Message(session.Spending, scanKey);
-                    var oneTimeSpendKey = spendKey.Uncover(scanKey, new PubKey(session.Spending.E));
-                    sk[0] = oneTimeSpendKey.ToHex().HexToByte();
-                    blinds[0] = message.Blind;
-                    pcmIn[i + k * nCols] = pedersen.Commit(message.Amount, message.Blind);
-                    session.CacheConsumed.Add(pcmIn[i + k * nCols],
-                        new Consumed(pcmIn[i + k * nCols], DateTime.UtcNow));
-                    pkIn[i + k * nCols] = oneTimeSpendKey.PubKey.ToBytes();
+                    var ringMembers = (from tx in transactions
+                                       let vtime = tx.Vtime
+                                       where !vtime.IsDefault()
+                                       let verifyLockTime =
+                                           _cypherNetworkCore.Validator()
+                                               .VerifyLockTime(new LockTime(Utils.UnixTimeToDateTime(tx.Vtime.L)), tx.Vtime.S)
+                                       where verifyLockTime != VerifyResult.UnableToVerify
+                                       select tx).ToArray();
+                    ringMembers.Shuffle();
+
+                    ringMembers.ElementAt(0).Vout.Shuffle();
+                    Vout vout;
+                    if (!ContainsCommitment(pcmIn, ringMembers.ElementAt(0).Vout[0].C))
+                    {
+                        vout = ringMembers.ElementAt(0).Vout[0];
+                    }
+                    else
+                    {
+                        ringMembers.ElementAt(1).Vout.Shuffle();
+                        vout = ringMembers.ElementAt(1).Vout[0];
+                    }
+
+                    pcmIn[i + k * nCols] = vout.C;
+                    pkIn[i + k * nCols] = vout.P;
+
                     fixed (byte* mm = m, pk = pkIn[i + k * nCols])
                     {
                         Util.MemCpy(&mm[(i + k * nCols) * 33], pk, 33);
                     }
-
-                    continue;
                 }
                 catch (Exception)
                 {
-                    _logger.Here().Error("Unable to create inner ring member");
+                    _logger.Here().Error("Unable to create outer ring members");
                     return null;
                 }
-
-            try
-            {
-                var ringMembers = (from tx in transactions
-                    let vtime = tx.Vtime
-                    where !vtime.IsDefault()
-                    let verifyLockTime =
-                        _cypherNetworkCore.Validator()
-                            .VerifyLockTime(new LockTime(Utils.UnixTimeToDateTime(tx.Vtime.L)), tx.Vtime.S)
-                    where verifyLockTime != VerifyResult.UnableToVerify
-                    select tx).ToArray();
-                ringMembers.Shuffle();
-                
-                ringMembers.ElementAt(0).Vout.Shuffle();
-                Vout vout;
-                if (!ContainsCommitment(pcmIn, ringMembers.ElementAt(0).Vout[0].C))
-                {
-                    vout = ringMembers.ElementAt(0).Vout[0];
-                }
-                else
-                {
-                    ringMembers.ElementAt(1).Vout.Shuffle();
-                    vout = ringMembers.ElementAt(1).Vout[0];
-                }
-                
-                pcmIn[i + k * nCols] = vout.C;
-                pkIn[i + k * nCols] = vout.P;
-                
-                fixed (byte* mm = m, pk = pkIn[i + k * nCols])
-                {
-                    Util.MemCpy(&mm[(i + k * nCols) * 33], pk, 33);
-                }
             }
-            catch (Exception)
-            {
-                _logger.Here().Error("Unable to create outer ring members");
-                return null;
-            }
-        }
 
         return m;
     }
@@ -431,7 +431,7 @@ public class NodeWallet : INodeWallet
     /// <param name="bp"></param>
     /// <param name="offsets"></param>
     /// <returns></returns>
-    private TaskResult<Transaction> GenerateTransaction(ref IWalletSession session, byte[] m, int nCols,
+    private async Task<TaskResult<Transaction>> GenerateTransactionAsync(ref IWalletSession session, byte[] m, int nCols,
         Span<byte[]> pcmOut, Span<byte[]> blinds, byte[] preimage, byte[] pc, byte[] ki, byte[] ss, byte[] bp,
         byte[] offsets)
     {
@@ -464,7 +464,7 @@ public class NodeWallet : INodeWallet
                         D = blinds[1],
                         E = stealthPayment.Metadata.EphemKey.ToBytes(),
                         N = ScanPublicKey(session.RecipientAddress).Encrypt(Message(session.Amount, 0, blinds[1],
-                            $"coinstake: {ShortPublicKey().ByteToHex()}")),
+                            $"coinstake: {(await ShortPublicKeyAsync()).ByteToHex()}")),
                         P = outPkPayment.ToBytes(),
                         S = Array.Empty<byte>(),
                         T = CoinType.Coinstake
@@ -513,7 +513,8 @@ public class NodeWallet : INodeWallet
             _logger.Error("{@Message}", ex.Message);
             return TaskResult<Transaction>.CreateFailure(JObject.FromObject(new
             {
-                success = false, message = ex.Message
+                success = false,
+                message = ex.Message
             }));
         }
     }
@@ -522,16 +523,16 @@ public class NodeWallet : INodeWallet
     /// 
     /// </summary>
     /// <returns></returns>
-    private byte[] ShortPublicKey()
+    private async Task<byte[]> ShortPublicKeyAsync()
     {
-        var result = AsyncHelper.RunSync(async delegate
+        var result = await AsyncHelper.RunSyncAsync(async delegate
         {
             var value = (await _cypherNetworkCore.PeerDiscovery()).GetLocalNode().PublicKey[..6];
             return value;
         });
         return result;
     }
-    
+
     /// <summary>
     /// </summary>
     /// <param name="commitIn"></param>
@@ -594,13 +595,15 @@ public class NodeWallet : INodeWallet
         {
             return TaskResult<ProofStruct>.CreateFailure(JObject.FromObject(new
             {
-                success = false, message = ex.Message
+                success = false,
+                message = ex.Message
             }));
         }
 
         return TaskResult<ProofStruct>.CreateFailure(JObject.FromObject(new
         {
-            success = false, message = "Bulletproof Verify failed"
+            success = false,
+            message = "Bulletproof Verify failed"
         }));
     }
 
@@ -684,7 +687,7 @@ public class NodeWallet : INodeWallet
 
         return 0;
     }
-    
+
     /// <summary>
     /// </summary>
     /// <param name="address"></param>

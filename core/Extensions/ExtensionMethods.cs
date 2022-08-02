@@ -43,14 +43,14 @@ public static class ExtensionMethods
 
     public static decimal DivCoin(this ulong value)
     {
-        return Convert.ToDecimal(value) / Ledger.LedgerConstant.Coin;;
+        return Convert.ToDecimal(value) / Ledger.LedgerConstant.Coin; ;
     }
 
     public static decimal DivWithAttoTan(this ulong value)
     {
         return Convert.ToDecimal(value) / 1000_000_000_000_000_000;
     }
-    
+
     public static ulong ConvertToUInt64(this decimal value)
     {
         Guard.Argument(value, nameof(value)).NotZero().NotNegative();

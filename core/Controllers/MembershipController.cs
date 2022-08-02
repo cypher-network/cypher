@@ -38,17 +38,17 @@ public class MembershipController : Controller
     {
         try
         {
-            var peer =  (await _cypherNetworkCore.PeerDiscovery()).GetLocalPeer();
+            var peer = (await _cypherNetworkCore.PeerDiscovery()).GetLocalPeer();
             return new ObjectResult(new
             {
-                 Advertise = peer.Advertise.FromBytes(),
-                 BlockHeight = peer.BlockCount,
-                 peer.ClientId,
-                 HttpEndPoint = peer.HttpEndPoint.FromBytes(),
-                 Listening = peer.Listening.FromBytes(),
-                 Name = peer.Name.FromBytes(),
-                 PublicKey = peer.PublicKey.ByteToHex(),
-                 Version = peer.Version.FromBytes()
+                Advertise = peer.Advertise.FromBytes(),
+                BlockHeight = peer.BlockCount,
+                peer.ClientId,
+                HttpEndPoint = peer.HttpEndPoint.FromBytes(),
+                Listening = peer.Listening.FromBytes(),
+                Name = peer.Name.FromBytes(),
+                PublicKey = peer.PublicKey.ByteToHex(),
+                Version = peer.Version.FromBytes()
             });
         }
         catch (Exception ex)

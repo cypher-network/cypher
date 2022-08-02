@@ -12,7 +12,7 @@ public record Config
     public ulong[] Nodes { get; }
     public ulong SelfId { get; }
     public ulong TotalNodes { get; }
-    
+
     /// <summary>
     /// 
     /// </summary>

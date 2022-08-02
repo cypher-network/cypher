@@ -11,7 +11,7 @@ public record Reached
     public string Hash { get; }
     public ulong Node { get; }
     public ulong Round { get; }
-    
+
     public Reached(string hash, ulong node, ulong round)
     {
         Hash = hash;
