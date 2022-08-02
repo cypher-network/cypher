@@ -45,9 +45,9 @@ jobs:
         VALIDATE_MARKDOWN: true
         VALIDATE_POWERSHELL: true
         VALIDATE_SHELL_SHFMT: true
-      
-    - name: Run unit tests
-      run: dotnet test
+        
+    # - name: Run unit tests
+    #  run: dotnet test
       
     - name: Build cypher
       run:  |
