@@ -11,18 +11,18 @@ runs:
   steps:
 
   - name: Build release
-    run: dotnet publish cypnode --configuration Release --self-contained --runtime ${{ inputs.runtime }} --output publish/cypnode/${{ inputs.runtime }}
+    run: dotnet publish node --configuration Release --self-contained --runtime ${{ inputs.runtime }} --output publish/node/${{ inputs.runtime }}
     shell: bash
 
   - name: Package tar.gz
     run: |
-      pushd publish/cypnode/${{ inputs.runtime }}/
+      pushd publish/node/${{ inputs.runtime }}/
 
-      tar -czf "cypher-cypnode_${{ env.VERSION }}_${{ inputs.runtime }}.tar.gz" *
-      sha256sum cypher-cypnode_${{ env.VERSION }}_${{ inputs.runtime }}.tar.gz > cypher-cypnode_${{ env.VERSION }}_${{ inputs.runtime }}.tar.gz.sha256
+      tar -czf "cypher-cyphernetworknode_${{ env.VERSION }}_${{ inputs.runtime }}.tar.gz" *
+      sha256sum cypher-cyphernetworknode_${{ env.VERSION }}_${{ inputs.runtime }}.tar.gz > cypher-cyphernetworknode_${{ env.VERSION }}_${{ inputs.runtime }}.tar.gz.sha256
         
-      mv cypher-cypnode_${{ env.VERSION }}_${{ inputs.runtime }}.tar.gz        ${{ github.workspace }}
-      mv cypher-cypnode_${{ env.VERSION }}_${{ inputs.runtime }}.tar.gz.sha256 ${{ github.workspace }}
+      mv cypher-cyphernetworknode_${{ env.VERSION }}_${{ inputs.runtime }}.tar.gz        ${{ github.workspace }}
+      mv cypher-cyphernetworknode_${{ env.VERSION }}_${{ inputs.runtime }}.tar.gz.sha256 ${{ github.workspace }}
 
       popd
     shell: bash

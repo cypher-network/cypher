@@ -4,11 +4,11 @@ VisualStudioVersion = 16.0.28803.452
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{E8DE6A81-3601-4229-B38D-EBAC19DCAE42}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "cypcore", "cypcore\cypcore.csproj", "{8D7FCA1A-6ED0-4780-AF3B-3B655995D03A}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "core", "core\core.csproj", "{8D7FCA1A-6ED0-4780-AF3B-3B655995D03A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "cypnode", "cypnode\cypnode.csproj", "{04AC85C3-F32D-4641-99DA-84322C891966}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "node", "node\node.csproj", "{04AC85C3-F32D-4641-99DA-84322C891966}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "cypcore-test-unit", "test\unit\cypcore-test-unit\cypcore-test-unit.csproj", "{F100EC82-5359-4C03-AB68-61CBD4370005}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "testunit", "test\unit\test-unit\test-unit.csproj", "{F100EC82-5359-4C03-AB68-61CBD4370005}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

@@ -109,7 +109,7 @@ fi
 
 
 CYPHER_CYPNODE_VERSION_SHORT=$(echo "${CYPHER_CYPNODE_VERSION}" | cut -c 2-)
-CYPHER_CYPNODE_ARTIFACT_PREFIX="cypher-cypnode_${CYPHER_CYPNODE_VERSION_SHORT}_"
+CYPHER_CYPNODE_ARTIFACT_PREFIX="cypher-cyphernetworknode_${CYPHER_CYPNODE_VERSION_SHORT}_"
 CYPHER_CYPNODE_URL_PREFIX="https://github.com/cypher-network/cypher/releases/download/${CYPHER_CYPNODE_VERSION}/"
 
 CYPHER_CYPNODE_OPT_PATH="/opt/cypher/cypnode/"
@@ -180,7 +180,82 @@ install_dependencies() {
         sudo apt-get install libc6-dev
       fi
     fi
+    if dpkg -s libgmp-dev &> /dev/null; then
+      printf "  %b libgmp-dev\n" "${TICK}"
+    else
+      printf "  %b libgmp-dev\n" "${CROSS}"
+      printf "  %b Installing libgmp-dev\n" "${INFO}"
+      sudo apt-get update
+      if [ "${IS_NON_INTERACTIVE}" = true ]; then
+        sudo DEBIAN_FRONTEND=noninteractive apt-get -yq install libgmp-dev
+      else
+        sudo apt-get install libgmp-dev
+      fi
+    fi
+    if dpkg -s libsodium-dev &> /dev/null; then
+      printf "  %b libsodium-dev\n" "${TICK}"
+    else
+      printf "  %b libsodium-dev\n" "${CROSS}"
+      printf "  %b Installing libsodium-dev\n" "${INFO}"
+      sudo apt-get update
+      if [ "${IS_NON_INTERACTIVE}" = true ]; then
+        sudo DEBIAN_FRONTEND=noninteractive apt-get -yq install libsodium-dev
+      else
+        sudo apt-get install libsodium-dev
+      fi
+    fi
+    if dpkg -s libssl-dev &> /dev/null; then
+      printf "  %b libssl-dev\n" "${TICK}"
+    else
+      printf "  %b libssl-dev\n" "${CROSS}"
+      printf "  %b Installing libssl-dev\n" "${INFO}"
+      sudo apt-get update
+      if [ "${IS_NON_INTERACTIVE}" = true ]; then
+        sudo DEBIAN_FRONTEND=noninteractive apt-get -yq install libssl-dev
+      else
+        sudo apt-get install libssl-dev
+      fi
+    fi    
+    if dpkg -s libatomic1 &> /dev/null; then
+      printf "  %b libatomic1\n" "${TICK}"
+    else
+      printf "  %b libatomic1\n" "${CROSS}"
+      printf "  %b Installing libatomic1\n" "${INFO}"
+      sudo apt-get update
+      if [ "${IS_NON_INTERACTIVE}" = true ]; then
+        sudo DEBIAN_FRONTEND=noninteractive apt-get -yq install libatomic1
+      else
+        sudo apt-get install libatomic1
+      fi
+    fi
   fi
+  
+  if cat /etc/*release | grep ^NAME | grep CentOS; then
+    if yum -q list installed glibc-devel &> /dev/null; then
+      printf "  %b glibc-devel\n" "${TICK}"
+    else
+      printf "  %b glibc-devel\n" "${CROSS}"
+      printf "  %b Installing glibc-devel\n" "${INFO}"
+      sudo yum update
+      yum install glibc-devel
+    fi    
+    if yum -q list installed libnsl.x86_64 &> /dev/null; then
+      printf "  %b libnsl.x86_64\n" "${TICK}"
+    else
+      printf "  %b libnsl.x86_64\n" "${CROSS}"
+      printf "  %b Installing libnsl.x86_64\n" "${INFO}"
+      sudo yum update
+      yum install libnsl.x86_64
+    fi     
+    if yum -q list installed libatomic.x86_64 &> /dev/null; then
+      printf "  %b libatomic.x86_64\n" "${TICK}"
+    else
+      printf "  %b libatomic.x86_64\n" "${CROSS}"
+      printf "  %b Installing libatomic.x86_64\n" "${INFO}"
+      sudo yum update
+      yum install libatomic.x86_64
+    fi
+  fi  
 }
 
 download_archive() {
