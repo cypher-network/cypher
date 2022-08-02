@@ -70,7 +70,7 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
     private ISurveyorSocket _socket;
     private ISurveyorAsyncContext<INngMsg> _ctx;
     private bool _disposed;
-
+    
     private static readonly object LockOnReady = new();
     private static readonly object LockOnBootstrap = new();
 
@@ -117,14 +117,14 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
     /// <summary>
     /// 
     /// </summary>
-    private async Task UpdateLocalPeerInfoAsync()
+    private void UpdateLocalPeerInfo()
     {
-        var blockCountResponse = await AsyncHelper.RunSyncAsync(async delegate
+        var blockCountResponse = AsyncHelper.RunSync(async delegate
         {
             var value = await (await _cypherNetworkCore.Graph()).GetBlockCountAsync();
-            return;
+            return value;
         });
-
+        
         _localPeer.BlockCount = (ulong)blockCountResponse.Count;
         _localPeer.Timestamp = Util.GetAdjustedTimeAsUnixTimestamp();
     }
@@ -184,10 +184,10 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
             if (_cypherNetworkCore.ApplicationLifetime.ApplicationStopping.IsCancellationRequested) return;
             StartWorkerAsync(_ctx).Wait();
         });
-
+        
         return Task.CompletedTask;
     }
-
+    
     /// <summary>
     /// 
     /// </summary>
@@ -213,12 +213,12 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
             nngMsg?.Dispose();
         }
     }
-
+    
     /// <summary>
     /// 
     /// </summary>
-    private async Task ReceiverAsync()
-    {
+    private Task ReceiverAsync()
+    { 
         _receiverDisposable = Observable.Timer(TimeSpan.FromMilliseconds(5000), TimeSpan.FromMilliseconds(1000)).Subscribe(t =>
         {
             if (_cypherNetworkCore.ApplicationLifetime.ApplicationStopping.IsCancellationRequested) return;
@@ -227,13 +227,15 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
             {
                 TryBootstrap();
                 if (_caching.Count == 0) return;
-                await OnReadyAsync();
+                OnReady();
             }
             finally
             {
                 Monitor.Exit(LockOnReady);
             }
         });
+        
+        return Task.CompletedTask;
     }
 
     /// <summary>
@@ -245,7 +247,7 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
         var sequence = new Sequence<byte>();
         try
         {
-            await UpdateLocalPeerInfoAsync();
+            UpdateLocalPeerInfo();
             IList<Peer> discoveryStore = new List<Peer> { _localPeer };
             ReadOnlyPeerSequence(ref discoveryStore, ref sequence);
             for (var index = 0; index < _seedNodes.Length; index++)
@@ -301,7 +303,7 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
     /// <param name="peers"></param>
     /// <param name="sequence"></param>
     /// <returns></returns>
-    private static void ReadOnlyPeerSequence(ref IList<Peer> peers, ref Sequence<byte> sequence)
+    private static void ReadOnlyPeerSequence(ref IList<Peer>peers, ref Sequence<byte> sequence)
     {
         var writer = new MessagePackWriter(sequence);
         writer.WriteArrayHeader(peers.Count);
@@ -311,17 +313,17 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
             writer.Flush();
         }
     }
-
+    
     /// <summary>
     /// 
     /// </summary>
-    private async Task OnReadyAsync()
+    private void OnReady()
     {
         var sequence = new Sequence<byte>();
         try
         {
             IList<Peer> discoveryStore = _caching.GetItems().ToList();
-            await UpdateLocalPeerInfoAsync();
+            UpdateLocalPeerInfo();
             discoveryStore.Add(_localPeer);
             ReadOnlyPeerSequence(ref discoveryStore, ref sequence);
             foreach (var peer in discoveryStore)
@@ -339,7 +341,7 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
                     using var ctx = socket.CreateAsyncContext(NngFactorySingleton.Instance.Factory).Unwrap();
                     ctx.Ctx.SetOpt(Defines.NNG_OPT_RECVTIMEO,
                         new nng_duration { TimeMs = ReceiveWaitTimeMilliseconds });
-                    var nngResult = await ctx.Receive(CancellationToken.None);
+                    var nngResult = ctx.Receive(CancellationToken.None).GetAwaiter().GetResult();
                     if (nngResult.IsOk())
                     {
                         foreach (var memory in sequence.AsReadOnlySequence) nngMsg.Append(memory.Span);
@@ -452,7 +454,7 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
 
         _disposed = true;
     }
-
+    
     /// <summary>
     /// 
     /// </summary>

@@ -63,13 +63,13 @@ public sealed class Graph : IGraph, IDisposable
     private class BlockGraphEventArgs : EventArgs
     {
         public BlockGraph BlockGraph { get; }
-
+        
         public BlockGraphEventArgs(BlockGraph blockGraph)
         {
             BlockGraph = blockGraph;
         }
     }
-
+    
     private readonly ActionBlock<BlockGraph> _action;
     private readonly ICypherNetworkCore _cypherNetworkCore;
     private readonly ILogger _logger;
@@ -81,7 +81,7 @@ public sealed class Graph : IGraph, IDisposable
 
     private IDisposable _disposableHandelSeenBlockGraphs;
     private bool _disposed;
-
+    
     /// <summary>
     /// </summary>
     private EventHandler<BlockGraphEventArgs> _onRoundCompletedEventHandler;
@@ -96,14 +96,14 @@ public sealed class Graph : IGraph, IDisposable
         _logger = logger.ForContext("SourceContext", nameof(Graph));
         _onRoundCompleted = Observable.FromEventPattern<BlockGraphEventArgs>(
             ev => _onRoundCompletedEventHandler += ev, ev => _onRoundCompletedEventHandler -= ev);
-        _onRoundListener = await OnRoundListenerAsync();
+        _onRoundListener = OnRoundListener();
         var dataflowBlockOptions = new ExecutionDataflowBlockOptions
         {
             MaxDegreeOfParallelism = 1,
             BoundedCapacity = 1
         };
         _action = new ActionBlock<BlockGraph>(NewBlockGraphAsync, dataflowBlockOptions);
-        await InitAsync();
+        Init();
     }
 
     /// <summary>
@@ -232,7 +232,7 @@ public sealed class Graph : IGraph, IDisposable
     {
         try
         {
-            var height = await (await _cypherNetworkCore.UnitOfWork()).HashChainRepository.CountAsync();
+            var height =  await (await _cypherNetworkCore.UnitOfWork()).HashChainRepository.CountAsync();
             return new BlockCountResponse(height);
         }
         catch (Exception ex)
@@ -329,7 +329,7 @@ public sealed class Graph : IGraph, IDisposable
             await unitOfWork.HashChainRepository.GetAsync(x => new ValueTask<bool>(x.Hash.Xor(hash)));
         return seen is not null ? VerifyResult.AlreadyExists : VerifyResult.Succeed;
     }
-
+    
     /// <summary>
     /// 
     /// </summary>
@@ -342,12 +342,12 @@ public sealed class Graph : IGraph, IDisposable
         foreach (var transaction in transactions) ts.Append(transaction.ToStream());
         return Hasher.Hash(ts.ToArray()).HexToByte();
     }
-
+    
     /// <summary>
     /// </summary>
-    private async Task InitAsync()
+    private void Init()
     {
-        await HandelSeenBlockGraphsAsync();
+        HandelSeenBlockGraphs();
     }
 
     /// <summary>
@@ -356,7 +356,7 @@ public sealed class Graph : IGraph, IDisposable
     private async Task NewBlockGraphAsync(BlockGraph blockGraph)
     {
         Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
-        if (blockGraph.Block.Round != await await NextRoundAsync()) return;
+        if (blockGraph.Block.Round != await NextRoundAsync()) return;
         if (await BlockHeightExistsAsync(blockGraph.Block.Round) !=
             VerifyResult.Succeed) return;
         if (!_syncCacheSeenBlockGraph.Contains(blockGraph.ToIdentifier()))
@@ -370,14 +370,14 @@ public sealed class Graph : IGraph, IDisposable
     /// <summary>
     /// </summary>
     /// <param name="e"></param>
-    private async Task OnRoundReadyAsync(BlockGraphEventArgs e)
+    private void OnRoundReady(BlockGraphEventArgs e)
     {
-        if (e.BlockGraph.Block.Round == await NextRoundAsync()) _onRoundCompletedEventHandler?.Invoke(this, e);
+        if (e.BlockGraph.Block.Round == NextRound()) _onRoundCompletedEventHandler?.Invoke(this, e);
     }
 
     /// <summary>
     /// </summary>
-    private async Task HandelSeenBlockGraphsAsync()
+    private void HandelSeenBlockGraphs()
     {
         _disposableHandelSeenBlockGraphs = Observable.Interval(TimeSpan.FromHours(1))
             .Subscribe(_ =>
@@ -386,9 +386,10 @@ public sealed class Graph : IGraph, IDisposable
                 try
                 {
                     var removeSeenBlockGraphBeforeTimestamp = Util.GetUtcNow().AddHours(-1).ToUnixTimestamp();
-                    var removingBlockGraphs = await AsyncHelper.RunSyncAsync(async delegate
+                    var removingBlockGraphs = AsyncHelper.RunSync(async delegate
                     {
-                        return;
+                        return await _syncCacheSeenBlockGraph.WhereAsync(x =>
+                            new ValueTask<bool>(x.Value.Timestamp < removeSeenBlockGraphBeforeTimestamp));
                     });
                     foreach (var (key, _) in removingBlockGraphs.OrderBy(x => x.Value.Round))
                         _syncCacheSeenBlockGraph.Remove(key);
@@ -407,21 +408,21 @@ public sealed class Graph : IGraph, IDisposable
     /// <summary>
     /// </summary>
     /// <returns></returns>
-    private async Task<IDisposable> OnRoundListenerAsync()
+    private IDisposable OnRoundListener()
     {
         var onRoundCompletedSubscription = _onRoundCompleted
-            .Where(data => data.EventArgs.BlockGraph.Block.Round == await NextRoundAsync())
+            .Where(data => data.EventArgs.BlockGraph.Block.Round == NextRound())
             .Throttle(TimeSpan.FromSeconds(LedgerConstant.OnRoundThrottleFromSeconds), NewThreadScheduler.Default).Subscribe(_ =>
             {
                 try
                 {
-                    var blockGraphs = _syncCacheBlockGraph.Where(x => x.Value.Block.Round == await NextRoundAsync()).ToArray();
+                    var blockGraphs = _syncCacheBlockGraph.Where(x => x.Value.Block.Round == NextRound()).ToArray();
                     if (blockGraphs.Length < 2) return;
                     var nodeCount = blockGraphs.Select(n => n.Value.Block.Node).Distinct().Count();
                     var f = (nodeCount - 1) / 3;
                     var quorum2F1 = 2 * f + 1;
                     if (nodeCount < quorum2F1) return;
-                    var lastInterpreted = await GetRoundAsync();
+                    var lastInterpreted = GetRound();
                     var config = new Config(lastInterpreted, Array.Empty<ulong>(), _cypherNetworkCore.KeyPair.PublicKey.ToHashIdentifier(),
                         (ulong)nodeCount);
                     var blockmania = new Blockmania(config, _logger) { NodeCount = nodeCount };
@@ -566,7 +567,7 @@ public sealed class Graph : IGraph, IDisposable
                 if (signBlockGraph is null) return;
                 if (!Save(signBlockGraph)) return;
                 await BroadcastAsync(signBlockGraph);
-                await OnRoundReadyAsync(new BlockGraphEventArgs(blockGraph));
+                OnRoundReady(new BlockGraphEventArgs(blockGraph));
             }
             else
             {
@@ -598,7 +599,7 @@ public sealed class Graph : IGraph, IDisposable
         foreach (var deliveredBlock in blocks)
             try
             {
-                if (deliveredBlock.Round != await await NextRoundAsync()) continue;
+                if (deliveredBlock.Round != await NextRoundAsync()) continue;
                 var block = MessagePackSerializer.Deserialize<Block>(deliveredBlock.Data);
                 _syncCacheDelivered.AddOrUpdate(block.Hash, block);
             }
@@ -617,7 +618,7 @@ public sealed class Graph : IGraph, IDisposable
         Block[] deliveredBlocks = null;
         try
         {
-            deliveredBlocks = _syncCacheDelivered.Where(x => x.Value.Height == await NextRoundAsync()).Select(n => n.Value)
+            deliveredBlocks = _syncCacheDelivered.Where(x => x.Value.Height == NextRound()).Select(n => n.Value)
                 .ToArray();
             if (deliveredBlocks.Any() != true) return;
             _logger.Information("DecideWinnerAsync");
@@ -636,7 +637,7 @@ public sealed class Graph : IGraph, IDisposable
             };
             if (block is { })
             {
-                if (block.Height != await await NextRoundAsync()) return;
+                if (block.Height != await NextRoundAsync()) return;
                 if (block.BlockPos.PublicKey.ToHashIdentifier() == (await _cypherNetworkCore.PeerDiscovery()).GetLocalNode().Identifier)
                 {
                     Console.ForegroundColor = ConsoleColor.Green;
@@ -646,7 +647,7 @@ public sealed class Graph : IGraph, IDisposable
  |_  ..  _|     |  _ \  | |  / _ \   / __| | |/ /    \ \ /\ / /  | | | '_ \  | '_ \   / _ \ | '__|   |_  ..  _|
  |_      _|     | |_) | | | | (_) | | (__  |   <      \ V  V /   | | | | | | | | | | |  __/ | |      |_      _|
    |_||_|       |____/  |_|  \___/   \___| |_|\_\      \_/\_/    |_| |_| |_| |_| |_|  \___| |_|        |_||_|  ");
-
+            
                     Console.WriteLine();
                     Console.ResetColor();
                 }
@@ -654,7 +655,7 @@ public sealed class Graph : IGraph, IDisposable
                 {
                     _logger.Information("We have a winner {@Hash}", block.Hash.ByteToHex());
                 }
-
+                
                 if (await BlockHeightExistsAsync(block.Height) == VerifyResult.AlreadyExists)
                 {
                     _logger.Error("Block winner already exists");
@@ -682,7 +683,7 @@ public sealed class Graph : IGraph, IDisposable
                     var saved = await (await _cypherNetworkCore.UnitOfWork()).TransactionOutputRepository
                         .PutAsync(transactionOutput.TxId, transactionOutput);
                 }
-
+                
                 (await _cypherNetworkCore.WalletSession()).Notify(block.Txs.ToArray());
             }
         }
@@ -702,11 +703,11 @@ public sealed class Graph : IGraph, IDisposable
     /// 
     /// </summary>
     /// <returns></returns>
-    private async Task<ulong> GetRoundAsync()
+    private ulong GetRound()
     {
-        return await await AsyncHelper.RunSyncAsync(GetRoundAsync);
+        return AsyncHelper.RunSync(GetRoundAsync);
     }
-
+        
     /// <summary>
     /// 
     /// </summary>
@@ -721,18 +722,18 @@ public sealed class Graph : IGraph, IDisposable
     /// 
     /// </summary>
     /// <returns></returns>
-    private async Task<ulong> NextRoundAsync()
+    private ulong NextRound()
     {
-        return await await AsyncHelper.RunSyncAsync(NextRoundAsync);
+        return AsyncHelper.RunSync(NextRoundAsync);
     }
-
+        
     /// <summary>
     /// 
     /// </summary>
     /// <returns></returns>
     private async Task<ulong> NextRoundAsync()
     {
-        return await await GetRoundAsync() + 1;
+        return await GetRoundAsync() + 1;
     }
 
     /// <summary>
@@ -744,7 +745,7 @@ public sealed class Graph : IGraph, IDisposable
         Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
         try
         {
-            if (blockGraph.Block.Round == await await NextRoundAsync())
+            if (blockGraph.Block.Round == await NextRoundAsync())
                 await _cypherNetworkCore.Broadcast().PublishAsync((TopicType.AddBlockGraph,
                     MessagePackSerializer.Serialize(blockGraph)));
         }
@@ -753,7 +754,7 @@ public sealed class Graph : IGraph, IDisposable
             _logger.Here().Error(ex, "Broadcast error");
         }
     }
-
+    
     /// <summary>
     /// 
     /// </summary>
@@ -773,7 +774,7 @@ public sealed class Graph : IGraph, IDisposable
 
         _disposed = true;
     }
-
+    
     /// <summary>
     /// 
     /// </summary>
