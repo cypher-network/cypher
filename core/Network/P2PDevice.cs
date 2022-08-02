@@ -22,7 +22,7 @@ public struct Message
 {
     public Memory<byte> Memory { get; }
     public byte[] PublicKey { get; }
-    
+
     public Message(Memory<byte> memory, byte[] publicKey)
     {
         Memory = memory;
@@ -42,15 +42,15 @@ public interface IP2PDevice
 public sealed class P2PDevice : IDisposable, IP2PDevice
 {
     private static readonly RecyclableMemoryStreamManager Manager = new();
-    
+
     private readonly ICypherNetworkCore _cypherNetworkCore;
     private readonly ILogger _logger;
     private readonly P2PDeviceApi _p2PDeviceApi;
     private readonly IList<IDisposable> _disposables = new List<IDisposable>();
-    
+
     private IRepSocket _repSocket;
     private bool _disposed;
-    
+
     /// <summary>
     /// </summary>
     /// <param name="cypherNetworkCore"></param>
@@ -100,7 +100,7 @@ public sealed class P2PDevice : IDisposable, IP2PDevice
     {
         ListeningAsync().ConfigureAwait(false);
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -238,7 +238,7 @@ public sealed class P2PDevice : IDisposable, IP2PDevice
 
         _disposed = true;
     }
-    
+
     /// <summary>
     /// 
     /// </summary>

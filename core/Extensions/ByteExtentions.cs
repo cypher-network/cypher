@@ -16,39 +16,39 @@ public static class ByteExtensions
     {
         return Encoding.UTF8.GetBytes(value ?? string.Empty, 0, value!.Length);
     }
-    
+
     public static ReadOnlySpan<byte> ToBytes(this ReadOnlySpan<char> value)
     {
         Span<byte> bytes = stackalloc byte[value.Length];
         Encoding.UTF8.GetBytes(value, bytes);
         return bytes.ToArray();
     }
-    
+
     public static byte[] ToBytes(this ulong value)
     {
         return Encoding.UTF8.GetBytes(value.ToString());
     }
-    
+
     public static byte[] ToBytes(this long value)
     {
         return Encoding.UTF8.GetBytes(value.ToString());
     }
-    
+
     public static byte[] ToBytes(this bool value)
     {
         return Encoding.UTF8.GetBytes(value.ToString());
     }
-    
+
     public static byte[] ToBytes(this uint value)
     {
         return Encoding.UTF8.GetBytes(value.ToString());
     }
-    
+
     public static byte[] ToBytes(this int value)
     {
         return Encoding.UTF8.GetBytes(value.ToString());
     }
-    
+
     public static byte[] ToBytes(this ushort value)
     {
         return Encoding.UTF8.GetBytes(value.ToString());
@@ -58,7 +58,7 @@ public static class ByteExtensions
     {
         return Convert.ToHexString(data);
     }
-    
+
     public static string ByteToHex(this ReadOnlySpan<byte> data)
     {
         return Convert.ToHexString(data);
@@ -68,7 +68,7 @@ public static class ByteExtensions
     {
         return Encoding.UTF8.GetString(data);
     }
-    
+
     public static IEnumerable<byte[]> Split(this byte[] value, int bufferLength)
     {
         var countOfArray = value.Length / bufferLength;
@@ -83,8 +83,8 @@ public static class ByteExtensions
         for (var i = 0; i < a.Length && i < b.Length; ++i) x |= a[i] ^ b[i];
         return x == 0;
     }
-    
-    public static bool Xor(this Span<byte> a,  Span<byte> b)
+
+    public static bool Xor(this Span<byte> a, Span<byte> b)
     {
         var x = a.Length ^ b.Length;
         for (var i = 0; i < a.Length && i < b.Length; ++i) x |= a[i] ^ b[i];
@@ -99,7 +99,7 @@ public static class ByteExtensions
         id = (ulong)Convert.ToInt64(id.ToString()[..5]);
         return id;
     }
-    
+
     public static ulong ToHashIdentifier(this ReadOnlySpan<byte> hash)
     {
         var byteHex = Hasher.Hash(hash);
@@ -108,7 +108,7 @@ public static class ByteExtensions
         id = (ulong)Convert.ToInt64(id.ToString()[..5]);
         return id;
     }
-    
+
     public static ulong ToHashIdentifier(this byte[] hash)
     {
         var byteHex = Hasher.Hash(hash);
@@ -117,7 +117,7 @@ public static class ByteExtensions
         id = (ulong)Convert.ToInt64(id.ToString()[..5]);
         return id;
     }
-    
+
     public static byte[] EnsureNotNull(this byte[] source)
     {
         return source ?? Array.Empty<byte>();
@@ -131,7 +131,7 @@ public static class ByteExtensions
         message.CopyTo(ret, lengthPrefix.Length);
         return ret;
     }
-    
+
     public static byte[] WrapLengthPrefix(this Span<byte> message)
     {
         ReadOnlySpan<byte> lengthPrefix = BitConverter.GetBytes(message.Length);
@@ -140,7 +140,7 @@ public static class ByteExtensions
         message.CopyTo(ret);
         return ret.ToArray();
     }
-    
+
     public static byte[] WrapLengthPrefix(this ReadOnlySpan<byte> message)
     {
         ReadOnlySpan<byte> lengthPrefix = BitConverter.GetBytes(message.Length);

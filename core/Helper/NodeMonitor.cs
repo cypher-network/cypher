@@ -13,7 +13,7 @@ public interface INodeMonitor
 {
     public bool Start();
     public void Stop();
-    public Task<bool> Connect(CancellationToken cancellationToken);
+    public Task<bool> ConnectAsync(CancellationToken cancellationToken);
 }
 
 public class NodeMonitor : INodeMonitor
@@ -63,7 +63,7 @@ public class NodeMonitor : INodeMonitor
         }
     }
 
-    public async Task<bool> Connect(CancellationToken cancellationToken)
+    public async Task<bool> ConnectAsync(CancellationToken cancellationToken)
     {
         try
         {

@@ -222,7 +222,7 @@ public static class Util
     {
         return new DateTimeOffset(GetAdjustedTime()).ToUnixTimeSeconds();
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -370,12 +370,12 @@ public static class Util
             throw new Exception("Unsupported operating system");
         }
     }
-    
+
     public static byte[] Hash(byte[] hashBytes)
     {
         return hashBytes.Length == 0 ? null : Hasher.Hash(hashBytes).HexToByte();
     }
-    
+
     public static void Throw(Exception e)
     {
         throw e;
@@ -415,7 +415,7 @@ public static class Util
     {
         return FlatBufferSerializer.Default.Parse<T>(bytes);
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -426,7 +426,7 @@ public static class Util
     {
         return FlatBufferSerializer.Default.Parse<T>(memory);
     }
-    
+
     /// <summary>
     /// 
     /// </summary>

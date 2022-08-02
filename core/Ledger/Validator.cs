@@ -79,7 +79,7 @@ public class Validator : IValidator
         _cypherNetworkCore = cypherNetworkCore;
         _logger = logger.ForContext("SourceContext", nameof(Validator));
     }
-    
+
     /// <summary>
     /// </summary>
     /// <param name="block"></param>
@@ -124,7 +124,7 @@ public class Validator : IValidator
         var verifyMerkel = merkelRoot.Xor(block.BlockHeader.MerkleRoot);
         return verifyMerkel ? VerifyResult.Succeed : VerifyResult.UnableToVerify;
     }
-    
+
     /// <summary>
     /// </summary>
     /// <param name="blockGraph"></param>
@@ -341,7 +341,7 @@ public class Validator : IValidator
             _logger.Here().Fatal("Unable to verify the slow function");
             return VerifyResult.UnableToVerify;
         }
-        
+
         var runningDistribution = await GetCurrentRunningDistributionAsync(block.BlockPos.Solution, block.Height);
         if (VerifyCoinbaseTransaction(block.Txs.First().Vout.First(), block.BlockPos.Solution, runningDistribution,
                 block.Height) != VerifyResult.Succeed)
@@ -403,7 +403,7 @@ public class Validator : IValidator
             _logger.Fatal("Unable to verify transactions found duplicate image keys");
             return VerifyResult.UnableToVerify;
         }
-        
+
         if (await VerifyTransactionsAsync(block.Txs) == VerifyResult.Succeed) return VerifyResult.Succeed;
         _logger.Fatal("Unable to verify the block transactions");
         return VerifyResult.UnableToVerify;
@@ -438,7 +438,7 @@ public class Validator : IValidator
             _logger.Fatal("Unable to validate transaction");
             return VerifyResult.UnableToVerify;
         }
-        
+
         var outputs = transaction.Vout.Select(x => Enum.GetName(x.T)).ToArray();
         if (outputs.Contains(Enum.GetName(CoinType.Payment)) && outputs.Contains(Enum.GetName(CoinType.Change)))
         {
@@ -462,16 +462,16 @@ public class Validator : IValidator
     {
         var noDupImageKeys = new List<byte[]>();
         foreach (var transaction in transactions)
-        foreach (var vin in transaction.Vin)
-        {
-            var vInput = noDupImageKeys.FirstOrDefault(x => x.Xor(vin.Image));
-            if (vInput is not null) return VerifyResult.AlreadyExists;
-            noDupImageKeys.Add(vin.Image);
-        }
+            foreach (var vin in transaction.Vin)
+            {
+                var vInput = noDupImageKeys.FirstOrDefault(x => x.Xor(vin.Image));
+                if (vInput is not null) return VerifyResult.AlreadyExists;
+                noDupImageKeys.Add(vin.Image);
+            }
 
         return VerifyResult.Succeed;
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -601,7 +601,7 @@ public class Validator : IValidator
 
         return VerifyResult.Succeed;
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -664,8 +664,8 @@ public class Validator : IValidator
         Guard.Argument(kernel, nameof(kernel)).NotNull().MaxCount(32);
         try
         {
-             _cypherNetworkCore.Crypto()
-                .GetVerifyVrfSignature(Curve.decodePoint(publicKey, 0), kernel, vrfProof);
+            _cypherNetworkCore.Crypto()
+               .GetVerifyVrfSignature(Curve.decodePoint(publicKey, 0), kernel, vrfProof);
             return VerifyResult.Succeed;
         }
         catch (Exception ex)
@@ -813,11 +813,11 @@ public class Validator : IValidator
                         itr = 0;
                         break;
                     }
-                    
+
                     var weightedTarget = target.Multiply(BigInteger.ValueOf(itr));
                     if (hashWeightedTarget.CompareTo(weightedTarget) <= 0)
                     {
-                        _logger.Information("Solution time: ({@T})  iterations: ({@R})  [PASSED]", 
+                        _logger.Information("Solution time: ({@T})  iterations: ({@R})  [PASSED]",
                             sw.Elapsed.TotalSeconds, itr);
                         break;
                     }
@@ -859,7 +859,7 @@ public class Validator : IValidator
         var T = new BigInteger(kernel);
         return v.CompareTo(T) <= 0 ? VerifyResult.Succeed : VerifyResult.UnableToVerify;
     }
-    
+
     /// <summary>
     /// </summary>
     /// <param name="solution"></param>
@@ -911,7 +911,7 @@ public class Validator : IValidator
             var newChainBits = newChain.Aggregate(0UL, (ul, b) => ul + b.BlockPos.Bits);
             if (mainChainBits >= newChainBits)
             {
-                
+
                 if (mainChain.Length != newChain.Length) return Array.Empty<Block>();
             }
 
@@ -925,7 +925,7 @@ public class Validator : IValidator
 
         return null;
     }
-    
+
     /// <summary>
     /// </summary>
     /// <param name="m"></param>

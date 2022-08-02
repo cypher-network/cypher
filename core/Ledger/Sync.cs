@@ -37,7 +37,7 @@ public class Sync : ISync, IDisposable
 
     private bool _disposed;
     private IDisposable _disposableInit;
-    
+
     /// <summary>
     /// </summary>
     /// <param name="cypherNetworkCore"></param>
@@ -82,7 +82,7 @@ public class Sync : ISync, IDisposable
             var blockCountResponse = await (await _cypherNetworkCore.Graph()).GetBlockCountAsync();
             _logger.Information("OPENING block height [{@Height}]", blockCountResponse.Count);
             var currentRetry = 0;
-            for (;;)
+            for (; ; )
             {
                 if (_cypherNetworkCore.ApplicationLifetime.ApplicationStopping.IsCancellationRequested) return;
                 var hasAny = await WaitForPeersAsync(currentRetry, RetryCount);
@@ -94,7 +94,7 @@ public class Sync : ISync, IDisposable
             var synchronized = false;
             foreach (var peer in peers)
             {
-                blockCountResponse =  await (await _cypherNetworkCore.Graph()).GetBlockCountAsync();
+                blockCountResponse = await (await _cypherNetworkCore.Graph()).GetBlockCountAsync();
                 if (blockCountResponse.Count >= (long)peer.BlockCount)
                 {
                     var localNode = (await _cypherNetworkCore.PeerDiscovery()).GetLocalNode();
@@ -183,11 +183,11 @@ public class Sync : ISync, IDisposable
                     _logger.Information("Fork rule check [UNABLE TO VERIFY]");
                     return false;
                 }
-    
+
                 blocks = forkRuleBlocks.ToList();
                 _logger.Information("Fork rule check [OK]");
             }
-    
+
             _logger.Information("SYNCHRONIZING [{@BlockCount}] Block(s)", blocks.Count);
             foreach (var block in blocks.OrderBy(x => x.Height))
                 try
@@ -218,7 +218,7 @@ public class Sync : ISync, IDisposable
             _logger.Information("Local node block height set to ({@LocalHeight})", blockCountResponse.Count);
             if (blockCountResponse.Count == take) isSynchronized = true;
         }
-    
+
         return isSynchronized;
     }
 
@@ -298,7 +298,7 @@ public class Sync : ISync, IDisposable
 
         _disposed = true;
     }
-    
+
     /// <summary>
     /// 
     /// </summary>

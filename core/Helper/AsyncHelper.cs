@@ -9,9 +9,9 @@ namespace CypherNetwork.Helper;
 /// </summary>
 public static class AsyncHelper
 {
-    private static readonly TaskFactory MyTaskFactory = new(CancellationToken.None, 
-            TaskCreationOptions.None, 
-            TaskContinuationOptions.None, 
+    private static readonly TaskFactory MyTaskFactory = new(CancellationToken.None,
+            TaskCreationOptions.None,
+            TaskContinuationOptions.None,
             TaskScheduler.Default);
 
     /// <summary>
@@ -20,25 +20,23 @@ public static class AsyncHelper
     /// <param name="func"></param>
     /// <typeparam name="TResult"></typeparam>
     /// <returns></returns>
-    public static TResult RunSync<TResult>(Func<Task<TResult>> func)
+    public static async Task<TResult> RunSyncAsync<TResult>(Func<Task<TResult>> func)
     {
-        return MyTaskFactory
+        return await MyTaskFactory
             .StartNew(func)
             .Unwrap()
-            .GetAwaiter()
-            .GetResult();
+;
     }
 
     /// <summary>
     /// 
     /// </summary>
     /// <param name="func"></param>
-    public static void RunSync(Func<Task> func)
+    public static async Task RunSyncAsync(Func<Task> func)
     {
-        MyTaskFactory
+        await MyTaskFactory
             .StartNew<Task>(func)
             .Unwrap()
-            .GetAwaiter()
-            .GetResult();
+;
     }
 }

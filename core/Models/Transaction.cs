@@ -12,7 +12,7 @@ using CypherNetwork.Helper;
 namespace CypherNetwork.Models;
 
 [MessagePack.MessagePackObject]
-public record Transaction: IComparable<Transaction>
+public record Transaction : IComparable<Transaction>
 {
     /// <summary>
     /// </summary>
@@ -27,7 +27,7 @@ public record Transaction: IComparable<Transaction>
             ? txIdComparison
             : string.Compare(TxnId.ByteToHex(), other.TxnId.ByteToHex(), StringComparison.Ordinal);
     }
-    
+
     [MessagePack.Key(0)] public byte[] TxnId { get; set; }
     [MessagePack.Key(1)] public Bp[] Bp { get; set; }
     [MessagePack.Key(2)] public int Ver { get; set; }

@@ -73,8 +73,8 @@ public class MemoryPoolController : Controller
         {
             var memPoolTransaction = (await _cypherNetworkCore.MemPool()).Get(id.HexToByte());
             if (memPoolTransaction is { })
-                return new ObjectResult(new { memPoolTransaction});
-            
+                return new ObjectResult(new { memPoolTransaction });
+
             var pPosMemPoolTransaction = (await _cypherNetworkCore.PPoS()).Get(id.HexToByte());
             if (pPosMemPoolTransaction is { })
                 return new ObjectResult(new { pPosMemPoolTransaction });

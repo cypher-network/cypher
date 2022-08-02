@@ -34,7 +34,7 @@ public static class TaskExtensions
     public static void SafeFireAndForget(this ValueTask task, in Action<Exception>? onException = null,
         in bool continueOnCapturedContext = false)
     {
-        HandleSafeFireAndForget(task, continueOnCapturedContext, onException);
+        HandleSafeFireAndForgetAsync(task, continueOnCapturedContext, onException);
     }
 
 
@@ -57,7 +57,7 @@ public static class TaskExtensions
     public static void SafeFireAndForget<TException>(this ValueTask task, in Action<TException>? onException = null,
         in bool continueOnCapturedContext = false) where TException : Exception
     {
-        HandleSafeFireAndForget(task, continueOnCapturedContext, onException);
+        HandleSafeFireAndForgetAsync(task, continueOnCapturedContext, onException);
     }
 
 
@@ -79,7 +79,7 @@ public static class TaskExtensions
     public static void SafeFireAndForget(this Task task, in Action<Exception>? onException = null,
         in bool continueOnCapturedContext = false)
     {
-        HandleSafeFireAndForget(task, continueOnCapturedContext, onException);
+        HandleSafeFireAndForgetAsync(task, continueOnCapturedContext, onException);
     }
 
     /// <summary>
@@ -101,7 +101,7 @@ public static class TaskExtensions
     public static void SafeFireAndForget<TException>(this Task task, in Action<TException>? onException = null,
         in bool continueOnCapturedContext = false) where TException : Exception
     {
-        HandleSafeFireAndForget(task, continueOnCapturedContext, onException);
+        HandleSafeFireAndForgetAsync(task, continueOnCapturedContext, onException);
     }
 
 
@@ -110,7 +110,7 @@ public static class TaskExtensions
         _onException = onException ?? throw new ArgumentNullException(nameof(onException));
     }
 
-    private static async void HandleSafeFireAndForget<TException>(ValueTask valueTask, bool continueOnCapturedContext,
+    private static async Task HandleSafeFireAndForgetAsync<TException>(ValueTask valueTask, bool continueOnCapturedContext,
         Action<TException>? onException) where TException : Exception
     {
         try
@@ -126,7 +126,7 @@ public static class TaskExtensions
         }
     }
 
-    private static async void HandleSafeFireAndForget<TException>(Task task, bool continueOnCapturedContext,
+    private static async Task HandleSafeFireAndForgetAsync<TException>(Task task, bool continueOnCapturedContext,
         Action<TException>? onException) where TException : Exception
     {
         try
@@ -149,7 +149,7 @@ public static class TaskExtensions
         onException?.Invoke(exception);
     }
 
-    public static async void SafeForgetAsync(this Task task, ILogger logger)
+    public static async Task SafeForgetAsync(this Task task, ILogger logger)
     {
         try
         {

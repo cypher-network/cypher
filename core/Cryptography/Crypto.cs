@@ -179,7 +179,7 @@ public class Crypto : ICrypto
 
         return verified;
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -193,7 +193,7 @@ public class Crypto : ICrypto
         var calculateVrfSignature = Curve.calculateVrfSignature(ecPrivateKey, msg);
         return calculateVrfSignature;
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -209,7 +209,7 @@ public class Crypto : ICrypto
         var vrfSignature = Curve.verifyVrfSignature(ecPublicKey, msg, sig);
         return vrfSignature;
     }
-    
+
     // public byte[] EncryptChaCha20Poly1305(byte[] data, byte[] key, byte[] associatedData, out byte[] tag,
     //     out byte[] nonce)
     // {
@@ -246,7 +246,7 @@ public class Crypto : ICrypto
         var destination = new Span<byte>(decryptedData, (int)decryptedDataLength);
         return result != 0 ? Array.Empty<byte>() : destination.Slice(0, (int)decryptedDataLength).ToArray();
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -263,7 +263,7 @@ public class Crypto : ICrypto
         {
             result = LibSodiumBox.SealOpen(msg, cPtr, (ulong)cipher.Length, pkPtr, skPtr);
         }
-        
+
         var destination = new Span<byte>(msg, len);
         return result != 0 ? Array.Empty<byte>() : destination.Slice(0, len).ToArray();
     }

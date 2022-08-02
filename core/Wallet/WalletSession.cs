@@ -35,7 +35,7 @@ public record Consumed(byte[] Commit, DateTime Time)
 public class WalletSession : IWalletSession, IDisposable
 {
     private const string HardwarePath = "m/44'/847177'/0'/0/";
-    
+
     public Caching<Output> CacheTransactions { get; } = new();
     public Cache<Consumed> CacheConsumed { get; } = new();
     public Output Spending { get; set; }
@@ -59,7 +59,7 @@ public class WalletSession : IWalletSession, IDisposable
     private IReadOnlyList<Block> _readOnlySafeGuardBlocks;
 
     private static readonly object Locking = new();
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -171,7 +171,7 @@ public class WalletSession : IWalletSession, IDisposable
     {
         lock (Locking)
         {
-            return _readOnlySafeGuardBlocks;   
+            return _readOnlySafeGuardBlocks;
         }
     }
 
@@ -214,7 +214,7 @@ public class WalletSession : IWalletSession, IDisposable
         hdRoot = new Mnemonic(concatenateMnemonic).DeriveExtKey();
         concatenateMnemonic.ZeroString();
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -241,7 +241,7 @@ public class WalletSession : IWalletSession, IDisposable
                 }
             });
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -266,7 +266,7 @@ public class WalletSession : IWalletSession, IDisposable
             .Merge()
             .Subscribe();
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -286,7 +286,7 @@ public class WalletSession : IWalletSession, IDisposable
 
         _disposed = true;
     }
-    
+
     /// <summary>
     /// 
     /// </summary>

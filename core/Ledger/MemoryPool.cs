@@ -40,7 +40,7 @@ public class MemoryPool : IMemoryPool, IDisposable
 
     private IDisposable _disposableHandelSeenTransactions;
     private bool _disposed;
-    
+
     /// <summary>
     /// </summary>
     /// <param name="cypherNetworkCore"></param>
@@ -179,7 +179,7 @@ public class MemoryPool : IMemoryPool, IDisposable
                 }
             });
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -198,7 +198,7 @@ public class MemoryPool : IMemoryPool, IDisposable
 
         _disposed = true;
     }
-    
+
     /// <summary>
     /// 
     /// </summary>

@@ -65,7 +65,7 @@ public class BlockController : Controller
         try
         {
             var blocksResponse = await (await _cypherNetworkCore.Graph()).GetBlocksAsync(new BlocksRequest(skip, take));
-            return new ObjectResult(new {  blocksResponse.Blocks });
+            return new ObjectResult(new { blocksResponse.Blocks });
         }
         catch (Exception ex)
         {
@@ -110,7 +110,7 @@ public class BlockController : Controller
         {
             var transactionResponse =
                 await (await _cypherNetworkCore.Graph()).GetTransactionAsync(new TransactionRequest(id.HexToByte()));
-            return new ObjectResult(new { transactionResponse.Transaction  });
+            return new ObjectResult(new { transactionResponse.Transaction });
         }
         catch (Exception ex)
         {

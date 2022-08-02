@@ -14,7 +14,7 @@ public record Dependency
     public IList<Block> Dependencies { get; }
     [MessagePack.Key(2)]
     public Block Prev { get; }
-    
+
     /// <summary>
     /// 
     /// </summary>

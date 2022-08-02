@@ -90,7 +90,7 @@ public record Block
         var hash = hasher.Finalize();
         return hash.HexToByte();
     }
-    
+
     /// <summary>
     /// </summary>
     /// <returns></returns>

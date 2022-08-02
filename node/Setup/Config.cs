@@ -31,7 +31,7 @@ public class Config
     private CommandOption _optionX509CertificateThumbprint;
     private CommandOption _optionStakingEnable;
     private CommandOption _optionKeyRingName;
-        
+
     private class TextInput<T>
     {
         private readonly Func<string, bool> _validation;
@@ -124,16 +124,16 @@ public class Config
             _optionGossipAdvertisingPort = app.Option("-m|--members <MEMBERS>",
                 "Node clusters communicate using swim gossip protocol. Your node communicate with other nodes " +
                 $"over a publicly accessible port for member dissemination.", CommandOptionType.SingleValue);
-            _optionX509CertificatePath =  app.Option("-fcert|--filecert <FILECERT>",
+            _optionX509CertificatePath = app.Option("-fcert|--filecert <FILECERT>",
                 "The name of a certificate file, relative to the directory that contains the application content files.", CommandOptionType.SingleValue);
-            _optionX509CertificatePassword =  app.Option("-pcert|--passcert <PASSCERT>",
+            _optionX509CertificatePassword = app.Option("-pcert|--passcert <PASSCERT>",
                 "The password required to access the X.509 certificate data.", CommandOptionType.SingleValue);
-            _optionX509CertificateThumbprint =  app.Option("-tcert|--thumbprint <THUMBPRINT>",
+            _optionX509CertificateThumbprint = app.Option("-tcert|--thumbprint <THUMBPRINT>",
                 "The thumbprint (as a hex string) of the certificate to resolve.", CommandOptionType.SingleValue);
             _optionStakingEnable = app.Option("-s|--staking <STAKING>",
                 "Enable staking if you want to earn rewards. Staking does require that you have some funds available.",
                 CommandOptionType.NoValue);
-            _optionKeyRingName = app.Option("-rngname|--ringname <KEYRINGNAME>", 
+            _optionKeyRingName = app.Option("-rngname|--ringname <KEYRINGNAME>",
                 "Replace the existing key ring name with a new default signing name.", CommandOptionType.SingleValue);
             app.OnExecute(Invoke);
         }
@@ -212,7 +212,7 @@ public class Config
                 jTokenWebApiAdvertise.Replace(_appConfigurationOptions.HttpEndPoint);
             }
         }
-            
+
         if (_optionHttpsPort.HasValue())
         {
             var sslPort = _optionHttpsPort.Value();
@@ -234,7 +234,7 @@ public class Config
                 jTokenGossipListening.Replace(_appConfigurationOptions.Gossip.Listening);
             }
         }
-            
+
         if (_optionGossipAdvertisingPort.HasValue())
         {
             var gossipAdvertisePort = _optionGossipAdvertisingPort.Value();
@@ -245,24 +245,24 @@ public class Config
                 jTokenGossipAdvertising.Replace(_appConfigurationOptions.Gossip.Advertise);
             }
         }
-            
+
         if (_optionX509CertificatePath.HasValue())
         {
-            _appConfigurationOptions.Network.X509Certificate.CertPath = _optionX509CertificatePath.Value();;
+            _appConfigurationOptions.Network.X509Certificate.CertPath = _optionX509CertificatePath.Value(); ;
             var jTokenCertificateFileName = _jObject.SelectToken("Node.Network.X509Certificate.CertPath");
             jTokenCertificateFileName.Replace(_appConfigurationOptions.Network.X509Certificate.CertPath);
         }
-            
+
         if (_optionX509CertificatePassword.HasValue())
         {
-            _appConfigurationOptions.Network.X509Certificate.Password = _optionX509CertificatePassword.Value();;
-            var jTokenCertificatePassword= _jObject.SelectToken("Node.Network.X509Certificate.Password");
+            _appConfigurationOptions.Network.X509Certificate.Password = _optionX509CertificatePassword.Value(); ;
+            var jTokenCertificatePassword = _jObject.SelectToken("Node.Network.X509Certificate.Password");
             jTokenCertificatePassword.Replace(_appConfigurationOptions.Network.X509Certificate.Password);
         }
-            
+
         if (_optionX509CertificateThumbprint.HasValue())
         {
-            _appConfigurationOptions.Network.X509Certificate.Thumbprint = _optionX509CertificateThumbprint.Value();;
+            _appConfigurationOptions.Network.X509Certificate.Thumbprint = _optionX509CertificateThumbprint.Value(); ;
             var jTokenCertificateThumbprint = _jObject.SelectToken("Node.Network.X509Certificate.Thumbprint");
             jTokenCertificateThumbprint.Replace(_appConfigurationOptions.Network.X509Certificate.Thumbprint);
         }
@@ -270,7 +270,7 @@ public class Config
         if (_optionKeyRingName.HasValue())
         {
             _appConfigurationOptions.Network.SigningKeyRingName = _optionKeyRingName.Value();
-            var jTokenKeyRingName= _jObject.SelectToken("Node.Network.SigningKeyRingName");
+            var jTokenKeyRingName = _jObject.SelectToken("Node.Network.SigningKeyRingName");
             jTokenKeyRingName.Replace(_appConfigurationOptions.Network.SigningKeyRingName);
 
             try
@@ -283,7 +283,7 @@ public class Config
                 throw;
             }
         }
-            
+
         if (!_optionStakingEnable.HasValue()) return 0;
         _appConfigurationOptions.Staking.Enabled = true;
         var jTokenStakeEnabled = _jObject.SelectToken("Node.Staking.Enabled");

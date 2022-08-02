@@ -17,7 +17,7 @@ internal static class LibSodiumBox
         ulong clen,
         byte* pk,
         byte* sk);
-    
+
     [SuppressUnmanagedCodeSecurity]
     [DllImport("libsodium", CallingConvention = CallingConvention.Cdecl, EntryPoint = "crypto_box_sealbytes")]
     internal static extern ulong Sealbytes();

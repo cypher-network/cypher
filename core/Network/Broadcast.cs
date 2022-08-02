@@ -115,7 +115,7 @@ public class Broadcast : IBroadcast
         }
         catch (Exception ex)
         {
-            _logger.Here().Error("{@Message}",ex.Message);
+            _logger.Here().Error("{@Message}", ex.Message);
         }
     }
 }

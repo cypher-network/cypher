@@ -85,7 +85,7 @@ public class P2PDeviceApi
         var blocksResponse = await (await _cypherNetworkCore.Graph()).GetBlocksAsync(new BlocksRequest(skip, take));
         return await SerializeAsync(blocksResponse);
     }
-    
+
     /// <summary>
     /// </summary>
     /// <param name="parameters"></param>

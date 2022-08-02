@@ -147,7 +147,7 @@ public class PPoS : IPPoS, IDisposable
                 await sync.SynchronizeAsync();
                 return;
             }
-            
+
             var kernel = await CreateKernelAsync(prevBlock.Hash, prevBlock.Height + 1);
             if (kernel is null) return;
             if (_cypherNetworkCore.Validator().VerifyKernel(kernel.CalculatedVrfSignature, kernel.Hash) !=
@@ -265,7 +265,7 @@ public class PPoS : IPPoS, IDisposable
             VerifiedVrfSignature = verifyVrfSignature
         };
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -273,14 +273,14 @@ public class PPoS : IPPoS, IDisposable
     {
         var noDupImageKeys = new List<byte[]>();
         foreach (var transaction in _syncCacheTransactions.GetItems())
-        foreach (var vin in transaction.Vin)
-        {
-            var vInput = noDupImageKeys.FirstOrDefault(x => x.Xor(vin.Image));
-            if (vInput is not null)  _syncCacheTransactions.Remove(transaction.TxnId);
-            noDupImageKeys.Add(vin.Image);
-        }
+            foreach (var vin in transaction.Vin)
+            {
+                var vInput = noDupImageKeys.FirstOrDefault(x => x.Xor(vin.Image));
+                if (vInput is not null) _syncCacheTransactions.Remove(transaction.TxnId);
+                noDupImageKeys.Add(vin.Image);
+            }
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -297,7 +297,7 @@ public class PPoS : IPPoS, IDisposable
         var hash = hasher.Finalize();
         return hash.AsSpanUnsafe().ToArray();
     }
-    
+
     /// <summary>
     /// </summary>
     /// <param name="kernel"></param>
@@ -334,7 +334,7 @@ public class PPoS : IPPoS, IDisposable
         _logger.Information("Begin...      [BLOCKGRAPH]");
         try
         {
-            var nodeIdentifier =_cypherNetworkCore.KeyPair.PublicKey.ToHashIdentifier();
+            var nodeIdentifier = _cypherNetworkCore.KeyPair.PublicKey.ToHashIdentifier();
             var nextData = block.Serialize();
             var nextDataHash = Hasher.Hash(nextData);
             var prevData = prevBlock.Serialize();
@@ -420,7 +420,7 @@ public class PPoS : IPPoS, IDisposable
                 },
                 Size = 1
             };
-            
+
             block.Size = block.GetSize();
             block.Hash = IncrementHasher(previousBlock.Hash, block.ToHash());
             return block;
@@ -494,7 +494,7 @@ public class PPoS : IPPoS, IDisposable
 
         _disposed = true;
     }
-    
+
     /// <summary>
     /// 
     /// </summary>

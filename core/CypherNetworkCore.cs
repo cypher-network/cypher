@@ -68,7 +68,7 @@ public class CypherNetworkCore : ICypherNetworkCore
     private ISync _sync;
     private IMemoryPool _memoryPool;
     private IWalletSession _walletSession;
-    
+
     /// <summary>
     /// </summary>
     /// <param name="applicationLifetime"></param>
@@ -82,7 +82,7 @@ public class CypherNetworkCore : ICypherNetworkCore
         ServiceScopeFactory = serviceScopeFactory;
         AppOptions = options;
         _logger = logger;
-        Init();
+        await InitAsync();
     }
 
     /// <summary>
@@ -151,7 +151,7 @@ public class CypherNetworkCore : ICypherNetworkCore
         }
         catch (Exception ex)
         {
-            _logger.Here().Error("{@Message}",ex.Message);
+            _logger.Here().Error("{@Message}", ex.Message);
         }
 
         return null;
@@ -188,12 +188,12 @@ public class CypherNetworkCore : ICypherNetworkCore
         }
         catch (Exception ex)
         {
-            _logger.Here().Error("{@Message}",ex.Message);
+            _logger.Here().Error("{@Message}", ex.Message);
         }
 
         return null;
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -217,7 +217,7 @@ public class CypherNetworkCore : ICypherNetworkCore
         }
         catch (Exception ex)
         {
-            _logger.Here().Error("{@Message}",ex.Message);
+            _logger.Here().Error("{@Message}", ex.Message);
         }
 
         return null;
@@ -236,7 +236,7 @@ public class CypherNetworkCore : ICypherNetworkCore
         }
         catch (Exception ex)
         {
-            _logger.Here().Error("{@Message}",ex.Message);
+            _logger.Here().Error("{@Message}", ex.Message);
         }
 
         return null;
@@ -255,7 +255,7 @@ public class CypherNetworkCore : ICypherNetworkCore
         }
         catch (Exception ex)
         {
-            _logger.Here().Error("{@Message}",ex.Message);
+            _logger.Here().Error("{@Message}", ex.Message);
         }
 
         return null;
@@ -272,17 +272,18 @@ public class CypherNetworkCore : ICypherNetworkCore
 
     /// <summary>
     /// </summary>
-    private void Init()
+    private async Task InitAsync()
     {
         var crypto = Crypto();
-        var keyPair = AsyncHelper.RunSync(() => crypto.GetOrUpsertKeyNameAsync(AppOptions.Network.SigningKeyRingName));
+        var keyPair = await AsyncHelper.RunSyncAsync(() => crypto.GetOrUpsertKeyNameAsync(AppOptions.Network.SigningKeyRingName));
         KeyPair = new KeyPair
         {
-            PrivateKey = keyPair.PrivateKey.ByteToHex().ToSecureString(), PublicKey = keyPair.PublicKey
+            PrivateKey = keyPair.PrivateKey.ByteToHex().ToSecureString(),
+            PublicKey = keyPair.PublicKey
         };
         keyPair.PrivateKey.Destroy();
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -297,7 +298,7 @@ public class CypherNetworkCore : ICypherNetworkCore
         }
         catch (Exception ex)
         {
-            _logger.Here().Error("{@Message}",ex.Message);
+            _logger.Here().Error("{@Message}", ex.Message);
         }
 
         return null;
@@ -322,7 +323,7 @@ public class CypherNetworkCore : ICypherNetworkCore
 
         return null;
     }
-    
+
     /// <summary>
     /// </summary>
     /// <returns></returns>
@@ -336,12 +337,12 @@ public class CypherNetworkCore : ICypherNetworkCore
         }
         catch (Exception ex)
         {
-            _logger.Here().Error("{@Message}",ex.Message);
+            _logger.Here().Error("{@Message}", ex.Message);
         }
 
         return null;
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -361,7 +362,7 @@ public class CypherNetworkCore : ICypherNetworkCore
 
         return null;
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -376,12 +377,12 @@ public class CypherNetworkCore : ICypherNetworkCore
         }
         catch (Exception ex)
         {
-            _logger.Here().Error("{@Message}",ex.Message);
+            _logger.Here().Error("{@Message}", ex.Message);
         }
 
         return null;
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -396,12 +397,12 @@ public class CypherNetworkCore : ICypherNetworkCore
         }
         catch (Exception ex)
         {
-            _logger.Here().Error("{@Message}",ex.Message);
+            _logger.Here().Error("{@Message}", ex.Message);
         }
 
         return null;
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -416,7 +417,7 @@ public class CypherNetworkCore : ICypherNetworkCore
         }
         catch (Exception ex)
         {
-            _logger.Here().Error("{@Message}",ex.Message);
+            _logger.Here().Error("{@Message}", ex.Message);
         }
 
         return null;

@@ -9,9 +9,9 @@ public record Entry
 {
     public Block Block { get; }
     public IList<Block> Dependencies { get; set; } = new List<Block>();
-    
+
     public Block Prev { get; }
-    
+
     /// <summary>
     /// 
     /// </summary>

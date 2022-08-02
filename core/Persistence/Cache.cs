@@ -11,11 +11,11 @@ using RocksDbSharp;
 
 namespace CypherNetwork.Persistence;
 
-public class Caching<TItem> 
+public class Caching<TItem>
 {
     private readonly Dictionary<byte[], TItem> _innerDictionary = new(BinaryComparer.Default);
     private readonly ReaderWriterLockSlim _rwLock = new(LockRecursionPolicy.SupportsRecursion);
-    
+
     /// <summary>
     /// </summary>
     /// <param name="key"></param>
@@ -236,7 +236,7 @@ public class Caching<TItem>
         }
         finally
         {
-            _rwLock.ExitReadLock();   
+            _rwLock.ExitReadLock();
         }
     }
 

@@ -42,9 +42,9 @@ public class NodeMonitorService : BackgroundService
 
             while (_applicationRunning && !cancellationToken.IsCancellationRequested)
             {
-                await _nodeMonitor.Connect(cancellationToken);
+                await _nodeMonitor.ConnectAsync(cancellationToken);
                 _logger.Here().Debug("Cannot connect to tester socket, retrying in {@Delay} ms", ConnectionRetryDelay);
-                Task.Delay(ConnectionRetryDelay, cancellationToken).GetAwaiter().GetResult();
+                await Task.Delay(ConnectionRetryDelay, cancellationToken);
             }
         }
         catch (TaskCanceledException)
