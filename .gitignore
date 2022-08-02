@@ -1,14 +1,15 @@
 # IDE
 /.vscode
 /.vs
-.idea/.idea.cypher/.idea/riderModule.iml
+.idea/.idea.cyphernetwork/
 .idea/.idea.cypher/.idea/.gitignore
 
 # misc
 /bin
 /obj
 .DS_Store
-
+**/backup
+**/cert
 **/appsettings.Development.json
 **/snapshot
 
