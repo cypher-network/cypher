@@ -70,7 +70,7 @@
     </Content>
   </ItemGroup>
   <ItemGroup>
-    <Content Update="certificate.pfx">
+    <Content Include="certificate.pfx">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>Always</CopyToPublishDirectory>
       <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
