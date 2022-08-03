@@ -69,11 +69,10 @@
       <CopyToPublishDirectory>Never</CopyToPublishDirectory>
     </Content>
   </ItemGroup>
-  <ItemGroup>
+ <ItemGroup>
     <Content Include="certificate.pfx">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <CopyToPublishDirectory>Always</CopyToPublishDirectory>
-      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
     </Content>
   </ItemGroup>
 
