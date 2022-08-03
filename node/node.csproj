@@ -2,7 +2,7 @@
 
   <PropertyGroup> 
     <ServerGarbageCollection>true</ServerGarbageCollection> 
-    <AssemblyVersion>0.0.58.0</AssemblyVersion> 
+    <AssemblyVersion>0.0.59.0</AssemblyVersion> 
     <NeutralLanguage>en</NeutralLanguage> 
     <PackageId>node</PackageId>
   </PropertyGroup>
@@ -70,10 +70,10 @@
     </Content>
   </ItemGroup>
  <ItemGroup>
-    <Content Include="certificate.pfx">
+    <None Update="Cert\certificate.pfx">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <CopyToPublishDirectory>Always</CopyToPublishDirectory>
-    </Content>
+    </None>
   </ItemGroup>
 
   <!-- Publish the configuration templates -->
