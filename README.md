@@ -5,6 +5,12 @@
 
 ## Installation
 
+### .Net 6
+
+Downloads for .Net
+https://dotnet.microsoft.com/en-us/download
+
+
 ### Minimum hardware requirements
 
 OS: Windows 64bit, Linux and macOS
