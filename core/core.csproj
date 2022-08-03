@@ -4,7 +4,7 @@
         <TargetFramework>net6.0</TargetFramework>
         <Platforms>AnyCPU;x64</Platforms>
         <RootNamespace>CypherNetwork</RootNamespace>
-        <AssemblyVersion>0.0.59.0</AssemblyVersion>
+        <AssemblyVersion>0.0.60.0</AssemblyVersion>
         <Company>CypherNetwork</Company>
         <PackageId>core</PackageId>
         <AssemblyName>cyphernetworkcore</AssemblyName>
