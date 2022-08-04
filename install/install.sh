@@ -231,7 +231,7 @@ install_dependencies() {
 
     # Create symlinks for libdl.so if they're not where we expect them
     if [ ! -e /usr/lib/x86_64-linux-gnu/libdl.so ]; then
-        ln -s /usr/lib/x86_64-linux-gnu/libdl.so.2 /usr/lib/x86_64-linux-gnu/libdl.so
+        sudo ln -s /usr/lib/x86_64-linux-gnu/libdl.so.2 /usr/lib/x86_64-linux-gnu/libdl.so
     fi
 
   fi
@@ -264,7 +264,7 @@ install_dependencies() {
 
     # Create symlinks for libdl.so if they're not where we expect them
     if [ ! -e /usr/lib64/libdl.so ]; then
-        ln -s /usr/lib64/libdl.so.2 /usr/lib64/libdl.so
+        sudo ln -s /usr/lib64/libdl.so.2 /usr/lib64/libdl.so
     fi
   fi  
 }
