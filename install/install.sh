@@ -357,7 +357,7 @@ install_systemd_service() {
   CGROUP=${CYPHER_CYPNODE_GROUP}
   if [ $CUSTOM_GROUP ]; then
       CGROUP=${CUSTOM_GROUP}
-      sed -ie "s/Group=.*-cypnode/Group=${CGROUP}/" "/tmp/${CYPHER_CYPNODE_SYSTEMD_SERVICE}"
+      sed -ie "s/Group=.*/Group=${CGROUP}/" "/tmp/${CYPHER_CYPNODE_SYSTEMD_SERVICE}"
   fi
   sudo install -m 755 -o "${CUSER}" -g "${CGROUP}" "/tmp/${CYPHER_CYPNODE_SYSTEMD_SERVICE}" "${SYSTEMD_SERVICE_PATH}${CYPHER_CYPNODE_SYSTEMD_SERVICE}"
 
