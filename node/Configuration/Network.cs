@@ -353,8 +353,6 @@ namespace CypherNetworkNode.Configuration
         #region Gossip
         private readonly UserInterfaceChoice _optionPortSerfPublicDefault = new("Use default public Listening port");
         private readonly UserInterfaceChoice _optionPortSerfPublicChange = new("Set public Listening port");
-        
-        
         private readonly UserInterfaceChoice _optionPortSerfRpcDefault = new("Use default Advertise port");
         private readonly UserInterfaceChoice _optionPortSerfRpcChange = new("Set Advertise port");
         
