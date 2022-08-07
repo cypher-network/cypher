@@ -15,7 +15,6 @@ public interface IUnitOfWork
     IXmlRepository DataProtectionKeys { get; }
     IDataProtectionRepository DataProtectionPayload { get; }
     IHashChainRepository HashChainRepository { get; }
-    ITransactionOutputRepository TransactionOutputRepository { get; }
     void Dispose();
 }
 
@@ -33,7 +32,6 @@ public class UnitOfWork : IUnitOfWork, IDisposable
         var log = logger.ForContext("SourceContext", nameof(UnitOfWork));
         DataProtectionPayload = new DataProtectionRepository(StoreDb, log);
         HashChainRepository = new HashChainRepository(StoreDb, log);
-        TransactionOutputRepository = new TransactionOutputRepository(StoreDb, log);
     }
 
     public IStoreDb StoreDb { get; }
@@ -41,7 +39,6 @@ public class UnitOfWork : IUnitOfWork, IDisposable
     public IXmlRepository DataProtectionKeys { get; }
     public IDataProtectionRepository DataProtectionPayload { get; }
     public IHashChainRepository HashChainRepository { get; }
-    public ITransactionOutputRepository TransactionOutputRepository { get; }
 
     /// <summary>
     /// </summary>
