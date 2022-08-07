@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -57,7 +58,7 @@ public interface IPeerDiscovery
 /// </summary>
 public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
 {
-    private const int PrunedTimeoutFromSeconds = 300;
+    private const int PrunedTimeoutFromSeconds = 5000;
     private const int SurveyorWaitTimeMilliseconds = 3000;
     private const int ReceiveWaitTimeMilliseconds = 1000;
     private readonly Caching<Peer> _caching = new();
@@ -70,7 +71,7 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
     private ISurveyorSocket _socket;
     private ISurveyorAsyncContext<INngMsg> _ctx;
     private bool _disposed;
-    
+
     private static readonly object LockOnReady = new();
     private static readonly object LockOnBootstrap = new();
 
@@ -124,7 +125,7 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
             var value = await (await _cypherNetworkCore.Graph()).GetBlockCountAsync();
             return value;
         });
-        
+
         _localPeer.BlockCount = (ulong)blockCountResponse.Count;
         _localPeer.Timestamp = Util.GetAdjustedTimeAsUnixTimestamp();
     }
@@ -184,10 +185,10 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
             if (_cypherNetworkCore.ApplicationLifetime.ApplicationStopping.IsCancellationRequested) return;
             StartWorkerAsync(_ctx).Wait();
         });
-        
+
         return Task.CompletedTask;
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -213,12 +214,12 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
             nngMsg?.Dispose();
         }
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
     private Task ReceiverAsync()
-    { 
+    {
         _receiverDisposable = Observable.Timer(TimeSpan.FromMilliseconds(5000), TimeSpan.FromMilliseconds(1000)).Subscribe(t =>
         {
             if (_cypherNetworkCore.ApplicationLifetime.ApplicationStopping.IsCancellationRequested) return;
@@ -234,7 +235,7 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
                 Monitor.Exit(LockOnReady);
             }
         });
-        
+
         return Task.CompletedTask;
     }
 
@@ -303,7 +304,7 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
     /// <param name="peers"></param>
     /// <param name="sequence"></param>
     /// <returns></returns>
-    private static void ReadOnlyPeerSequence(ref IList<Peer>peers, ref Sequence<byte> sequence)
+    private static void ReadOnlyPeerSequence(ref IList<Peer> peers, ref Sequence<byte> sequence)
     {
         var writer = new MessagePackWriter(sequence);
         writer.WriteArrayHeader(peers.Count);
@@ -313,7 +314,7 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
             writer.Flush();
         }
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -391,6 +392,9 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
             if (elementSequence == null) continue;
             var peer = MessagePackSerializer.Deserialize<Peer>(elementSequence.Value);
             if (peer.ClientId == _localPeer.ClientId) continue;
+            if (!IsAcceptedAddress(peer.Advertise)) return;
+            if (!IsAcceptedAddress(peer.Listening)) return;
+            if (!IsAcceptedAddress(peer.HttpEndPoint)) return;
             if (!_caching.TryGet(peer.Advertise, out var cachedPeer))
             {
                 _caching.AddOrUpdate(peer.Advertise, peer);
@@ -436,6 +440,32 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
     /// <summary>
     /// 
     /// </summary>
+    /// <param name="value"></param>
+    /// <returns></returns>
+    private static bool IsAcceptedAddress(byte[] value)
+    {
+        try
+        {
+            var addy = value.FromBytes();
+            var p = addy.IndexOf("//", StringComparison.Ordinal);
+            var a = addy.Substring(p + 2, value.Length - p - 2);
+            var b = a[..a.IndexOf(":", StringComparison.Ordinal)];
+            if (IPAddress.TryParse(b, out var address))
+            {
+                return address.ToString() != "127.0.0.1" && address.ToString() != "0.0.0.0";
+            }
+        }
+        catch (Exception)
+        {
+            // Ignore
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// 
+    /// </summary>
     /// <param name="disposing"></param>
     private void Dispose(bool disposing)
     {
@@ -454,7 +484,7 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
 
         _disposed = true;
     }
-    
+
     /// <summary>
     /// 
     /// </summary>

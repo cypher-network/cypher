@@ -13,7 +13,7 @@ using Microsoft.Extensions.Configuration;
 using Autofac.Extensions.DependencyInjection;
 using Serilog;
 using CypherNetwork.Helper;
-using CypherNetworkNode.Setup;
+using CypherNetworkNode.UI;
 using Microsoft.AspNetCore.DataProtection.XmlEncryption;
 
 namespace CypherNetworkNode;
@@ -29,7 +29,7 @@ public static class Program
     /// <returns></returns>
     public static async Task<int> Main(string[] args)
     {
-        //args = new string[] { "--configure", "--showkey" };
+        //args = new string[] { "--configure", "--help" };
         var settingsExists = File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, AppSettingsFile));
         if (args.FirstOrDefault(arg => arg == "--configure") != null)
         {
@@ -40,8 +40,9 @@ public static class Program
             }
             else
             {
-                var configSettings = new Config();
-                return configSettings.Init(commands.ToArray());
+                var ui = new TerminalUserInterface();
+                var nc = new Configuration.Configuration(ui);
+                return 0;
             }
         }
 

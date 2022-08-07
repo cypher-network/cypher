@@ -29,7 +29,6 @@ public class Config
     private CommandOption _optionX509CertificatePath;
     private CommandOption _optionX509CertificatePassword;
     private CommandOption _optionX509CertificateThumbprint;
-    private CommandOption _optionStakingEnable;
     private CommandOption _optionKeyRingName;
 
     private class TextInput<T>
@@ -130,9 +129,6 @@ public class Config
                 "The password required to access the X.509 certificate data.", CommandOptionType.SingleValue);
             _optionX509CertificateThumbprint = app.Option("-tcert|--thumbprint <THUMBPRINT>",
                 "The thumbprint (as a hex string) of the certificate to resolve.", CommandOptionType.SingleValue);
-            _optionStakingEnable = app.Option("-s|--staking <STAKING>",
-                "Enable staking if you want to earn rewards. Staking does require that you have some funds available.",
-                CommandOptionType.NoValue);
             _optionKeyRingName = app.Option("-rngname|--ringname <KEYRINGNAME>",
                 "Replace the existing key ring name with a new default signing name.", CommandOptionType.SingleValue);
             app.OnExecute(Invoke);
@@ -283,11 +279,6 @@ public class Config
                 throw;
             }
         }
-
-        if (!_optionStakingEnable.HasValue()) return 0;
-        _appConfigurationOptions.Staking.Enabled = true;
-        var jTokenStakeEnabled = _jObject.SelectToken("Node.Staking.Enabled");
-        jTokenStakeEnabled.Replace(true);
 
         File.WriteAllText(_filePath, JToken.FromObject(_jObject).ToString());
         Console.WriteLine("Settings updated");

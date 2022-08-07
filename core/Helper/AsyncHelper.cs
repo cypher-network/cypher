@@ -9,9 +9,9 @@ namespace CypherNetwork.Helper;
 /// </summary>
 public static class AsyncHelper
 {
-    private static readonly TaskFactory MyTaskFactory = new(CancellationToken.None, 
-        TaskCreationOptions.None, 
-        TaskContinuationOptions.None, 
+    private static readonly TaskFactory MyTaskFactory = new(CancellationToken.None,
+        TaskCreationOptions.None,
+        TaskContinuationOptions.None,
         TaskScheduler.Default);
 
     /// <summary>
