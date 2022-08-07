@@ -355,7 +355,6 @@ namespace CypherNetworkNode.Configuration
         private readonly UserInterfaceChoice _optionPortSerfPublicChange = new("Set public Listening port");
         private readonly UserInterfaceChoice _optionPortSerfRpcDefault = new("Use default Advertise port");
         private readonly UserInterfaceChoice _optionPortSerfRpcChange = new("Set Advertise port");
-        
         /// <summary>
         /// 
         /// </summary>
@@ -395,7 +394,7 @@ namespace CypherNetworkNode.Configuration
             Configuration.AdvertisePort = port;
             return true;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
