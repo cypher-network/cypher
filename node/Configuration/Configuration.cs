@@ -29,12 +29,9 @@ namespace CypherNetworkNode.Configuration
             var configTemplate = File.ReadAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Configuration",
                 "Templates", Program.AppSettingsFile));
             var config = configTemplate
-                .Replace("<HTTP_END_POINT>",
-                    $"http://{networkConfiguration.Configuration.IpAddress}:{networkConfiguration.Configuration.ApiPortPublic.ToString()}")
-                .Replace("<GOSSIP_LISTENING>",
-                    $"{networkConfiguration.Configuration.IpAddress}:{networkConfiguration.Configuration.ListeningPort.ToString()}")
-                .Replace("<GOSSIP_ADVERTISE>",
-                    $"{networkConfiguration.Configuration.IpAddress}:{networkConfiguration.Configuration.AdvertisePort.ToString()}")
+                .Replace("<HTTP_END_POINT>", $"http://{networkConfiguration.Configuration.IpAddress}:{networkConfiguration.Configuration.ApiPortPublic.ToString()}")
+                .Replace("<GOSSIP_LISTENING>", $"tcp://{networkConfiguration.Configuration.IpAddress}:{networkConfiguration.Configuration.ListeningPort.ToString()}")
+                .Replace("<GOSSIP_ADVERTISE>", $"tcp://{networkConfiguration.Configuration.IpAddress}:{networkConfiguration.Configuration.AdvertisePort.ToString()}")
                 .Replace("<NODE_NAME>", networkConfiguration.Configuration.NodeName);
             var configFileName = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, Program.AppSettingsFile);
             File.WriteAllText(configFileName, config);
