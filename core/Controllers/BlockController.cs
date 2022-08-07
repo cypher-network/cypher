@@ -44,7 +44,7 @@ public class BlockController : Controller
         }
         catch (Exception ex)
         {
-            _logger.Here().Error(ex, "Unable to get the block height");
+            _logger.Here().Error(ex, "Unable to get the block");
         }
 
         return NotFound();
