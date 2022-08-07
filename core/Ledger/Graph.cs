@@ -100,7 +100,8 @@ public sealed class Graph : IGraph, IDisposable
         _onRoundListener = OnRoundListener();
         var dataflowBlockOptions = new ExecutionDataflowBlockOptions
         {
-            MaxDegreeOfParallelism = 1, BoundedCapacity = 1
+            MaxDegreeOfParallelism = 1,
+            BoundedCapacity = 1
         };
         _action = new ActionBlock<BlockGraph>(NewBlockGraphAsync, dataflowBlockOptions);
         Init();
@@ -664,7 +665,7 @@ public sealed class Graph : IGraph, IDisposable
 
                 var saveBlockResponse = await SaveBlockAsync(new SaveBlockRequest(block));
                 if (!saveBlockResponse.Ok) _logger.Error("Unable to save the block winner");
-                
+
                 (await _cypherNetworkCore.WalletSession()).Notify(block.Txs.ToArray());
             }
         }
