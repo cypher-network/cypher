@@ -20,7 +20,7 @@ namespace CypherNetwork.Consensus;
 
 using StateKV = Dictionary<StateData, object>;
 
-public sealed class Blockmania: IDisposable
+public sealed class Blockmania : IDisposable
 {
     private readonly Channel<BlockGraph> _entries;
     private readonly Mutex _graphMutex;
@@ -161,8 +161,8 @@ public sealed class Blockmania: IDisposable
             //_logger.Here().Debug("Round: {@Round}, Hashes: @{Hashes}", round, hashes);
 
             var blocks = (from item in hashes
-                where !string.IsNullOrEmpty(item.Value)
-                select new Block(item.Value, item.Key, round)).ToList();
+                          where !string.IsNullOrEmpty(item.Value)
+                          select new Block(item.Value, item.Key, round)).ToList();
 
             blocks.Sort((x, y) => string.Compare(x.Hash, y.Hash, StringComparison.Ordinal));
             Resolved.Remove(round);
@@ -239,7 +239,7 @@ public sealed class Blockmania: IDisposable
     /// <param name="entry"></param>
     private void Process(Entry entry)
     {
-       // _logger.Here().Debug("Interpreting block block.id: {@BlockID}", entry.Block);
+        // _logger.Here().Debug("Interpreting block block.id: {@BlockID}", entry.Block);
 
         var state = FindOrCreateState(entry);
         var node = entry.Block.Node;
@@ -518,86 +518,86 @@ public sealed class Blockmania: IDisposable
     private async Task Run(ChannelReader<BlockGraph> reader)
     {
         while (await reader.WaitToReadAsync())
-        while (reader.TryRead(out var data))
-        {
-            _graphMutex.WaitOne();
-            var entries = new Entry[data.Dependencies.Count];
-            var max = data.Block.Round;
-            var round = Round;
-            for (var i = 0; i < data.Dependencies.Count; i++)
+            while (reader.TryRead(out var data))
             {
-                var dep = data.Dependencies[i];
-                //_logger.Here().Debug("Dep: block.id: {@BlockID}", dep.Block);
-                var depMax = dep.Block.Round;
-                var firstRecheck = false;
-                var entry = new Entry(dep.Block, dep.Prev);
-                if (dep.Block.Round != 1)
+                _graphMutex.WaitOne();
+                var entries = new Entry[data.Dependencies.Count];
+                var max = data.Block.Round;
+                var round = Round;
+                for (var i = 0; i < data.Dependencies.Count; i++)
                 {
-                    entry.Dependencies = new Block[dep.Dependencies.Count + 1];
-                    entry.Dependencies[0] = dep.Prev;
-                    Array.Copy(dep.Dependencies.ToArray(), 0, entry.Dependencies.ToArray(), 1, dep.Dependencies.Count);
-                    var prevMax = 0ul;
-                    if (Max.ContainsKey(dep.Prev))
+                    var dep = data.Dependencies[i];
+                    //_logger.Here().Debug("Dep: block.id: {@BlockID}", dep.Block);
+                    var depMax = dep.Block.Round;
+                    var firstRecheck = false;
+                    var entry = new Entry(dep.Block, dep.Prev);
+                    if (dep.Block.Round != 1)
                     {
-                        prevMax = Max[dep.Prev];
-                        firstRecheck = true;
-                    }
-                    else if (prevMax > depMax)
-                    {
-                        depMax = prevMax;
-                    }
-                }
-                else
-                {
-                    entry.Dependencies = dep.Dependencies.ToArray();
-                }
-
-                entries[i] = entry;
-                foreach (var link in dep.Dependencies)
-                    if (!Max.ContainsKey(link))
-                    {
-                        firstRecheck = true;
+                        entry.Dependencies = new Block[dep.Dependencies.Count + 1];
+                        entry.Dependencies[0] = dep.Prev;
+                        Array.Copy(dep.Dependencies.ToArray(), 0, entry.Dependencies.ToArray(), 1, dep.Dependencies.Count);
+                        var prevMax = 0ul;
+                        if (Max.ContainsKey(dep.Prev))
+                        {
+                            prevMax = Max[dep.Prev];
+                            firstRecheck = true;
+                        }
+                        else if (prevMax > depMax)
+                        {
+                            depMax = prevMax;
+                        }
                     }
                     else
                     {
-                        var linkMax = Max[link];
-                        if (linkMax > depMax) depMax = linkMax;
+                        entry.Dependencies = dep.Dependencies.ToArray();
                     }
 
-                if (firstRecheck && round > depMax) depMax = round;
-                Max[dep.Block] = depMax;
-                if (depMax > max) max = depMax;
-            }
+                    entries[i] = entry;
+                    foreach (var link in dep.Dependencies)
+                        if (!Max.ContainsKey(link))
+                        {
+                            firstRecheck = true;
+                        }
+                        else
+                        {
+                            var linkMax = Max[link];
+                            if (linkMax > depMax) depMax = linkMax;
+                        }
 
-            var secondRecheck = false;
-            if (data.Block.Round != 1)
-            {
-                if (!Max.ContainsKey(data.Prev))
-                {
-                    secondRecheck = true;
+                    if (firstRecheck && round > depMax) depMax = round;
+                    Max[dep.Block] = depMax;
+                    if (depMax > max) max = depMax;
                 }
-                else
+
+                var secondRecheck = false;
+                if (data.Block.Round != 1)
                 {
-                    var pmax = Max[data.Prev];
-                    if (pmax > max) max = pmax;
+                    if (!Max.ContainsKey(data.Prev))
+                    {
+                        secondRecheck = true;
+                    }
+                    else
+                    {
+                        var pmax = Max[data.Prev];
+                        if (pmax > max) max = pmax;
+                    }
                 }
-            }
 
-            if (secondRecheck && round > max) max = round;
-            Max[data.Block] = max;
-            Blocks.Add(new BlockInfo(data, max));
-            _graphMutex.ReleaseMutex();
-            foreach (var e in entries) Process(e);
-            var self = new Entry(data.Block, data.Prev) { Dependencies = new Block[data.Dependencies.Count + 1] };
-            self.Dependencies[0] = data.Prev;
-            for (var i = 0; i < data.Dependencies.Count; i++)
-            {
-                var dep = data.Dependencies[i];
-                self.Dependencies[i + 1] = dep.Block;
-            }
+                if (secondRecheck && round > max) max = round;
+                Max[data.Block] = max;
+                Blocks.Add(new BlockInfo(data, max));
+                _graphMutex.ReleaseMutex();
+                foreach (var e in entries) Process(e);
+                var self = new Entry(data.Block, data.Prev) { Dependencies = new Block[data.Dependencies.Count + 1] };
+                self.Dependencies[0] = data.Prev;
+                for (var i = 0; i < data.Dependencies.Count; i++)
+                {
+                    var dep = data.Dependencies[i];
+                    self.Dependencies[i + 1] = dep.Block;
+                }
 
-            Process(self);
-        }
+                Process(self);
+            }
     }
 
     /// <summary>
@@ -628,7 +628,7 @@ public sealed class Blockmania: IDisposable
     }
 
     bool _disposed;
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -637,7 +637,7 @@ public sealed class Blockmania: IDisposable
         Dispose(true);
         GC.SuppressFinalize(this);
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
