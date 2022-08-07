@@ -73,7 +73,7 @@ public sealed class Blockmania : IDisposable
         //     Self, Round, NodeCount, Nodes, TotalNodes,
         //     f, Quorumf1, Quorum2f, Quorum2f1);
 
-        _ = Task.Factory.StartNew(async () => { await RunAsync(_entries.Reader); });
+        _ = Task.Factory.StartNew(async () => { await Run(_entries.Reader); });
     }
 
     private void OnBlockmaniaDelivered(InterpretedEventArgs e)
@@ -515,12 +515,12 @@ public sealed class Blockmania : IDisposable
     /// 
     /// </summary>
     /// <param name="reader"></param>
-    private async Task RunAsync(ChannelReader<BlockGraph> reader)
+    private async Task Run(ChannelReader<BlockGraph> reader)
     {
         while (await reader.WaitToReadAsync())
             while (reader.TryRead(out var data))
             {
-                await _graphMutex.WaitOneAsync();
+                _graphMutex.WaitOne();
                 var entries = new Entry[data.Dependencies.Count];
                 var max = data.Block.Round;
                 var round = Round;

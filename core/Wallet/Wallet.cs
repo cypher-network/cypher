@@ -44,7 +44,7 @@ public struct WalletTransaction
 {
     public readonly Transaction Transaction;
     public readonly string Message;
-    
+
     public WalletTransaction(Transaction transaction, string message)
     {
         Transaction = transaction;
@@ -118,7 +118,7 @@ public class NodeWallet : INodeWallet
                 return new WalletTransaction(default,
                     $"Unable to create coinstake Commitment: [{verifyOutputCommitments}] Key image: [{verifyKeyImage}]");
             }
-    
+
             foreach (var vout in transaction.Vout)
             {
                 if (vout.T == CoinType.Coinbase) continue;
@@ -226,13 +226,13 @@ public class NodeWallet : INodeWallet
                 .Where(x => !session.CacheConsumed.GetItems().Any(c => x.C.Xor(c.Commit))).ToArray();
             if (!outputs.Any()) return Enumerable.Empty<Balance>().ToArray();
             balances.AddRange(from vout in outputs.ToArray()
-                let coinType = vout.T
-                where coinType is CoinType.Change or CoinType.Payment or CoinType.Coinstake
-                let isSpent = IsSpent(vout, session)
-                where isSpent != true
-                let amount = Amount(vout, scan)
-                where amount != 0
-                select new Balance { Commitment = vout, Total = amount });
+                              let coinType = vout.T
+                              where coinType is CoinType.Change or CoinType.Payment or CoinType.Coinstake
+                              let isSpent = IsSpent(vout, session)
+                              where isSpent != true
+                              let amount = Amount(vout, scan)
+                              where amount != 0
+                              select new Balance { Commitment = vout, Total = amount });
         }
         catch (Exception ex)
         {
@@ -261,7 +261,7 @@ public class NodeWallet : INodeWallet
         if (result != VerifyResult.Succeed) session.CacheTransactions.Remove(output.C);
         return result != VerifyResult.Succeed;
     }
-    
+
     /// <summary>
     /// </summary>
     /// <returns></returns>
@@ -347,72 +347,72 @@ public class NodeWallet : INodeWallet
         var transactions = session.GetSafeGuardBlocks()
             .SelectMany(x => x.Txs).ToArray();
         transactions.Shuffle();
-        
+
         for (var k = 0; k < nRows - 1; ++k)
-        for (var i = 0; i < nCols; ++i)
-        {
-            if (index == i)
+            for (var i = 0; i < nCols; ++i)
+            {
+                if (index == i)
+                    try
+                    {
+                        var message = Message(session.Spending, scanKey);
+                        var oneTimeSpendKey = spendKey.Uncover(scanKey, new PubKey(session.Spending.E));
+                        sk[0] = oneTimeSpendKey.ToHex().HexToByte();
+                        blinds[0] = message.Blind;
+                        pcmIn[i + k * nCols] = pedersen.Commit(message.Amount, message.Blind);
+                        session.CacheConsumed.Add(pcmIn[i + k * nCols],
+                            new Consumed(pcmIn[i + k * nCols], DateTime.UtcNow));
+                        pkIn[i + k * nCols] = oneTimeSpendKey.PubKey.ToBytes();
+                        fixed (byte* mm = m, pk = pkIn[i + k * nCols])
+                        {
+                            Util.MemCpy(&mm[(i + k * nCols) * 33], pk, 33);
+                        }
+
+                        continue;
+                    }
+                    catch (Exception)
+                    {
+                        _logger.Here().Error("Unable to create inner ring member");
+                        return null;
+                    }
+
                 try
                 {
-                    var message = Message(session.Spending, scanKey);
-                    var oneTimeSpendKey = spendKey.Uncover(scanKey, new PubKey(session.Spending.E));
-                    sk[0] = oneTimeSpendKey.ToHex().HexToByte();
-                    blinds[0] = message.Blind;
-                    pcmIn[i + k * nCols] = pedersen.Commit(message.Amount, message.Blind);
-                    session.CacheConsumed.Add(pcmIn[i + k * nCols],
-                        new Consumed(pcmIn[i + k * nCols], DateTime.UtcNow));
-                    pkIn[i + k * nCols] = oneTimeSpendKey.PubKey.ToBytes();
+                    var ringMembers = (from tx in transactions
+                                       let vtime = tx.Vtime
+                                       where !vtime.IsDefault()
+                                       let verifyLockTime =
+                                           _cypherNetworkCore.Validator()
+                                               .VerifyLockTime(new LockTime(Utils.UnixTimeToDateTime(tx.Vtime.L)), tx.Vtime.S)
+                                       where verifyLockTime != VerifyResult.UnableToVerify
+                                       select tx).ToArray();
+                    ringMembers.Shuffle();
+
+                    ringMembers.ElementAt(0).Vout.Shuffle();
+                    Vout vout;
+                    if (!ContainsCommitment(pcmIn, ringMembers.ElementAt(0).Vout[0].C))
+                    {
+                        vout = ringMembers.ElementAt(0).Vout[0];
+                    }
+                    else
+                    {
+                        ringMembers.ElementAt(1).Vout.Shuffle();
+                        vout = ringMembers.ElementAt(1).Vout[0];
+                    }
+
+                    pcmIn[i + k * nCols] = vout.C;
+                    pkIn[i + k * nCols] = vout.P;
+
                     fixed (byte* mm = m, pk = pkIn[i + k * nCols])
                     {
                         Util.MemCpy(&mm[(i + k * nCols) * 33], pk, 33);
                     }
-
-                    continue;
                 }
                 catch (Exception)
                 {
-                    _logger.Here().Error("Unable to create inner ring member");
+                    _logger.Here().Error("Unable to create outer ring members");
                     return null;
                 }
-
-            try
-            {
-                var ringMembers = (from tx in transactions
-                    let vtime = tx.Vtime
-                    where !vtime.IsDefault()
-                    let verifyLockTime =
-                        _cypherNetworkCore.Validator()
-                            .VerifyLockTime(new LockTime(Utils.UnixTimeToDateTime(tx.Vtime.L)), tx.Vtime.S)
-                    where verifyLockTime != VerifyResult.UnableToVerify
-                    select tx).ToArray();
-                ringMembers.Shuffle();
-                
-                ringMembers.ElementAt(0).Vout.Shuffle();
-                Vout vout;
-                if (!ContainsCommitment(pcmIn, ringMembers.ElementAt(0).Vout[0].C))
-                {
-                    vout = ringMembers.ElementAt(0).Vout[0];
-                }
-                else
-                {
-                    ringMembers.ElementAt(1).Vout.Shuffle();
-                    vout = ringMembers.ElementAt(1).Vout[0];
-                }
-                
-                pcmIn[i + k * nCols] = vout.C;
-                pkIn[i + k * nCols] = vout.P;
-                
-                fixed (byte* mm = m, pk = pkIn[i + k * nCols])
-                {
-                    Util.MemCpy(&mm[(i + k * nCols) * 33], pk, 33);
-                }
             }
-            catch (Exception)
-            {
-                _logger.Here().Error("Unable to create outer ring members");
-                return null;
-            }
-        }
 
         return m;
     }
@@ -513,7 +513,8 @@ public class NodeWallet : INodeWallet
             _logger.Error("{@Message}", ex.Message);
             return TaskResult<Transaction>.CreateFailure(JObject.FromObject(new
             {
-                success = false, message = ex.Message
+                success = false,
+                message = ex.Message
             }));
         }
     }
@@ -531,7 +532,7 @@ public class NodeWallet : INodeWallet
         });
         return result;
     }
-    
+
     /// <summary>
     /// </summary>
     /// <param name="commitIn"></param>
@@ -594,13 +595,15 @@ public class NodeWallet : INodeWallet
         {
             return TaskResult<ProofStruct>.CreateFailure(JObject.FromObject(new
             {
-                success = false, message = ex.Message
+                success = false,
+                message = ex.Message
             }));
         }
 
         return TaskResult<ProofStruct>.CreateFailure(JObject.FromObject(new
         {
-            success = false, message = "Bulletproof Verify failed"
+            success = false,
+            message = "Bulletproof Verify failed"
         }));
     }
 
@@ -684,7 +687,7 @@ public class NodeWallet : INodeWallet
 
         return 0;
     }
-    
+
     /// <summary>
     /// </summary>
     /// <param name="address"></param>

@@ -135,13 +135,13 @@ public class Startup
                 Console.ForegroundColor = ConsoleColor.Red;
                 Console.WriteLine("-----------------------------------------------------------------------------------------------");
                 Console.ForegroundColor = ConsoleColor.Gray;
-                Console.WriteLine($"| Daemon Cypher private key: {cypherSystem.KeyPair.PrivateKey.FromSecureString()} |");
-                Console.WriteLine($"| Daemon Cypher token:       {Crypto.GetRandomData().ByteToHex()}                                 |");
+                Console.WriteLine($"| Cypher private key: {cypherSystem.KeyPair.PrivateKey.FromSecureString()} |");
+                Console.WriteLine($"| Cypher token:       {Crypto.GetRandomData().ByteToHex()}                                 |");
                 Console.ForegroundColor = ConsoleColor.Red;
                 Console.WriteLine("-----------------------------------------------------------------------------------------------");
                 Console.ForegroundColor = ConsoleColor.White;
                 Console.WriteLine();
-                Console.WriteLine("Shutting down Daemon Cypher...");
+                Console.WriteLine("Shutting down Cypher...");
                 Environment.Exit(1);
                 return;
             }
