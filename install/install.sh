@@ -28,6 +28,10 @@ do
           echo
           exit 0
           ;;
+        --upgrade)
+            UPGRADE=true
+            IS_SKIP_CONFIG=true
+            ;;
         --runasuser)
             CUSTOM_USER=$2
             shift
@@ -537,6 +541,17 @@ install_archive() {
 
   user_create
 
+  if [ "${UPGRADE}" = true ]; then
+      SAVE_DIR=/tmp/cypnode_data
+      printf "  %b Upgrade requested - saving existing node data to %s" "${INFO}" "${SAVE_DIR}"
+      mkdir -p ${SAVE_DIR}
+      sudo cp ${CYPHER_CYPNODE_OPT_PATH}/appsettings.json ${SAVE_DIR}
+      sudo cp -r ${CYPHER_CYPNODE_OPT_PATH}/keys ${SAVE_DIR}
+      # Not sure we need to save/restore the database
+      #sudo cp -r ${CYPHER_CYPNODE_OPT_PATH}/storedb ${SAVE_DIR}
+      printf "%b  %b Upgrade requested - saving existing node data to %s\n" "${OVER}" "${TICK}" "${SAVE_DIR}"
+  fi;
+
   printf "  %b Unpacking archive to %s" "${INFO}" "${CYPHER_CYPNODE_TMP_PATH}"
   mkdir -p "${CYPHER_CYPNODE_TMP_PATH}"
   if [ "${IS_LINUX}" = true ]; then
@@ -558,6 +573,20 @@ install_archive() {
   if [ $CUSTOM_GROUP ]; then
       CGROUP=${CUSTOM_GROUP}
   fi
+  if [ "${UPGRADE}" = true ]; then
+      printf "  %b Restoring saved node data" "${INFO}"
+      SAVE_DIR=/tmp/cypnode_data
+      sudo cp ${SAVE_DIR}/appsettings.json ${CYPHER_CYPNODE_OPT_PATH}
+      sudo cp -r ${SAVE_DIR}/keys ${CYPHER_CYPNODE_OPT_PATH}
+      # Not sure we need to save/restore the database
+      #sudo cp -r ${SAVE_DIR}/storedb ${CYPHER_CYPNODE_OPT_PATH}
+      # Apply a new chmod/chown to the keys and database in case the user has changed
+      sudo chmod -R 775 "${CYPHER_CYPNODE_OPT_PATH}/keys"
+      sudo chown -R "${CUSER}":"${CGROUP}" "${CYPHER_CYPNODE_OPT_PATH}/keys"
+      sudo chmod -R 775 "${CYPHER_CYPNODE_OPT_PATH}/storedb"
+      sudo chown -R "${CUSER}":"${CGROUP}" "${CYPHER_CYPNODE_OPT_PATH}/storedb"
+      printf "%b  %b Restored saved node data - %s can be removed if everything is okay\n" "${OVER}" "${TICK}" "${SAVE_DIR}"
+  fi;
   sudo chmod 775 "${CYPHER_CYPNODE_OPT_PATH}"
   sudo chown "${CUSER}":"${CGROUP}" "${CYPHER_CYPNODE_OPT_PATH}"
   sudo chmod 664 "${CYPHER_CYPNODE_OPT_PATH}"/appsettings.json
