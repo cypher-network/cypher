@@ -19,6 +19,8 @@ do
         --help)
           echo "  Install script arguments:"
           echo
+          echo "    --runasuser                   : use this user account instead of creating a new one"
+          echo "    --runasgroup                  : use this user group instead of creating a new one"
           echo "    --config-skip                 : skip the node's configuration wizard (--noninteractive implies --config-skip)"
           echo "    --no-service                  : do not install node as a service"
           echo "    --noninteractive              : use default options without user interaction"
@@ -26,6 +28,18 @@ do
           echo
           exit 0
           ;;
+        --upgrade)
+            UPGRADE=true
+            IS_SKIP_CONFIG=true
+            ;;
+        --runasuser)
+            CUSTOM_USER=$2
+            shift
+            ;;
+        --runasgroup)
+            CUSTOM_GROUP=$2
+            shift
+            ;;
         --config-skip)
             IS_SKIP_CONFIG=true
             ;;
@@ -339,7 +353,17 @@ install_systemd_service() {
 
   printf "  %b Installing systemd service file" "${INFO}"
 
-  sudo install -m 755 -o "${CYPHER_CYPNODE_USER}" -g "${CYPHER_CYPNODE_GROUP}" "/tmp/${CYPHER_CYPNODE_SYSTEMD_SERVICE}" "${SYSTEMD_SERVICE_PATH}${CYPHER_CYPNODE_SYSTEMD_SERVICE}"
+  CUSER=${CYPHER_CYPNODE_USER}
+  if [ $CUSTOM_USER ]; then
+      CUSER=${CUSTOM_USER}
+      sed -ie "s/User=.*/User=${CUSER}/" "/tmp/${CYPHER_CYPNODE_SYSTEMD_SERVICE}"
+  fi
+  CGROUP=${CYPHER_CYPNODE_GROUP}
+  if [ $CUSTOM_GROUP ]; then
+      CGROUP=${CUSTOM_GROUP}
+      sed -ie "s/Group=.*/Group=${CGROUP}/" "/tmp/${CYPHER_CYPNODE_SYSTEMD_SERVICE}"
+  fi
+  sudo install -m 755 -o "${CUSER}" -g "${CGROUP}" "/tmp/${CYPHER_CYPNODE_SYSTEMD_SERVICE}" "${SYSTEMD_SERVICE_PATH}${CYPHER_CYPNODE_SYSTEMD_SERVICE}"
 
   printf "%b  %b Installed systemd service file\n" "${OVER}" "${TICK}"
 
@@ -449,31 +473,64 @@ user_create_macos() {
 }
 
 user_create() {
-  printf "\n  %b Checking if user %s exists" "${INFO}" "${CYPHER_CYPNODE_USER}"
+  if [ $CUSTOM_USER ]; then
+      printf "\n  %b Checking if user %s exists" "${INFO}" "${CUSTOM_USER}"
+      if [ "${IS_LINUX}" = true ]; then
+        if id "${CUSTOM_USER}" &>/dev/null; then
+          printf "%b  %b User %s exists\n" "${OVER}" "${TICK}" "${CUSTOM_USER}"
+        else
+          printf "%b  %b User %s does not exist\n" "${OVER}" "${CROSS}" "${CUSTOM_USER}"
+          exit 1
+        fi
+      elif [ "${IS_MACOS}" = true ]; then
+        if dscl /Local/Default read /Users/"${CYPHER_CYPNODE_USER}" &>/dev/null; then
+          printf "%b  %b User %s exists\n" "${OVER}" "${TICK}" "${CUSTOM_USER}"
+        else
+          printf "%b  %b User %s does not exist\n" "${OVER}" "${CROSS}" "${CUSTOM_USER}"
+          exit 1
+        fi
+      fi
+  else
+      printf "\n  %b Checking if user %s exists" "${INFO}" "${CYPHER_CYPNODE_USER}"
 
-  if [ "${IS_LINUX}" = true ]; then
-    if id "${CYPHER_CYPNODE_USER}" &>/dev/null; then
-      printf "%b  %b User %s exists\n" "${OVER}" "${TICK}" "${CYPHER_CYPNODE_USER}"
-      USER_EXISTS=true
-    fi
-  elif [ "${IS_MACOS}" = true ]; then
-    if dscl /Local/Default read /Users/"${CYPHER_CYPNODE_USER}" &>/dev/null; then
-      printf "%b  %b User %s exists\n" "${OVER}" "${TICK}" "${CYPHER_CYPNODE_USER}"
-      USER_EXISTS=true
-    fi
+      if [ "${IS_LINUX}" = true ]; then
+        if id "${CYPHER_CYPNODE_USER}" &>/dev/null; then
+          printf "%b  %b User %s exists\n" "${OVER}" "${TICK}" "${CYPHER_CYPNODE_USER}"
+          USER_EXISTS=true
+        fi
+      elif [ "${IS_MACOS}" = true ]; then
+        if dscl /Local/Default read /Users/"${CYPHER_CYPNODE_USER}" &>/dev/null; then
+          printf "%b  %b User %s exists\n" "${OVER}" "${TICK}" "${CYPHER_CYPNODE_USER}"
+          USER_EXISTS=true
+        fi
+      fi
+
+      if [ ! "${USER_EXISTS}" = true ]; then
+        printf "%b  %b User %s does not exist\n" "${OVER}" "${CROSS}" "${CYPHER_CYPNODE_USER}"
+        printf "  %b Creating user %s" "${INFO}" "${CYPHER_CYPNODE_USER}"
+
+        if [ "${IS_LINUX}" = true ]; then
+          user_create_linux "${CYPHER_CYPNODE_GROUP}" "${CYPHER_CYPNODE_USER}"
+        elif [ "${IS_MACOS}" = true ]; then
+          user_create_macos "${CYPHER_CYPNODE_GROUP}" "${CYPHER_CYPNODE_USER}"
+        fi
+
+        printf "%b  %b Created user %s\n" "${OVER}" "${TICK}" "${CYPHER_CYPNODE_USER}"
+      fi
   fi
-
-  if [ ! "${USER_EXISTS}" = true ]; then
-    printf "%b  %b User %s does not exist\n" "${OVER}" "${CROSS}" "${CYPHER_CYPNODE_USER}"
-    printf "  %b Creating user %s" "${INFO}" "${CYPHER_CYPNODE_USER}"
-
-    if [ "${IS_LINUX}" = true ]; then
-      user_create_linux "${CYPHER_CYPNODE_GROUP}" "${CYPHER_CYPNODE_USER}"
-    elif [ "${IS_MACOS}" = true ]; then
-      user_create_macos "${CYPHER_CYPNODE_GROUP}" "${CYPHER_CYPNODE_USER}"
-    fi
-
-    printf "%b  %b Created user %s\n" "${OVER}" "${TICK}" "${CYPHER_CYPNODE_USER}"
+  if [ $CUSTOM_GROUP ]; then
+      printf "\n  %b Checking if group %s exists" "${INFO}" "${CUSTOM_GROUP}"
+      if [ "${IS_LINUX}" = true ]; then
+        if getent group "${CUSTOM_GROUP}" &>/dev/null; then
+          printf "%b  %b Group %s exists\n" "${OVER}" "${TICK}" "${CUSTOM_GROUP}"
+        else
+          printf "%b  %b Group %s does not exist\n" "${OVER}" "${CROSS}" "${CUSTOM_GROUP}"
+          exit 1
+        fi
+      elif [ "${IS_MACOS}" = true ]; then
+          printf "%b  %b Custom groups not supported yet\n" "${OVER}" "${CROSS}"
+          exit 1
+      fi
   fi
 }
 
@@ -483,6 +540,17 @@ install_archive() {
   stop_service
 
   user_create
+
+  if [ "${UPGRADE}" = true ]; then
+      SAVE_DIR=/tmp/cypnode_data
+      printf "  %b Upgrade requested - saving existing node data to %s" "${INFO}" "${SAVE_DIR}"
+      mkdir -p ${SAVE_DIR}
+      sudo cp ${CYPHER_CYPNODE_OPT_PATH}/appsettings.json ${SAVE_DIR}
+      sudo cp -r ${CYPHER_CYPNODE_OPT_PATH}/keys ${SAVE_DIR}
+      # Not sure we need to save/restore the database
+      #sudo cp -r ${CYPHER_CYPNODE_OPT_PATH}/storedb ${SAVE_DIR}
+      printf "%b  %b Upgrade requested - saving existing node data to %s\n" "${OVER}" "${TICK}" "${SAVE_DIR}"
+  fi;
 
   printf "  %b Unpacking archive to %s" "${INFO}" "${CYPHER_CYPNODE_TMP_PATH}"
   mkdir -p "${CYPHER_CYPNODE_TMP_PATH}"
@@ -496,8 +564,33 @@ install_archive() {
   printf "  %b Installing to %s" "${INFO}" "${CYPHER_CYPNODE_OPT_PATH}"
   sudo mkdir -p "${CYPHER_CYPNODE_OPT_PATH}"
   sudo cp -r "${CYPHER_CYPNODE_TMP_PATH}"* "${CYPHER_CYPNODE_OPT_PATH}"
-  sudo chmod -R 755 "${CYPHER_CYPNODE_OPT_PATH}"
-  sudo chown -R "${CYPHER_CYPNODE_USER}":"${CYPHER_CYPNODE_GROUP}" "${CYPHER_CYPNODE_OPT_PATH}"
+
+  CUSER=${CYPHER_CYPNODE_USER}
+  if [ $CUSTOM_USER ]; then
+      CUSER=${CUSTOM_USER}
+  fi
+  CGROUP=${CYPHER_CYPNODE_GROUP}
+  if [ $CUSTOM_GROUP ]; then
+      CGROUP=${CUSTOM_GROUP}
+  fi
+  if [ "${UPGRADE}" = true ]; then
+      printf "  %b Restoring saved node data" "${INFO}"
+      SAVE_DIR=/tmp/cypnode_data
+      sudo cp ${SAVE_DIR}/appsettings.json ${CYPHER_CYPNODE_OPT_PATH}
+      sudo cp -r ${SAVE_DIR}/keys ${CYPHER_CYPNODE_OPT_PATH}
+      # Not sure we need to save/restore the database
+      #sudo cp -r ${SAVE_DIR}/storedb ${CYPHER_CYPNODE_OPT_PATH}
+      # Apply a new chmod/chown to the keys and database in case the user has changed
+      sudo chmod -R 775 "${CYPHER_CYPNODE_OPT_PATH}/keys"
+      sudo chown -R "${CUSER}":"${CGROUP}" "${CYPHER_CYPNODE_OPT_PATH}/keys"
+      sudo chmod -R 775 "${CYPHER_CYPNODE_OPT_PATH}/storedb"
+      sudo chown -R "${CUSER}":"${CGROUP}" "${CYPHER_CYPNODE_OPT_PATH}/storedb"
+      printf "%b  %b Restored saved node data - %s can be removed if everything is okay\n" "${OVER}" "${TICK}" "${SAVE_DIR}"
+  fi;
+  sudo chmod 775 "${CYPHER_CYPNODE_OPT_PATH}"
+  sudo chown "${CUSER}":"${CGROUP}" "${CYPHER_CYPNODE_OPT_PATH}"
+  sudo chmod 664 "${CYPHER_CYPNODE_OPT_PATH}"/appsettings.json
+  sudo chown "${CUSER}":"${CGROUP}" "${CYPHER_CYPNODE_OPT_PATH}"/appsettings.json
 
   printf "%b  %b Installed to %s\n" "${OVER}" "${TICK}" "${CYPHER_CYPNODE_OPT_PATH}"
 
@@ -505,7 +598,7 @@ install_archive() {
     printf "  %b Skipping configuration util\n\n" "${CROSS}"
   else
     printf "  %b Running configuration util" "${INFO}"
-    sudo -u "${CYPHER_CYPNODE_USER}" "${CYPHER_CYPNODE_OPT_PATH}"cypnode --configure
+    sudo -u "${CUSER}" "${CYPHER_CYPNODE_OPT_PATH}"cypnode --configure
     printf "%b  %b Run configuration util\n\n" "${OVER}" "${TICK}"
   fi
 
