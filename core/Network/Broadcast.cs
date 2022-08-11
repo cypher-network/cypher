@@ -10,8 +10,8 @@ using CypherNetwork.Helper;
 using CypherNetwork.Models;
 using CypherNetwork.Models.Messages;
 using MessagePack;
-using Microsoft.IO;
 using nng;
+using nng.Native;
 using Serilog;
 
 namespace CypherNetwork.Network;
@@ -90,17 +90,18 @@ public class Broadcast : IBroadcast
                             });
                         using var reqSocket =
                             NngFactorySingleton.Instance.Factory.RequesterOpen().ThenDial(tcp).Unwrap();
-                        using var ctx = reqSocket.CreateAsyncContext(NngFactorySingleton.Instance.Factory).Unwrap();
+                        reqSocket.SetOpt(Defines.NNG_OPT_RECVTIMEO, new nng_duration { TimeMs = 200 });
+                        reqSocket.SetOpt(Defines.NNG_OPT_SENDTIMEO, new nng_duration { TimeMs = 200 });
                         var cipher = _cypherNetworkCore.Crypto().BoxSeal(msg, knownPeer.PublicKey.AsSpan()[1..33]);
                         var packet = Util.Combine(_cypherNetworkCore.KeyPair.PublicKey[1..33].WrapLengthPrefix(),
                             cipher.WrapLengthPrefix());
                         nngMsg.Append(packet.AsSpan());
-                        (await ctx.Send(nngMsg)).Unwrap();
+                        reqSocket.SendMsg(nngMsg, Defines.NngFlag.NNG_FLAG_NONBLOCK);
                     }
-                    catch (Exception ex)
+                    catch (Exception)
                     {
-                        _logger.Here().Error("Peer: {@Peer} failed to send {@Topic} with {@Message}",
-                            knownPeer.Listening, command, ex.Message);
+                        // _logger.Here().Error("Peer: {@Peer} failed to send {@Topic} with {@Message}",
+                        //     knownPeer.Listening, command, ex.Message);
                     }
                     finally
                     {

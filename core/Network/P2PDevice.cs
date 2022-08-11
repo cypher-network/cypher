@@ -14,6 +14,7 @@ using MessagePack;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IO;
 using nng;
+using nng.Native;
 using Serilog;
 
 namespace CypherNetwork.Network;
@@ -112,7 +113,7 @@ public sealed class P2PDevice : IDisposable, IP2PDevice
             var ipEndPoint = Util.TryParseAddress(_cypherNetworkCore.AppOptions.Gossip.Listening[6..].FromBytes());
             Util.ThrowPortNotFree(ipEndPoint.Port);
             _repSocket = NngFactorySingleton.Instance.Factory.ReplierOpen()
-                .ThenListen($"tcp://{ipEndPoint.Address}:{ipEndPoint.Port}").Unwrap();
+                .ThenListen($"tcp://{ipEndPoint.Address}:{ipEndPoint.Port}", Defines.NngFlag.NNG_FLAG_NONBLOCK).Unwrap();
             for (var i = 0; i < 5; i++)
             {
                 var ctx = _repSocket.CreateAsyncContext(NngFactorySingleton.Instance.Factory).Unwrap();

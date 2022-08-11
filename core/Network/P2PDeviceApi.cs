@@ -212,17 +212,13 @@ public class P2PDeviceApi
                 _cypherNetworkCore.KeyPair.PrivateKey.FromSecureString().HexToByte(), stakeRequest.Token,
                 null, stakeRequest.Nonce);
             if (packet is null)
-            {
                 return await SerializeAsync(new StakeCredentialsResponse("Unable to decrypt message", false));
-            }
 
             var walletSession = await _cypherNetworkCore.WalletSession();
             var stakeCredRequest = MessagePackSerializer.Deserialize<StakeCredentialsRequest>(packet);
             var (loginSuccess, loginMessage) = await walletSession.LoginAsync(stakeCredRequest.Seed, stakeCredRequest.Passphrase);
             if (!loginSuccess)
-            {
                 return await SerializeAsync(new StakeCredentialsResponse(loginMessage, false));
-            }
 
             var (setupSuccess, setupMessage) = await walletSession.InitializeWalletAsync(stakeCredRequest.Outputs);
             if (setupSuccess)
