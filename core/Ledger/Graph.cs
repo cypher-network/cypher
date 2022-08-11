@@ -413,8 +413,8 @@ public sealed class Graph : IGraph, IDisposable
             {
                 try
                 {
-                    var blockGraphs = _syncCacheBlockGraph.Where(x => x.Value.Block.Round == NextRound()).ToArray();
-                    if (blockGraphs.Length < 2) return;
+                    var blockGraphs = _syncCacheBlockGraph.Where(x => x.Value.Block.Round == NextRound()).ToList();
+                    if (blockGraphs.Count < 2) return;
                     var nodeCount = blockGraphs.Select(n => n.Value.Block.Node).Distinct().Count();
                     var f = (nodeCount - 1) / 3;
                     var quorum2F1 = 2 * f + 1;
@@ -428,7 +428,7 @@ public sealed class Graph : IGraph, IDisposable
                         OnDeliveredReadyAsync(x.EventArgs.Interpreted).SafeFireAndForget();
                     });
                     var blockGraphTasks = new List<Task>();
-                    blockGraphs.ForEach(next =>
+                    foreach (var next in blockGraphs)
                     {
                         async void Action()
                         {
@@ -441,7 +441,8 @@ public sealed class Graph : IGraph, IDisposable
                         var t = new Task(Action);
                         t.Start();
                         blockGraphTasks.Add(t);
-                    });
+                    }
+
                     Task.WhenAll(blockGraphTasks).Wait(_cypherNetworkCore.ApplicationLifetime.ApplicationStopping);
                 }
                 catch (Exception ex)
@@ -603,7 +604,6 @@ public sealed class Graph : IGraph, IDisposable
             {
                 _logger.Here().Error("{@Message}", ex.Message);
             }
-
         await DecideWinnerAsync();
     }
 
