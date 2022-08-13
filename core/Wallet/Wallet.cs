@@ -500,7 +500,7 @@ public class NodeWallet : INodeWallet
                     D = blind,
                     E = stealthReward.Metadata.EphemKey.ToBytes(),
                     L = rewardLockTime.Value,
-                    N = ScanPublicKey(session.SenderAddress).Encrypt(Message(session.Reward, 0, blind, 
+                    N = ScanPublicKey(session.SenderAddress).Encrypt(Message(session.Reward, 0, blind,
                         $"coinbase: {ShortPublicKey().ByteToHex()}")),
                     P = outPkReward.ToBytes(),
                     S = new Script(Op.GetPushOp(rewardLockTime.Value), OpcodeType.OP_CHECKLOCKTIMEVERIFY).ToString().ToBytes(),

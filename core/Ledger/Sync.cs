@@ -88,7 +88,7 @@ public class Sync : ISync, IDisposable
                 if (hasAny) break;
                 currentRetry++;
             }
-            
+
             var peers = (await _cypherNetworkCore.PeerDiscovery()).GetDiscoveryStore();
             var localNode = (await _cypherNetworkCore.PeerDiscovery()).GetLocalNode();
             var synchronized = false;

@@ -457,7 +457,7 @@ namespace CypherNetworkNode.Configuration
             var choiceSyncTime = _userInterface.Do(section);
             return !choiceSyncTime.Equals(_optionSyncChange) || AutoSyncTimeSet();
         }
-        
+
         /// <summary>
         /// 
         /// </summary>

@@ -83,9 +83,9 @@ public sealed class Graph : IGraph, IDisposable
     private readonly Caching<SeenBlockGraph> _syncCacheSeenBlockGraph = new();
     private IDisposable _disposableHandelSeenBlockGraphs;
     private bool _disposed;
-    
+
     private static readonly object LockOnReady = new();
-    
+
     /// <summary>
     /// </summary>
     private EventHandler<BlockGraphEventArgs> _onRoundCompletedEventHandler;
@@ -415,7 +415,7 @@ public sealed class Graph : IGraph, IDisposable
             .Subscribe(_ =>
             {
                 Monitor.Enter(LockOnReady);
-                
+
                 try
                 {
                     var blockGraphs = _syncCacheBlockGraph.Where(x => x.Value.Block.Round == NextRound()).ToList();
