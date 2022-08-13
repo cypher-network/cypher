@@ -7,6 +7,7 @@ using System.Linq;
 using System.Reactive;
 using System.Reactive.Concurrency;
 using System.Reactive.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
 using Blake3;
@@ -82,7 +83,9 @@ public sealed class Graph : IGraph, IDisposable
     private readonly Caching<SeenBlockGraph> _syncCacheSeenBlockGraph = new();
     private IDisposable _disposableHandelSeenBlockGraphs;
     private bool _disposed;
-
+    
+    private static readonly object LockOnReady = new();
+    
     /// <summary>
     /// </summary>
     private EventHandler<BlockGraphEventArgs> _onRoundCompletedEventHandler;
@@ -411,6 +414,8 @@ public sealed class Graph : IGraph, IDisposable
             .Throttle(TimeSpan.FromSeconds(LedgerConstant.OnRoundThrottleFromSeconds), NewThreadScheduler.Default)
             .Subscribe(_ =>
             {
+                Monitor.Enter(LockOnReady);
+                
                 try
                 {
                     var blockGraphs = _syncCacheBlockGraph.Where(x => x.Value.Block.Round == NextRound()).ToList();
@@ -427,27 +432,24 @@ public sealed class Graph : IGraph, IDisposable
                     {
                         OnDeliveredReadyAsync(x.EventArgs.Interpreted).SafeFireAndForget();
                     });
-                    var blockGraphTasks = new List<Task>();
                     foreach (var next in blockGraphs)
                     {
-                        async void Action()
+                        AsyncHelper.RunSync(async () =>
                         {
                             var (key, blockGraph) = next;
                             await blockmania.AddAsync(blockGraph,
                                 _cypherNetworkCore.ApplicationLifetime.ApplicationStopping);
                             _syncCacheBlockGraph.Remove(key);
-                        }
-
-                        var t = new Task(Action);
-                        t.Start();
-                        blockGraphTasks.Add(t);
+                        });
                     }
-
-                    Task.WhenAll(blockGraphTasks).Wait(_cypherNetworkCore.ApplicationLifetime.ApplicationStopping);
                 }
                 catch (Exception ex)
                 {
                     _logger.Here().Error(ex, "Process add blockmania error");
+                }
+                finally
+                {
+                    Monitor.Exit(LockOnReady);
                 }
             }, exception => { _logger.Here().Error(exception, "Subscribe try add blockmania listener error"); });
         return onRoundCompletedSubscription;
