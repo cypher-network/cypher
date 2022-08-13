@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Reactive.Linq;
@@ -58,8 +59,8 @@ public interface IPeerDiscovery
 /// </summary>
 public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
 {
-    private const int PrunedTimeoutFromSeconds = 5000;
-    private const int SurveyorWaitTimeMilliseconds = 3000;
+    private const int PrunedTimeoutFromSeconds = 10000;
+    private const int SurveyorWaitTimeMilliseconds = 2500;
     private const int ReceiveWaitTimeMilliseconds = 1000;
     private readonly Caching<Peer> _caching = new();
     private readonly ICypherNetworkCore _cypherNetworkCore;
@@ -392,9 +393,11 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
             if (elementSequence == null) continue;
             var peer = MessagePackSerializer.Deserialize<Peer>(elementSequence.Value);
             if (peer.ClientId == _localPeer.ClientId) continue;
+#if !DEBUG
             if (!IsAcceptedAddress(peer.Advertise)) return;
             if (!IsAcceptedAddress(peer.Listening)) return;
-            if (!IsAcceptedAddress(peer.HttpEndPoint)) return;
+            if (!IsAcceptedAddress(peer.HttpEndPoint)) return;      
+#endif
             if (!_caching.TryGet(peer.Advertise, out var cachedPeer))
             {
                 _caching.AddOrUpdate(peer.Advertise, peer);
