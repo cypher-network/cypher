@@ -9,7 +9,7 @@ public record NetworkSetting
     public const string Testnet = "testnet";
 
     public string Environment { get; set; }
-    public bool SyncOnlyWithSeedNodes { get; set; }
+    public int AutoSyncEveryMinutes { get; set; }
     public X509Certificate X509Certificate { get; set; }
     public TransactionLeakRateConfigurationOption TransactionRateConfig { get; set; }
     public string SigningKeyRingName { get; set; }

@@ -30,7 +30,6 @@ public interface ISync
 /// </summary>
 public class Sync : ISync, IDisposable
 {
-    private const uint SyncEveryFromMinutes = 60;
     private const int RetryCount = 6;
     private readonly ICypherNetworkCore _cypherNetworkCore;
     private readonly ILogger _logger;
@@ -55,7 +54,7 @@ public class Sync : ISync, IDisposable
     /// </summary>
     private void Init()
     {
-        _disposableInit = Observable.Timer(TimeSpan.Zero, TimeSpan.FromMinutes(SyncEveryFromMinutes)).Subscribe(_ =>
+        _disposableInit = Observable.Timer(TimeSpan.Zero, TimeSpan.FromMinutes(_cypherNetworkCore.AppOptions.Network.AutoSyncEveryMinutes)).Subscribe(_ =>
         {
             if (_cypherNetworkCore.ApplicationLifetime.ApplicationStopping.IsCancellationRequested) return;
             try
@@ -89,29 +88,28 @@ public class Sync : ISync, IDisposable
                 if (hasAny) break;
                 currentRetry++;
             }
-
+            
             var peers = (await _cypherNetworkCore.PeerDiscovery()).GetDiscoveryStore();
+            var localNode = (await _cypherNetworkCore.PeerDiscovery()).GetLocalNode();
             var synchronized = false;
             foreach (var peer in peers)
             {
-                blockCountResponse = await (await _cypherNetworkCore.Graph()).GetBlockCountAsync();
-                if (blockCountResponse.Count >= (long)peer.BlockCount)
+                if (blockCountResponse.Count != (long)peer.BlockCount &&
+                    blockCountResponse.Count <= (long)peer.BlockCount)
                 {
-                    var localNode = (await _cypherNetworkCore.PeerDiscovery()).GetLocalNode();
-                    _logger.Information(
-                        "[LOCAL node:({@LocalNodeId}) block height: ({@LocalHeight})] > or = [REMOTE node:({@RemoteNodeId}) block height: ({@RemoteBlockHeight})])",
-                        localNode.Identifier.ToString(), blockCountResponse.Count.ToString(),
-                        peer.ClientId.ToString(), peer.BlockCount.ToString());
-                    _logger.Information("[CONTINUE]");
-                    continue;
+                    var skip = blockCountResponse.Count - 6; // +- Depth of blocks to compare.
+                    skip = skip < 0 ? blockCountResponse.Count : skip;
+                    synchronized = await SynchronizeAsync(peer, (ulong)skip, (int)peer.BlockCount);
+                    if (!synchronized) continue;
+                    _logger.Information("Successfully SYNCHRONIZED with {@Host}", peer.Listening.FromBytes());
+                    break;
                 }
 
-                var skip = blockCountResponse.Count - 6; // +- Depth of blocks to compare.
-                skip = skip < 0 ? blockCountResponse.Count : skip;
-                synchronized = await SynchronizeAsync(peer, (ulong)skip, (int)peer.BlockCount);
-                if (!synchronized) continue;
-                _logger.Information("Successfully SYNCHRONIZED with {@Host}", peer.Listening.FromBytes());
-                break;
+                _logger.Information(
+                    "[LOCAL node:({@LocalNodeId}) block height: ({@LocalHeight})] > or = [REMOTE node:({@RemoteNodeId}) block height: ({@RemoteBlockHeight})])",
+                    localNode.Identifier.ToString(), blockCountResponse.Count.ToString(),
+                    peer.ClientId.ToString(), peer.BlockCount.ToString());
+                _logger.Information("[CONTINUE]");
             }
 
             if (!synchronized)

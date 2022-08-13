@@ -24,15 +24,20 @@ namespace CypherNetworkNode.Configuration
             Console.WriteLine("Public API port       : " + networkConfiguration.Configuration.ApiPortPublic);
             Console.WriteLine("Listening public port : " + networkConfiguration.Configuration.ListeningPort);
             Console.WriteLine("Advertise public port : " + networkConfiguration.Configuration.AdvertisePort);
+            Console.WriteLine("Auto sync time        : " + networkConfiguration.Configuration.AutoSyncTime + "min");
             Console.WriteLine("--------------------------------------------------------------------");
             Console.WriteLine();
             var configTemplate = File.ReadAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Configuration",
                 "Templates", Program.AppSettingsFile));
             var config = configTemplate
-                .Replace("<HTTP_END_POINT>", $"http://{networkConfiguration.Configuration.IpAddress}:{networkConfiguration.Configuration.ApiPortPublic.ToString()}")
-                .Replace("<GOSSIP_LISTENING>", $"tcp://{networkConfiguration.Configuration.IpAddress}:{networkConfiguration.Configuration.ListeningPort.ToString()}")
-                .Replace("<GOSSIP_ADVERTISE>", $"tcp://{networkConfiguration.Configuration.IpAddress}:{networkConfiguration.Configuration.AdvertisePort.ToString()}")
-                .Replace("<NODE_NAME>", networkConfiguration.Configuration.NodeName);
+                .Replace("<HTTP_END_POINT>",
+                    $"http://{networkConfiguration.Configuration.IpAddress}:{networkConfiguration.Configuration.ApiPortPublic.ToString()}")
+                .Replace("<GOSSIP_LISTENING>",
+                    $"tcp://{networkConfiguration.Configuration.IpAddress}:{networkConfiguration.Configuration.ListeningPort.ToString()}")
+                .Replace("<GOSSIP_ADVERTISE>",
+                    $"tcp://{networkConfiguration.Configuration.IpAddress}:{networkConfiguration.Configuration.AdvertisePort.ToString()}")
+                .Replace("<NODE_NAME>", networkConfiguration.Configuration.NodeName)
+                .Replace("<AUTO_SYNC>", networkConfiguration.Configuration.AutoSyncTime.ToString());
             var configFileName = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, Program.AppSettingsFile);
             File.WriteAllText(configFileName, config);
             Console.WriteLine($"Configuration written to {configFileName}");

@@ -38,6 +38,7 @@ namespace CypherNetworkNode.Configuration
             public ushort ApiPortLocal { get; set; }
             public ushort AdvertisePort { get; set; } = 5146;
             public ushort ListeningPort { get; set; } = 7946;
+            public ushort AutoSyncTime { get; set; } = 60;
         }
 
         public ConfigurationClass Configuration { get; } = new();
@@ -415,7 +416,7 @@ namespace CypherNetworkNode.Configuration
 
             if (choicePortPublic.Equals(_optionPortSerfPublicDefault))
             {
-                return true;
+                return AutoSyncTime();
             }
             return choicePortPublic.Equals(_optionPortSerfPublicChange) && GossipListeningPortPublicSet();
         }
@@ -430,8 +431,50 @@ namespace CypherNetworkNode.Configuration
             if (!portSet) return false;
 
             Configuration.ListeningPort = port;
+            return AutoSyncTimeSet();
+        }
+        #endregion Gossip
+
+        #region Sync
+        private readonly UserInterfaceChoice _optionSyncDefault = new("Use default auto Sync time");
+        private readonly UserInterfaceChoice _optionSyncChange = new("Set auto Sync time");
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        private bool AutoSyncTime()
+        {
+            var section = new UserInterfaceSection(
+                "Auto Sync",
+                "Node automatically starts syncing with network peers on discovery. " +
+                $" By default, the auto sync time is set to {Configuration.AutoSyncTime.ToString()} minutes.",
+                new[]
+                {
+                    _optionSyncDefault,
+                    _optionSyncChange
+                });
+
+            var choiceSyncTime = _userInterface.Do(section);
+            return !choiceSyncTime.Equals(_optionSyncChange) || AutoSyncTimeSet();
+        }
+        
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        private bool AutoSyncTimeSet()
+        {
+            var section = new TextInput<string>(
+                "Enter auto sync time",
+                syncTime => syncTime.All(char.IsDigit),
+                syncTime => syncTime);
+
+            var success = _userInterface.Do(section, out var syncTime);
+            if (!success) return success;
+            Configuration.AutoSyncTime = Convert.ToUInt16(syncTime);
             return true;
         }
-        #endregion Serf
+
+        #endregion
     }
 }
