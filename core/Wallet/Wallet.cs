@@ -194,7 +194,8 @@ public class NodeWallet : INodeWallet
             var balances = GetBalances();
             freeBalances.AddRange(balances.Where(balance => amount <= balance.Total).OrderByDescending(x => x.Total));
             if (!freeBalances.Any()) return new Tuple<Output, ulong>(default, 0);
-            var spendAmount = freeBalances.Select(x => x.Total).Aggregate((x, y) => x - amount < y - amount ? x : y);
+            var spendAmount = freeBalances.Where(a => a.Total >= amount && a.Total <= freeBalances.Max(m => m.Total))
+                .Select(x => x.Total).Aggregate((x, y) => x - amount < y - amount ? x : y);
             var spendingBalance = freeBalances.First(a => a.Total == spendAmount);
             var commitmentTotal = Amount(spendingBalance.Commitment, scan);
             return amount > commitmentTotal
@@ -447,7 +448,7 @@ public class NodeWallet : INodeWallet
         try
         {
             var (outPkPayment, stealthPayment) = StealthPayment(session.RecipientAddress);
-            var (outPkChange, stealthChange) = StealthPayment(session.SenderAddress);
+            var (outPkChange, stealthChange) = StealthPayment(session.RecipientAddress);
             var tx = new Transaction
             {
                 Bp = new[] { new Bp { Proof = bp } },
@@ -475,8 +476,8 @@ public class NodeWallet : INodeWallet
                         C = pcmOut[1],
                         D = Array.Empty<byte>(),
                         E = stealthChange.Metadata.EphemKey.ToBytes(),
-                        N = ScanPublicKey(session.SenderAddress).Encrypt(Message(session.Change,
-                            session.Amount, blinds[2], string.Empty)),
+                        N = ScanPublicKey(session.RecipientAddress).Encrypt(Message(session.Change,
+                            session.Amount, blinds[2], $"staking: {ShortPublicKey().ByteToHex()}")),
                         P = outPkChange.ToBytes(),
                         S = Array.Empty<byte>(),
                         T = CoinType.Change
@@ -487,7 +488,7 @@ public class NodeWallet : INodeWallet
             using var pedersen = new Pedersen();
             var (outPkReward, stealthReward) = StealthPayment(session.SenderAddress);
             var rewardLockTime =
-                new LockTime(Helper.Util.DateTimeToUnixTime(DateTimeOffset.UtcNow.AddMinutes(20)));
+                new LockTime(Helper.Util.DateTimeToUnixTime(DateTimeOffset.UtcNow.AddHours(24)));
             var blind = pedersen.BlindSwitch(session.Reward, secp256K1.CreatePrivateKey());
             var commit = pedersen.Commit(session.Reward, blind);
             var vOutput = tx.Vout.ToList();
@@ -499,7 +500,8 @@ public class NodeWallet : INodeWallet
                     D = blind,
                     E = stealthReward.Metadata.EphemKey.ToBytes(),
                     L = rewardLockTime.Value,
-                    N = ScanPublicKey(session.SenderAddress).Encrypt(Message(session.Reward, 0, blind, "reward")),
+                    N = ScanPublicKey(session.SenderAddress).Encrypt(Message(session.Reward, 0, blind,
+                        $"coinbase: {ShortPublicKey().ByteToHex()}")),
                     P = outPkReward.ToBytes(),
                     S = new Script(Op.GetPushOp(rewardLockTime.Value), OpcodeType.OP_CHECKLOCKTIMEVERIFY).ToString().ToBytes(),
                     T = CoinType.Coinbase

@@ -80,7 +80,7 @@ public static class AppExtensions
                             configuration["Node:Network:TransactionRateConfig:LeakRateNumberOfSeconds"])
                 },
                 SigningKeyRingName = configuration["Node:Network:SigningKeyRingName"],
-                SyncOnlyWithSeedNodes = Convert.ToBoolean(configuration["Node:Network:SyncOnlyWithSeedNodes"])
+                AutoSyncEveryMinutes = Convert.ToInt16(configuration["Node:Network:AutoSyncEveryMinutes"])
             };
             options.Staking = new StakingOptions
             {
