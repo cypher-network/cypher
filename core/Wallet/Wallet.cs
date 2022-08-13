@@ -194,7 +194,8 @@ public class NodeWallet : INodeWallet
             var balances = GetBalances();
             freeBalances.AddRange(balances.Where(balance => amount <= balance.Total).OrderByDescending(x => x.Total));
             if (!freeBalances.Any()) return new Tuple<Output, ulong>(default, 0);
-            var spendAmount = freeBalances.Select(x => x.Total).Aggregate((x, y) => x - amount < y - amount ? x : y);
+            var spendAmount = freeBalances.Where(a => a.Total >= amount && a.Total <= freeBalances.Max(m => m.Total))
+                .Select(x => x.Total).Aggregate((x, y) => x - amount < y - amount ? x : y);
             var spendingBalance = freeBalances.First(a => a.Total == spendAmount);
             var commitmentTotal = Amount(spendingBalance.Commitment, scan);
             return amount > commitmentTotal
