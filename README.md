@@ -36,10 +36,10 @@ The following parameters can be supplied:
 
 #### Linux Only
 
-`install.sh --ranasuser <username> --ranasgroup users`
+`install.sh --runasuser <username> --runasgroup users`
 Install as the current logged in user
 
-`install.sh --upgrade --ranasuser <username> --ranasgroup users` Upgrades the node
+`install.sh --upgrade --runasuser <username> --runasgroup users` Upgrades the node
 
 #### Linux and macOS
 
