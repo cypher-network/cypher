@@ -61,6 +61,7 @@ public interface IValidator
     Task<Block[]> VerifyForkRuleAsync(Block[] xChain);
     VerifyResult VerifyMlsag(Transaction transaction);
     VerifyResult VerifyNoDuplicateImageKeys(IList<Transaction> transactions);
+    VerifyResult VerifyNoDuplicateBlockHeights(IReadOnlyList<Block> blocks);
 }
 
 /// <summary>
@@ -925,7 +926,25 @@ public class Validator : IValidator
 
         return null;
     }
-
+    
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="blocks"></param>
+    /// <returns></returns>
+    public VerifyResult VerifyNoDuplicateBlockHeights(IReadOnlyList<Block> blocks)
+    {
+        var noDupHeights = new List<ulong>();
+        foreach (var block in blocks)
+        {
+            var height = noDupHeights.FirstOrDefault(x => x == block.Height);
+            if (height != 0) return VerifyResult.AlreadyExists;
+            noDupHeights.Add(block.Height);
+        }
+        
+        return VerifyResult.Succeed;
+    }
+    
     /// <summary>
     /// </summary>
     /// <param name="m"></param>

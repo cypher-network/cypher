@@ -49,7 +49,7 @@ public class Sync : ISync, IDisposable
     }
 
     public bool Running { get; private set; }
-
+    
     /// <summary>
     /// </summary>
     private void Init()
@@ -127,6 +127,8 @@ public class Sync : ISync, IDisposable
         {
             Running = false;
             _logger.Information("End... [SYNCHRONIZATION]");
+            _logger.Information("Next...[SYNCHRONIZATION] in {@Message} minute(s)",
+                _cypherNetworkCore.AppOptions.Network.AutoSyncEveryMinutes);
         }
     }
 
@@ -174,11 +176,22 @@ public class Sync : ISync, IDisposable
             else
             {
                 _logger.Information("CONTINUE BOOTSTRAPPING");
+                _logger.Information("CHECKING [BLOCK HEIGHTS]");
+
+                var verifyNoDuplicateBlockHeights = validator.VerifyNoDuplicateBlockHeights(blocks);
+                if (verifyNoDuplicateBlockHeights == VerifyResult.AlreadyExists)
+                {
+                    (await _cypherNetworkCore.PeerDiscovery()).SetPeerCooldown(new PeerCooldown
+                        { Advertise = peer.Advertise, PublicKey = peer.PublicKey });
+                    _logger.Warning("Duplicate block heights [UNABLE TO VERIFY]");
+                    return false;
+                }
+                
                 _logger.Information("CHECKING [FORK RULE]");
                 var forkRuleBlocks = await validator.VerifyForkRuleAsync(blocks.OrderBy(x => x.Height).ToArray());
                 if (forkRuleBlocks.Length == 0)
                 {
-                    _logger.Information("Fork rule check [UNABLE TO VERIFY]");
+                    _logger.Fatal("Fork rule check [UNABLE TO VERIFY]");
                     return false;
                 }
 

@@ -2,9 +2,6 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Security.Cryptography.X509Certificates;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,11 +15,9 @@ using CypherNetwork.Consensus;
 using CypherNetwork.Cryptography;
 using CypherNetwork.Extensions;
 using CypherNetwork.Ledger;
-using CypherNetwork.Models;
 using CypherNetwork.Network;
 using CypherNetwork.Services;
 using CypherNetwork.Wallet;
-using Microsoft.AspNetCore.DataProtection.XmlEncryption;
 using Serilog;
 using Log = Serilog.Log;
 
@@ -145,7 +140,7 @@ public class Startup
                 Environment.Exit(1);
                 return;
             }
-
+            
             Log.Information("Begin...     [PEER DISCOVERY]");
             AutofacContainer.Resolve<IPeerDiscovery>();
             Log.Information("Running...   [PEER DISCOVERY]");
