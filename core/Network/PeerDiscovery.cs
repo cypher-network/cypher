@@ -3,7 +3,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Reactive.Linq;
@@ -15,6 +14,7 @@ using CypherNetwork.Models;
 using CypherNetwork.Persistence;
 using MessagePack;
 using Microsoft.Toolkit.HighPerformance;
+using NBitcoin;
 using Nerdbank.Streams;
 using Serilog;
 using nng;
@@ -53,6 +53,8 @@ public interface IPeerDiscovery
     /// 
     /// </summary>
     void TryBootstrap();
+
+    void SetPeerCooldown(PeerCooldown peer);
 }
 
 /// <summary>
@@ -63,10 +65,12 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
     private const int SurveyorWaitTimeMilliseconds = 2500;
     private const int ReceiveWaitTimeMilliseconds = 1000;
     private readonly Caching<Peer> _caching = new();
+    private readonly Caching<PeerCooldown> _peerCooldownCaching = new();
     private readonly ICypherNetworkCore _cypherNetworkCore;
     private readonly ILogger _logger;
     private IDisposable _discoverDisposable;
     private IDisposable _receiverDisposable;
+    private IDisposable _coolDownDisposable;
     private Peer _localPeer;
     private Node[] _seedNodes;
     private ISurveyorSocket _socket;
@@ -100,7 +104,8 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
     /// <returns></returns>
     public Peer[] GetDiscoveryStore()
     {
-        return _caching.GetItems();
+        return _caching.GetItems().Where(peer => _peerCooldownCaching.GetItems().All(coolDown =>
+            !coolDown.Advertise.Xor(peer.Advertise) || !coolDown.PublicKey.Xor(peer.PublicKey))).ToArray();
     }
 
     /// <summary>
@@ -167,6 +172,7 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
         _cypherNetworkCore.AppOptions.Gossip.Seeds.CopyTo(_seedNodes, 0);
         DiscoverAsync().ConfigureAwait(false);
         ReceiverAsync().ConfigureAwait(false);
+        HandlePeerCooldown();
     }
 
     /// <summary>
@@ -349,12 +355,6 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
                         foreach (var memory in sequence.AsReadOnlySequence) nngMsg.Append(memory.Span);
                         ctx.Send(nngMsg).GetAwaiter();
                     }
-
-                    if (peer.Timestamp != 0 && Util.GetAdjustedTimeAsUnixTimestamp() >
-                        peer.Timestamp + PrunedTimeoutFromSeconds)
-                    {
-                        _caching.Remove(peer.Advertise);
-                    }
                 }
                 catch (NngException ex)
                 {
@@ -367,6 +367,12 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
                 }
                 finally
                 {
+                    if (peer.Timestamp != 0 && Util.GetAdjustedTimeAsUnixTimestamp() >
+                        peer.Timestamp + PrunedTimeoutFromSeconds)
+                    {
+                        _caching.Remove(peer.Advertise);
+                    }
+                    
                     nngMsg.Dispose();
                 }
             }
@@ -440,6 +446,48 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
         }
     }
 
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="peer"></param>
+    public void SetPeerCooldown(PeerCooldown peer)
+    {
+        if (!_peerCooldownCaching.TryGet(peer.Advertise, out _))
+        {
+            _peerCooldownCaching.AddOrUpdate(peer.Advertise, peer);
+        }
+    }
+
+    /// <summary>
+    /// 
+    /// </summary>
+    private void HandlePeerCooldown()
+    {
+        _coolDownDisposable = Observable.Interval(TimeSpan.FromMinutes(30)).Subscribe(_ =>
+        {
+            if (_cypherNetworkCore.ApplicationLifetime.ApplicationStopping.IsCancellationRequested) return;
+            try
+            {
+                var removePeerCooldownBeforeTimestamp = Util.GetUtcNow().AddMinutes(-30).ToUnixTimestamp();
+                var removePeersCooldown = AsyncHelper.RunSync(async delegate
+                {
+                    return await _peerCooldownCaching.WhereAsync(x =>
+                        new ValueTask<bool>(x.Value.Timestamp < removePeerCooldownBeforeTimestamp));
+                });
+                foreach (var (key, _) in removePeersCooldown)
+                    _peerCooldownCaching.Remove(key);
+            }
+            catch (TaskCanceledException)
+            {
+                // Ignore
+            }
+            catch (Exception ex)
+            {
+                _logger.Here().Error("{@Message}", ex.Message);
+            }
+        });
+    }
+    
     /// <summary>
     /// 
     /// </summary>
