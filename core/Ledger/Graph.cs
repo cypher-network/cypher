@@ -33,9 +33,8 @@ namespace CypherNetwork.Ledger;
 /// </summary>
 public interface IGraph
 {
-    Task<TransactionBlockIndexResponse> GetTransactionBlockIndexAsync(
-        TransactionBlockIndexRequest transactionIndexRequest);
-
+    Task<TransactionBlockIndexResponse> GetTransactionBlockIndexAsync(TransactionBlockIndexRequest transactionIndexRequest);
+    Task<BlockResponse> GetTransactionBlockAsync(TransactionRequest transactionIndexRequest);
     Task<TransactionResponse> GetTransactionAsync(TransactionRequest transactionRequest);
     Task<Block> GetPreviousBlockAsync();
     Task<SafeguardBlocksResponse> GetSafeguardBlocksAsync(SafeguardBlocksRequest safeguardBlocksRequest);
@@ -45,6 +44,7 @@ public interface IGraph
     Task<BlocksResponse> GetBlocksAsync(BlocksRequest blocksRequest);
     Task PublishAsync(BlockGraph blockGraph);
     Task<BlockResponse> GetBlockAsync(byte[] hash);
+    Task<BlockResponse> GetBlockByHeightAsync(ulong height);
     Task<VerifyResult> BlockHeightExistsAsync(ulong height);
     Task<VerifyResult> BlockExistsAsync(byte[] hash);
     byte[] HashTransactions(Transaction[] transactions);
@@ -139,10 +139,36 @@ public sealed class Graph : IGraph, IDisposable
         }
         catch (Exception ex)
         {
-            _logger.Here().Error(ex.Message);
+            _logger.Here().Error("{@Message}", ex.Message);
         }
 
         return new TransactionBlockIndexResponse(0);
+    }
+
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="transactionRequest"></param>
+    /// <returns></returns>
+    public async Task<BlockResponse> GetTransactionBlockAsync(TransactionRequest transactionRequest)
+    {
+        Guard.Argument(transactionRequest, nameof(transactionRequest)).NotNull();
+        try
+        {
+            var unitOfWork = await _cypherNetworkCore.UnitOfWork();
+            var block = await unitOfWork.HashChainRepository.GetAsync(x =>
+                new ValueTask<bool>(x.Txs.Any(t => t.TxnId.Xor(transactionRequest.TransactionId))));
+            if (block is { })
+            {
+                return new BlockResponse(block);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Here().Error("{@Message}", ex.Message);
+        }
+
+        return new BlockResponse(null);
     }
 
     /// <summary>
@@ -218,6 +244,27 @@ public sealed class Graph : IGraph, IDisposable
         try
         {
             var block = await (await _cypherNetworkCore.UnitOfWork()).HashChainRepository.GetAsync(hash);
+            if (block is { }) return new BlockResponse(block);
+        }
+        catch (Exception ex)
+        {
+            _logger.Here().Error("{@Message}", ex.Message);
+        }
+
+        return new BlockResponse(null);
+    }
+
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="height"></param>
+    /// <returns></returns>
+    public async Task<BlockResponse> GetBlockByHeightAsync(ulong height)
+    {
+        try
+        {
+            var block = await (await _cypherNetworkCore.UnitOfWork()).HashChainRepository.GetAsync(x =>
+                new ValueTask<bool>(x.Height == height));
             if (block is { }) return new BlockResponse(block);
         }
         catch (Exception ex)

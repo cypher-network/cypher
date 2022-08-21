@@ -28,7 +28,29 @@ public class BlockController : Controller
         _cypherNetworkCore = cypherNetworkCore;
         _logger = logger.ForContext("SourceContext", nameof(BlockController));
     }
+    
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <returns></returns>
+    [HttpGet("supply", Name = "GetSupply")]
+    [ProducesResponseType(typeof(byte[]), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetSupply()
+    {
+        try
+        {
+            var distribution = await _cypherNetworkCore.Validator().GetRunningDistributionAsync();
+            return new ObjectResult(new { distribution });
+        }
+        catch (Exception ex)
+        {
+            _logger.Here().Error(ex, "Unable to get the supply");
+        }
 
+        return NotFound();
+    }
+    
     /// <summary>
     /// </summary>
     /// <returns></returns>
@@ -78,6 +100,51 @@ public class BlockController : Controller
     /// <summary>
     /// </summary>
     /// <returns></returns>
+    [HttpGet("block/{height}", Name = "GetBlockByHeight")]
+    [ProducesResponseType(typeof(byte[]), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetBlockByHeightAsync(ulong height)
+    {
+        try
+        {
+            var blockResponse = await (await _cypherNetworkCore.Graph()).GetBlockByHeightAsync(height);
+            if (blockResponse.Block is { }) return new ObjectResult(new { blockResponse.Block });
+        }
+        catch (Exception ex)
+        {
+            _logger.Here().Error(ex, "Unable to get the block");
+        }
+
+        return NotFound();
+    }
+    
+    /// <summary>
+    /// </summary>
+    /// <param name="hash"></param>
+    /// <returns></returns>
+    [HttpGet("block/transaction/{hash}", Name = "GetTransactionBlock")]
+    [ProducesResponseType(typeof(byte[]), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetTransactionBlockAsync(string hash)
+    {
+        Guard.Argument(hash, nameof(hash)).NotNull().NotEmpty().NotWhiteSpace();
+        try
+        {
+            var transactionBlock =
+                await (await _cypherNetworkCore.Graph()).GetTransactionBlockAsync(new TransactionRequest(hash.HexToByte()));
+            return new ObjectResult(new { transactionBlock.Block });
+        }
+        catch (Exception ex)
+        {
+            _logger.Here().Error(ex, "Unable to get the transaction");
+        }
+
+        return NotFound();
+    }
+    
+    /// <summary>
+    /// </summary>
+    /// <returns></returns>
     [HttpGet("height", Name = "GetBlockHeight")]
     [ProducesResponseType(typeof(long), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -98,18 +165,18 @@ public class BlockController : Controller
 
     /// <summary>
     /// </summary>
-    /// <param name="id"></param>
+    /// <param name="hash"></param>
     /// <returns></returns>
-    [HttpGet("transaction/{id}", Name = "GetTransaction")]
+    [HttpGet("transaction/{hash}", Name = "GetTransaction")]
     [ProducesResponseType(typeof(byte[]), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetTransactionAsync(string id)
+    public async Task<IActionResult> GetTransactionAsync(string hash)
     {
-        Guard.Argument(id, nameof(id)).NotNull().NotEmpty().NotWhiteSpace();
+        Guard.Argument(hash, nameof(hash)).NotNull().NotEmpty().NotWhiteSpace();
         try
         {
             var transactionResponse =
-                await (await _cypherNetworkCore.Graph()).GetTransactionAsync(new TransactionRequest(id.HexToByte()));
+                await (await _cypherNetworkCore.Graph()).GetTransactionAsync(new TransactionRequest(hash.HexToByte()));
             return new ObjectResult(new { transactionResponse.Transaction });
         }
         catch (Exception ex)
@@ -119,7 +186,7 @@ public class BlockController : Controller
 
         return NotFound();
     }
-
+    
     /// <summary>
     /// </summary>
     /// <returns></returns>
@@ -137,6 +204,28 @@ public class BlockController : Controller
         catch (Exception ex)
         {
             _logger.Here().Error(ex, "Unable to get the safeguard blocks");
+        }
+
+        return NotFound();
+    }
+    
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <returns></returns>
+    [HttpGet("emission", Name = "GetRunningDistribution")]
+    [ProducesResponseType(typeof(long), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetRunningDistributionAsync()
+    {
+        try
+        {
+            var distribution = await _cypherNetworkCore.Validator().GetRunningDistributionAsync();
+            return new ObjectResult(new { emission = Ledger.LedgerConstant.Distribution - distribution });
+        }
+        catch (Exception ex)
+        {
+            _logger.Here().Error(ex, "Unable to get the emission");
         }
 
         return NotFound();
