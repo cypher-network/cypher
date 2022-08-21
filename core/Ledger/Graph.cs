@@ -83,7 +83,8 @@ public sealed class Graph : IGraph, IDisposable
     private readonly Caching<SeenBlockGraph> _syncCacheSeenBlockGraph = new();
     private IDisposable _disposableHandelSeenBlockGraphs;
     private bool _disposed;
-
+    private readonly SemaphoreSlim _slimDecideWinner = new(1, 1);
+    
     private static readonly object LockOnReady = new();
 
     /// <summary>
@@ -193,7 +194,7 @@ public sealed class Graph : IGraph, IDisposable
         }
         catch (Exception ex)
         {
-            _logger.Here().Error(ex.Message);
+            _logger.Here().Error("{@Message}", ex.Message);
         }
 
         return new TransactionResponse(null);
@@ -664,6 +665,8 @@ public sealed class Graph : IGraph, IDisposable
     /// </summary>
     private async Task DecideWinnerAsync()
     {
+        await _slimDecideWinner.WaitAsync();
+        
         Block[] deliveredBlocks = null;
         try
         {
@@ -726,6 +729,7 @@ public sealed class Graph : IGraph, IDisposable
             if (deliveredBlocks is { })
                 foreach (var block in deliveredBlocks)
                     _syncCacheDelivered.Remove(block.Hash);
+            _slimDecideWinner.Release();
         }
     }
 
