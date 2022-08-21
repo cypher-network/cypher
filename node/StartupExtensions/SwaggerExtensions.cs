@@ -30,7 +30,7 @@ public static class SwaggerExtensions
                 TermsOfService = new Uri("https://tangrams.io/legal/"),
                 Contact = new Microsoft.OpenApi.Models.OpenApiContact
                 {
-                    Url = new Uri("https://tangrams.io/about-tangram/team/")
+                    Url = new Uri("https://cypherpunks.network/")
                 }
             });
         });
