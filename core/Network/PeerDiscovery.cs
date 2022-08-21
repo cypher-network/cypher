@@ -372,7 +372,7 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
                     {
                         _caching.Remove(peer.Advertise);
                     }
-                    
+
                     nngMsg.Dispose();
                 }
             }
@@ -487,7 +487,7 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
             }
         });
     }
-    
+
     /// <summary>
     /// 
     /// </summary>

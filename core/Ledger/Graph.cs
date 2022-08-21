@@ -84,7 +84,7 @@ public sealed class Graph : IGraph, IDisposable
     private IDisposable _disposableHandelSeenBlockGraphs;
     private bool _disposed;
     private readonly SemaphoreSlim _slimDecideWinner = new(1, 1);
-    
+
     private static readonly object LockOnReady = new();
 
     /// <summary>
@@ -666,7 +666,7 @@ public sealed class Graph : IGraph, IDisposable
     private async Task DecideWinnerAsync()
     {
         await _slimDecideWinner.WaitAsync();
-        
+
         Block[] deliveredBlocks = null;
         try
         {

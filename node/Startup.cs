@@ -140,7 +140,7 @@ public class Startup
                 Environment.Exit(1);
                 return;
             }
-            
+
             Log.Information("Begin...     [PEER DISCOVERY]");
             AutofacContainer.Resolve<IPeerDiscovery>();
             Log.Information("Running...   [PEER DISCOVERY]");

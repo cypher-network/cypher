@@ -926,7 +926,7 @@ public class Validator : IValidator
 
         return null;
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -941,10 +941,10 @@ public class Validator : IValidator
             if (height != 0) return VerifyResult.AlreadyExists;
             noDupHeights.Add(block.Height);
         }
-        
+
         return VerifyResult.Succeed;
     }
-    
+
     /// <summary>
     /// </summary>
     /// <param name="m"></param>

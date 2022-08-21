@@ -5,7 +5,7 @@ using CypherNetwork.Helper;
 
 namespace CypherNetwork.Models;
 
-public struct PeerCooldown:  IComparable<PeerCooldown>
+public struct PeerCooldown : IComparable<PeerCooldown>
 {
     public byte[] Advertise { get; set; }
     public byte[] PublicKey { get; set; }
@@ -17,7 +17,7 @@ public struct PeerCooldown:  IComparable<PeerCooldown>
         PublicKey = null;
         Timestamp = Util.GetAdjustedTimeAsUnixTimestamp();
     }
-    
+
     /// <summary>
     /// </summary>
     /// <param name="other"></param>
@@ -28,7 +28,7 @@ public struct PeerCooldown:  IComparable<PeerCooldown>
         if (Equals(null, other)) return 1;
         return Advertise.Xor(other.Advertise) ? 0 : 1;
     }
-    
+
     /// <summary>
     /// </summary>
     /// <returns></returns>

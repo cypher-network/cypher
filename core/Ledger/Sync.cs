@@ -49,7 +49,7 @@ public class Sync : ISync, IDisposable
     }
 
     public bool Running { get; private set; }
-    
+
     /// <summary>
     /// </summary>
     private void Init()
@@ -182,11 +182,11 @@ public class Sync : ISync, IDisposable
                 if (verifyNoDuplicateBlockHeights == VerifyResult.AlreadyExists)
                 {
                     (await _cypherNetworkCore.PeerDiscovery()).SetPeerCooldown(new PeerCooldown
-                        { Advertise = peer.Advertise, PublicKey = peer.PublicKey });
+                    { Advertise = peer.Advertise, PublicKey = peer.PublicKey });
                     _logger.Warning("Duplicate block heights [UNABLE TO VERIFY]");
                     return false;
                 }
-                
+
                 _logger.Information("CHECKING [FORK RULE]");
                 var forkRuleBlocks = await validator.VerifyForkRuleAsync(blocks.OrderBy(x => x.Height).ToArray());
                 if (forkRuleBlocks.Length == 0)

@@ -28,7 +28,7 @@ public class BlockController : Controller
         _cypherNetworkCore = cypherNetworkCore;
         _logger = logger.ForContext("SourceContext", nameof(BlockController));
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -50,7 +50,7 @@ public class BlockController : Controller
 
         return NotFound();
     }
-    
+
     /// <summary>
     /// </summary>
     /// <returns></returns>
@@ -117,7 +117,7 @@ public class BlockController : Controller
 
         return NotFound();
     }
-    
+
     /// <summary>
     /// </summary>
     /// <param name="hash"></param>
@@ -141,7 +141,7 @@ public class BlockController : Controller
 
         return NotFound();
     }
-    
+
     /// <summary>
     /// </summary>
     /// <returns></returns>
@@ -186,7 +186,7 @@ public class BlockController : Controller
 
         return NotFound();
     }
-    
+
     /// <summary>
     /// </summary>
     /// <returns></returns>
@@ -208,7 +208,7 @@ public class BlockController : Controller
 
         return NotFound();
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
