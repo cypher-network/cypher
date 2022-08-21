@@ -93,6 +93,7 @@ public class P2PDeviceApi
     private async Task<ReadOnlySequence<byte>> OnSaveBlockAsync(Parameter[] parameters)
     {
         Guard.Argument(parameters, nameof(parameters)).NotNull().NotEmpty();
+        _logger.Here().Information("Saved in p2p device api");
         var saveBlockResponse = await (await _cypherNetworkCore.Graph())
             .SaveBlockAsync(new SaveBlockRequest(MessagePackSerializer.Deserialize<Block>(parameters[0].Value)));
         return await SerializeAsync(saveBlockResponse);

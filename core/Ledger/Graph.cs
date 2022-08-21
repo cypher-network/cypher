@@ -294,6 +294,10 @@ public sealed class Graph : IGraph, IDisposable
         Guard.Argument(saveBlockRequest, nameof(saveBlockRequest)).NotNull();
         try
         {
+            if (await _cypherNetworkCore.Validator().VerifyBlockAsync(saveBlockRequest.Block) != VerifyResult.Succeed)
+            {
+                return new SaveBlockResponse(false);
+            }
             var unitOfWork = await _cypherNetworkCore.UnitOfWork();
             if (await unitOfWork.HashChainRepository.PutAsync(saveBlockRequest.Block.Hash, saveBlockRequest.Block))
                 return new SaveBlockResponse(true);
@@ -659,12 +663,7 @@ public sealed class Graph : IGraph, IDisposable
                     return;
                 }
 
-                if (await _cypherNetworkCore.Validator().VerifyBlockAsync(block) != VerifyResult.Succeed)
-                {
-                    _logger.Error("Unable to verify the block");
-                    return;
-                }
-
+                _logger.Here().Information("Saved in decide winner");
                 var saveBlockResponse = await SaveBlockAsync(new SaveBlockRequest(block));
                 if (!saveBlockResponse.Ok) _logger.Error("Unable to save the block winner");
 
