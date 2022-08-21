@@ -402,7 +402,7 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
 #if !DEBUG
             if (!IsAcceptedAddress(peer.Advertise)) return;
             if (!IsAcceptedAddress(peer.Listening)) return;
-            if (!IsAcceptedAddress(peer.HttpEndPoint)) return;      
+            if (!IsAcceptedAddress(peer.HttpEndPoint)) return;
 #endif
             if (!_caching.TryGet(peer.Advertise, out var cachedPeer))
             {
