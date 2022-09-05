@@ -23,7 +23,7 @@ using StateKV = Dictionary<StateData, object>;
 public sealed class Blockmania : IDisposable
 {
     public event EventHandler<InterpretedEventArgs> DeliveredEventHandler;
-    
+
     private readonly Channel<BlockGraph> _entries;
     private readonly Mutex _graphMutex;
     private readonly ILogger _logger;

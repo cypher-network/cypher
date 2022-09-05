@@ -144,7 +144,7 @@ public class Startup
             }
 
             AnsiConsole.Status()
-                .Start("Starting...", ctx => 
+                .Start("Starting...", ctx =>
                 {
                     AnsiConsole.MarkupLine("Begin...     [bold green]PEER DISCOVERY[/]");
                     AutofacContainer.Resolve<IPeerDiscovery>();

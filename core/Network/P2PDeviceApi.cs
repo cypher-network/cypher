@@ -248,7 +248,7 @@ public class P2PDeviceApi : IP2PDeviceApi
 
         return await SerializeAsync(new StakeCredentialsResponse("Unable to setup staking", false));
     }
-    
+
     /// <summary>
     /// 
     /// </summary>

@@ -65,7 +65,7 @@ public class PPoS : IPPoS, IDisposable
     private readonly ThreadFiber _threadFiber = new(new DefaultQueue(), "CypherNetworkCore-PPoS");
     private bool _disposed;
     private int _running;
-    
+
     /// <summary>
     /// </summary>
     /// <param name="cypherNetworkCore"></param>

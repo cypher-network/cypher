@@ -261,7 +261,7 @@ public class CypherNetworkCore : ICypherNetworkCore
 
         return null;
     }
-    
+
     /// <summary>
     /// 
     /// </summary>

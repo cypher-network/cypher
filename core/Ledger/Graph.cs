@@ -63,7 +63,7 @@ internal record SeenBlockGraph
 
 /// <summary>
 /// </summary>
-public sealed class Graph: IGraph, IDisposable
+public sealed class Graph : IGraph, IDisposable
 {
     private class BlockGraphEventArgs : EventArgs
     {
@@ -420,7 +420,7 @@ public sealed class Graph: IGraph, IDisposable
             var identifier = blockGraph.ToIdentifier();
             _syncCacheSeenBlockGraph.Add(identifier,
                 new SeenBlockGraph
-                    { Hash = blockGraph.Block.BlockHash, Round = blockGraph.Block.Round, Key = identifier });
+                { Hash = blockGraph.Block.BlockHash, Round = blockGraph.Block.Round, Key = identifier });
             await FinalizeAsync(blockGraph);
         }
     }
@@ -699,7 +699,7 @@ public sealed class Graph: IGraph, IDisposable
                     _logger.Error("Block winner already exists");
                     return;
                 }
-                
+
                 var saveBlockResponse = await SaveBlockAsync(new SaveBlockRequest(block));
                 if (saveBlockResponse.Ok)
                 {
@@ -724,7 +724,7 @@ public sealed class Graph: IGraph, IDisposable
 
                     _logger.Error("Unable to save the block winner");
                 }
-                
+
                 (await _cypherNetworkCore.WalletSession()).Notify(block.Txs.ToArray());
             }
         }

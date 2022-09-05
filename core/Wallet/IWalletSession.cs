@@ -27,5 +27,5 @@ public interface IWalletSession
     Task<Tuple<bool, string>> LoginAsync(byte[] seed);
     Task<Tuple<bool, string>> InitializeWalletAsync(Output[] outputs);
     IReadOnlyList<Block> GetSafeGuardBlocks();
-   
+
 }

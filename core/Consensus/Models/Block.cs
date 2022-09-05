@@ -23,7 +23,7 @@ public class Block : IEquatable<Block>
     public string DataHash { get; set; }
     [MessagePack.Key(5)]
     public byte[] BlockHash { get; set; }
-    
+
     public Block()
     {
         Hash = string.Empty;

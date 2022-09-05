@@ -76,7 +76,7 @@ public class Broadcast : IBroadcast
                 {
                     new() { ProtocolCommand = command, Value = data }
                 });
-                await Parallel.ForEachAsync(peers,  (knownPeer, cancellationToken) =>
+                await Parallel.ForEachAsync(peers, (knownPeer, cancellationToken) =>
                 {
                     var nngMsg = NngFactorySingleton.Instance.Factory.CreateMessage();
                     try
@@ -107,7 +107,7 @@ public class Broadcast : IBroadcast
                     {
                         nngMsg.Dispose();
                     }
-                    
+
                     return ValueTask.CompletedTask;
                 });
             }

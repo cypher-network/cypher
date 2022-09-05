@@ -49,7 +49,7 @@ public sealed class P2PDevice : IDisposable, IP2PDevice
     private readonly ICypherNetworkCore _cypherNetworkCore;
     private readonly ILogger _logger;
     private readonly IList<Worker> _disposableWorkers = new List<Worker>();
-    
+
     private IRepSocket _repSocket;
     private bool _disposed;
 
@@ -127,7 +127,7 @@ public sealed class P2PDevice : IDisposable, IP2PDevice
 
         return Task.CompletedTask;
     }
-    
+
     /// <summary>
     /// </summary>
     /// <param name="msg"></param>
@@ -155,11 +155,11 @@ public sealed class P2PDevice : IDisposable, IP2PDevice
 
         return false;
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
-    private class Worker: IDisposable
+    private class Worker : IDisposable
     {
         private readonly ICypherNetworkCore _cypherNetworkCore;
         private readonly ILogger _logger;
@@ -193,7 +193,7 @@ public sealed class P2PDevice : IDisposable, IP2PDevice
                 }
             });
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -261,7 +261,7 @@ public sealed class P2PDevice : IDisposable, IP2PDevice
             }
             catch (Exception ex)
             {
-                _logger.Here().Error("{@Message}",ex.Message);
+                _logger.Here().Error("{@Message}", ex.Message);
             }
         }
 
@@ -279,7 +279,7 @@ public sealed class P2PDevice : IDisposable, IP2PDevice
                 .BoxSeal(response.IsSingleSegment ? response.First.Span : response.ToArray(), publicKey);
             return cipher;
         }
-        
+
         /// <summary>
         /// 
         /// </summary>
@@ -309,7 +309,7 @@ public sealed class P2PDevice : IDisposable, IP2PDevice
             GC.SuppressFinalize(this);
         }
     }
-    
+
     /// <summary>
     /// 
     /// </summary>

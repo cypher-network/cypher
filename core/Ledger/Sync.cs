@@ -35,10 +35,10 @@ public class Sync : ISync, IDisposable
     private readonly ICypherNetworkCore _cypherNetworkCore;
     private readonly ILogger _logger;
     private IDisposable _disposableInit;
-    
+
     private bool _disposed;
     private int _running;
-    
+
     /// <summary>
     /// </summary>
     /// <param name="cypherNetworkCore"></param>
@@ -94,7 +94,7 @@ public class Sync : ISync, IDisposable
                 if (hasAny) break;
                 currentRetry++;
             }
-            
+
             foreach (var peer in (await _cypherNetworkCore.PeerDiscovery()).GetDiscoveryStore())
             {
                 if (blockCountResponse?.Count < (long)peer.BlockCount)
