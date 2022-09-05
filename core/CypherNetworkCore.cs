@@ -38,6 +38,7 @@ public interface ICypherNetworkCore
     IBroadcast Broadcast();
     ICrypto Crypto();
     IP2PDevice P2PDevice();
+    IP2PDeviceApi P2PDeviceApi();
     Cache<object> Cache();
 }
 
@@ -68,7 +69,7 @@ public class CypherNetworkCore : ICypherNetworkCore
     private ISync _sync;
     private IMemoryPool _memoryPool;
     private IWalletSession _walletSession;
-
+    
     /// <summary>
     /// </summary>
     /// <param name="applicationLifetime"></param>
@@ -252,6 +253,26 @@ public class CypherNetworkCore : ICypherNetworkCore
             using var scope = ServiceScopeFactory.CreateAsyncScope();
             var p2PDevice = scope.ServiceProvider.GetRequiredService<IP2PDevice>();
             return p2PDevice;
+        }
+        catch (Exception ex)
+        {
+            _logger.Here().Error("{@Message}", ex.Message);
+        }
+
+        return null;
+    }
+    
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <returns></returns>
+    public IP2PDeviceApi P2PDeviceApi()
+    {
+        try
+        {
+            using var scope = ServiceScopeFactory.CreateAsyncScope();
+            var p2PDeviceApi = scope.ServiceProvider.GetRequiredService<IP2PDeviceApi>();
+            return p2PDeviceApi;
         }
         catch (Exception ex)
         {

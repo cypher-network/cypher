@@ -21,7 +21,18 @@ using Block = CypherNetwork.Models.Block;
 
 namespace CypherNetwork.Network;
 
-public class P2PDeviceApi
+/// <summary>
+/// 
+/// </summary>
+public interface IP2PDeviceApi
+{
+    IDictionary<int, Func<Parameter[], Task<ReadOnlySequence<byte>>>> Commands { get; }
+}
+
+/// <summary>
+/// 
+/// </summary>
+public class P2PDeviceApi : IP2PDeviceApi
 {
     private readonly ICypherNetworkCore _cypherNetworkCore;
     private readonly ILogger _logger;
