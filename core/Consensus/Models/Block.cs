@@ -11,6 +11,19 @@ public class Block : IEquatable<Block>
 {
     private const string HexUpper = "0123456789ABCDEF";
 
+    [MessagePack.Key(0)]
+    public string Hash { get; set; }
+    [MessagePack.Key(1)]
+    public ulong Node { get; set; }
+    [MessagePack.Key(2)]
+    public ulong Round { get; set; }
+    [MessagePack.Key(3)]
+    public byte[] Data { get; set; }
+    [MessagePack.Key(4)]
+    public string DataHash { get; set; }
+    [MessagePack.Key(5)]
+    public byte[] BlockHash { get; set; }
+    
     public Block()
     {
         Hash = string.Empty;
@@ -32,25 +45,15 @@ public class Block : IEquatable<Block>
         Round = round;
     }
 
-    public Block(string hash, ulong node, ulong round, byte[] data, string dataHash)
+    public Block(string hash, ulong node, ulong round, byte[] data, string dataHash, byte[] blockHash)
     {
         Hash = hash;
         Node = node;
         Round = round;
         Data = data;
         DataHash = dataHash;
+        BlockHash = blockHash;
     }
-
-    [MessagePack.Key(0)]
-    public string Hash { get; set; }
-    [MessagePack.Key(1)]
-    public ulong Node { get; set; }
-    [MessagePack.Key(2)]
-    public ulong Round { get; set; }
-    [MessagePack.Key(3)]
-    public byte[] Data { get; set; }
-    [MessagePack.Key(4)]
-    public string DataHash { get; set; }
 
     public bool Equals(Block blockId)
     {

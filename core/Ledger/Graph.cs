@@ -86,8 +86,6 @@ public sealed class Graph : IGraph, IDisposable
     private bool _disposed;
     private readonly SemaphoreSlim _slimDecideWinner = new(1, 1);
 
-    private static readonly object LockOnReady = new();
-
     /// <summary>
     /// </summary>
     private EventHandler<BlockGraphEventArgs> _onRoundCompletedEventHandler;
@@ -432,19 +430,22 @@ public sealed class Graph : IGraph, IDisposable
     /// </summary>
     private void HandelSeenBlockGraphs()
     {
-        _disposableHandelSeenBlockGraphs = Observable.Interval(TimeSpan.FromHours(1)).Subscribe(_ =>
+        _disposableHandelSeenBlockGraphs = Observable.Interval(TimeSpan.FromMinutes(15)).Subscribe(_ =>
         {
             if (_cypherNetworkCore.ApplicationLifetime.ApplicationStopping.IsCancellationRequested) return;
             try
             {
-                var removeSeenBlockGraphBeforeTimestamp = Util.GetUtcNow().AddHours(-1).ToUnixTimestamp();
+                var removeSeenBlockGraphBeforeTimestamp = Util.GetUtcNow().AddMinutes(-15).ToUnixTimestamp();
                 var removingBlockGraphs = AsyncHelper.RunSync(async delegate
                 {
                     return await _syncCacheSeenBlockGraph.WhereAsync(x =>
                         new ValueTask<bool>(x.Value.Timestamp < removeSeenBlockGraphBeforeTimestamp));
                 });
                 foreach (var (key, _) in removingBlockGraphs.OrderBy(x => x.Value.Round))
+                {
                     _syncCacheSeenBlockGraph.Remove(key);
+                    _syncCacheBlockGraph.Remove(key);
+                }
             }
             catch (TaskCanceledException)
             {
@@ -489,20 +490,14 @@ public sealed class Graph : IGraph, IDisposable
                     {
                         AsyncHelper.RunSync(async () =>
                         {
-                            var (key, blockGraph) = next;
-                            await blockmania.AddAsync(blockGraph,
+                            await blockmania.AddAsync(next,
                                 _cypherNetworkCore.ApplicationLifetime.ApplicationStopping);
-                            _syncCacheBlockGraph.Remove(key);
                         });
                     }
                 }
                 catch (Exception ex)
                 {
                     _logger.Here().Error(ex, "Process add blockmania error");
-                }
-                finally
-                {
-                    Monitor.Exit(LockOnReady);
                 }
             }, exception => { _logger.Here().Error(exception, "Subscribe try add blockmania listener error"); });
         return onRoundCompletedSubscription;
@@ -690,29 +685,37 @@ public sealed class Graph : IGraph, IDisposable
             if (block is { })
             {
                 if (block.Height != await NextRoundAsync()) return;
-                if (block.BlockPos.PublicKey.ToHashIdentifier() ==
-                    (await _cypherNetworkCore.PeerDiscovery()).GetLocalNode().Identifier)
-                {
-                        AnsiConsole.Write(
-                            new FigletText("# Block Winner #")
-                                .Centered()
-                                .Color(Color.Magenta1));
-                }
-                else
-                {
-                    _logger.Information("We have a winner {@Hash}", block.Hash.ByteToHex());
-                }
-
-                if (await BlockHeightExistsAsync(block.Height) == VerifyResult.AlreadyExists)
+                if (await BlockHeightExistsAsync(new BlockHeightExistsRequest(block.Height)) == VerifyResult.AlreadyExists)
                 {
                     _logger.Error("Block winner already exists");
                     return;
                 }
-
-                _logger.Here().Information("Saved in decide winner");
+                
                 var saveBlockResponse = await SaveBlockAsync(new SaveBlockRequest(block));
-                if (!saveBlockResponse.Ok) _logger.Error("Unable to save the block winner");
+                if (saveBlockResponse.Ok)
+                {
+                    if (block.BlockPos.PublicKey.ToHashIdentifier() ==
+                        (await _cypherNetworkCore.PeerDiscovery()).GetLocalNode().Identifier)
+                    {
+                        AnsiConsole.Write(
+                            new FigletText("# Block Winner #")
+                                .Centered()
+                                .Color(Color.Magenta1));
+                    }
+                    else
+                    {
+                        _logger.Information("We have a winner {@Hash}", block.Hash.ByteToHex());
+                    }
+                }
+                else
+                {
+                    var seenBlockGraph =
+                        _syncCacheSeenBlockGraph.GetItems().FirstOrDefault(x => x.Hash.Xor(block.Hash));
+                    if (seenBlockGraph != null) _syncCacheBlockGraph.Remove(seenBlockGraph.Key);
 
+                    _logger.Error("Unable to save the block winner");
+                }
+                
                 (await _cypherNetworkCore.WalletSession()).Notify(block.Txs.ToArray());
             }
         }

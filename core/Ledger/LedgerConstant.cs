@@ -10,7 +10,7 @@ public static class LedgerConstant
     // Graph
     public const double
         OnRoundThrottleFromSeconds =
-            1.5; // Block size will have an effect. Should increase/decrease.
+            5; // Block size will have an effect. Should increase/decrease.
 
     // Validator
     public const int SolutionCancellationTimeoutFromMilliseconds = 10_000;
