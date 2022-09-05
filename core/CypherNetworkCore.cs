@@ -14,6 +14,7 @@ using CypherNetwork.Persistence;
 using CypherNetwork.Wallet;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Retlang.Net.Fibers;
 using Serilog;
 
 namespace CypherNetwork;
@@ -40,6 +41,7 @@ public interface ICypherNetworkCore
     IP2PDevice P2PDevice();
     IP2PDeviceApi P2PDeviceApi();
     Cache<object> Cache();
+    AsyncLazy<PoolFiber> PoolFiber();
 }
 
 /// <summary>
@@ -69,6 +71,7 @@ public class CypherNetworkCore : ICypherNetworkCore
     private ISync _sync;
     private IMemoryPool _memoryPool;
     private IWalletSession _walletSession;
+    private PoolFiber _poolFiber;
 
     /// <summary>
     /// </summary>
@@ -292,6 +295,16 @@ public class CypherNetworkCore : ICypherNetworkCore
     }
 
     /// <summary>
+    /// 
+    /// </summary>
+    /// <returns></returns>
+    public AsyncLazy<PoolFiber> PoolFiber() => new(() =>
+    {
+        _poolFiber ??= new PoolFiber();
+        return Task.FromResult(_poolFiber);
+    });
+
+    /// <summary>
     /// </summary>
     private void Init()
     {
@@ -303,6 +316,8 @@ public class CypherNetworkCore : ICypherNetworkCore
             PublicKey = keyPair.PublicKey
         };
         keyPair.PrivateKey.Destroy();
+        _poolFiber = new PoolFiber();
+        _poolFiber.Start();
     }
 
     /// <summary>
