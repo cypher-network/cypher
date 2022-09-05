@@ -123,8 +123,7 @@ public class MemoryPool : IMemoryPool, IDisposable
         var validTransactions = new List<Transaction>();
         var validator = _cypherNetworkCore.Validator();
         foreach (var transaction in _syncCacheTransactions.GetItems().Take(take).Select(x => x)
-                     .OrderByDescending(x =>
-                         x.Vtime.I / decimal.Round(x.GetSize() / 1024, 2, MidpointRounding.ToZero) / 667))
+                     .OrderByDescending(x => x.Vtime.I))
         {
             var verifyTransaction = await validator.VerifyTransactionAsync(transaction);
             if (verifyTransaction == VerifyResult.Succeed) validTransactions.Add(transaction);

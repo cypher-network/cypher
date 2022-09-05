@@ -23,7 +23,11 @@ public record BlockCountRequest;
 /// <param name="Count"></param>
 [MessagePackObject]
 public record BlockHeightResponse([property: Key(0)] long Count);
-public record BlockHeightRequest;
+public record BlockHeightRequest(ulong Height);
+public record BlockByHeightRequest(ulong Height);
+
+public record BlockHeightExistsRequest(ulong Height);
+public record BlockExistsRequest(byte[] Hash);
 
 /// <summary>
 /// </summary>
@@ -51,6 +55,9 @@ public record TransactionResponse([property: Key(0)] Transaction Transaction);
 /// <param name="TransactionId"></param>
 [MessagePackObject]
 public record TransactionRequest([property: Key(0)] byte[] TransactionId);
+
+[MessagePackObject]
+public record TransactionIdRequest([property: Key(0)] byte[] TransactionId);
 
 /// <summary>
 /// </summary>
@@ -222,3 +229,5 @@ public record TransactionBlockIndexRequest([property: Key(0)] byte[] Transaction
 /// <param name="Index"></param>
 [MessagePackObject]
 public record TransactionBlockIndexResponse([property: Key(0)] ulong Index);
+
+public record HashTransactionsRequest(Transaction[] Transactions);

@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using CypherNetwork.Extensions;
 using CypherNetwork.Helper;
 using CypherNetwork.Models;
+using CypherNetwork.Models.Messages;
 using CypherNetwork.Persistence;
 using MessagePack;
 using Microsoft.Toolkit.HighPerformance;

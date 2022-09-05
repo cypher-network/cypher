@@ -22,6 +22,8 @@ using StateKV = Dictionary<StateData, object>;
 
 public sealed class Blockmania : IDisposable
 {
+    public event EventHandler<InterpretedEventArgs> DeliveredEventHandler;
+    
     private readonly Channel<BlockGraph> _entries;
     private readonly Mutex _graphMutex;
     private readonly ILogger _logger;
@@ -76,12 +78,14 @@ public sealed class Blockmania : IDisposable
         _ = Task.Factory.StartNew(async () => { await Run(_entries.Reader); });
     }
 
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="e"></param>
     private void OnBlockmaniaDelivered(InterpretedEventArgs e)
     {
         DeliveredEventHandler?.Invoke(this, e);
     }
-
-    public event EventHandler<InterpretedEventArgs> DeliveredEventHandler;
 
     /// <summary>
     /// </summary>
@@ -609,7 +613,7 @@ public sealed class Blockmania : IDisposable
         Guard.Argument(data, nameof(data)).NotNull();
         Guard.Argument(cancellationToken, nameof(cancellationToken)).HasValue();
         //_logger.Here().Debug("Adding block to graph block.id: {@BlockId}", data.Block);
-        await Task.Factory.StartNew(() => { _entries.Writer.WriteAsync(data, cancellationToken); }, cancellationToken);
+        await _entries.Writer.WriteAsync(data, cancellationToken);
     }
 
     /// <summary>

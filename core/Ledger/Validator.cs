@@ -351,7 +351,9 @@ public class Validator : IValidator
             return VerifyResult.UnableToVerify;
         }
 
-        var hashTransactions = (await _cypherNetworkCore.Graph()).HashTransactions(block.Txs.Skip(1).ToArray(block.Txs.Count - 1));
+        var hashTransactions =
+            (await _cypherNetworkCore.Graph()).HashTransactions(
+                new HashTransactionsRequest(block.Txs.Skip(1).ToArray(block.Txs.Count - 1)));
         var kernel = Kernel(block.BlockHeader.PrevBlockHash, hashTransactions, block.Height);
         if (VerifyKernel(block.BlockPos.VrfProof, kernel) != VerifyResult.Succeed)
         {

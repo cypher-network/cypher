@@ -76,12 +76,12 @@ public class Broadcast : IBroadcast
                 {
                     new() { ProtocolCommand = command, Value = data }
                 });
-                await Parallel.ForEachAsync(peers, async (knownPeer, cancellationToken) =>
+                await Parallel.ForEachAsync(peers,  (knownPeer, cancellationToken) =>
                 {
                     var nngMsg = NngFactorySingleton.Instance.Factory.CreateMessage();
                     try
                     {
-                        if (cancellationToken.IsCancellationRequested) return;
+                        if (cancellationToken.IsCancellationRequested) return ValueTask.CompletedTask;
                         var tcp = string.Create(knownPeer.Listening.Length, knownPeer.Listening.AsMemory(),
                             (chars, state) =>
                             {
@@ -107,6 +107,8 @@ public class Broadcast : IBroadcast
                     {
                         nngMsg.Dispose();
                     }
+                    
+                    return ValueTask.CompletedTask;
                 });
             }
             else

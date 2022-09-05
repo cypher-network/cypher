@@ -137,6 +137,24 @@ public static class Util
 
         return ret;
     }
+    
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="arrays"></param>
+    /// <returns></returns>
+    public static byte[] Combine(IReadOnlyList<byte[]> arrays)
+    {
+        var ret = new byte[arrays.Sum(x => x.Length)];
+        var offset = 0;
+        foreach (var data in arrays)
+        {
+            Buffer.BlockCopy(data, 0, ret, offset, data.Length);
+            offset += data.Length;
+        }
+
+        return ret;
+    }
 
     // /// <summary>
     // /// </summary>
