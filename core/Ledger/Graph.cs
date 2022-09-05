@@ -22,6 +22,7 @@ using Dawn;
 using MessagePack;
 using NBitcoin;
 using Serilog;
+using Spectre.Console;
 using Block = CypherNetwork.Models.Block;
 using Interpreted = CypherNetwork.Consensus.Models.Interpreted;
 using Transaction = CypherNetwork.Models.Transaction;
@@ -692,15 +693,10 @@ public sealed class Graph : IGraph, IDisposable
                 if (block.BlockPos.PublicKey.ToHashIdentifier() ==
                     (await _cypherNetworkCore.PeerDiscovery()).GetLocalNode().Identifier)
                 {
-                    Console.ForegroundColor = ConsoleColor.Green;
-                    Console.WriteLine(@"  
-    _  _         ____    _                  _       __        __  _                                     _  _   
-  _| || |_      | __ )  | |   ___     ___  | | __   \ \      / / (_)  _ __    _ __     ___   _ __     _| || |_ 
- |_  ..  _|     |  _ \  | |  / _ \   / __| | |/ /    \ \ /\ / /  | | | '_ \  | '_ \   / _ \ | '__|   |_  ..  _|
- |_      _|     | |_) | | | | (_) | | (__  |   <      \ V  V /   | | | | | | | | | | |  __/ | |      |_      _|
-   |_||_|       |____/  |_|  \___/   \___| |_|\_\      \_/\_/    |_| |_| |_| |_| |_|  \___| |_|        |_||_|  ");
-                    Console.WriteLine();
-                    Console.ResetColor();
+                        AnsiConsole.Write(
+                            new FigletText("# Block Winner #")
+                                .Centered()
+                                .Color(Color.Magenta1));
                 }
                 else
                 {

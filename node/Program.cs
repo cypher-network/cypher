@@ -15,6 +15,7 @@ using Serilog;
 using CypherNetwork.Helper;
 using CypherNetworkNode.UI;
 using Microsoft.AspNetCore.DataProtection.XmlEncryption;
+using Spectre.Console;
 
 namespace CypherNetworkNode;
 
@@ -29,7 +30,7 @@ public static class Program
     /// <returns></returns>
     public static async Task<int> Main(string[] args)
     {
-        //args = new string[] { "--configure", "--help" };
+        //args = new string[] { "--configure", "--showkey" };
         var settingsExists = File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, AppSettingsFile));
         if (args.FirstOrDefault(arg => arg == "--configure") != null)
         {
@@ -73,14 +74,14 @@ public static class Program
 
         try
         {
-            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.ForegroundColor = ConsoleColor.DarkMagenta;
             Console.WriteLine(@$"
-▄▄███▄▄· ██╗ ██████╗██╗   ██╗██████╗ ██╗ 
-██╔════╝██╔╝██╔════╝╚██╗ ██╔╝██╔══██╗╚██╗
-███████╗██║ ██║      ╚████╔╝ ██████╔╝ ██║
-╚════██║██║ ██║       ╚██╔╝  ██╔═══╝  ██║
-███████║╚██╗╚██████╗   ██║   ██║     ██╔╝
-╚═▀▀▀══╝ ╚═╝ ╚═════╝   ╚═╝   ╚═╝     ╚═╝ v{Util.GetAssemblyVersion()}");
+   ______               __                                      __        
+  / ____/__  __ ____   / /_   ___   _____ ____   __  __ ____   / /__ _____
+ / /    / / / // __ \ / __ \ / _ \ / ___// __ \ / / / // __ \ / //_// ___/
+/ /___ / /_/ // /_/ // / / //  __// /   / /_/ // /_/ // / / // ,<  (__  ) 
+\____/ \__, // .___//_/ /_/ \___//_/   / .___/ \__,_//_/ /_//_/|_|/____/  
+      /____//_/                       /_/         write code: v{Util.GetAssemblyVersion()}");
 
             Console.WriteLine();
             Console.ResetColor();
