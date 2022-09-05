@@ -257,15 +257,18 @@ public class Crypto : ICrypto
     public unsafe byte[] BoxSealOpen(ReadOnlySpan<byte> cipher, ReadOnlySpan<byte> secretKey, ReadOnlySpan<byte> publicKey)
     {
         var len = cipher.Length - (int)LibSodiumBox.Sealbytes();
-        var msg = stackalloc byte[len];
+        //var msg = stackalloc byte[len];
+        var msg = new byte[len];
         int result;
-        fixed (byte* cPtr = cipher, pkPtr = publicKey, skPtr = secretKey)
+        fixed (byte* m = msg, cPtr = cipher, pkPtr = publicKey, skPtr = secretKey)
         {
-            result = LibSodiumBox.SealOpen(msg, cPtr, (ulong)cipher.Length, pkPtr, skPtr);
+            result = LibSodiumBox.SealOpen(m, cPtr, (ulong)cipher.Length, pkPtr, skPtr);
         }
 
-        var destination = new Span<byte>(msg, len);
-        return result != 0 ? Array.Empty<byte>() : destination.Slice(0, len).ToArray();
+        // var destination = new Span<byte>(msg, len);
+        // return result != 0 ? Array.Empty<byte>() : destination.Slice(0, len).ToArray();
+
+        return result != 0 ? Array.Empty<byte>() : msg;
     }
 
     /// <summary>
