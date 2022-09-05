@@ -468,13 +468,11 @@ public sealed class Graph : IGraph, IDisposable
             .Throttle(TimeSpan.FromSeconds(LedgerConstant.OnRoundThrottleFromSeconds), NewThreadScheduler.Default)
             .Subscribe(_ =>
             {
-                Monitor.Enter(LockOnReady);
-
                 try
                 {
-                    var blockGraphs = _syncCacheBlockGraph.Where(x => x.Value.Block.Round == NextRound()).ToList();
+                    var blockGraphs = _syncCacheBlockGraph.GetItems().Where(x => x.Block.Round == NextRound()).ToList();
                     if (blockGraphs.Count < 2) return;
-                    var nodeCount = blockGraphs.Select(n => n.Value.Block.Node).Distinct().Count();
+                    var nodeCount = blockGraphs.Select(n => n.Block.Node).Distinct().Count();
                     var f = (nodeCount - 1) / 3;
                     var quorum2F1 = 2 * f + 1;
                     if (nodeCount < quorum2F1) return;
