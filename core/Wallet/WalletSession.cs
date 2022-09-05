@@ -9,6 +9,7 @@ using System.Security;
 using System.Threading.Tasks;
 using CypherNetwork.Extensions;
 using CypherNetwork.Models;
+using CypherNetwork.Models.Messages;
 using CypherNetwork.Persistence;
 using CypherNetwork.Wallet.Models;
 using Dawn;
@@ -109,17 +110,14 @@ public class WalletSession : IWalletSession, IDisposable
     /// <param name="seed"></param>
     /// <param name="passphrase"></param>
     /// <returns></returns>
-    public Task<Tuple<bool, string>> LoginAsync(byte[] seed, byte[] passphrase)
+    public Task<Tuple<bool, string>> LoginAsync(byte[] seed)
     {
         Guard.Argument(seed, nameof(seed)).NotNull().NotEmpty();
-        Guard.Argument(passphrase, nameof(passphrase)).NotNull().NotEmpty();
         try
         {
             Seed = seed.ToSecureString();
-            Passphrase = passphrase.ToSecureString();
             seed.Destroy();
-            passphrase.Destroy();
-            CreateHdRootKey(Seed, Passphrase, out var rootKey);
+            CreateHdRootKey(Seed, out var rootKey);
             var keySet = CreateKeySet(new KeyPath($"{HardwarePath}0"), rootKey.PrivateKey.ToHex().HexToByte(),
                 rootKey.ChainCode);
             SenderAddress = keySet.StealthAddress;
@@ -203,12 +201,10 @@ public class WalletSession : IWalletSession, IDisposable
     /// 
     /// </summary>
     /// <param name="seed"></param>
-    /// <param name="passphrase"></param>
     /// <param name="hdRoot"></param>
-    private static void CreateHdRootKey(SecureString seed, SecureString passphrase, out ExtKey hdRoot)
+    private static void CreateHdRootKey(SecureString seed, out ExtKey hdRoot)
     {
         Guard.Argument(seed, nameof(seed)).NotNull();
-        Guard.Argument(passphrase, nameof(passphrase)).NotNull();
         Guard.Argument(seed, nameof(seed)).NotNull();
         var concatenateMnemonic = string.Join(" ", seed.FromSecureString());
         hdRoot = new Mnemonic(concatenateMnemonic).DeriveExtKey();

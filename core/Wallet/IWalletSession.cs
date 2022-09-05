@@ -24,7 +24,8 @@ public interface IWalletSession
     public ulong Change { get; set; }
     public ulong Reward { get; set; }
     void Notify(Transaction[] transactions);
-    Task<Tuple<bool, string>> LoginAsync(byte[] seed, byte[] passphrase);
+    Task<Tuple<bool, string>> LoginAsync(byte[] seed);
     Task<Tuple<bool, string>> InitializeWalletAsync(Output[] outputs);
     IReadOnlyList<Block> GetSafeGuardBlocks();
+   
 }

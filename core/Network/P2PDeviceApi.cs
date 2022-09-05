@@ -229,7 +229,7 @@ public class P2PDeviceApi : IP2PDeviceApi
 
             var walletSession = await _cypherNetworkCore.WalletSession();
             var stakeCredRequest = MessagePackSerializer.Deserialize<StakeCredentialsRequest>(packet);
-            var (loginSuccess, loginMessage) = await walletSession.LoginAsync(stakeCredRequest.Seed, stakeCredRequest.Passphrase);
+            var (loginSuccess, loginMessage) = await walletSession.LoginAsync(stakeCredRequest.Seed);
             if (!loginSuccess)
                 return await SerializeAsync(new StakeCredentialsResponse(loginMessage, false));
 
