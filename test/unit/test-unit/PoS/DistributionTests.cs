@@ -3,7 +3,7 @@
 
 using System;
 using CypherNetwork.Extensions;
-using CypherNetwork.Ledger;
+using CypherNetwork.Models;
 using libsignal.ecc;
 using NBitcoin.BouncyCastle.Math;
 using NUnit.Framework;

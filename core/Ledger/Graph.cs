@@ -20,11 +20,12 @@ using CypherNetwork.Models.Messages;
 using CypherNetwork.Persistence;
 using Dawn;
 using MessagePack;
+using Microsoft.IO;
 using NBitcoin;
 using Serilog;
+using Spectre.Console;
 using Block = CypherNetwork.Models.Block;
 using Interpreted = CypherNetwork.Consensus.Models.Interpreted;
-using Transaction = CypherNetwork.Models.Transaction;
 using Util = CypherNetwork.Helper.Util;
 
 namespace CypherNetwork.Ledger;
@@ -34,7 +35,7 @@ namespace CypherNetwork.Ledger;
 public interface IGraph
 {
     Task<TransactionBlockIndexResponse> GetTransactionBlockIndexAsync(TransactionBlockIndexRequest transactionIndexRequest);
-    Task<BlockResponse> GetTransactionBlockAsync(TransactionRequest transactionIndexRequest);
+    Task<BlockResponse> GetTransactionBlockAsync(TransactionIdRequest transactionIndexRequest);
     Task<TransactionResponse> GetTransactionAsync(TransactionRequest transactionRequest);
     Task<Block> GetPreviousBlockAsync();
     Task<SafeguardBlocksResponse> GetSafeguardBlocksAsync(SafeguardBlocksRequest safeguardBlocksRequest);
@@ -43,11 +44,11 @@ public interface IGraph
     Task<SaveBlockResponse> SaveBlockAsync(SaveBlockRequest saveBlockRequest);
     Task<BlocksResponse> GetBlocksAsync(BlocksRequest blocksRequest);
     Task PublishAsync(BlockGraph blockGraph);
-    Task<BlockResponse> GetBlockAsync(byte[] hash);
-    Task<BlockResponse> GetBlockByHeightAsync(ulong height);
-    Task<VerifyResult> BlockHeightExistsAsync(ulong height);
-    Task<VerifyResult> BlockExistsAsync(byte[] hash);
-    byte[] HashTransactions(Transaction[] transactions);
+    Task<BlockResponse> GetBlockAsync(BlockRequest blockRequest);
+    Task<BlockResponse> GetBlockByHeightAsync(BlockByHeightRequest blockByHeightRequest);
+    Task<VerifyResult> BlockHeightExistsAsync(BlockHeightExistsRequest blockHeightExistsRequest);
+    Task<VerifyResult> BlockExistsAsync(BlockExistsRequest blockExistsRequest);
+    byte[] HashTransactions(HashTransactionsRequest hashTransactionsRequest);
 }
 
 /// <summary>
@@ -57,6 +58,7 @@ internal record SeenBlockGraph
     public long Timestamp { get; } = Util.GetAdjustedTimeAsUnixTimestamp();
     public ulong Round { get; init; }
     public byte[] Hash { get; init; }
+    public byte[] Key { get; init; }
 }
 
 /// <summary>
@@ -84,8 +86,6 @@ public sealed class Graph : IGraph, IDisposable
     private IDisposable _disposableHandelSeenBlockGraphs;
     private bool _disposed;
     private readonly SemaphoreSlim _slimDecideWinner = new(1, 1);
-
-    private static readonly object LockOnReady = new();
 
     /// <summary>
     /// </summary>
@@ -149,16 +149,16 @@ public sealed class Graph : IGraph, IDisposable
     /// <summary>
     /// 
     /// </summary>
-    /// <param name="transactionRequest"></param>
+    /// <param name="transactionIdRequest"></param>
     /// <returns></returns>
-    public async Task<BlockResponse> GetTransactionBlockAsync(TransactionRequest transactionRequest)
+    public async Task<BlockResponse> GetTransactionBlockAsync(TransactionIdRequest transactionIdRequest)
     {
-        Guard.Argument(transactionRequest, nameof(transactionRequest)).NotNull();
+        Guard.Argument(transactionIdRequest, nameof(transactionIdRequest)).NotNull();
         try
         {
             var unitOfWork = await _cypherNetworkCore.UnitOfWork();
             var block = await unitOfWork.HashChainRepository.GetAsync(x =>
-                new ValueTask<bool>(x.Txs.Any(t => t.TxnId.Xor(transactionRequest.TransactionId))));
+                new ValueTask<bool>(x.Txs.Any(t => t.TxnId.Xor(transactionIdRequest.TransactionId))));
             if (block is { })
             {
                 return new BlockResponse(block);
@@ -238,13 +238,13 @@ public sealed class Graph : IGraph, IDisposable
 
     /// <summary>
     /// </summary>
-    /// <param name="hash"></param>
+    /// <param name="blockRequest"></param>
     /// <returns></returns>
-    public async Task<BlockResponse> GetBlockAsync(byte[] hash)
+    public async Task<BlockResponse> GetBlockAsync(BlockRequest blockRequest)
     {
         try
         {
-            var block = await (await _cypherNetworkCore.UnitOfWork()).HashChainRepository.GetAsync(hash);
+            var block = await (await _cypherNetworkCore.UnitOfWork()).HashChainRepository.GetAsync(blockRequest.Hash);
             if (block is { }) return new BlockResponse(block);
         }
         catch (Exception ex)
@@ -258,14 +258,14 @@ public sealed class Graph : IGraph, IDisposable
     /// <summary>
     /// 
     /// </summary>
-    /// <param name="height"></param>
+    /// <param name="blockByHeightRequest"></param>
     /// <returns></returns>
-    public async Task<BlockResponse> GetBlockByHeightAsync(ulong height)
+    public async Task<BlockResponse> GetBlockByHeightAsync(BlockByHeightRequest blockByHeightRequest)
     {
         try
         {
             var block = await (await _cypherNetworkCore.UnitOfWork()).HashChainRepository.GetAsync(x =>
-                new ValueTask<bool>(x.Height == height));
+                new ValueTask<bool>(x.Height == blockByHeightRequest.Height));
             if (block is { }) return new BlockResponse(block);
         }
         catch (Exception ex)
@@ -361,38 +361,41 @@ public sealed class Graph : IGraph, IDisposable
     /// <summary>
     /// 
     /// </summary>
-    /// <param name="height"></param>
+    /// <param name="blockHeightExistsRequest"></param>
     /// <returns></returns>
-    public async Task<VerifyResult> BlockHeightExistsAsync(ulong height)
+    public async Task<VerifyResult> BlockHeightExistsAsync(BlockHeightExistsRequest blockHeightExistsRequest)
     {
-        Guard.Argument(height, nameof(height)).NotNegative();
+        Guard.Argument(blockHeightExistsRequest, nameof(blockHeightExistsRequest)).NotNull();
+        Guard.Argument(blockHeightExistsRequest.Height, nameof(blockHeightExistsRequest.Height)).NotNegative();
         var unitOfWork = await _cypherNetworkCore.UnitOfWork();
-        var seen = await unitOfWork.HashChainRepository.GetAsync(x => new ValueTask<bool>(x.Height == height));
+        var seen = await unitOfWork.HashChainRepository.GetAsync(x => new ValueTask<bool>(x.Height == blockHeightExistsRequest.Height));
         return seen is not null ? VerifyResult.AlreadyExists : VerifyResult.Succeed;
     }
 
     /// <summary>
     /// </summary>
-    /// <param name="hash"></param>
+    /// <param name="blockExistsRequest"></param>
     /// <returns></returns>
-    public async Task<VerifyResult> BlockExistsAsync(byte[] hash)
+    public async Task<VerifyResult> BlockExistsAsync(BlockExistsRequest blockExistsRequest)
     {
-        Guard.Argument(hash, nameof(hash)).NotEmpty().NotEmpty().MaxCount(64);
+        Guard.Argument(blockExistsRequest, nameof(blockExistsRequest)).NotNull();
+        Guard.Argument(blockExistsRequest.Hash, nameof(blockExistsRequest.Hash)).NotEmpty().NotEmpty().MaxCount(64);
         var unitOfWork = await _cypherNetworkCore.UnitOfWork();
-        var seen = await unitOfWork.HashChainRepository.GetAsync(x => new ValueTask<bool>(x.Hash.Xor(hash)));
+        var seen = await unitOfWork.HashChainRepository.GetAsync(x => new ValueTask<bool>(x.Hash.Xor(blockExistsRequest.Hash)));
         return seen is not null ? VerifyResult.AlreadyExists : VerifyResult.Succeed;
     }
 
     /// <summary>
     /// 
     /// </summary>
-    /// <param name="transactions"></param>
+    /// <param name="hashTransactionsRequest"></param>
     /// <returns></returns>
-    public byte[] HashTransactions(Transaction[] transactions)
+    public byte[] HashTransactions(HashTransactionsRequest hashTransactionsRequest)
     {
-        if (transactions.Length == 0) return null;
+        Guard.Argument(hashTransactionsRequest, nameof(hashTransactionsRequest)).NotNull();
+        if (hashTransactionsRequest.Transactions.Length == 0) return null;
         using BufferStream ts = new();
-        foreach (var transaction in transactions) ts.Append(transaction.ToStream());
+        foreach (var transaction in hashTransactionsRequest.Transactions) ts.Append(transaction.ToStream());
         return Hasher.Hash(ts.ToArray()).HexToByte();
     }
 
@@ -409,12 +412,15 @@ public sealed class Graph : IGraph, IDisposable
     private async Task NewBlockGraphAsync(BlockGraph blockGraph)
     {
         Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
+        if ((await _cypherNetworkCore.Sync()).Running) return;
         if (blockGraph.Block.Round != await NextRoundAsync()) return;
-        if (await BlockHeightExistsAsync(blockGraph.Block.Round) != VerifyResult.Succeed) return;
+        if (await BlockHeightExistsAsync(new BlockHeightExistsRequest(blockGraph.Block.Round)) != VerifyResult.Succeed) return;
         if (!_syncCacheSeenBlockGraph.Contains(blockGraph.ToIdentifier()))
         {
-            _syncCacheSeenBlockGraph.Add(blockGraph.ToIdentifier(),
-                new SeenBlockGraph { Hash = blockGraph.ToHash(), Round = blockGraph.Block.Round });
+            var identifier = blockGraph.ToIdentifier();
+            _syncCacheSeenBlockGraph.Add(identifier,
+                new SeenBlockGraph
+                { Hash = blockGraph.Block.BlockHash, Round = blockGraph.Block.Round, Key = identifier });
             await FinalizeAsync(blockGraph);
         }
     }
@@ -431,19 +437,22 @@ public sealed class Graph : IGraph, IDisposable
     /// </summary>
     private void HandelSeenBlockGraphs()
     {
-        _disposableHandelSeenBlockGraphs = Observable.Interval(TimeSpan.FromHours(1)).Subscribe(_ =>
+        _disposableHandelSeenBlockGraphs = Observable.Interval(TimeSpan.FromMinutes(15)).Subscribe(_ =>
         {
             if (_cypherNetworkCore.ApplicationLifetime.ApplicationStopping.IsCancellationRequested) return;
             try
             {
-                var removeSeenBlockGraphBeforeTimestamp = Util.GetUtcNow().AddHours(-1).ToUnixTimestamp();
+                var removeSeenBlockGraphBeforeTimestamp = Util.GetUtcNow().AddMinutes(-15).ToUnixTimestamp();
                 var removingBlockGraphs = AsyncHelper.RunSync(async delegate
                 {
                     return await _syncCacheSeenBlockGraph.WhereAsync(x =>
                         new ValueTask<bool>(x.Value.Timestamp < removeSeenBlockGraphBeforeTimestamp));
                 });
                 foreach (var (key, _) in removingBlockGraphs.OrderBy(x => x.Value.Round))
+                {
                     _syncCacheSeenBlockGraph.Remove(key);
+                    _syncCacheBlockGraph.Remove(key);
+                }
             }
             catch (TaskCanceledException)
             {
@@ -466,13 +475,11 @@ public sealed class Graph : IGraph, IDisposable
             .Throttle(TimeSpan.FromSeconds(LedgerConstant.OnRoundThrottleFromSeconds), NewThreadScheduler.Default)
             .Subscribe(_ =>
             {
-                Monitor.Enter(LockOnReady);
-
                 try
                 {
-                    var blockGraphs = _syncCacheBlockGraph.Where(x => x.Value.Block.Round == NextRound()).ToList();
+                    var blockGraphs = _syncCacheBlockGraph.GetItems().Where(x => x.Block.Round == NextRound()).ToList();
                     if (blockGraphs.Count < 2) return;
-                    var nodeCount = blockGraphs.Select(n => n.Value.Block.Node).Distinct().Count();
+                    var nodeCount = blockGraphs.Select(n => n.Block.Node).Distinct().Count();
                     var f = (nodeCount - 1) / 3;
                     var quorum2F1 = 2 * f + 1;
                     if (nodeCount < quorum2F1) return;
@@ -488,20 +495,14 @@ public sealed class Graph : IGraph, IDisposable
                     {
                         AsyncHelper.RunSync(async () =>
                         {
-                            var (key, blockGraph) = next;
-                            await blockmania.AddAsync(blockGraph,
+                            await blockmania.AddAsync(next,
                                 _cypherNetworkCore.ApplicationLifetime.ApplicationStopping);
-                            _syncCacheBlockGraph.Remove(key);
                         });
                     }
                 }
                 catch (Exception ex)
                 {
                     _logger.Here().Error(ex, "Process add blockmania error");
-                }
-                finally
-                {
-                    Monitor.Exit(LockOnReady);
                 }
             }, exception => { _logger.Here().Error(exception, "Subscribe try add blockmania listener error"); });
         return onRoundCompletedSubscription;
@@ -573,6 +574,7 @@ public sealed class Graph : IGraph, IDisposable
             {
                 Block = new Consensus.Models.Block
                 {
+                    BlockHash = blockGraph.Block.BlockHash,
                     Data = blockGraph.Block.Data,
                     DataHash = blockGraph.Block.DataHash,
                     Hash = blockGraph.Block.Hash,
@@ -581,6 +583,7 @@ public sealed class Graph : IGraph, IDisposable
                 },
                 Prev = new Consensus.Models.Block
                 {
+                    BlockHash = blockGraph.Prev.BlockHash,
                     Data = blockGraph.Prev.Data,
                     DataHash = blockGraph.Prev.DataHash,
                     Hash = blockGraph.Prev.Hash,
@@ -651,13 +654,15 @@ public sealed class Graph : IGraph, IDisposable
             try
             {
                 if (deliveredBlock.Round != await NextRoundAsync()) continue;
-                var block = MessagePackSerializer.Deserialize<Block>(deliveredBlock.Data);
+                await using var stream = Util.Manager.GetStream(deliveredBlock.Data.AsSpan()) as RecyclableMemoryStream;
+                var block = await MessagePackSerializer.DeserializeAsync<Block>(stream);
                 _syncCacheDelivered.AddOrUpdate(block.Hash, block);
             }
             catch (Exception ex)
             {
                 _logger.Here().Error("{@Message}", ex.Message);
             }
+
         await DecideWinnerAsync();
     }
 
@@ -689,33 +694,36 @@ public sealed class Graph : IGraph, IDisposable
             if (block is { })
             {
                 if (block.Height != await NextRoundAsync()) return;
-                if (block.BlockPos.PublicKey.ToHashIdentifier() ==
-                    (await _cypherNetworkCore.PeerDiscovery()).GetLocalNode().Identifier)
-                {
-                    Console.ForegroundColor = ConsoleColor.Green;
-                    Console.WriteLine(@"  
-    _  _         ____    _                  _       __        __  _                                     _  _   
-  _| || |_      | __ )  | |   ___     ___  | | __   \ \      / / (_)  _ __    _ __     ___   _ __     _| || |_ 
- |_  ..  _|     |  _ \  | |  / _ \   / __| | |/ /    \ \ /\ / /  | | | '_ \  | '_ \   / _ \ | '__|   |_  ..  _|
- |_      _|     | |_) | | | | (_) | | (__  |   <      \ V  V /   | | | | | | | | | | |  __/ | |      |_      _|
-   |_||_|       |____/  |_|  \___/   \___| |_|\_\      \_/\_/    |_| |_| |_| |_| |_|  \___| |_|        |_||_|  ");
-                    Console.WriteLine();
-                    Console.ResetColor();
-                }
-                else
-                {
-                    _logger.Information("We have a winner {@Hash}", block.Hash.ByteToHex());
-                }
-
-                if (await BlockHeightExistsAsync(block.Height) == VerifyResult.AlreadyExists)
+                if (await BlockHeightExistsAsync(new BlockHeightExistsRequest(block.Height)) == VerifyResult.AlreadyExists)
                 {
                     _logger.Error("Block winner already exists");
                     return;
                 }
 
-                _logger.Here().Information("Saved in decide winner");
                 var saveBlockResponse = await SaveBlockAsync(new SaveBlockRequest(block));
-                if (!saveBlockResponse.Ok) _logger.Error("Unable to save the block winner");
+                if (saveBlockResponse.Ok)
+                {
+                    if (block.BlockPos.PublicKey.ToHashIdentifier() ==
+                        (await _cypherNetworkCore.PeerDiscovery()).GetLocalNode().Identifier)
+                    {
+                        AnsiConsole.Write(
+                            new FigletText("# Block Winner #")
+                                .Centered()
+                                .Color(Color.Magenta1));
+                    }
+                    else
+                    {
+                        _logger.Information("We have a winner {@Hash}", block.Hash.ByteToHex());
+                    }
+                }
+                else
+                {
+                    var seenBlockGraph =
+                        _syncCacheSeenBlockGraph.GetItems().FirstOrDefault(x => x.Hash.Xor(block.Hash));
+                    if (seenBlockGraph != null) _syncCacheBlockGraph.Remove(seenBlockGraph.Key);
+
+                    _logger.Error("Unable to save the block winner");
+                }
 
                 (await _cypherNetworkCore.WalletSession()).Notify(block.Txs.ToArray());
             }

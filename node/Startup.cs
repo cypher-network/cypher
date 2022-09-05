@@ -2,6 +2,7 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
+using System.Threading;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,6 +20,7 @@ using CypherNetwork.Network;
 using CypherNetwork.Services;
 using CypherNetwork.Wallet;
 using Serilog;
+using Spectre.Console;
 using Log = Serilog.Log;
 
 namespace CypherNetworkNode;
@@ -73,7 +75,7 @@ public class Startup
         builder.AddGraph();
         builder.AddMemoryPool();
         builder.AddPPoS();
-        builder.AddSync(_configuration);
+        builder.AddSync();
     }
 
     /// <summary>
@@ -141,25 +143,24 @@ public class Startup
                 return;
             }
 
-            Log.Information("Begin...     [PEER DISCOVERY]");
-            AutofacContainer.Resolve<IPeerDiscovery>();
-            Log.Information("Running...   [PEER DISCOVERY]");
+            AnsiConsole.Status()
+                .Start("Starting...", ctx =>
+                {
+                    AnsiConsole.MarkupLine("Begin...     [bold green]PEER DISCOVERY[/]");
+                    AutofacContainer.Resolve<IPeerDiscovery>();
 
-            Log.Information("Begin...     [P2P DEVICE]");
-            AutofacContainer.Resolve<IP2PDevice>();
-            Log.Information("Running...   [P2P DEVICE]");
-            //
-            Log.Information("Begin...     [WALLET SESSION]");
-            AutofacContainer.Resolve<IWalletSession>();
-            Log.Information("Running...   [WALLET SESSION]");
-            //         
-            Log.Information("Begin...     [SYNC]");
-            AutofacContainer.Resolve<ISync>();
-            Log.Information("Running...   [SYNC]");
-            //         
-            Log.Information("Begin...     [PURE PROOF OF STAKE]");
-            AutofacContainer.Resolve<IPPoS>();
-            Log.Information("Running...   [PURE PROOF OF STAKE]");
+                    AnsiConsole.MarkupLine("Begin...     [bold green]P2P DEVICE[/]");
+                    AutofacContainer.Resolve<IP2PDevice>();
+
+                    AnsiConsole.MarkupLine("Begin...     [bold green]WALLET SESSION[/]");
+                    AutofacContainer.Resolve<IWalletSession>();
+
+                    AnsiConsole.MarkupLine("Begin...     [bold green]PURE PROOF OF STAKE[/]");
+                    AutofacContainer.Resolve<IPPoS>();
+
+                    AnsiConsole.MarkupLine("Begin...     [bold green]SYNC[/]");
+                    AutofacContainer.Resolve<ISync>();
+                });
 
         });
         lifetime.ApplicationStopping.Register(() => { });

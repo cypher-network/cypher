@@ -4,7 +4,7 @@
         <TargetFramework>net6.0</TargetFramework>
         <Platforms>AnyCPU;x64</Platforms>
         <RootNamespace>CypherNetwork</RootNamespace>
-        <AssemblyVersion>0.0.67.0</AssemblyVersion>
+        <AssemblyVersion>0.0.68.0</AssemblyVersion>
         <Company>CypherNetwork</Company>
         <PackageId>core</PackageId>
         <AssemblyName>cyphernetworkcore</AssemblyName>
@@ -41,7 +41,7 @@
         <PackageReference Include="Microsoft.AspNetCore.Mvc" Version="2.2.0" />
         <PackageReference Include="Microsoft.Extensions.Hosting.Systemd" Version="6.0.0" />
         <PackageReference Include="Microsoft.Extensions.Http" Version="6.0.0" />
-        <PackageReference Include="Microsoft.IO.RecyclableMemoryStream" Version="2.2.0" />
+        <PackageReference Include="Microsoft.IO.RecyclableMemoryStream" Version="2.2.1" />
         <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.1.1">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -51,6 +51,7 @@
         <PackageReference Include="NBitcoin" Version="5.0.83" />
         <PackageReference Include="Nerdbank.Streams" Version="2.8.61" />
         <PackageReference Include="nng.NET" Version="1.4.0-rc0" />
+        <PackageReference Include="Retlang.Net" Version="1.0.0" />
         <PackageReference Include="RockDb.Native" Version="6.12.1" />
         <PackageReference Include="RocksDbNative" Version="6.2.2" />
         <PackageReference Include="RocksDbSharp" Version="6.2.2" />
@@ -59,6 +60,7 @@
         <PackageReference Include="Serilog.Sinks.Console" Version="4.0.1" />
         <PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />
         <PackageReference Include="Serilog.Sinks.Seq" Version="5.1.1" />
+        <PackageReference Include="Spectre.Console" Version="0.44.0" />
         <PackageReference Include="System.Linq.Async" Version="6.0.1" />
         <PackageReference Include="System.Reactive" Version="5.0.0" />
     </ItemGroup>
@@ -76,5 +78,10 @@
       <Reference Include="Microsoft.VisualStudio.Threading">
         <HintPath>..\node\bin\Debug\net6.0\Microsoft.VisualStudio.Threading.dll</HintPath>
       </Reference>
+    </ItemGroup>
+    <ItemGroup>
+      <None Update="Libs\Retlang.Net.dll">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
     </ItemGroup>
 </Project>

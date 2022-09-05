@@ -111,6 +111,7 @@ public static class AppExtensions
     /// <returns></returns>
     public static ContainerBuilder AddP2PDevice(this ContainerBuilder builder)
     {
+        builder.RegisterType<P2PDeviceApi>().As<IP2PDeviceApi>().InstancePerDependency();
         builder.RegisterType<P2PDevice>().As<IP2PDevice>().SingleInstance();
         return builder;
     }
@@ -228,9 +229,8 @@ public static class AppExtensions
     /// <summary>
     /// </summary>
     /// <param name="builder"></param>
-    /// <param name="configuration"></param>
     /// <returns></returns>
-    public static ContainerBuilder AddSync(this ContainerBuilder builder, IConfiguration configuration)
+    public static ContainerBuilder AddSync(this ContainerBuilder builder)
     {
         builder.RegisterType<Sync>().As<ISync>().SingleInstance();
         return builder;

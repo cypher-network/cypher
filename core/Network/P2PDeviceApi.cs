@@ -21,7 +21,18 @@ using Block = CypherNetwork.Models.Block;
 
 namespace CypherNetwork.Network;
 
-public class P2PDeviceApi
+/// <summary>
+/// 
+/// </summary>
+public interface IP2PDeviceApi
+{
+    IDictionary<int, Func<Parameter[], Task<ReadOnlySequence<byte>>>> Commands { get; }
+}
+
+/// <summary>
+/// 
+/// </summary>
+public class P2PDeviceApi : IP2PDeviceApi
 {
     private readonly ICypherNetworkCore _cypherNetworkCore;
     private readonly ILogger _logger;
@@ -61,6 +72,7 @@ public class P2PDeviceApi
         Commands.Add((int)ProtocolCommand.GetPosTransaction, OnPosTransactionAsync);
         Commands.Add((int)ProtocolCommand.GetTransactionBlockIndex, OnGetTransactionBlockIndexAsync);
         Commands.Add((int)ProtocolCommand.Stake, OnStakeAsync);
+        Commands.Add((int)ProtocolCommand.StakeEnabled, OnStakeEnabledAsync);
         Commands.Add((int)ProtocolCommand.GetSafeguardBlocks, OnGetSafeguardBlocksAsync);
     }
 
@@ -217,7 +229,7 @@ public class P2PDeviceApi
 
             var walletSession = await _cypherNetworkCore.WalletSession();
             var stakeCredRequest = MessagePackSerializer.Deserialize<StakeCredentialsRequest>(packet);
-            var (loginSuccess, loginMessage) = await walletSession.LoginAsync(stakeCredRequest.Seed, stakeCredRequest.Passphrase);
+            var (loginSuccess, loginMessage) = await walletSession.LoginAsync(stakeCredRequest.Seed);
             if (!loginSuccess)
                 return await SerializeAsync(new StakeCredentialsResponse(loginMessage, false));
 
@@ -228,6 +240,35 @@ public class P2PDeviceApi
                 _cypherNetworkCore.AppOptions.Staking.Enabled = true;
                 return await SerializeAsync(new StakeCredentialsResponse(setupMessage, true));
             }
+        }
+        catch (Exception ex)
+        {
+            _logger.Here().Error("{@Message}", ex.Message);
+        }
+
+        return await SerializeAsync(new StakeCredentialsResponse("Unable to setup staking", false));
+    }
+
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="parameters"></param>
+    /// <returns></returns>
+    private async Task<ReadOnlySequence<byte>> OnStakeEnabledAsync(Parameter[] parameters)
+    {
+        Guard.Argument(parameters, nameof(parameters)).NotNull().NotEmpty();
+        try
+        {
+            await using var stream = Util.Manager.GetStream(parameters[0].Value);
+            var stakeRequest = await MessagePackSerializer.DeserializeAsync<StakeRequest>(stream);
+            var packet = _cypherNetworkCore.Crypto().DecryptChaCha20Poly1305(stakeRequest.Data,
+                _cypherNetworkCore.KeyPair.PrivateKey.FromSecureString().HexToByte(), stakeRequest.Token,
+                null, stakeRequest.Nonce);
+            if (packet is null)
+                return await SerializeAsync(new StakeCredentialsResponse("Unable to decrypt message", false));
+
+            return await SerializeAsync(new StakeCredentialsResponse(
+                _cypherNetworkCore.AppOptions.Staking.Enabled ? "Staking enabled" : "Staking not enabled", true));
         }
         catch (Exception ex)
         {

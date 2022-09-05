@@ -7,7 +7,6 @@ using System.Collections.Immutable;
 using System.Globalization;
 using System.Linq;
 using System.Numerics;
-using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Blake3;
@@ -15,10 +14,13 @@ using CypherNetwork.Consensus.Models;
 using CypherNetwork.Cryptography;
 using CypherNetwork.Extensions;
 using CypherNetwork.Models;
+using CypherNetwork.Models.Messages;
 using CypherNetwork.Persistence;
 using Dawn;
 using libsignal.ecc;
 using NBitcoin;
+using Retlang.Net.Core;
+using Retlang.Net.Fibers;
 using Serilog;
 using Block = CypherNetwork.Models.Block;
 using BlockHeader = CypherNetwork.Models.BlockHeader;
@@ -60,9 +62,9 @@ public class PPoS : IPPoS, IDisposable
     private readonly ICypherNetworkCore _cypherNetworkCore;
     private readonly ILogger _logger;
     private readonly Caching<Transaction> _syncCacheTransactions = new();
-
-    private readonly IDisposable _stakeDisposable;
+    private readonly ThreadFiber _threadFiber = new(new DefaultQueue(), "CypherNetworkCore-PPoS");
     private bool _disposed;
+    private int _running;
 
     /// <summary>
     /// </summary>
@@ -72,13 +74,14 @@ public class PPoS : IPPoS, IDisposable
     {
         _cypherNetworkCore = cypherNetworkCore;
         _logger = logger.ForContext("SourceContext", nameof(PPoS));
-        _stakeDisposable = Observable.Interval(TimeSpan.FromSeconds(LedgerConstant.BlockProposalTimeFromSeconds))
-            .Subscribe(_ => { InitAsync().Wait(); });
+        const uint again = LedgerConstant.BlockProposalTimeFromSeconds * 1 * 1000;
+        _threadFiber.ScheduleOnInterval(() => InitAsync().ConfigureAwait(false), 0, again);
+        _threadFiber.Start();
     }
 
     /// <summary>
     /// </summary>
-    public bool Running { get; private set; }
+    public bool Running => _running != 0;
 
     /// <summary>
     /// </summary>
@@ -126,6 +129,9 @@ public class PPoS : IPPoS, IDisposable
             return;
         }
 
+        if (sync.Running) return;
+        if (Running) return;
+        _running = 1;
         await RunStakingAsync();
     }
 
@@ -136,15 +142,10 @@ public class PPoS : IPPoS, IDisposable
     {
         try
         {
-            var sync = await _cypherNetworkCore.Sync();
-            if (sync is null) return;
-            if (sync.Running) return;
-            Running = true;
             var prevBlock = await GetPreviousBlockAdjustedTimeAsUnixTimestampAsync();
             if (prevBlock is null) return;
             if (!await BlockHeightSynchronizedAsync())
             {
-                await sync.SynchronizeAsync();
                 return;
             }
 
@@ -164,7 +165,8 @@ public class PPoS : IPPoS, IDisposable
             var blockGraph = NewBlockGraph(in newBlock, in prevBlock);
             if (blockGraph is null) return;
             var graph = await _cypherNetworkCore.Graph();
-            if (await graph.BlockHeightExistsAsync(newBlock.Height) == VerifyResult.AlreadyExists) return;
+            if (await graph.BlockHeightExistsAsync(new BlockHeightExistsRequest(newBlock.Height)) ==
+                VerifyResult.AlreadyExists) return;
             _logger.Information("Publishing... [BLOCKGRAPH]");
             await graph.PublishAsync(blockGraph);
             foreach (var transaction in transactions) _syncCacheTransactions.Remove(transaction.TxnId);
@@ -177,7 +179,7 @@ public class PPoS : IPPoS, IDisposable
         {
             // Call again in case of an exception.
             RemoveAnyCoinstake();
-            Running = false;
+            Interlocked.Exchange(ref _running, 0);
         }
     }
 
@@ -186,8 +188,7 @@ public class PPoS : IPPoS, IDisposable
     /// <returns></returns>
     private async Task<Block> GetPreviousBlockAdjustedTimeAsUnixTimestampAsync()
     {
-        var prevBlock = await (await _cypherNetworkCore.Graph()).GetPreviousBlockAsync();
-        if (prevBlock is null) return null;
+        if (await (await _cypherNetworkCore.Graph()).GetPreviousBlockAsync() is not { } prevBlock) return null;
         return Helper.Util.GetAdjustedTimeAsUnixTimestamp(LedgerConstant.BlockProposalTimeFromSeconds) >
                prevBlock.BlockHeader.Locktime
             ? prevBlock
@@ -209,15 +210,22 @@ public class PPoS : IPPoS, IDisposable
     }
 
     /// <summary>
-    ///     Sanity check if coinstake transaction exists before adding.
+    /// Sanity check if coinstake transaction exists before adding.
     /// </summary>
     private void RemoveAnyCoinstake()
     {
-        foreach (var transaction in _syncCacheTransactions.GetItems())
+        try
         {
-            if (transaction.OutputType() != CoinType.Coinstake) continue;
-            _logger.Warning("Removing coinstake transaction");
-            _syncCacheTransactions.Remove(transaction.TxnId);
+            foreach (var transaction in _syncCacheTransactions.GetItems())
+            {
+                if (transaction.OutputType() != CoinType.Coinstake) continue;
+                _logger.Warning("Removing coinstake transaction");
+                _syncCacheTransactions.Remove(transaction.TxnId);
+            }
+        }
+        catch (Exception)
+        {
+            // Ignore
         }
     }
 
@@ -228,9 +236,9 @@ public class PPoS : IPPoS, IDisposable
     {
         var peers = await (await _cypherNetworkCore.PeerDiscovery()).GetDiscoveryAsync();
         if (!peers.Any()) return true;
-        var blockHeight = (await (await _cypherNetworkCore.Graph()).GetBlockCountAsync()).Count;
+        var blockCountResponse = await (await _cypherNetworkCore.Graph()).GetBlockCountAsync();
         var maxBlockHeight = peers.Max(x => x.BlockCount);
-        return blockHeight >= (long)maxBlockHeight;
+        return blockCountResponse?.Count >= (long)maxBlockHeight;
     }
 
     /// <summary>
@@ -249,8 +257,8 @@ public class PPoS : IPPoS, IDisposable
         foreach (var transaction in verifiedTransactions) _syncCacheTransactions.Add(transaction.TxnId, transaction);
         RemoveAnyDuplicateImageKeys();
         await RemoveAnyUnVerifiedTransactionsAsync();
-        var transactionsHash = (await _cypherNetworkCore.Graph()).HashTransactions(SortTransactions().ToArray());
-        if (transactionsHash == null) return null;
+        if ((await _cypherNetworkCore.Graph()).HashTransactions(
+                new HashTransactionsRequest(SortTransactions().ToArray())) is not { } transactionsHash) return null;
         var kernel = _cypherNetworkCore.Validator().Kernel(prevBlockHash, transactionsHash, round);
         var crypto = _cypherNetworkCore.Crypto();
         var calculatedVrfSignature = crypto.GetCalculateVrfSignature(
@@ -343,6 +351,7 @@ public class PPoS : IPPoS, IDisposable
             {
                 Block = new Consensus.Models.Block
                 {
+                    BlockHash = block.Hash,
                     Data = nextData,
                     DataHash = nextDataHash.ToString(),
                     Hash = Hasher.Hash(block.Height.ToBytes()).ToString(),
@@ -351,6 +360,7 @@ public class PPoS : IPPoS, IDisposable
                 },
                 Prev = new Consensus.Models.Block
                 {
+                    BlockHash = prevBlock.Hash,
                     Data = prevData,
                     DataHash = preDataHash.ToString(),
                     Hash = Hasher.Hash(prevBlock.Height.ToBytes()).ToString(),
@@ -489,7 +499,7 @@ public class PPoS : IPPoS, IDisposable
 
         if (disposing)
         {
-            _stakeDisposable?.Dispose();
+            _threadFiber?.Dispose();
         }
 
         _disposed = true;

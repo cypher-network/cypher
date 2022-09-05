@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reactive.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using CypherNetwork.Extensions;
 using CypherNetwork.Helper;
@@ -13,6 +14,7 @@ using CypherNetwork.Models.Messages;
 using Dawn;
 using MessagePack;
 using nng;
+using nng.Native;
 using Serilog;
 using Block = CypherNetwork.Models.Block;
 
@@ -23,7 +25,6 @@ namespace CypherNetwork.Ledger;
 public interface ISync
 {
     bool Running { get; }
-    Task SynchronizeAsync();
 }
 
 /// <summary>
@@ -33,9 +34,10 @@ public class Sync : ISync, IDisposable
     private const int RetryCount = 6;
     private readonly ICypherNetworkCore _cypherNetworkCore;
     private readonly ILogger _logger;
+    private IDisposable _disposableInit;
 
     private bool _disposed;
-    private IDisposable _disposableInit;
+    private int _running;
 
     /// <summary>
     /// </summary>
@@ -48,7 +50,7 @@ public class Sync : ISync, IDisposable
         Init();
     }
 
-    public bool Running { get; private set; }
+    public bool Running => _running != 0;
 
     /// <summary>
     /// </summary>
@@ -59,7 +61,12 @@ public class Sync : ISync, IDisposable
             if (_cypherNetworkCore.ApplicationLifetime.ApplicationStopping.IsCancellationRequested) return;
             try
             {
-                SynchronizeAsync().Wait();
+                if (Running) return;
+                _running = 1;
+                SynchronizeAsync().SafeFireAndForget(exception =>
+                {
+                    _logger.Here().Error("{@Message}", exception.Message);
+                });
             }
             catch (TaskCanceledException)
             {
@@ -71,15 +78,14 @@ public class Sync : ISync, IDisposable
     /// <summary>
     /// </summary>
     /// <returns></returns>
-    public async Task SynchronizeAsync()
+    private async Task SynchronizeAsync()
     {
-        if (Running) return;
         _logger.Information("Begin... [SYNCHRONIZATION]");
         try
         {
-            Running = true;
-            var blockCountResponse = await (await _cypherNetworkCore.Graph()).GetBlockCountAsync();
-            _logger.Information("OPENING block height [{@Height}]", blockCountResponse.Count);
+            var blockCountResponse =
+                await (await _cypherNetworkCore.Graph()).GetBlockCountAsync();
+            _logger.Information("OPENING block height [{@Height}]", blockCountResponse?.Count);
             var currentRetry = 0;
             for (; ; )
             {
@@ -89,34 +95,21 @@ public class Sync : ISync, IDisposable
                 currentRetry++;
             }
 
-            var peers = (await _cypherNetworkCore.PeerDiscovery()).GetDiscoveryStore();
-            var localNode = (await _cypherNetworkCore.PeerDiscovery()).GetLocalNode();
-            var synchronized = false;
-            foreach (var peer in peers)
+            foreach (var peer in (await _cypherNetworkCore.PeerDiscovery()).GetDiscoveryStore())
             {
-                if (blockCountResponse.Count != (long)peer.BlockCount &&
-                    blockCountResponse.Count <= (long)peer.BlockCount)
+                if (blockCountResponse?.Count < (long)peer.BlockCount)
                 {
                     var skip = blockCountResponse.Count - 6; // +- Depth of blocks to compare.
                     skip = skip < 0 ? blockCountResponse.Count : skip;
-                    synchronized = await SynchronizeAsync(peer, (ulong)skip, (int)peer.BlockCount);
+                    var synchronized = await SynchronizeAsync(peer, (ulong)skip, (int)peer.BlockCount);
                     if (!synchronized) continue;
-                    _logger.Information("Successfully SYNCHRONIZED with {@Host}", peer.Listening.FromBytes());
+                    _logger.Information("Successfully SYNCHRONIZED with node:{@NodeName} host:{@Host}",
+                        peer.Name.FromBytes(), peer.Listening.FromBytes());
                     break;
                 }
 
-                _logger.Information(
-                    "[LOCAL node:({@LocalNodeId}) block height: ({@LocalHeight})] > or = [REMOTE node:({@RemoteNodeId}) block height: ({@RemoteBlockHeight})])",
-                    localNode.Identifier.ToString(), blockCountResponse.Count.ToString(),
-                    peer.ClientId.ToString(), peer.BlockCount.ToString());
-                _logger.Information("[CONTINUE]");
-            }
-
-            if (!synchronized)
-            {
-                _logger.Warning("Unable to SYNCHRONIZE WITH REMOTE PEER(S)");
+                //_logger.Information("[CONTINUE SCANNING]");
                 blockCountResponse = await (await _cypherNetworkCore.Graph()).GetBlockCountAsync();
-                _logger.Information("LOCAL NODE block height: [{@LocalHeight}]", blockCountResponse.Count);
             }
         }
         catch (Exception ex)
@@ -125,7 +118,9 @@ public class Sync : ISync, IDisposable
         }
         finally
         {
-            Running = false;
+            Interlocked.Exchange(ref _running, 0);
+            var blockCountResponse = await (await _cypherNetworkCore.Graph()).GetBlockCountAsync();
+            _logger.Information("LOCAL NODE block height: [{@LocalHeight}]", blockCountResponse?.Count);
             _logger.Information("End... [SYNCHRONIZATION]");
             _logger.Information("Next...[SYNCHRONIZATION] in {@Message} minute(s)",
                 _cypherNetworkCore.AppOptions.Network.AutoSyncEveryMinutes);
@@ -226,8 +221,8 @@ public class Sync : ISync, IDisposable
         finally
         {
             var blockCountResponse = await (await _cypherNetworkCore.Graph()).GetBlockCountAsync();
-            _logger.Information("Local node block height set to ({@LocalHeight})", blockCountResponse.Count);
-            if (blockCountResponse.Count == take) isSynchronized = true;
+            _logger.Information("Local node block height set to ({@LocalHeight})", blockCountResponse?.Count);
+            if (blockCountResponse?.Count == take) isSynchronized = true;
         }
 
         return isSynchronized;
@@ -249,7 +244,7 @@ public class Sync : ISync, IDisposable
         {
             _logger.Information("Fetching [{@Range}] block(s)", Math.Abs(take - (int)skip));
             using var reqSocket = NngFactorySingleton.Instance.Factory.RequesterOpen()
-                .ThenDial(peer.Listening.FromBytes()).Unwrap();
+                .ThenDial(peer.Listening.FromBytes(), Defines.NngFlag.NNG_FLAG_NONBLOCK).Unwrap();
             using var ctx = reqSocket.CreateAsyncContext(NngFactorySingleton.Instance.Factory).Unwrap();
             var cipher = _cypherNetworkCore.Crypto().BoxSeal(
                 MessagePackSerializer.Serialize(new Parameter[]

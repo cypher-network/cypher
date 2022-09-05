@@ -4,6 +4,7 @@
 using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Reactive.Concurrency;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
 using CypherNetwork.Extensions;
@@ -15,6 +16,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IO;
 using nng;
 using nng.Native;
+using Retlang.Net.Channels;
 using Serilog;
 
 namespace CypherNetwork.Network;
@@ -46,8 +48,7 @@ public sealed class P2PDevice : IDisposable, IP2PDevice
 
     private readonly ICypherNetworkCore _cypherNetworkCore;
     private readonly ILogger _logger;
-    private readonly P2PDeviceApi _p2PDeviceApi;
-    private readonly IList<IDisposable> _disposables = new List<IDisposable>();
+    private readonly IList<Worker> _disposableWorkers = new List<Worker>();
 
     private IRepSocket _repSocket;
     private bool _disposed;
@@ -60,7 +61,6 @@ public sealed class P2PDevice : IDisposable, IP2PDevice
         _cypherNetworkCore = cypherNetworkCore;
         using var serviceScope = _cypherNetworkCore.ServiceScopeFactory.CreateScope();
         _logger = serviceScope.ServiceProvider.GetService<ILogger>()?.ForContext("SourceContext", nameof(P2PDevice));
-        _p2PDeviceApi = new P2PDeviceApi(cypherNetworkCore);
         Init();
     }
 
@@ -87,6 +87,10 @@ public sealed class P2PDevice : IDisposable, IP2PDevice
                 _cypherNetworkCore.KeyPair.PublicKey.AsSpan()[1..33]), publicKey.ToArray());
             return Task.FromResult(message);
         }
+        catch (AccessViolationException ex)
+        {
+            _logger.Fatal("{@Message}", ex.Message);
+        }
         catch (Exception ex)
         {
             _logger.Here().Error("{@Message}", ex.Message);
@@ -99,7 +103,7 @@ public sealed class P2PDevice : IDisposable, IP2PDevice
     /// </summary>
     private void Init()
     {
-        ListeningAsync().ConfigureAwait(false);
+        ListeningAsync().SafeFireAndForget(exception => { _logger.Here().Error("{@Message}", exception.Message); });
     }
 
     /// <summary>
@@ -114,22 +118,7 @@ public sealed class P2PDevice : IDisposable, IP2PDevice
             Util.ThrowPortNotFree(ipEndPoint.Port);
             _repSocket = NngFactorySingleton.Instance.Factory.ReplierOpen()
                 .ThenListen($"tcp://{ipEndPoint.Address}:{ipEndPoint.Port}", Defines.NngFlag.NNG_FLAG_NONBLOCK).Unwrap();
-            for (var i = 0; i < 5; i++)
-            {
-                var ctx = _repSocket.CreateAsyncContext(NngFactorySingleton.Instance.Factory).Unwrap();
-                _disposables.Add(Observable.Interval(TimeSpan.Zero).Subscribe(_ =>
-                {
-                    if (_cypherNetworkCore.ApplicationLifetime.ApplicationStopping.IsCancellationRequested) return;
-                    try
-                    {
-                        WorkerAsync(ctx).Wait();
-                    }
-                    catch (AggregateException)
-                    {
-                        // Ignore
-                    }
-                }));
-            }
+            for (var i = 0; i < 5; i++) _disposableWorkers.Add(new Worker(_cypherNetworkCore, _repSocket));
         }
         catch (Exception ex)
         {
@@ -137,56 +126,6 @@ public sealed class P2PDevice : IDisposable, IP2PDevice
         }
 
         return Task.CompletedTask;
-    }
-
-    /// <summary>
-    /// 
-    /// </summary>
-    /// <param name="ctx"></param>
-    private async Task WorkerAsync(IRepReqAsyncContext<INngMsg> ctx)
-    {
-        var nngResult = await ctx.Receive();
-        var message = await DecryptAsync(nngResult.Unwrap());
-        if (message.Memory.Length == 0)
-        {
-            (await ctx.Reply(NngFactorySingleton.Instance.Factory.CreateMessage())).Unwrap();
-            return;
-        }
-
-        if (UnWrap(message.Memory.Span, out var protocolCommand, out var parameters))
-        {
-            var nngReplyMsg = NngFactorySingleton.Instance.Factory.CreateMessage();
-            try
-            {
-                var response = await _p2PDeviceApi.Commands[(int)protocolCommand](parameters);
-                var cipher = _cypherNetworkCore.Crypto()
-                    .BoxSeal(response.IsSingleSegment ? response.First.Span : response.ToArray(),
-                        message.PublicKey);
-                if (cipher.Length != 0)
-                {
-                    await using var stream = Util.Manager.GetStream(Util.Combine(
-                            _cypherNetworkCore.KeyPair.PublicKey[1..33].WrapLengthPrefix(), cipher.WrapLengthPrefix())
-                        .AsSpan()) as RecyclableMemoryStream;
-                    foreach (var memory in stream.GetReadOnlySequence()) nngReplyMsg.Append(memory.Span);
-                    (await ctx.Reply(nngReplyMsg)).Unwrap();
-                    return;
-                }
-            }
-            catch (AccessViolationException ex)
-            {
-                _logger.Fatal("{@Message}", ex.Message);
-            }
-            catch (Exception ex)
-            {
-                _logger.Fatal("{@Message}", ex.Message);
-            }
-            finally
-            {
-                nngReplyMsg.Dispose();
-            }
-        }
-
-        (await ctx.Reply(NngFactorySingleton.Instance.Factory.CreateMessage())).Unwrap();
     }
 
     /// <summary>
@@ -220,6 +159,160 @@ public sealed class P2PDevice : IDisposable, IP2PDevice
     /// <summary>
     /// 
     /// </summary>
+    private class Worker : IDisposable
+    {
+        private readonly ICypherNetworkCore _cypherNetworkCore;
+        private readonly ILogger _logger;
+        private readonly RequestReplyChannel<Tuple<ProtocolCommand, Parameter[]>, ReadOnlySequence<byte>> _cmd = new();
+        private readonly IDisposable _disposableSubscribe;
+        private readonly IDisposable _disposableInterval;
+        private bool _disposed;
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="cypherNetworkCore"></param>
+        /// <param name="repSocket"></param>
+        public Worker(ICypherNetworkCore cypherNetworkCore, IRepSocket repSocket)
+        {
+            _cypherNetworkCore = cypherNetworkCore;
+            using var serviceScope = _cypherNetworkCore.ServiceScopeFactory.CreateScope();
+            _logger = serviceScope.ServiceProvider.GetService<ILogger>()?.ForContext("SourceContext", nameof(Worker));
+            var ctx = repSocket.CreateAsyncContext(NngFactorySingleton.Instance.Factory).Unwrap();
+            _disposableSubscribe = _cmd.Subscribe(_cypherNetworkCore.PoolFiber().Value.Result, OnRequest);
+            _disposableInterval = Observable.Interval(TimeSpan.Zero, NewThreadScheduler.Default).Subscribe(_ =>
+            {
+                if (_cypherNetworkCore.ApplicationLifetime.ApplicationStopping.IsCancellationRequested) return;
+                try
+                {
+                    WorkerAsync(ctx).Wait();
+                }
+                catch (AggregateException)
+                {
+                    // Ignore
+                }
+            });
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="ctx"></param>
+        private async Task WorkerAsync(IRepReqAsyncContext<INngMsg> ctx)
+        {
+            var nngResult = await ctx.Receive();
+            var message = await _cypherNetworkCore.P2PDevice().DecryptAsync(nngResult.Unwrap());
+            if (message.Memory.Length == 0)
+            {
+                (await ctx.Reply(NngFactorySingleton.Instance.Factory.CreateMessage())).Unwrap();
+                return;
+            }
+
+            if (UnWrap(message.Memory.Span, out var protocolCommand, out var parameters))
+            {
+                var nngReplyMsg = NngFactorySingleton.Instance.Factory.CreateMessage();
+                try
+                {
+                    var cipher = SendRequest(new Tuple<ProtocolCommand, Parameter[]>(protocolCommand, parameters),
+                        message.PublicKey);
+                    if (cipher.Length != 0)
+                    {
+                        IReadOnlyList<byte[]> bytesList = new List<byte[]>(2)
+                        {
+                            _cypherNetworkCore.KeyPair.PublicKey[1..33].WrapLengthPrefix(), cipher.WrapLengthPrefix()
+                        };
+
+                        await using var stream = Util.Manager.GetStream(Util.Combine(bytesList)
+                            .AsSpan()) as RecyclableMemoryStream;
+                        foreach (var memory in stream.GetReadOnlySequence()) nngReplyMsg.Append(memory.Span);
+                        (await ctx.Reply(nngReplyMsg)).Unwrap();
+                        return;
+                    }
+                }
+                catch (AggregateException)
+                {
+                    // Ignore
+                }
+                catch (Exception ex)
+                {
+                    _logger.Fatal("{@Message}", ex.Message);
+                }
+                finally
+                {
+                    nngReplyMsg.Dispose();
+                }
+            }
+
+            (await ctx.Reply(NngFactorySingleton.Instance.Factory.CreateMessage())).Unwrap();
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="req"></param>
+        private async void OnRequest(IRequest<Tuple<ProtocolCommand, Parameter[]>, ReadOnlySequence<byte>> req)
+        {
+            try
+            {
+                if (_disposed) return;
+                var result =
+                    await _cypherNetworkCore.P2PDeviceApi().Commands[(int)req.Request.Item1](req.Request.Item2);
+                req.SendReply(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.Here().Error("{@Message}", ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="command"></param>
+        /// <param name="publicKey"></param>
+        /// <returns></returns>
+        private byte[] SendRequest(Tuple<ProtocolCommand, Parameter[]> command, byte[] publicKey)
+        {
+            var reply = _cmd.SendRequest(command);
+            reply.Receive(10000, out var response);
+            var cipher = _cypherNetworkCore.Crypto()
+                .BoxSeal(response.IsSingleSegment ? response.First.Span : response.ToArray(), publicKey);
+            return cipher;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="disposing"></param>
+        private void Dispose(bool disposing)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            if (disposing)
+            {
+                _disposableInterval?.Dispose();
+                _disposableSubscribe?.Dispose();
+            }
+
+            _disposed = true;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+    }
+
+    /// <summary>
+    /// 
+    /// </summary>
     /// <param name="disposing"></param>
     private void Dispose(bool disposing)
     {
@@ -231,7 +324,7 @@ public sealed class P2PDevice : IDisposable, IP2PDevice
         if (disposing)
         {
             _repSocket?.Dispose();
-            foreach (var disposable in _disposables)
+            foreach (var disposable in _disposableWorkers)
             {
                 disposable.Dispose();
             }

@@ -79,6 +79,7 @@ public static class ByteExtensions
 
     public static bool Xor(this byte[] a, byte[] b)
     {
+        if (a == null) return false;
         var x = a.Length ^ b.Length;
         for (var i = 0; i < a.Length && i < b.Length; ++i) x |= a[i] ^ b[i];
         return x == 0;
@@ -86,6 +87,7 @@ public static class ByteExtensions
 
     public static bool Xor(this Span<byte> a, Span<byte> b)
     {
+        if (a.IsEmpty) return false;
         var x = a.Length ^ b.Length;
         for (var i = 0; i < a.Length && i < b.Length; ++i) x |= a[i] ^ b[i];
         return x == 0;

@@ -19,5 +19,6 @@ public enum ProtocolCommand : byte
     GetPosTransaction = 0x24,
     GetTransactionBlockIndex = 0x25,
     Stake = 0x26,
+    StakeEnabled = 0x27,
     NotFound = 0x99
 }
