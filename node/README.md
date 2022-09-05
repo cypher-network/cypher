@@ -4,15 +4,14 @@ CypherNetwork by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 To view a copy of this license, visit 
 https://creativecommons.org/licenses/by-nc-nd/4.0
 
-### Minimum hardware requirements
+### Hardware Requirements
 
-OS: Windows 64bit, Linux and macOS
-
-CPU: Single Core
-
-**Relay Node:** 1GB RAM DDR4
-
-**Staking Node:** 2GB RAM DDR4
+|                 | Relay                                                            | Staking                                                          |
+|-----------------|------------------------------------------------------------------|------------------------------------------------------------------|
+| System          | Windows 10<br/>Ubuntu 18.04/22.04<br/>CentOS 8/9<br/>macOS 11/12 | Windows 10<br/>Ubuntu 18.04/22.04<br/>CentOS 8/9<br/>macOS 11/12 |
+| CPU             | Dual core                                                        | Quad core                                                        |
+| Memory          | 1G/4G                                                            | 2G/8G                                                            |
+| Hard Disk       | 25G SSD hard drive                                               | 50G SSD hard drive                                               | 
 
 **NB - The hardware requirements may change.**
 
