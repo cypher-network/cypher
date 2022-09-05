@@ -40,6 +40,9 @@ namespace CypherNetworkNode.Configuration
                 .Replace("<AUTO_SYNC>", networkConfiguration.Configuration.AutoSyncTime.ToString());
             var configFileName = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, Program.AppSettingsFile);
             File.WriteAllText(configFileName, config);
+            
+            
+            
             Console.WriteLine($"Configuration written to {configFileName}");
             Console.WriteLine();
         }
