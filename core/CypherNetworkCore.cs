@@ -69,7 +69,7 @@ public class CypherNetworkCore : ICypherNetworkCore
     private ISync _sync;
     private IMemoryPool _memoryPool;
     private IWalletSession _walletSession;
-    
+
     /// <summary>
     /// </summary>
     /// <param name="applicationLifetime"></param>
