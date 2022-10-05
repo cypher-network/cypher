@@ -8,22 +8,22 @@ namespace CypherNetworkNode.Configuration
     {
         public IPService(string name, Uri uri)
         {
-            _name = name;
-            _uri = uri;
+            Name = name;
+            Uri = uri;
         }
 
-        private readonly string _name;
-        private readonly Uri _uri;
+        public readonly string Name;
+        public readonly Uri Uri;
 
         public override string ToString()
         {
-            return $"{_name} ({_uri})";
+            return $"{Name} ({Uri})";
         }
 
         public IPAddress Read()
         {
             using var client = new WebClient();
-            var response = client.DownloadString(_uri);
+            var response = client.DownloadString(Uri);
             return IPAddress.Parse(response);
         }
     }

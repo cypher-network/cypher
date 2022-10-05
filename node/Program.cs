@@ -1,4 +1,4 @@
-// CypherNetwork by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+﻿// CypherNetwork by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
@@ -13,15 +13,15 @@ using Microsoft.Extensions.Configuration;
 using Autofac.Extensions.DependencyInjection;
 using Serilog;
 using CypherNetwork.Helper;
-using CypherNetworkNode.UI;
+using CypherNetwork.Models;
+using CypherNetworkNode.Configuration;
 using Microsoft.AspNetCore.DataProtection.XmlEncryption;
-using Spectre.Console;
 
 namespace CypherNetworkNode;
 
 public static class Program
 {
-    public const string AppSettingsFile = "appsettings.json";
+    private const string AppSettingsFile = "appsettings.json";
 
     /// <summary>
     ///
@@ -30,8 +30,20 @@ public static class Program
     /// <returns></returns>
     public static async Task<int> Main(string[] args)
     {
-        //args = new string[] { "--configure", "--showkey" };
+        var config = new ConfigurationBuilder()
+            .SetBasePath(Directory.GetCurrentDirectory())
+            .AddJsonFile(AppSettingsFile, false, true)
+            .AddCommandLine(args)
+            .Build();
+        
+        // args = new string[] { "--configure", "--showkey" };
+        // args = new string[] { "--configure" };
         var settingsExists = File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, AppSettingsFile));
+        if (!settingsExists)
+        {
+            await Console.Error.WriteLineAsync($"{AppSettingsFile} not found.");
+            return 1;
+        }
         if (args.FirstOrDefault(arg => arg == "--configure") != null)
         {
             var commands = args.Where(x => x != "--configure").ToArray();
@@ -41,24 +53,10 @@ public static class Program
             }
             else
             {
-                var ui = new TerminalUserInterface();
-                var nc = new Configuration.Configuration(ui);
+                var _ = new Utility(config.Get<Config>());
                 return 0;
             }
         }
-
-        if (!settingsExists)
-        {
-            await Console.Error.WriteLineAsync($"{AppSettingsFile} not found.");
-            return 1;
-        }
-
-        var config = new ConfigurationBuilder()
-
-            .SetBasePath(Directory.GetCurrentDirectory())
-            .AddJsonFile(AppSettingsFile, false, true)
-            .AddCommandLine(args)
-            .Build();
 
         const string logSectionName = "Log";
         if (config.GetSection(logSectionName) != null)
@@ -81,12 +79,12 @@ public static class Program
  / /    / / / // __ \ / __ \ / _ \ / ___// __ \ / / / // __ \ / //_// ___/
 / /___ / /_/ // /_/ // / / //  __// /   / /_/ // /_/ // / / // ,<  (__  ) 
 \____/ \__, // .___//_/ /_/ \___//_/   / .___/ \__,_//_/ /_//_/|_|/____/  
-      /____//_/                       /_/         write code: v{Util.GetAssemblyVersion()}");
+      /____//_/                       /_/         write code: v{Util.GetAssemblyVersion()} RC1");
 
             Console.WriteLine();
             Console.ResetColor();
             Log.Information("Starting Cypher...");
-            Log.Information("Process ID:{@Message}", Environment.ProcessId);
+            Log.Information("Process ID: {@Message}", Environment.ProcessId);
             var builder = CreateWebHostBuilder(args, config);
 
             var platform = Util.GetOperatingSystemPlatform();

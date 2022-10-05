@@ -4,5 +4,5 @@ public record TransactionLeakRateConfigurationOption : ILeakRateConfigurationOpt
 {
     public int LeakRate { get; set; }
     public int LeakRateNumberOfSeconds { get; set; }
-    public int MaxFill { get; set; }
+    public int MemoryPoolMaxTransactions { get; set; }
 }

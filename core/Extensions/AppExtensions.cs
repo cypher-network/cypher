@@ -2,8 +2,10 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Security.Cryptography.X509Certificates;
 using Autofac;
 using AutofacSerilogIntegration;
@@ -40,58 +42,79 @@ public static class AppExtensions
     /// <param name="builder"></param>
     /// <param name="configuration"></param>
     /// <returns></returns>
-    public static ContainerBuilder AddCypherNetworkCore(this ContainerBuilder builder, IConfiguration configuration)
+    public static ContainerBuilder AddCypherSystemCore(this ContainerBuilder builder, IConfiguration configuration)
     {
         builder.Register(c =>
         {
-            var options = new AppOptions
+            var remoteNodes = configuration.GetSection("Node:Network:SeedList").GetChildren().ToArray();
+            var remotePublicKeys = configuration.GetSection("Node:Network:SeedListPublicKeys").GetChildren().ToArray();
+            var node = new Node
             {
-                Data = new DataOptions
+                EndPoint = new IPEndPoint(Util.GetIpAddress(), 0),
+                Name = configuration["Node:Name"],
+                Data =
+                    new Data
+                    {
+                        RocksDb = configuration["Node:Data:RocksDb"],
+                        KeysProtectionPath = configuration["Node:Data:KeysProtectionPath"]
+                    },
+                Network = new Models.Network
                 {
-                    RocksDb = configuration["Node:Data:RocksDb"],
-                    KeysProtectionPath = configuration["Node:Data:KeysProtectionPath"]
+                    Environment = configuration["Node:Network:Environment"],
+                    CertificateMode = configuration["Node:Network:CertificateMode"],
+                    HttpPort = Convert.ToInt32(configuration["Node:Network:HttpPort"]),
+                    HttpsPort = Convert.ToInt32(configuration["Node:Network:HttpsPort"]),
+                    P2P =
+                        new P2P
+                        {
+                            TcpPort = Convert.ToInt32(configuration["Node:Network:P2P:TcpPort"]),
+                            WsPort = Convert.ToInt32(configuration["Node:Network:P2P:WsPort"])
+                        },
+                    SeedList = new List<string>(remoteNodes.Length),
+                    SeedListPublicKeys = new List<string>(remoteNodes.Length),
+                    X509Certificate =
+                        new Models.X509Certificate
+                        {
+                            Password = configuration["Node:Network:X509Certificate:Password"],
+                            Thumbprint = configuration["Node:Network:X509Certificate:Thumbprint"],
+                            CertPath = configuration["Node:Network:X509Certificate:CertPath"]
+                        },
+                    TransactionRateConfig = new TransactionLeakRateConfigurationOption
+                    {
+                        LeakRate =
+                            Convert.ToInt32(
+                                configuration["Node:Network:MemoryPoolTransactionRateLimit:LeakRate"]),
+                        MemoryPoolMaxTransactions =
+                            Convert.ToInt32(configuration[
+                                "Node:Network:MemoryPoolTransactionRateLimit:MemoryPoolMaxTransactions"]),
+                        LeakRateNumberOfSeconds = Convert.ToInt32(
+                            configuration[
+                                "Node:Network:MemoryPoolTransactionRateLimit:LeakRateNumberOfSeconds"])
+                    },
+                    SigningKeyRingName = configuration["Node:Network:SigningKeyRingName"],
+                    AutoSyncEveryMinutes = Convert.ToInt16(configuration["Node:Network:AutoSyncEveryMinutes"])
                 },
-                Gossip = new GossipOptions
+                Staking = new Staking
                 {
-                    Advertise = configuration["Node:Gossip:Advertise"].ToBytes(),
-                    Listening = configuration["Node:Gossip:Listening"].ToBytes()
+                    MaxTransactionsPerBlock =
+                        Convert.ToInt32(configuration["Node:Staking:MaxTransactionsPerBlock"]),
+                    MaxTransactionSizePerBlock =
+                        Convert.ToInt32(configuration["Node:Staking:MaxTransactionSizePerBlock"])
                 }
             };
-            var nodes = configuration.GetSection("Node:Gossip:Seeds").GetChildren().ToArray();
-            options.Gossip.Seeds = nodes.Select(n =>
-                new Node { Advertise = n["Advertise"].ToBytes(), Listening = n["Listening"].ToBytes() }).ToArray();
-            options.Name = configuration["Node:Name"];
-            options.Network = new NetworkSetting
+            foreach (var selection in remoteNodes.WithIndex())
             {
-                Environment = configuration["Node:Network:Environment"],
-                X509Certificate =
-                    new CypherNetwork.Models.X509Certificate
-                    {
-                        Password = configuration["Node:Network:X509Certificate:Password"],
-                        Thumbprint = configuration["Node:Network:X509Certificate:Thumbprint"],
-                        CertPath = configuration["Node:Network:X509Certificate:CertPath"]
-                    },
-                TransactionRateConfig = new TransactionLeakRateConfigurationOption
-                {
-                    LeakRate = Convert.ToInt32(configuration["Node:Network:TransactionRateConfig:LeakRate"]),
-                    MaxFill = Convert.ToInt32(configuration["Node:Network:TransactionRateConfig:MaxFill"]),
-                    LeakRateNumberOfSeconds =
-                        Convert.ToInt32(
-                            configuration["Node:Network:TransactionRateConfig:LeakRateNumberOfSeconds"])
-                },
-                SigningKeyRingName = configuration["Node:Network:SigningKeyRingName"],
-                AutoSyncEveryMinutes = Convert.ToInt16(configuration["Node:Network:AutoSyncEveryMinutes"])
-            };
-            options.Staking = new StakingOptions
-            {
-                TransactionsPerBlock = Convert.ToInt32(configuration["Node:Staking:TransactionsPerBlock"])
-            };
-            options.HttpsPort = Convert.ToInt32(configuration["Node:HttpsPort"]);
-            options.HttpEndPoint = configuration["Node:HttpEndPoint"];
-            var cypherNetworkCore = new CypherNetworkCore(c.Resolve<IHostApplicationLifetime>(),
-                c.Resolve<IServiceScopeFactory>(), options, c.Resolve<ILogger>());
-            return cypherNetworkCore;
-        }).As<ICypherNetworkCore>().SingleInstance();
+                var endpoint = Util.GetIpEndPoint(selection.item.Value);
+                var endpointFromHost = Util.GetIpEndpointFromHostPort(endpoint.Address.ToString(), endpoint.Port);
+                var publicKey = remotePublicKeys[selection.index].Value;
+                node.Network.SeedList.Add($"{endpointFromHost.Address}:{endpointFromHost.Port}");
+                node.Network.SeedListPublicKeys.Add(publicKey);
+            }
+
+            var cypherSystemCore = new CypherSystemCore(c.Resolve<IHostApplicationLifetime>(),
+                c.Resolve<IServiceScopeFactory>(), node, c.Resolve<ILogger>());
+            return cypherSystemCore;
+        }).As<ICypherSystemCore>().SingleInstance();
         return builder;
     }
 
@@ -112,6 +135,7 @@ public static class AppExtensions
     public static ContainerBuilder AddP2PDevice(this ContainerBuilder builder)
     {
         builder.RegisterType<P2PDeviceApi>().As<IP2PDeviceApi>().InstancePerDependency();
+        builder.RegisterType<P2PDeviceReq>().As<IP2PDeviceReq>().InstancePerDependency();
         builder.RegisterType<P2PDevice>().As<IP2PDevice>().SingleInstance();
         return builder;
     }
