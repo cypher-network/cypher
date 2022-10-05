@@ -231,10 +231,10 @@ public static class Util
                 return ip;
             }
         }
-        
+
         return IPAddress.Loopback;
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -279,7 +279,7 @@ public static class Util
 
         return null;
     }
-    
+
     /// <summary>
     /// </summary>
     /// <returns></returns>

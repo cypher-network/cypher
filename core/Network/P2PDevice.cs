@@ -39,9 +39,9 @@ public struct Message
 /// </summary>
 public struct UnwrapMessage
 {
-    public  Parameter[] Parameters { get; }
+    public Parameter[] Parameters { get; }
     public ProtocolCommand ProtocolCommand { get; }
-    
+
     public UnwrapMessage(Parameter[] parameters, ProtocolCommand protocolCommand)
     {
         Parameters = parameters;
@@ -54,8 +54,8 @@ public struct UnwrapMessage
 /// </summary>
 public enum Transport
 {
-    Tcp =  0x01,
-    Ws =  0x02
+    Tcp = 0x01,
+    Ws = 0x02
 }
 
 /// <summary>
@@ -72,7 +72,7 @@ public sealed class P2PDevice : IP2PDevice, IDisposable
     private readonly ICypherSystemCore _cypherSystemCore;
     private readonly ILogger _logger;
     private readonly IList<IDisposable> _disposables = new List<IDisposable>();
-    
+
     private IRepSocket _repSocket;
     private bool _disposed;
 
@@ -167,7 +167,7 @@ public sealed class P2PDevice : IP2PDevice, IDisposable
 
         return Task.CompletedTask;
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -210,7 +210,7 @@ public sealed class P2PDevice : IP2PDevice, IDisposable
             _ => "tcp"
         };
     }
-    
+
     /// <summary>
     /// 
     /// </summary>

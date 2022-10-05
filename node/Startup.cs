@@ -142,7 +142,7 @@ public class Startup
                         .AddColumn(new TableColumn("Value"))
                         .AddRow("Private Key", cypherSystem.KeyPair.PrivateKey.FromSecureString())
                         .AddRow("Token", Crypto.GetRandomData().ByteToHex()).BorderColor(Color.Red));
-                
+
                 Console.WriteLine();
                 Console.WriteLine("Shutting down Cypher...");
                 Environment.Exit(1);

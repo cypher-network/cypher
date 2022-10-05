@@ -31,10 +31,10 @@ public interface IP2PDeviceApi
 /// <summary>
 /// 
 /// </summary>
-public class P2PDeviceApi: IP2PDeviceApi
+public class P2PDeviceApi : IP2PDeviceApi
 {
     private static ReadOnlySequence<byte> _updatePeersResponse;
-    
+
     private readonly ICypherSystemCore _cypherSystemCore;
     private readonly ILogger _logger;
 
@@ -88,7 +88,7 @@ public class P2PDeviceApi: IP2PDeviceApi
         var nodeDetailsResponse = _cypherSystemCore.PeerDiscovery().GetLocalPeer();
         return await SerializeAsync(nodeDetailsResponse);
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -96,10 +96,10 @@ public class P2PDeviceApi: IP2PDeviceApi
     /// <returns></returns>
     private Task<ReadOnlySequence<byte>> OnGetPeersAsync(Parameter[] none = default)
     {
-        var nodePeersResponse =  _cypherSystemCore.PeerDiscovery().Reply();
+        var nodePeersResponse = _cypherSystemCore.PeerDiscovery().Reply();
         return Task.FromResult(nodePeersResponse);
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -247,7 +247,7 @@ public class P2PDeviceApi: IP2PDeviceApi
         {
             await using var stream = Util.Manager.GetStream(parameters[0].Value);
             var stakeRequest = await MessagePackSerializer.DeserializeAsync<StakeRequest>(stream);
-            var packet =  _cypherSystemCore.Crypto().DecryptChaCha20Poly1305(stakeRequest.Data,
+            var packet = _cypherSystemCore.Crypto().DecryptChaCha20Poly1305(stakeRequest.Data,
                 _cypherSystemCore.KeyPair.PrivateKey.FromSecureString().HexToByte(), stakeRequest.Token,
                 null, stakeRequest.Nonce);
             if (packet is null)

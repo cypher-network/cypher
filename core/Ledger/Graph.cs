@@ -75,7 +75,7 @@ public sealed class Graph : ReceivedActor<BlockGraph>, IGraph, IDisposable
             BlockGraph = blockGraph;
         }
     }
-    
+
     private readonly ICypherSystemCore _cypherSystemCore;
     private readonly ILogger _logger;
     private readonly IObservable<EventPattern<BlockGraphEventArgs>> _onRoundCompleted;
@@ -105,7 +105,7 @@ public sealed class Graph : ReceivedActor<BlockGraph>, IGraph, IDisposable
         _onRoundListener = OnRoundListener();
         Init();
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -121,7 +121,7 @@ public sealed class Graph : ReceivedActor<BlockGraph>, IGraph, IDisposable
             var identifier = blockGraph.ToIdentifier();
             _syncCacheSeenBlockGraph.Add(identifier,
                 new SeenBlockGraph
-                    { Hash = blockGraph.Block.BlockHash, Round = blockGraph.Block.Round, Key = identifier });
+                { Hash = blockGraph.Block.BlockHash, Round = blockGraph.Block.Round, Key = identifier });
             await FinalizeAsync(blockGraph);
         }
     }

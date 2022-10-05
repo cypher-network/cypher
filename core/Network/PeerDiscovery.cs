@@ -180,7 +180,7 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
         ReadOnlyPeerSequence(ref discoveryStore, ref sequence);
         return sequence.AsReadOnlySequence;
     }
-    
+
     /// <summary>
     /// </summary>
     private void Init()
@@ -205,11 +205,11 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
             _seedNodes[seedNode.index] = new RemoteNode(endpoint.Address.ToString().ToBytes(), endpoint.Port.ToBytes(),
                 _cypherSystemCore.Node.Network.SeedListPublicKeys[seedNode.index].HexToByte());
         }
-        
+
         ReceiverAsync().ConfigureAwait(false);
         HandlePeerCooldown();
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -324,7 +324,7 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
             }
         }
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -407,7 +407,7 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
             if (_cypherSystemCore.ApplicationLifetime.ApplicationStopping.IsCancellationRequested) return;
             try
             {
-               
+
                 var removePeersCooldown = AsyncHelper.RunSync(async delegate
                 {
                     var removePeerCooldownBeforeTimestamp = Util.GetUtcNow().AddMinutes(-30).ToUnixTimestamp();

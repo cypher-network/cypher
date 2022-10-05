@@ -73,7 +73,7 @@ public class CypherSystemCore : ICypherSystemCore
     private IP2PDeviceApi _p2PDeviceApi;
     private IP2PDeviceReq _p2PDeviceReq;
     private ICrypto _crypto;
-    
+
     /// <summary>
     /// </summary>
     /// <param name="applicationLifetime"></param>
@@ -148,7 +148,7 @@ public class CypherSystemCore : ICypherSystemCore
         _crypto ??= GetCrypto();
         return _crypto;
     }
-    
+
     /// <summary>
     /// </summary>
     /// <returns></returns>
@@ -185,7 +185,7 @@ public class CypherSystemCore : ICypherSystemCore
         _memoryPool ??= GetMemPool();
         return _memoryPool;
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -195,7 +195,7 @@ public class CypherSystemCore : ICypherSystemCore
         _p2PDevice ??= GetP2PDevice();
         return _p2PDevice;
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -205,7 +205,7 @@ public class CypherSystemCore : ICypherSystemCore
         _p2PDeviceApi ??= GetP2PDeviceApi();
         return _p2PDeviceApi;
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -301,7 +301,7 @@ public class CypherSystemCore : ICypherSystemCore
 
         return null;
     }
-    
+
     /// <summary>
     /// 
     /// </summary>

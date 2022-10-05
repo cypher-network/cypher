@@ -39,12 +39,12 @@ public class Utility
     public Utility(Config config)
     {
         _node = config.Node;
-        
+
         if (!AnsiConsole.Confirm($"Continue with the config utility"))
         {
             return;
         }
-        
+
         WriteDivider("Node Name");
         NodeName();
         WriteDivider("Public IP address");
@@ -192,7 +192,7 @@ public class Utility
             _node.Network.P2P = new P2P { TcpPort = port };
         }
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -222,7 +222,7 @@ public class Utility
             _node.Network.P2P = _node.Network.P2P with { WsPort = port };
         }
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -252,7 +252,7 @@ public class Utility
             _node.Network.HttpPort = port;
         }
     }
-    
+
     /// <summary>
     /// 
     /// </summary>

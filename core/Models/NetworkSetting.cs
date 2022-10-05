@@ -72,5 +72,5 @@ public record Staking
     public int MaxTransactionsPerBlock { get; set; }
     public int MaxTransactionSizePerBlock { get; set; }
     public string RewardAddress { get; set; }
-    
+
 }

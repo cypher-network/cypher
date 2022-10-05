@@ -32,7 +32,7 @@ public struct Peer : IComparable<Peer>
         if (Equals(null, other)) return 1;
         return IpAddress.Xor(other.IpAddress) ? 0 : 1;
     }
-    
+
     /// <summary>
     /// </summary>
     /// <returns></returns>

@@ -16,21 +16,21 @@ namespace CypherNetwork.Network;
 /// <summary>
 /// 
 /// </summary>
-public class P2PDeviceWorker: ReceivedActor<INngMsg>
+public class P2PDeviceWorker : ReceivedActor<INngMsg>
 {
     private readonly ICypherSystemCore _cypherSystemCore;
     private readonly IRepReqAsyncContext<INngMsg> _ctx;
     private readonly ILogger _logger;
     private readonly AutoResetEvent _autoReset = new(false);
     private readonly INngMsg _nngMsg = NngFactorySingleton.Instance.Factory.CreateMessage();
-    public P2PDeviceWorker(ICypherSystemCore cypherSystemCore, IRepReqAsyncContext<INngMsg> ctx, ILogger logger) 
-        : base(new ExecutionDataflowBlockOptions { BoundedCapacity = 1, MaxDegreeOfParallelism = 1})
+    public P2PDeviceWorker(ICypherSystemCore cypherSystemCore, IRepReqAsyncContext<INngMsg> ctx, ILogger logger)
+        : base(new ExecutionDataflowBlockOptions { BoundedCapacity = 1, MaxDegreeOfParallelism = 1 })
     {
         _cypherSystemCore = cypherSystemCore;
         _ctx = ctx;
         _logger = logger;
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
@@ -41,7 +41,7 @@ public class P2PDeviceWorker: ReceivedActor<INngMsg>
         _autoReset.WaitOne(10000);
         _autoReset.Close();
     }
-    
+
     /// <summary>
     /// 
     /// </summary>

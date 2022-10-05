@@ -43,7 +43,7 @@ public class P2PDeviceReq : IP2PDeviceReq
         var soc = NngFactorySingleton.Instance.Factory.RequesterOpen();
 
         var ireq = soc.Unwrap();
-        
+
     }
 
     /// <summary>
@@ -57,7 +57,7 @@ public class P2PDeviceReq : IP2PDeviceReq
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
     /// <exception cref="Exception"></exception>
-    public async Task<T> SendAsync<T>(ReadOnlyMemory<byte>  ipAddress, ReadOnlyMemory<byte> tcpPort, ReadOnlyMemory<byte> publicKey, 
+    public async Task<T> SendAsync<T>(ReadOnlyMemory<byte> ipAddress, ReadOnlyMemory<byte> tcpPort, ReadOnlyMemory<byte> publicKey,
         ReadOnlyMemory<byte> value, bool deserialize = true)
     {
         var nngMsg = NngFactorySingleton.Instance.Factory.CreateMessage();
@@ -75,18 +75,18 @@ public class P2PDeviceReq : IP2PDeviceReq
             });
             using var socket = NngFactorySingleton.Instance.Factory.RequesterOpen()
                 .ThenDial($"tcp://{address}:{port}", Defines.NngFlag.NNG_FLAG_NONBLOCK).Unwrap();
-            
+
             socket.SetOpt(Defines.NNG_OPT_RECVTIMEO, new nng_duration { TimeMs = 200 });
             socket.SetOpt(Defines.NNG_OPT_SENDTIMEO, new nng_duration { TimeMs = 200 });
-            
+
             using var ctx = socket.CreateAsyncContext(NngFactorySingleton.Instance.Factory).Unwrap();
             var cipher = _cypherSystemCore.Crypto().BoxSeal(value.Span, publicKey.Span[1..33]);
-            
+
             await using var packetStream = Util.Manager.GetStream() as RecyclableMemoryStream;
             packetStream.Write(_cypherSystemCore.KeyPair.PublicKey[1..33].WrapLengthPrefix());
             packetStream.Write(cipher.WrapLengthPrefix());
             foreach (var memory in packetStream.GetReadOnlySequence()) nngMsg.Append(memory.Span);
-            
+
             var nngResult = await ctx.Send(nngMsg);
             if (typeof(T) == typeof(Nothing)) return default;
             if (!nngResult.IsOk()) return default;
@@ -101,7 +101,7 @@ public class P2PDeviceReq : IP2PDeviceReq
             {
                 return (T)(object)message;
             }
-            
+
             using var stream = Util.Manager.GetStream(message.Memory.Span);
             var data = await MessagePackSerializer.DeserializeAsync<T>(stream);
             return data;

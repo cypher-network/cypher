@@ -35,7 +35,7 @@ public static class Program
             .AddJsonFile(AppSettingsFile, false, true)
             .AddCommandLine(args)
             .Build();
-        
+
         // args = new string[] { "--configure", "--showkey" };
         // args = new string[] { "--configure" };
         var settingsExists = File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, AppSettingsFile));

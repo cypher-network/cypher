@@ -9,7 +9,7 @@ namespace CypherNetwork.Helper;
 /// <summary>
 /// 
 /// </summary>
-public abstract class Msg {}
+public abstract class Msg { }
 
 /// <summary>
 /// 
@@ -35,16 +35,16 @@ public abstract class ReceivedActor<T>
             self.OnReceiveAsync(msg);
         }, dataflowBlockOptions);
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
     /// <param name="message"></param>
     protected async Task PostAsync(T message)
     {
-       await _action.SendAsync(message);
+        await _action.SendAsync(message);
     }
-    
+
     /// <summary>
     /// 
     /// </summary>
