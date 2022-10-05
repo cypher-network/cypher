@@ -5,8 +5,11 @@ namespace CypherNetwork.Models.Messages;
 
 public enum ProtocolCommand : byte
 {
-    Version = 0x00,
+    NotFound = 0x00,
+    Version = 0x01,
     GetPeer = 0x10,
+    GetPeers = 0x11,
+    UpdatePeers = 0x12,
     GetBlocks = 0x14,
     SaveBlock = 0x15,
     GetBlockHeight = 0x17,
@@ -19,6 +22,5 @@ public enum ProtocolCommand : byte
     GetPosTransaction = 0x24,
     GetTransactionBlockIndex = 0x25,
     Stake = 0x26,
-    StakeEnabled = 0x27,
-    NotFound = 0x99
+    StakeEnabled = 0x27
 }

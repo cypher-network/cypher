@@ -25,6 +25,7 @@ using NBitcoin;
 using Serilog;
 using Spectre.Console;
 using Block = CypherNetwork.Models.Block;
+using Config = CypherNetwork.Consensus.Models.Config;
 using Interpreted = CypherNetwork.Consensus.Models.Interpreted;
 using Util = CypherNetwork.Helper.Util;
 
@@ -43,7 +44,7 @@ public interface IGraph
     Task<BlockCountResponse> GetBlockCountAsync();
     Task<SaveBlockResponse> SaveBlockAsync(SaveBlockRequest saveBlockRequest);
     Task<BlocksResponse> GetBlocksAsync(BlocksRequest blocksRequest);
-    Task PublishAsync(BlockGraph blockGraph);
+    Task PostAsync(BlockGraph blockGraph);
     Task<BlockResponse> GetBlockAsync(BlockRequest blockRequest);
     Task<BlockResponse> GetBlockByHeightAsync(BlockByHeightRequest blockByHeightRequest);
     Task<VerifyResult> BlockHeightExistsAsync(BlockHeightExistsRequest blockHeightExistsRequest);
@@ -63,7 +64,7 @@ internal record SeenBlockGraph
 
 /// <summary>
 /// </summary>
-public sealed class Graph : IGraph, IDisposable
+public sealed class Graph : ReceivedActor<BlockGraph>, IGraph, IDisposable
 {
     private class BlockGraphEventArgs : EventArgs
     {
@@ -74,7 +75,7 @@ public sealed class Graph : IGraph, IDisposable
             BlockGraph = blockGraph;
         }
     }
-
+    
     private readonly ICypherSystemCore _cypherSystemCore;
     private readonly ILogger _logger;
     private readonly IObservable<EventPattern<BlockGraphEventArgs>> _onRoundCompleted;
@@ -92,30 +93,46 @@ public sealed class Graph : IGraph, IDisposable
 
     /// <summary>
     /// </summary>
-    /// <param name="cypherNetworkCore"></param>
+    /// <param name="cypherSystemCore"></param>
     /// <param name="logger"></param>
-    public Graph(ICypherNetworkCore cypherNetworkCore, ILogger logger)
+    public Graph(ICypherSystemCore cypherSystemCore, ILogger logger) : base(
+        new ExecutionDataflowBlockOptions { BoundedCapacity = 100, MaxDegreeOfParallelism = 2, EnsureOrdered = true })
     {
-        _cypherNetworkCore = cypherNetworkCore;
+        _cypherSystemCore = cypherSystemCore;
         _logger = logger.ForContext("SourceContext", nameof(Graph));
         _onRoundCompleted = Observable.FromEventPattern<BlockGraphEventArgs>(ev => _onRoundCompletedEventHandler += ev,
             ev => _onRoundCompletedEventHandler -= ev);
         _onRoundListener = OnRoundListener();
-        var dataflowBlockOptions = new ExecutionDataflowBlockOptions
-        {
-            MaxDegreeOfParallelism = 1,
-            BoundedCapacity = 1
-        };
-        _action = new ActionBlock<BlockGraph>(NewBlockGraphAsync, dataflowBlockOptions);
         Init();
+    }
+    
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="blockGraph"></param>
+    protected override async Task OnReceiveAsync(BlockGraph blockGraph)
+    {
+        Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
+        if (_cypherSystemCore.Sync().Running) return;
+        if (blockGraph.Block.Round != await NextRoundAsync()) return;
+        if (await BlockHeightExistsAsync(new BlockHeightExistsRequest(blockGraph.Block.Round)) != VerifyResult.Succeed) return;
+        if (!_syncCacheSeenBlockGraph.Contains(blockGraph.ToIdentifier()))
+        {
+            var identifier = blockGraph.ToIdentifier();
+            _syncCacheSeenBlockGraph.Add(identifier,
+                new SeenBlockGraph
+                    { Hash = blockGraph.Block.BlockHash, Round = blockGraph.Block.Round, Key = identifier });
+            await FinalizeAsync(blockGraph);
+        }
     }
 
     /// <summary>
     /// </summary>
     /// <param name="blockGraph"></param>
-    public async Task PublishAsync(BlockGraph blockGraph)
+    public new async Task PostAsync(BlockGraph blockGraph)
     {
-        await _action.SendAsync(blockGraph);
+        Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
+        await base.PostAsync(blockGraph);
     }
 
     /// <summary>
@@ -403,25 +420,6 @@ public sealed class Graph : IGraph, IDisposable
     private void Init()
     {
         HandelSeenBlockGraphs();
-    }
-
-    /// <summary>
-    /// </summary>
-    /// <param name="blockGraph"></param>
-    private async Task NewBlockGraphAsync(BlockGraph blockGraph)
-    {
-        Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
-        if ((await _cypherNetworkCore.Sync()).Running) return;
-        if (blockGraph.Block.Round != await NextRoundAsync()) return;
-        if (await BlockHeightExistsAsync(new BlockHeightExistsRequest(blockGraph.Block.Round)) != VerifyResult.Succeed) return;
-        if (!_syncCacheSeenBlockGraph.Contains(blockGraph.ToIdentifier()))
-        {
-            var identifier = blockGraph.ToIdentifier();
-            _syncCacheSeenBlockGraph.Add(identifier,
-                new SeenBlockGraph
-                { Hash = blockGraph.Block.BlockHash, Round = blockGraph.Block.Round, Key = identifier });
-            await FinalizeAsync(blockGraph);
-        }
     }
 
     /// <summary>
