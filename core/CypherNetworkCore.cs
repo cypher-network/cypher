@@ -3,7 +3,6 @@
 
 using System;
 using System.Security;
-using System.Threading.Tasks;
 using CypherNetwork.Cryptography;
 using CypherNetwork.Extensions;
 using CypherNetwork.Helper;
@@ -14,34 +13,33 @@ using CypherNetwork.Persistence;
 using CypherNetwork.Wallet;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Retlang.Net.Fibers;
 using Serilog;
 
 namespace CypherNetwork;
 
 /// <summary>
 /// </summary>
-public interface ICypherNetworkCore
+public interface ICypherSystemCore
 {
     IHostApplicationLifetime ApplicationLifetime { get; }
     IServiceScopeFactory ServiceScopeFactory { get; }
-    AppOptions AppOptions { get; }
+    Node Node { get; }
     KeyPair KeyPair { get; }
-    AsyncLazy<IUnitOfWork> UnitOfWork();
-    AsyncLazy<IPeerDiscovery> PeerDiscovery();
-    AsyncLazy<IGraph> Graph();
-    AsyncLazy<IPPoS> PPoS();
+    IUnitOfWork UnitOfWork();
+    IPeerDiscovery PeerDiscovery();
+    IGraph Graph();
+    IPPoS PPoS();
     IValidator Validator();
-    AsyncLazy<ISync> Sync();
-    AsyncLazy<IMemoryPool> MemPool();
+    ISync Sync();
+    IMemoryPool MemPool();
     INodeWallet Wallet();
-    AsyncLazy<IWalletSession> WalletSession();
+    IWalletSession WalletSession();
     IBroadcast Broadcast();
     ICrypto Crypto();
     IP2PDevice P2PDevice();
     IP2PDeviceApi P2PDeviceApi();
+    IP2PDeviceReq P2PDeviceReq();
     Cache<object> Cache();
-    AsyncLazy<PoolFiber> PoolFiber();
 }
 
 /// <summary>
@@ -59,7 +57,7 @@ public class Cache<T> : Caching<T> where T : class { }
 
 /// <summary>
 /// </summary>
-public class CypherNetworkCore : ICypherNetworkCore
+public class CypherSystemCore : ICypherSystemCore
 {
     private readonly ILogger _logger;
     private readonly Cache<object> _cache = new();
@@ -71,20 +69,23 @@ public class CypherNetworkCore : ICypherNetworkCore
     private ISync _sync;
     private IMemoryPool _memoryPool;
     private IWalletSession _walletSession;
-    private PoolFiber _poolFiber;
-
+    private IP2PDevice _p2PDevice;
+    private IP2PDeviceApi _p2PDeviceApi;
+    private IP2PDeviceReq _p2PDeviceReq;
+    private ICrypto _crypto;
+    
     /// <summary>
     /// </summary>
     /// <param name="applicationLifetime"></param>
     /// <param name="serviceScopeFactory"></param>
-    /// <param name="options"></param>
+    /// <param name="node"></param>
     /// <param name="logger"></param>
-    public CypherNetworkCore(IHostApplicationLifetime applicationLifetime,
-        IServiceScopeFactory serviceScopeFactory, AppOptions options, ILogger logger)
+    public CypherSystemCore(IHostApplicationLifetime applicationLifetime,
+        IServiceScopeFactory serviceScopeFactory, Node node, ILogger logger)
     {
         ApplicationLifetime = applicationLifetime;
         ServiceScopeFactory = serviceScopeFactory;
-        AppOptions = options;
+        Node = node;
         _logger = logger;
         Init();
     }
@@ -103,45 +104,51 @@ public class CypherNetworkCore : ICypherNetworkCore
 
     /// <summary>
     /// </summary>
-    public AppOptions AppOptions { get; }
+    public Node Node { get; }
 
     /// <summary>
     /// </summary>
     /// <returns></returns>
-    public AsyncLazy<IUnitOfWork> UnitOfWork() => new(() =>
+    public IUnitOfWork UnitOfWork()
     {
         _unitOfWork ??= GetUnitOfWork();
-        return Task.FromResult(_unitOfWork);
-    });
+        return _unitOfWork;
+    }
 
     /// <summary>
     /// </summary>
     /// <returns></returns>
-    public AsyncLazy<IPeerDiscovery> PeerDiscovery() => new(() =>
+    public IPeerDiscovery PeerDiscovery()
     {
         _peerDiscovery ??= GetPeerDiscovery();
-        return Task.FromResult(_peerDiscovery);
-    });
+        return _peerDiscovery;
+    }
 
     /// <summary>
     /// </summary>
     /// <returns></returns>
-    public AsyncLazy<IGraph> Graph() => new(() =>
+    public IGraph Graph()
     {
         _graph ??= GetGraph();
-        return Task.FromResult(_graph);
-    });
+        return _graph;
+    }
 
     /// <summary>
     /// 
     /// </summary>
     /// <returns></returns>
-    public AsyncLazy<IPPoS> PPoS() => new(() =>
+    public IPPoS PPoS()
     {
         _poS ??= GetPPoS();
-        return Task.FromResult(_poS);
-    });
+        return _poS;
+    }
 
+    public ICrypto Crypto()
+    {
+        _crypto ??= GetCrypto();
+        return _crypto;
+    }
+    
     /// <summary>
     /// </summary>
     /// <returns></returns>
@@ -164,20 +171,50 @@ public class CypherNetworkCore : ICypherNetworkCore
     /// <summary>
     /// </summary>
     /// <returns></returns>
-    public AsyncLazy<ISync> Sync() => new(() =>
+    public ISync Sync()
     {
         _sync ??= GetSync();
-        return Task.FromResult(_sync);
-    });
+        return _sync;
+    }
 
     /// <summary>
     /// </summary>
     /// <returns></returns>
-    public AsyncLazy<IMemoryPool> MemPool() => new(() =>
+    public IMemoryPool MemPool()
     {
         _memoryPool ??= GetMemPool();
-        return Task.FromResult(_memoryPool);
-    });
+        return _memoryPool;
+    }
+    
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <returns></returns>
+    public IP2PDevice P2PDevice()
+    {
+        _p2PDevice ??= GetP2PDevice();
+        return _p2PDevice;
+    }
+    
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <returns></returns>
+    public IP2PDeviceApi P2PDeviceApi()
+    {
+        _p2PDeviceApi ??= GetP2PDeviceApi();
+        return _p2PDeviceApi;
+    }
+    
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <returns></returns>
+    public IP2PDeviceReq P2PDeviceReq()
+    {
+        _p2PDeviceReq ??= GetP2PDeviceReq();
+        return _p2PDeviceReq;
+    }
 
     /// <summary>
     /// </summary>
@@ -202,11 +239,11 @@ public class CypherNetworkCore : ICypherNetworkCore
     /// 
     /// </summary>
     /// <returns></returns>
-    public AsyncLazy<IWalletSession> WalletSession() => new(() =>
+    public IWalletSession WalletSession()
     {
         _walletSession ??= GetWalletSession();
-        return Task.FromResult(_walletSession);
-    });
+        return _walletSession;
+    }
 
     /// <summary>
     /// </summary>
@@ -230,7 +267,7 @@ public class CypherNetworkCore : ICypherNetworkCore
     /// <summary>
     /// </summary>
     /// <returns></returns>
-    public ICrypto Crypto()
+    private ICrypto GetCrypto()
     {
         try
         {
@@ -249,7 +286,7 @@ public class CypherNetworkCore : ICypherNetworkCore
     /// <summary>
     /// </summary>
     /// <returns></returns>
-    public IP2PDevice P2PDevice()
+    private IP2PDevice GetP2PDevice()
     {
         try
         {
@@ -264,12 +301,32 @@ public class CypherNetworkCore : ICypherNetworkCore
 
         return null;
     }
+    
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <returns></returns>
+    private IP2PDeviceReq GetP2PDeviceReq()
+    {
+        try
+        {
+            using var scope = ServiceScopeFactory.CreateAsyncScope();
+            var p2PDeviceReq = scope.ServiceProvider.GetRequiredService<IP2PDeviceReq>();
+            return p2PDeviceReq;
+        }
+        catch (Exception ex)
+        {
+            _logger.Here().Error("{@Message}", ex.Message);
+        }
+
+        return null;
+    }
 
     /// <summary>
     /// 
     /// </summary>
     /// <returns></returns>
-    public IP2PDeviceApi P2PDeviceApi()
+    private IP2PDeviceApi GetP2PDeviceApi()
     {
         try
         {
@@ -295,29 +352,17 @@ public class CypherNetworkCore : ICypherNetworkCore
     }
 
     /// <summary>
-    /// 
-    /// </summary>
-    /// <returns></returns>
-    public AsyncLazy<PoolFiber> PoolFiber() => new(() =>
-    {
-        _poolFiber ??= new PoolFiber();
-        return Task.FromResult(_poolFiber);
-    });
-
-    /// <summary>
     /// </summary>
     private void Init()
     {
-        var crypto = Crypto();
-        var keyPair = AsyncHelper.RunSync(() => crypto.GetOrUpsertKeyNameAsync(AppOptions.Network.SigningKeyRingName));
+        _crypto = GetCrypto();
+        var keyPair = AsyncHelper.RunSync(() => _crypto.GetOrUpsertKeyNameAsync(Node.Network.SigningKeyRingName));
         KeyPair = new KeyPair
         {
             PrivateKey = keyPair.PrivateKey.ByteToHex().ToSecureString(),
             PublicKey = keyPair.PublicKey
         };
         keyPair.PrivateKey.Destroy();
-        _poolFiber = new PoolFiber();
-        _poolFiber.Start();
     }
 
     /// <summary>
