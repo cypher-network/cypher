@@ -1,4 +1,4 @@
-// CypherNetwork by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+﻿// CypherNetwork by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
@@ -173,8 +173,8 @@ public class Sync : ISync, IDisposable
                 var verifyNoDuplicateBlockHeights = validator.VerifyNoDuplicateBlockHeights(blocks);
                 if (verifyNoDuplicateBlockHeights == VerifyResult.AlreadyExists)
                 {
-                    (await _cypherNetworkCore.PeerDiscovery()).SetPeerCooldown(new PeerCooldown
-                    { Advertise = peer.Advertise, PublicKey = peer.PublicKey });
+                    _cypherSystemCore.PeerDiscovery().SetPeerCooldown(new PeerCooldown
+                    { IpAddress = peer.IpAddress, PublicKey = peer.PublicKey });
                     _logger.Warning("Duplicate block heights [UNABLE TO VERIFY]");
                     return false;
                 }
@@ -236,44 +236,19 @@ public class Sync : ISync, IDisposable
         Guard.Argument(peer, nameof(peer)).HasValue();
         Guard.Argument(skip, nameof(skip)).NotNegative();
         Guard.Argument(take, nameof(take)).NotNegative();
-        _logger.Information("Synchronizing with {@Host} ({@Skip})/({@Take})", peer.Listening.FromBytes(), skip, take);
+        _logger.Information("Synchronizing with {@Host} ({@Skip})/({@Take})", peer.IpAddress.FromBytes(), skip, take);
         try
         {
             _logger.Information("Fetching [{@Range}] block(s)", Math.Abs(take - (int)skip));
-            using var reqSocket = NngFactorySingleton.Instance.Factory.RequesterOpen()
-                .ThenDial(peer.Listening.FromBytes(), Defines.NngFlag.NNG_FLAG_NONBLOCK).Unwrap();
-            using var ctx = reqSocket.CreateAsyncContext(NngFactorySingleton.Instance.Factory).Unwrap();
-            var cipher = _cypherNetworkCore.Crypto().BoxSeal(
+            var blocksResponse = await _cypherSystemCore.P2PDeviceReq().SendAsync<BlocksResponse>(peer.IpAddress,
+                peer.TcpPort, peer.PublicKey,
                 MessagePackSerializer.Serialize(new Parameter[]
                 {
                     new() { Value = skip.ToBytes(), ProtocolCommand = ProtocolCommand.GetBlocks },
                     new() { Value = take.ToBytes(), ProtocolCommand = ProtocolCommand.GetBlocks }
-                }), peer.PublicKey.AsSpan()[1..33]);
-            var packet = Util.Combine(_cypherNetworkCore.KeyPair.PublicKey[1..33].WrapLengthPrefix(),
-                cipher.WrapLengthPrefix());
-            var nngSendMsg = NngFactorySingleton.Instance.Factory.CreateMessage();
-            nngSendMsg.Append(packet.AsSpan());
-            var nngResult = await ctx.Send(nngSendMsg);
-            nngSendMsg.Dispose();
-            if (nngResult.IsOk())
-            {
-                var nngRecvMsg = nngResult.Unwrap();
-                var message = await _cypherNetworkCore.P2PDevice().DecryptAsync(nngRecvMsg);
-                nngRecvMsg.Dispose();
-                if (message.Memory.IsEmpty)
-                {
-                    throw new Exception("Failed to decrypt the data");
-                }
-
-                await using var stream = Util.Manager.GetStream(message.Memory.Span);
-                var blocksResponse = await MessagePackSerializer.DeserializeAsync<BlocksResponse>(stream);
-                _logger.Information("Finished with [{@BlockCount}] block(s)", blocksResponse.Blocks.Count);
-                return blocksResponse.Blocks;
-            }
-        }
-        catch (NngException ex)
-        {
-            _logger.Warning("Dead message {@Peer} {@Message}", peer.Listening.FromBytes(), ex.Message);
+                }));
+            _logger.Information("Finished with [{@BlockCount}] block(s)", blocksResponse.Blocks.Count);
+            return blocksResponse.Blocks;
         }
         catch (Exception ex)
         {
