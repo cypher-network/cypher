@@ -17,17 +17,17 @@ public static class SwaggerExtensions
     {
         services.AddSwaggerGen(options =>
         {
-            options.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
+            options.SwaggerDoc("v2", new Microsoft.OpenApi.Models.OpenApiInfo
             {
                 License = new Microsoft.OpenApi.Models.OpenApiLicense
                 {
                     Name = "Attribution-NonCommercial-NoDerivatives 4.0 International",
                     Url = new Uri("https://raw.githubusercontent.com/tangramproject/Tangram.Cypher/initial/LICENSE")
                 },
-                Title = "CYPNode API",
+                Title = "CYP Node API",
                 Version = CypherNetwork.Helper.Util.GetAssemblyVersion(),
-                Description = "Node.",
-                TermsOfService = new Uri("https://tangrams.io/legal/"),
+                Description = "Cypher is an early, unaudited, and unrefined release of Tangram. Cypher will serve as a testing ground, allowing teams and developers to build and deploy nodes, send and receive transactions.",
+                TermsOfService = new Uri("https://cypherpunks.network/home/privacy/"),
                 Contact = new Microsoft.OpenApi.Models.OpenApiContact
                 {
                     Url = new Uri("https://cypherpunks.network/")

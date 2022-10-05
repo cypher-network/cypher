@@ -25,6 +25,7 @@ using NBitcoin;
 using Serilog;
 using Spectre.Console;
 using Block = CypherNetwork.Models.Block;
+using Config = CypherNetwork.Consensus.Models.Config;
 using Interpreted = CypherNetwork.Consensus.Models.Interpreted;
 using Util = CypherNetwork.Helper.Util;
 
@@ -43,7 +44,7 @@ public interface IGraph
     Task<BlockCountResponse> GetBlockCountAsync();
     Task<SaveBlockResponse> SaveBlockAsync(SaveBlockRequest saveBlockRequest);
     Task<BlocksResponse> GetBlocksAsync(BlocksRequest blocksRequest);
-    Task PublishAsync(BlockGraph blockGraph);
+    Task PostAsync(BlockGraph blockGraph);
     Task<BlockResponse> GetBlockAsync(BlockRequest blockRequest);
     Task<BlockResponse> GetBlockByHeightAsync(BlockByHeightRequest blockByHeightRequest);
     Task<VerifyResult> BlockHeightExistsAsync(BlockHeightExistsRequest blockHeightExistsRequest);
@@ -63,7 +64,7 @@ internal record SeenBlockGraph
 
 /// <summary>
 /// </summary>
-public sealed class Graph : IGraph, IDisposable
+public sealed class Graph : ReceivedActor<BlockGraph>, IGraph, IDisposable
 {
     private class BlockGraphEventArgs : EventArgs
     {
@@ -75,8 +76,7 @@ public sealed class Graph : IGraph, IDisposable
         }
     }
 
-    private readonly ActionBlock<BlockGraph> _action;
-    private readonly ICypherNetworkCore _cypherNetworkCore;
+    private readonly ICypherSystemCore _cypherSystemCore;
     private readonly ILogger _logger;
     private readonly IObservable<EventPattern<BlockGraphEventArgs>> _onRoundCompleted;
     private readonly IDisposable _onRoundListener;
@@ -93,30 +93,46 @@ public sealed class Graph : IGraph, IDisposable
 
     /// <summary>
     /// </summary>
-    /// <param name="cypherNetworkCore"></param>
+    /// <param name="cypherSystemCore"></param>
     /// <param name="logger"></param>
-    public Graph(ICypherNetworkCore cypherNetworkCore, ILogger logger)
+    public Graph(ICypherSystemCore cypherSystemCore, ILogger logger) : base(
+        new ExecutionDataflowBlockOptions { BoundedCapacity = 100, MaxDegreeOfParallelism = 2, EnsureOrdered = true })
     {
-        _cypherNetworkCore = cypherNetworkCore;
+        _cypherSystemCore = cypherSystemCore;
         _logger = logger.ForContext("SourceContext", nameof(Graph));
         _onRoundCompleted = Observable.FromEventPattern<BlockGraphEventArgs>(ev => _onRoundCompletedEventHandler += ev,
             ev => _onRoundCompletedEventHandler -= ev);
         _onRoundListener = OnRoundListener();
-        var dataflowBlockOptions = new ExecutionDataflowBlockOptions
-        {
-            MaxDegreeOfParallelism = 1,
-            BoundedCapacity = 1
-        };
-        _action = new ActionBlock<BlockGraph>(NewBlockGraphAsync, dataflowBlockOptions);
         Init();
+    }
+
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="blockGraph"></param>
+    protected override async Task OnReceiveAsync(BlockGraph blockGraph)
+    {
+        Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
+        if (_cypherSystemCore.Sync().Running) return;
+        if (blockGraph.Block.Round != await NextRoundAsync()) return;
+        if (await BlockHeightExistsAsync(new BlockHeightExistsRequest(blockGraph.Block.Round)) != VerifyResult.Succeed) return;
+        if (!_syncCacheSeenBlockGraph.Contains(blockGraph.ToIdentifier()))
+        {
+            var identifier = blockGraph.ToIdentifier();
+            _syncCacheSeenBlockGraph.Add(identifier,
+                new SeenBlockGraph
+                { Hash = blockGraph.Block.BlockHash, Round = blockGraph.Block.Round, Key = identifier });
+            await FinalizeAsync(blockGraph);
+        }
     }
 
     /// <summary>
     /// </summary>
     /// <param name="blockGraph"></param>
-    public async Task PublishAsync(BlockGraph blockGraph)
+    public new async Task PostAsync(BlockGraph blockGraph)
     {
-        await _action.SendAsync(blockGraph);
+        Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
+        await base.PostAsync(blockGraph);
     }
 
     /// <summary>
@@ -130,7 +146,7 @@ public sealed class Graph : IGraph, IDisposable
         Guard.Argument(transactionIndexRequest, nameof(transactionIndexRequest)).NotNull();
         try
         {
-            var unitOfWork = await _cypherNetworkCore.UnitOfWork();
+            var unitOfWork = _cypherSystemCore.UnitOfWork();
             var block = await unitOfWork.HashChainRepository.GetAsync(x =>
                 new ValueTask<bool>(x.Txs.Any(t => t.TxnId.Xor(transactionIndexRequest.TransactionId))));
             if (block is { })
@@ -156,7 +172,7 @@ public sealed class Graph : IGraph, IDisposable
         Guard.Argument(transactionIdRequest, nameof(transactionIdRequest)).NotNull();
         try
         {
-            var unitOfWork = await _cypherNetworkCore.UnitOfWork();
+            var unitOfWork = _cypherSystemCore.UnitOfWork();
             var block = await unitOfWork.HashChainRepository.GetAsync(x =>
                 new ValueTask<bool>(x.Txs.Any(t => t.TxnId.Xor(transactionIdRequest.TransactionId))));
             if (block is { })
@@ -182,7 +198,7 @@ public sealed class Graph : IGraph, IDisposable
         Guard.Argument(transactionRequest, nameof(transactionRequest)).NotNull();
         try
         {
-            var unitOfWork = await _cypherNetworkCore.UnitOfWork();
+            var unitOfWork = _cypherSystemCore.UnitOfWork();
             var blocks = await unitOfWork.HashChainRepository.WhereAsync(x =>
                 new ValueTask<bool>(x.Txs.Any(t => t.TxnId.Xor(transactionRequest.TransactionId))));
             var block = blocks.FirstOrDefault();
@@ -205,7 +221,7 @@ public sealed class Graph : IGraph, IDisposable
     /// <returns></returns>
     public async Task<Block> GetPreviousBlockAsync()
     {
-        var unitOfWork = await _cypherNetworkCore.UnitOfWork();
+        var unitOfWork = _cypherSystemCore.UnitOfWork();
         var height = await unitOfWork.HashChainRepository.GetBlockHeightAsync();
         var prevBlock =
             await unitOfWork.HashChainRepository.GetAsync(x => new ValueTask<bool>(x.Height == (ulong)height));
@@ -221,7 +237,7 @@ public sealed class Graph : IGraph, IDisposable
         Guard.Argument(safeguardBlocksRequest, nameof(safeguardBlocksRequest)).NotNull();
         try
         {
-            var unitOfWork = await _cypherNetworkCore.UnitOfWork();
+            var unitOfWork = _cypherSystemCore.UnitOfWork();
             var height = (await GetBlockHeightAsync()).Count - safeguardBlocksRequest.NumberOfBlocks;
             height = height < 0x0 ? 0x0 : height;
             var blocks = await unitOfWork.HashChainRepository.OrderByRangeAsync(x => x.Height, (int)height,
@@ -244,7 +260,7 @@ public sealed class Graph : IGraph, IDisposable
     {
         try
         {
-            var block = await (await _cypherNetworkCore.UnitOfWork()).HashChainRepository.GetAsync(blockRequest.Hash);
+            var block = await _cypherSystemCore.UnitOfWork().HashChainRepository.GetAsync(blockRequest.Hash);
             if (block is { }) return new BlockResponse(block);
         }
         catch (Exception ex)
@@ -264,7 +280,7 @@ public sealed class Graph : IGraph, IDisposable
     {
         try
         {
-            var block = await (await _cypherNetworkCore.UnitOfWork()).HashChainRepository.GetAsync(x =>
+            var block = await _cypherSystemCore.UnitOfWork().HashChainRepository.GetAsync(x =>
                 new ValueTask<bool>(x.Height == blockByHeightRequest.Height));
             if (block is { }) return new BlockResponse(block);
         }
@@ -284,7 +300,7 @@ public sealed class Graph : IGraph, IDisposable
     {
         try
         {
-            var height = await (await _cypherNetworkCore.UnitOfWork()).HashChainRepository.CountAsync();
+            var height = await _cypherSystemCore.UnitOfWork().HashChainRepository.CountAsync();
             return new BlockCountResponse(height);
         }
         catch (Exception ex)
@@ -303,7 +319,7 @@ public sealed class Graph : IGraph, IDisposable
         Guard.Argument(blocksRequest, nameof(blocksRequest)).NotNull();
         try
         {
-            var unitOfWork = await _cypherNetworkCore.UnitOfWork();
+            var unitOfWork = _cypherSystemCore.UnitOfWork();
             var (skip, take) = blocksRequest;
             var blocks = await unitOfWork.HashChainRepository.OrderByRangeAsync(x => x.Height, skip, take);
             if (blocks.Any()) return new BlocksResponse(blocks);
@@ -342,11 +358,11 @@ public sealed class Graph : IGraph, IDisposable
         Guard.Argument(saveBlockRequest, nameof(saveBlockRequest)).NotNull();
         try
         {
-            if (await _cypherNetworkCore.Validator().VerifyBlockAsync(saveBlockRequest.Block) != VerifyResult.Succeed)
+            if (await _cypherSystemCore.Validator().VerifyBlockAsync(saveBlockRequest.Block) != VerifyResult.Succeed)
             {
                 return new SaveBlockResponse(false);
             }
-            var unitOfWork = await _cypherNetworkCore.UnitOfWork();
+            var unitOfWork = _cypherSystemCore.UnitOfWork();
             if (await unitOfWork.HashChainRepository.PutAsync(saveBlockRequest.Block.Hash, saveBlockRequest.Block))
                 return new SaveBlockResponse(true);
         }
@@ -367,7 +383,7 @@ public sealed class Graph : IGraph, IDisposable
     {
         Guard.Argument(blockHeightExistsRequest, nameof(blockHeightExistsRequest)).NotNull();
         Guard.Argument(blockHeightExistsRequest.Height, nameof(blockHeightExistsRequest.Height)).NotNegative();
-        var unitOfWork = await _cypherNetworkCore.UnitOfWork();
+        var unitOfWork = _cypherSystemCore.UnitOfWork();
         var seen = await unitOfWork.HashChainRepository.GetAsync(x => new ValueTask<bool>(x.Height == blockHeightExistsRequest.Height));
         return seen is not null ? VerifyResult.AlreadyExists : VerifyResult.Succeed;
     }
@@ -380,7 +396,7 @@ public sealed class Graph : IGraph, IDisposable
     {
         Guard.Argument(blockExistsRequest, nameof(blockExistsRequest)).NotNull();
         Guard.Argument(blockExistsRequest.Hash, nameof(blockExistsRequest.Hash)).NotEmpty().NotEmpty().MaxCount(64);
-        var unitOfWork = await _cypherNetworkCore.UnitOfWork();
+        var unitOfWork = _cypherSystemCore.UnitOfWork();
         var seen = await unitOfWork.HashChainRepository.GetAsync(x => new ValueTask<bool>(x.Hash.Xor(blockExistsRequest.Hash)));
         return seen is not null ? VerifyResult.AlreadyExists : VerifyResult.Succeed;
     }
@@ -408,25 +424,6 @@ public sealed class Graph : IGraph, IDisposable
 
     /// <summary>
     /// </summary>
-    /// <param name="blockGraph"></param>
-    private async Task NewBlockGraphAsync(BlockGraph blockGraph)
-    {
-        Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
-        if ((await _cypherNetworkCore.Sync()).Running) return;
-        if (blockGraph.Block.Round != await NextRoundAsync()) return;
-        if (await BlockHeightExistsAsync(new BlockHeightExistsRequest(blockGraph.Block.Round)) != VerifyResult.Succeed) return;
-        if (!_syncCacheSeenBlockGraph.Contains(blockGraph.ToIdentifier()))
-        {
-            var identifier = blockGraph.ToIdentifier();
-            _syncCacheSeenBlockGraph.Add(identifier,
-                new SeenBlockGraph
-                { Hash = blockGraph.Block.BlockHash, Round = blockGraph.Block.Round, Key = identifier });
-            await FinalizeAsync(blockGraph);
-        }
-    }
-
-    /// <summary>
-    /// </summary>
     /// <param name="e"></param>
     private void OnRoundReady(BlockGraphEventArgs e)
     {
@@ -439,7 +436,7 @@ public sealed class Graph : IGraph, IDisposable
     {
         _disposableHandelSeenBlockGraphs = Observable.Interval(TimeSpan.FromMinutes(15)).Subscribe(_ =>
         {
-            if (_cypherNetworkCore.ApplicationLifetime.ApplicationStopping.IsCancellationRequested) return;
+            if (_cypherSystemCore.ApplicationLifetime.ApplicationStopping.IsCancellationRequested) return;
             try
             {
                 var removeSeenBlockGraphBeforeTimestamp = Util.GetUtcNow().AddMinutes(-15).ToUnixTimestamp();
@@ -485,7 +482,7 @@ public sealed class Graph : IGraph, IDisposable
                     if (nodeCount < quorum2F1) return;
                     var lastInterpreted = GetRound();
                     var config = new Config(lastInterpreted, Array.Empty<ulong>(),
-                        _cypherNetworkCore.KeyPair.PublicKey.ToHashIdentifier(), (ulong)nodeCount);
+                        _cypherSystemCore.KeyPair.PublicKey.ToHashIdentifier(), (ulong)nodeCount);
                     var blockmania = new Blockmania(config, _logger) { NodeCount = nodeCount };
                     blockmania.TrackingDelivered.Subscribe(x =>
                     {
@@ -496,7 +493,7 @@ public sealed class Graph : IGraph, IDisposable
                         AsyncHelper.RunSync(async () =>
                         {
                             await blockmania.AddAsync(next,
-                                _cypherNetworkCore.ApplicationLifetime.ApplicationStopping);
+                                _cypherSystemCore.ApplicationLifetime.ApplicationStopping);
                         });
                     }
                 }
@@ -517,7 +514,7 @@ public sealed class Graph : IGraph, IDisposable
         Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
         try
         {
-            if (_cypherNetworkCore.Validator().VerifyBlockGraphSignatureNodeRound(blockGraph) != VerifyResult.Succeed)
+            if (_cypherSystemCore.Validator().VerifyBlockGraphSignatureNodeRound(blockGraph).Result != VerifyResult.Succeed)
             {
                 _logger.Error("Unable to verify block for {@Node} and round {@Round}", blockGraph.Block.Node,
                     blockGraph.Block.Round);
@@ -546,8 +543,8 @@ public sealed class Graph : IGraph, IDisposable
         Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
         try
         {
-            var (signature, publicKey) = await _cypherNetworkCore.Crypto()
-                .SignAsync(_cypherNetworkCore.AppOptions.Network.SigningKeyRingName, blockGraph.ToHash());
+            var (signature, publicKey) = await _cypherSystemCore.Crypto()
+                .SignAsync(_cypherSystemCore.Node.Network.SigningKeyRingName, blockGraph.ToHash());
             blockGraph.PublicKey = publicKey;
             blockGraph.Signature = signature;
             return blockGraph;
@@ -569,7 +566,7 @@ public sealed class Graph : IGraph, IDisposable
         Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
         try
         {
-            var localNodeId = _cypherNetworkCore.KeyPair.PublicKey.ToHashIdentifier();
+            var localNodeId = _cypherSystemCore.KeyPair.PublicKey.ToHashIdentifier();
             var copy = new BlockGraph
             {
                 Block = new Consensus.Models.Block
@@ -609,7 +606,7 @@ public sealed class Graph : IGraph, IDisposable
         Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
         try
         {
-            var copy = blockGraph.Block.Node != _cypherNetworkCore.KeyPair.PublicKey.ToHashIdentifier();
+            var copy = blockGraph.Block.Node != _cypherSystemCore.KeyPair.PublicKey.ToHashIdentifier();
             if (copy)
             {
                 _logger.Information("BlockGraph Copy: [{@Node}] Round: [{@Round}]", blockGraph.Block.Node,
@@ -704,7 +701,7 @@ public sealed class Graph : IGraph, IDisposable
                 if (saveBlockResponse.Ok)
                 {
                     if (block.BlockPos.PublicKey.ToHashIdentifier() ==
-                        (await _cypherNetworkCore.PeerDiscovery()).GetLocalNode().Identifier)
+                        _cypherSystemCore.PeerDiscovery().GetLocalNode().Identifier)
                     {
                         AnsiConsole.Write(
                             new FigletText("# Block Winner #")
@@ -725,7 +722,7 @@ public sealed class Graph : IGraph, IDisposable
                     _logger.Error("Unable to save the block winner");
                 }
 
-                (await _cypherNetworkCore.WalletSession()).Notify(block.Txs.ToArray());
+                _cypherSystemCore.WalletSession().Notify(block.Txs.ToArray());
             }
         }
         catch (Exception ex)
@@ -788,7 +785,7 @@ public sealed class Graph : IGraph, IDisposable
         try
         {
             if (blockGraph.Block.Round == await NextRoundAsync())
-                await _cypherNetworkCore.Broadcast().PublishAsync((TopicType.AddBlockGraph,
+                await _cypherSystemCore.Broadcast().PostAsync((TopicType.AddBlockGraph,
                     MessagePackSerializer.Serialize(blockGraph)));
         }
         catch (Exception ex)

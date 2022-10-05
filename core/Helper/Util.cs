@@ -14,7 +14,6 @@ using System.Security;
 using System.Threading.Tasks;
 using Blake3;
 using CypherNetwork.Extensions;
-using FlatSharp;
 using Microsoft.IO;
 
 namespace CypherNetwork.Helper;
@@ -218,6 +217,70 @@ public static class Util
     }
 
     /// <summary>
+    /// 
+    /// </summary>
+    /// <returns></returns>
+    public static IPAddress GetIpAddress()
+    {
+        var host1 = Dns.GetHostEntry(Dns.GetHostName());
+        foreach (var ip in host1.AddressList)
+        {
+            if (ip.AddressFamily != AddressFamily.InterNetwork) continue;
+            if (!ip.IsPrivate())
+            {
+                return ip;
+            }
+        }
+
+        return IPAddress.Loopback;
+    }
+
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="hostNameOrAddress"></param>
+    /// <param name="port"></param>
+    /// <returns></returns>
+    public static IPEndPoint GetIpEndpointFromHostPort(string hostNameOrAddress, int port)
+    {
+        if (IPAddress.TryParse(hostNameOrAddress, out IPAddress ipAddress))
+            return new IPEndPoint(ipAddress, port);
+        IPHostEntry entry;
+        try
+        {
+            entry = Dns.GetHostEntry(hostNameOrAddress);
+        }
+        catch (SocketException)
+        {
+            return null;
+        }
+        ipAddress = entry.AddressList.FirstOrDefault(p => p.AddressFamily == AddressFamily.InterNetwork || p.IsIPv6Teredo);
+        return ipAddress == null ? null : new IPEndPoint(ipAddress, port);
+    }
+
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="hostAndPort"></param>
+    /// <returns></returns>
+    public static IPEndPoint GetIpEndPoint(string hostAndPort)
+    {
+        if (string.IsNullOrEmpty(hostAndPort)) return null;
+
+        try
+        {
+            var p = hostAndPort.Split(':');
+            return GetIpEndpointFromHostPort(p[0], int.Parse(p[1]));
+        }
+        catch
+        {
+            // ignored
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// </summary>
     /// <returns></returns>
     public static DateTime GetUtcNow()
@@ -397,62 +460,5 @@ public static class Util
     public static void Throw(Exception e)
     {
         throw e;
-    }
-
-    /// <summary>
-    /// 
-    /// </summary>
-    /// <param name="data"></param>
-    /// <typeparam name="T"></typeparam>
-    /// <returns></returns>
-    public static byte[] Serialize<T>(T data) where T : class
-    {
-        var buffer = Array.Empty<byte>();
-        try
-        {
-            var maxBytesNeeded = FlatBufferSerializer.Default.GetMaxSize(data);
-            buffer = new byte[maxBytesNeeded];
-            int bytesWritten = FlatBufferSerializer.Default.Serialize(data, buffer);
-            return buffer;
-        }
-        catch (Exception e)
-        {
-            Throw(e);
-        }
-
-        return buffer;
-    }
-
-    /// <summary>
-    /// 
-    /// </summary>
-    /// <param name="bytes"></param>
-    /// <typeparam name="T"></typeparam>
-    /// <returns></returns>
-    public static T Deserialize<T>(byte[] bytes) where T : class
-    {
-        return FlatBufferSerializer.Default.Parse<T>(bytes);
-    }
-
-    /// <summary>
-    /// 
-    /// </summary>
-    /// <param name="memory"></param>
-    /// <typeparam name="T"></typeparam>
-    /// <returns></returns>
-    public static T Deserialize<T>(Memory<byte> memory) where T : class
-    {
-        return FlatBufferSerializer.Default.Parse<T>(memory);
-    }
-
-    /// <summary>
-    /// 
-    /// </summary>
-    /// <param name="memory"></param>
-    /// <typeparam name="T"></typeparam>
-    /// <returns></returns>
-    public static T Deserialize<T>(ReadOnlyMemory<byte> memory) where T : class
-    {
-        return FlatBufferSerializer.Default.Parse<T>(memory);
     }
 }

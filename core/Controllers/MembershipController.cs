@@ -15,14 +15,14 @@ namespace CypherNetwork.Controllers;
 [ApiController]
 public class MembershipController : Controller
 {
-    private readonly ICypherNetworkCore _cypherNetworkCore;
+    private readonly ICypherSystemCore _cypherNetworkCore;
     private readonly ILogger _logger;
 
     /// <summary>
     /// </summary>
     /// <param name="cypherNetworkCore"></param>
     /// <param name="logger"></param>
-    public MembershipController(ICypherNetworkCore cypherNetworkCore, ILogger logger)
+    public MembershipController(ICypherSystemCore cypherNetworkCore, ILogger logger)
     {
         _cypherNetworkCore = cypherNetworkCore;
         _logger = logger.ForContext("SourceContext", nameof(MembershipController));
@@ -38,14 +38,16 @@ public class MembershipController : Controller
     {
         try
         {
-            var peer = (await _cypherNetworkCore.PeerDiscovery()).GetLocalPeer();
+            var peer = _cypherNetworkCore.PeerDiscovery().GetLocalPeer();
             return new ObjectResult(new
             {
-                Advertise = peer.Advertise.FromBytes(),
+                IPAddress = peer.IpAddress.FromBytes(),
                 BlockHeight = peer.BlockCount,
                 peer.ClientId,
-                HttpEndPoint = peer.HttpEndPoint.FromBytes(),
-                Listening = peer.Listening.FromBytes(),
+                HttpPort = peer.HttpPort.FromBytes(),
+                HttpsPort = peer.HttpsPort.FromBytes(),
+                TcpPort = peer.TcpPort.FromBytes(),
+                WsPort = peer.WsPort.FromBytes(),
                 Name = peer.Name.FromBytes(),
                 PublicKey = peer.PublicKey.ByteToHex(),
                 Version = peer.Version.FromBytes()
@@ -69,17 +71,19 @@ public class MembershipController : Controller
     {
         try
         {
-            var peers = await (await _cypherNetworkCore.PeerDiscovery()).GetDiscoveryAsync();
-            return new ObjectResult(peers.Select(x => new
+            var peers = await _cypherNetworkCore.PeerDiscovery().GetDiscoveryAsync();
+            return new ObjectResult(peers.Select(peer => new
             {
-                Advertise = x.Advertise.FromBytes(),
-                BlockHeight = x.BlockCount,
-                x.ClientId,
-                HttpEndPoint = x.HttpEndPoint.FromBytes(),
-                Listening = x.Listening.FromBytes(),
-                Name = x.Name.FromBytes(),
-                PublicKey = x.PublicKey.ByteToHex(),
-                Version = x.Version.FromBytes()
+                IPAddress = peer.IpAddress.FromBytes(),
+                BlockHeight = peer.BlockCount,
+                peer.ClientId,
+                HttpPort = peer.HttpPort.FromBytes(),
+                HttpsPort = peer.HttpsPort.FromBytes(),
+                TcpPort = peer.TcpPort.FromBytes(),
+                WsPort = peer.WsPort.FromBytes(),
+                Name = peer.Name.FromBytes(),
+                PublicKey = peer.PublicKey.ByteToHex(),
+                Version = peer.Version.FromBytes()
             }));
         }
         catch (Exception ex)
@@ -100,7 +104,7 @@ public class MembershipController : Controller
     {
         try
         {
-            return new ObjectResult(new { count = (await _cypherNetworkCore.PeerDiscovery()).Count() });
+            return new ObjectResult(new { count = _cypherNetworkCore.PeerDiscovery().Count() });
         }
         catch (Exception ex)
         {

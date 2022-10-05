@@ -10,61 +10,57 @@ using CypherNetwork.Helper;
 using CypherNetwork.Models;
 using CypherNetwork.Models.Messages;
 using MessagePack;
-using nng;
-using nng.Native;
 using Serilog;
 
 namespace CypherNetwork.Network;
 
+/// <summary>
+/// 
+/// </summary>
 public interface IBroadcast
 {
     /// <summary>
     /// </summary>
     /// <param name="value"></param>
-    Task PublishAsync((TopicType, byte[]) value);
+    Task PostAsync((TopicType, byte[]) value);
 }
 
 /// <summary>
 /// </summary>
-public class Broadcast : IBroadcast
+public class Broadcast : ReceivedActor<(TopicType, byte[])>, IBroadcast
 {
-    private readonly ActionBlock<(TopicType, byte[])> _action;
-    private readonly ICypherNetworkCore _cypherNetworkCore;
+    private readonly ICypherSystemCore _cypherSystemCore;
     private readonly ILogger _logger;
 
     /// <summary>
     /// </summary>
-    /// <param name="cypherNetworkCore"></param>
+    /// <param name="cypherSystemCore"></param>
     /// <param name="logger"></param>
-    public Broadcast(ICypherNetworkCore cypherNetworkCore, ILogger logger)
+    public Broadcast(ICypherSystemCore cypherSystemCore, ILogger logger) : base(
+        new ExecutionDataflowBlockOptions { BoundedCapacity = 100, MaxDegreeOfParallelism = 2, EnsureOrdered = true })
     {
-        _cypherNetworkCore = cypherNetworkCore;
+        _cypherSystemCore = cypherSystemCore;
         _logger = logger.ForContext("SourceContext", nameof(Broadcast));
-        var dataflowBlockOptions = new ExecutionDataflowBlockOptions
-        {
-            MaxDegreeOfParallelism = 10,
-            EnsureOrdered = true
-        };
-        _action = new ActionBlock<(TopicType, byte[])>(BroadcastQueueOnReceiveReadyAsync, dataflowBlockOptions);
     }
 
     /// <summary>
     /// </summary>
     /// <param name="values"></param>
-    public async Task PublishAsync((TopicType, byte[]) values)
+    public new async Task PostAsync((TopicType, byte[]) values)
     {
-        await _action.SendAsync(values);
+        await base.PostAsync(values);
     }
 
     /// <summary>
+    /// 
     /// </summary>
-    /// <param name="value"></param>
-    private async Task BroadcastQueueOnReceiveReadyAsync((TopicType, byte[]) value)
+    /// <param name="message"></param>
+    protected override async Task OnReceiveAsync((TopicType, byte[]) message)
     {
         try
         {
-            var (topicType, data) = value;
-            var peers = await (await _cypherNetworkCore.PeerDiscovery()).GetDiscoveryAsync();
+            var (topicType, data) = message;
+            var peers = await _cypherSystemCore.PeerDiscovery().GetDiscoveryAsync();
             if (peers.Any())
             {
                 var command = topicType switch
@@ -78,34 +74,16 @@ public class Broadcast : IBroadcast
                 });
                 await Parallel.ForEachAsync(peers, (knownPeer, cancellationToken) =>
                 {
-                    var nngMsg = NngFactorySingleton.Instance.Factory.CreateMessage();
                     try
                     {
                         if (cancellationToken.IsCancellationRequested) return ValueTask.CompletedTask;
-                        var tcp = string.Create(knownPeer.Listening.Length, knownPeer.Listening.AsMemory(),
-                            (chars, state) =>
-                            {
-                                Span<char> address = System.Text.Encoding.UTF8.GetString(state.Span).ToCharArray();
-                                address.CopyTo(chars);
-                            });
-                        using var reqSocket =
-                            NngFactorySingleton.Instance.Factory.RequesterOpen().ThenDial(tcp).Unwrap();
-                        reqSocket.SetOpt(Defines.NNG_OPT_RECVTIMEO, new nng_duration { TimeMs = 200 });
-                        reqSocket.SetOpt(Defines.NNG_OPT_SENDTIMEO, new nng_duration { TimeMs = 200 });
-                        var cipher = _cypherNetworkCore.Crypto().BoxSeal(msg, knownPeer.PublicKey.AsSpan()[1..33]);
-                        var packet = Util.Combine(_cypherNetworkCore.KeyPair.PublicKey[1..33].WrapLengthPrefix(),
-                            cipher.WrapLengthPrefix());
-                        nngMsg.Append(packet.AsSpan());
-                        reqSocket.SendMsg(nngMsg, Defines.NngFlag.NNG_FLAG_NONBLOCK);
+                        var _ = _cypherSystemCore.P2PDeviceReq().SendAsync<Nothing>(knownPeer.IpAddress,
+                            knownPeer.TcpPort,
+                            knownPeer.PublicKey, msg).SafeForgetAsync(_logger).ConfigureAwait(false);
                     }
                     catch (Exception)
                     {
-                        // _logger.Here().Error("Peer: {@Peer} failed to send {@Topic} with {@Message}",
-                        //     knownPeer.Listening, command, ex.Message);
-                    }
-                    finally
-                    {
-                        nngMsg.Dispose();
+                        // Ignore
                     }
 
                     return ValueTask.CompletedTask;

@@ -16,14 +16,14 @@ namespace CypherNetwork.Controllers;
 [ApiController]
 public class BlockController : Controller
 {
-    private readonly ICypherNetworkCore _cypherNetworkCore;
+    private readonly ICypherSystemCore _cypherNetworkCore;
     private readonly ILogger _logger;
 
     /// <summary>
     /// </summary>
     /// <param name="cypherNetworkCore"></param>
     /// <param name="logger"></param>
-    public BlockController(ICypherNetworkCore cypherNetworkCore, ILogger logger)
+    public BlockController(ICypherSystemCore cypherNetworkCore, ILogger logger)
     {
         _cypherNetworkCore = cypherNetworkCore;
         _logger = logger.ForContext("SourceContext", nameof(BlockController));
@@ -62,7 +62,7 @@ public class BlockController : Controller
         try
         {
             var blockResponse =
-                await (await _cypherNetworkCore.Graph()).GetBlockAsync(new BlockRequest(hash.HexToByte()));
+                await _cypherNetworkCore.Graph().GetBlockAsync(new BlockRequest(hash.HexToByte()));
             if (blockResponse?.Block is { }) return new ObjectResult(new { blockResponse.Block });
         }
         catch (Exception ex)
@@ -88,7 +88,7 @@ public class BlockController : Controller
         try
         {
             var blocksResponse =
-                await (await _cypherNetworkCore.Graph()).GetBlocksAsync(new BlocksRequest(skip, take));
+                await _cypherNetworkCore.Graph().GetBlocksAsync(new BlocksRequest(skip, take));
             return new ObjectResult(new { blocksResponse?.Blocks });
         }
         catch (Exception ex)
@@ -110,7 +110,7 @@ public class BlockController : Controller
         try
         {
             var blockResponse =
-                await (await _cypherNetworkCore.Graph()).GetBlockByHeightAsync(new BlockByHeightRequest(height));
+                await _cypherNetworkCore.Graph().GetBlockByHeightAsync(new BlockByHeightRequest(height));
             if (blockResponse?.Block is { }) return new ObjectResult(new { blockResponse.Block });
         }
         catch (Exception ex)
@@ -134,7 +134,7 @@ public class BlockController : Controller
         try
         {
             var transactionBlock =
-                await (await _cypherNetworkCore.Graph()).GetTransactionBlockAsync(
+                await _cypherNetworkCore.Graph().GetTransactionBlockAsync(
                     new TransactionIdRequest(hash.HexToByte()));
             return new ObjectResult(new { transactionBlock?.Block });
         }
@@ -157,7 +157,7 @@ public class BlockController : Controller
         try
         {
             var blockCountResponse =
-                await (await _cypherNetworkCore.Graph()).GetBlockCountAsync();
+                await _cypherNetworkCore.Graph().GetBlockCountAsync();
             return new ObjectResult(new { height = blockCountResponse?.Count });
         }
         catch (Exception ex)
@@ -181,7 +181,7 @@ public class BlockController : Controller
         try
         {
             var transactionResponse =
-                await (await _cypherNetworkCore.Graph()).GetTransactionAsync(new TransactionRequest(hash.HexToByte()));
+                await _cypherNetworkCore.Graph().GetTransactionAsync(new TransactionRequest(hash.HexToByte()));
             return new ObjectResult(new { transactionResponse?.Transaction });
         }
         catch (Exception ex)
@@ -203,7 +203,7 @@ public class BlockController : Controller
         try
         {
             var safeguardBlocksResponse =
-                await (await _cypherNetworkCore.Graph()).GetSafeguardBlocksAsync(new SafeguardBlocksRequest(147));
+                await _cypherNetworkCore.Graph().GetSafeguardBlocksAsync(new SafeguardBlocksRequest(147));
             return new ObjectResult(new { safeguardBlocksResponse?.Blocks });
         }
         catch (Exception ex)

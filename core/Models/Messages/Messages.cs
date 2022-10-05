@@ -54,7 +54,13 @@ public record TransactionResponse([property: Key(0)] Transaction Transaction);
 /// </summary>
 /// <param name="TransactionId"></param>
 [MessagePackObject]
-public record TransactionRequest([property: Key(0)] byte[] TransactionId);
+public record TransactionRequest([property: Key(0)] byte[] TransactionId)
+{
+    public Parameter GetPayload()
+    {
+        return new Parameter { Value = TransactionId, ProtocolCommand = ProtocolCommand.Transaction };
+    }
+}
 
 [MessagePackObject]
 public record TransactionIdRequest([property: Key(0)] byte[] TransactionId);
@@ -230,4 +236,15 @@ public record TransactionBlockIndexRequest([property: Key(0)] byte[] Transaction
 [MessagePackObject]
 public record TransactionBlockIndexResponse([property: Key(0)] ulong Index);
 
+/// <summary>
+/// 
+/// </summary>
+/// <param name="Transactions"></param>
 public record HashTransactionsRequest(Transaction[] Transactions);
+
+/// <summary>
+/// 
+/// </summary>
+/// <param name="Ok"></param>
+[MessagePackObject]
+public record UpdatePeersResponse([property: Key(0)] bool Ok);

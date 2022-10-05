@@ -7,13 +7,13 @@ namespace CypherNetwork.Models;
 
 public struct PeerCooldown : IComparable<PeerCooldown>
 {
-    public byte[] Advertise { get; set; }
+    public byte[] IpAddress { get; set; }
     public byte[] PublicKey { get; set; }
     public long Timestamp { get; }
 
     public PeerCooldown()
     {
-        Advertise = null;
+        IpAddress = null;
         PublicKey = null;
         Timestamp = Util.GetAdjustedTimeAsUnixTimestamp();
     }
@@ -26,7 +26,7 @@ public struct PeerCooldown : IComparable<PeerCooldown>
     {
         if (Equals(this, other)) return 0;
         if (Equals(null, other)) return 1;
-        return Advertise.Xor(other.Advertise) ? 0 : 1;
+        return IpAddress.Xor(other.IpAddress) ? 0 : 1;
     }
 
     /// <summary>
@@ -34,6 +34,6 @@ public struct PeerCooldown : IComparable<PeerCooldown>
     /// <returns></returns>
     public override int GetHashCode()
     {
-        return HashCode.Combine(Advertise, PublicKey);
+        return HashCode.Combine(IpAddress, PublicKey);
     }
 }

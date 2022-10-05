@@ -32,7 +32,7 @@ namespace CypherNetwork.Ledger;
 /// </summary>
 public interface IValidator
 {
-    VerifyResult VerifyBlockGraphSignatureNodeRound(BlockGraph blockGraph);
+    Task<VerifyResult> VerifyBlockGraphSignatureNodeRound(BlockGraph blockGraph);
     VerifyResult VerifyBulletProof(Transaction transaction);
     VerifyResult VerifyCoinbaseTransaction(Vout coinbase, ulong solution, decimal runningDistribution, ulong height);
     VerifyResult VerifySolution(byte[] vrfBytes, byte[] kernel, ulong solution);
@@ -54,7 +54,7 @@ public interface IValidator
     Task<decimal> GetRunningDistributionAsync();
     VerifyResult VerifyNetworkShare(ulong solution, decimal previousNetworkShare, decimal runningDistributionTotal, ulong height);
     Task<VerifyResult> VerifyBlockHashAsync(Block block);
-    VerifyResult VerifyVrfProof(byte[] publicKey, byte[] vrfProof, byte[] kernel);
+    Task<VerifyResult> VerifyVrfProof(byte[] publicKey, byte[] vrfProof, byte[] kernel);
     Task<VerifyResult> VerifyMerkleAsync(Block block);
     VerifyResult VerifyTransactionTime(in Transaction transaction);
     byte[] Kernel(byte[] prevHash, byte[] hash, ulong round);
@@ -68,16 +68,16 @@ public interface IValidator
 /// </summary>
 public class Validator : IValidator
 {
-    private readonly ICypherNetworkCore _cypherNetworkCore;
+    private readonly ICypherSystemCore _cypherSystemCore;
     private readonly ILogger _logger;
 
     /// <summary>
     /// </summary>
-    /// <param name="cypherNetworkCore"></param>
+    /// <param name="cypherSystemCore"></param>
     /// <param name="logger"></param>
-    public Validator(ICypherNetworkCore cypherNetworkCore, ILogger logger)
+    public Validator(ICypherSystemCore cypherSystemCore, ILogger logger)
     {
-        _cypherNetworkCore = cypherNetworkCore;
+        _cypherSystemCore = cypherSystemCore;
         _logger = logger.ForContext("SourceContext", nameof(Validator));
     }
 
@@ -89,7 +89,7 @@ public class Validator : IValidator
     {
         Guard.Argument(block, nameof(block)).NotNull();
         using var hasher = Hasher.New();
-        var unitOfWork = await _cypherNetworkCore.UnitOfWork();
+        var unitOfWork = _cypherSystemCore.UnitOfWork();
         var height = await unitOfWork.HashChainRepository.GetBlockHeightAsync();
         var prevBlock = await unitOfWork.HashChainRepository.GetAsync(x => new ValueTask<bool>(x.Height == (ulong)height));
         if (prevBlock is null)
@@ -112,7 +112,7 @@ public class Validator : IValidator
     public async Task<VerifyResult> VerifyMerkleAsync(Block block)
     {
         Guard.Argument(block, nameof(block)).NotNull();
-        var unitOfWork = await _cypherNetworkCore.UnitOfWork();
+        var unitOfWork = _cypherSystemCore.UnitOfWork();
         var height = await unitOfWork.HashChainRepository.GetBlockHeightAsync();
         var prevBlock = await unitOfWork.HashChainRepository.GetAsync(x => new ValueTask<bool>(x.Height == (ulong)height));
         if (prevBlock is null)
@@ -130,12 +130,12 @@ public class Validator : IValidator
     /// </summary>
     /// <param name="blockGraph"></param>
     /// <returns></returns>
-    public VerifyResult VerifyBlockGraphSignatureNodeRound(BlockGraph blockGraph)
+    public async Task<VerifyResult> VerifyBlockGraphSignatureNodeRound(BlockGraph blockGraph)
     {
         Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
         try
         {
-            if (!_cypherNetworkCore.Crypto()
+            if (!_cypherSystemCore.Crypto()
                     .VerifySignature(new VerifySignatureManualRequest(blockGraph.Signature, blockGraph.PublicKey,
                         blockGraph.ToHash())))
             {
@@ -352,7 +352,7 @@ public class Validator : IValidator
         }
 
         var hashTransactions =
-            (await _cypherNetworkCore.Graph()).HashTransactions(
+            _cypherSystemCore.Graph().HashTransactions(
                 new HashTransactionsRequest(block.Txs.Skip(1).ToArray(block.Txs.Count - 1)));
         var kernel = Kernel(block.BlockHeader.PrevBlockHash, hashTransactions, block.Height);
         if (VerifyKernel(block.BlockPos.VrfProof, kernel) != VerifyResult.Succeed)
@@ -361,7 +361,7 @@ public class Validator : IValidator
             return VerifyResult.UnableToVerify;
         }
 
-        if (VerifyVrfProof(block.BlockPos.PublicKey, block.BlockPos.VrfProof, kernel) != VerifyResult.Succeed)
+        if (await VerifyVrfProof(block.BlockPos.PublicKey, block.BlockPos.VrfProof, kernel) != VerifyResult.Succeed)
         {
             _logger.Fatal("Unable to verify the Vrf Proof");
             return VerifyResult.UnableToVerify;
@@ -592,7 +592,7 @@ public class Validator : IValidator
     {
         Guard.Argument(transaction, nameof(transaction)).NotNull();
         if (transaction.HasErrors().Any()) return VerifyResult.UnableToVerify;
-        var unitOfWork = await _cypherNetworkCore.UnitOfWork();
+        var unitOfWork = _cypherSystemCore.UnitOfWork();
         foreach (var vin in transaction.Vin)
         {
             var block = await unitOfWork.HashChainRepository.GetAsync(x =>
@@ -613,7 +613,7 @@ public class Validator : IValidator
     public async Task<VerifyResult> VerifyKeyImageNotExistsAsync(byte[] image)
     {
         Guard.Argument(image, nameof(image)).NotNull();
-        var unitOfWork = await _cypherNetworkCore.UnitOfWork();
+        var unitOfWork = _cypherSystemCore.UnitOfWork();
         var block = await unitOfWork.HashChainRepository.GetAsync(x =>
             new ValueTask<bool>(x.Txs.Any(c => c.Vin.Any(k => k.Image.Xor(image)))));
         if (block is null) return VerifyResult.Succeed;
@@ -630,7 +630,7 @@ public class Validator : IValidator
         Guard.Argument(transaction, nameof(transaction)).NotNull();
         if (transaction.HasErrors().Any()) return VerifyResult.UnableToVerify;
         var offSets = transaction.Vin.Select(v => v.Offsets).SelectMany(k => k.Split(33)).ToArray();
-        var unitOfWork = await _cypherNetworkCore.UnitOfWork();
+        var unitOfWork = _cypherSystemCore.UnitOfWork();
         foreach (var commit in offSets)
         {
             var blocks = await unitOfWork.HashChainRepository.WhereAsync(x =>
@@ -660,14 +660,14 @@ public class Validator : IValidator
     /// <param name="vrfProof"></param>
     /// <param name="kernel"></param>
     /// <returns></returns>
-    public VerifyResult VerifyVrfProof(byte[] publicKey, byte[] vrfProof, byte[] kernel)
+    public async Task<VerifyResult> VerifyVrfProof(byte[] publicKey, byte[] vrfProof, byte[] kernel)
     {
         Guard.Argument(publicKey, nameof(publicKey)).NotNull().MaxCount(33);
         Guard.Argument(vrfProof, nameof(vrfProof)).NotNull().MaxCount(96);
         Guard.Argument(kernel, nameof(kernel)).NotNull().MaxCount(32);
         try
         {
-            _cypherNetworkCore.Crypto()
+            _cypherSystemCore.Crypto()
                .GetVerifyVrfSignature(Curve.decodePoint(publicKey, 0), kernel, vrfProof);
             return VerifyResult.Succeed;
         }
@@ -716,7 +716,7 @@ public class Validator : IValidator
     {
         try
         {
-            var unitOfWork = await _cypherNetworkCore.UnitOfWork();
+            var unitOfWork = _cypherSystemCore.UnitOfWork();
             var runningDistributionTotal = LedgerConstant.Distribution;
             var height = await unitOfWork.HashChainRepository.CountAsync() + 1;
             var blockHeaders = await unitOfWork.HashChainRepository.TakeLongAsync(height);
@@ -807,7 +807,7 @@ public class Validator : IValidator
                 var hashTargetValue = new BigInteger((target.IntValue / hashTarget.BitCount).ToString()).Abs();
                 var hashWeightedTarget = new BigInteger(1, kernel).Multiply(hashTargetValue);
                 sw.Start();
-                while (!_cypherNetworkCore.ApplicationLifetime.ApplicationStopping.IsCancellationRequested)
+                while (!_cypherSystemCore.ApplicationLifetime.ApplicationStopping.IsCancellationRequested)
                 {
                     if (sw.ElapsedMilliseconds > LedgerConstant.SolutionCancellationTimeoutFromMilliseconds)
                     {
@@ -906,7 +906,7 @@ public class Validator : IValidator
         Guard.Argument(otherChain, nameof(otherChain)).NotNull().NotEmpty();
         try
         {
-            var unitOfWork = await _cypherNetworkCore.UnitOfWork();
+            var unitOfWork = _cypherSystemCore.UnitOfWork();
             var mainChain = (await unitOfWork.HashChainRepository.WhereAsync(x =>
                 new ValueTask<bool>(x.Height >= otherChain.Min(o => o.Height)))).OrderBy(x => x.Height).ToArray();
             var newChain = otherChain.OrderBy(x => x.Height).Take(mainChain.Length).ToArray();

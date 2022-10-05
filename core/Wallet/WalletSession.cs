@@ -9,7 +9,6 @@ using System.Security;
 using System.Threading.Tasks;
 using CypherNetwork.Extensions;
 using CypherNetwork.Models;
-using CypherNetwork.Models.Messages;
 using CypherNetwork.Persistence;
 using CypherNetwork.Wallet.Models;
 using Dawn;
@@ -49,7 +48,7 @@ public class WalletSession : IWalletSession, IDisposable
     public ulong Change { get; set; }
     public ulong Reward { get; set; }
 
-    private readonly ICypherNetworkCore _cypherNetworkCore;
+    private readonly ICypherSystemCore _cypherSystemCore;
     private readonly IHostApplicationLifetime _applicationLifetime;
     private readonly ILogger _logger;
     private readonly NBitcoin.Network _network;
@@ -64,15 +63,15 @@ public class WalletSession : IWalletSession, IDisposable
     /// <summary>
     /// 
     /// </summary>
-    /// <param name="cypherNetworkCore"></param>
+    /// <param name="cypherSystemCore"></param>
     /// <param name="applicationLifetime"></param>
     /// <param name="logger"></param>
-    public WalletSession(ICypherNetworkCore cypherNetworkCore, IHostApplicationLifetime applicationLifetime, ILogger logger)
+    public WalletSession(ICypherSystemCore cypherSystemCore, IHostApplicationLifetime applicationLifetime, ILogger logger)
     {
-        _cypherNetworkCore = cypherNetworkCore;
+        _cypherSystemCore = cypherSystemCore;
         _applicationLifetime = applicationLifetime;
         _logger = logger;
-        _network = cypherNetworkCore.AppOptions.Network.Environment == NetworkSetting.Mainnet
+        _network = cypherSystemCore.Node.Network.Environment == Node.Mainnet
             ? NBitcoin.Network.Main
             : NBitcoin.Network.TestNet;
         Init();
@@ -246,10 +245,10 @@ public class WalletSession : IWalletSession, IDisposable
         _disposableHandleSafeguardBlocks = Observable.Timer(TimeSpan.Zero, TimeSpan.FromMilliseconds(155520000))
             .Select(_ => Observable.FromAsync(async () =>
             {
-                if (_cypherNetworkCore.ApplicationLifetime.ApplicationStopping.IsCancellationRequested) return;
+                if (_cypherSystemCore.ApplicationLifetime.ApplicationStopping.IsCancellationRequested) return;
 
-                var unitOfWork = await _cypherNetworkCore.UnitOfWork();
-                var height = (await (await _cypherNetworkCore.Graph()).GetBlockHeightAsync()).Count - 147;
+                var unitOfWork = _cypherSystemCore.UnitOfWork();
+                var height = (await _cypherSystemCore.Graph().GetBlockHeightAsync()).Count - 147;
                 height = height < 0 ? 0 : height;
                 var blocks = await unitOfWork.HashChainRepository.OrderByRangeAsync(x => x.Height, (int)height, 147);
                 if (!blocks.Any()) return;

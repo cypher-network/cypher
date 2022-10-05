@@ -18,14 +18,14 @@ namespace CypherNetwork.Controllers;
 [ApiController]
 public class MemoryPoolController : Controller
 {
-    private readonly ICypherNetworkCore _cypherNetworkCore;
+    private readonly ICypherSystemCore _cypherNetworkCore;
     private readonly ILogger _logger;
 
     /// <summary>
     /// </summary>
     /// <param name="cypherNetworkCore"></param>
     /// <param name="logger"></param>
-    public MemoryPoolController(ICypherNetworkCore cypherNetworkCore, ILogger logger)
+    public MemoryPoolController(ICypherSystemCore cypherNetworkCore, ILogger logger)
     {
         _cypherNetworkCore = cypherNetworkCore;
         _logger = logger.ForContext("SourceContext", nameof(MemoryPoolController));
@@ -44,7 +44,7 @@ public class MemoryPoolController : Controller
         try
         {
             var transaction = MessagePackSerializer.Deserialize<Transaction>(data);
-            var added = await (await _cypherNetworkCore.MemPool()).NewTransactionAsync(transaction);
+            var added = await _cypherNetworkCore.MemPool().NewTransactionAsync(transaction);
             return added switch
             {
                 VerifyResult.Succeed => new ObjectResult(StatusCodes.Status200OK),
@@ -71,11 +71,11 @@ public class MemoryPoolController : Controller
         Guard.Argument(id, nameof(id)).NotNull().NotEmpty().NotWhiteSpace();
         try
         {
-            var memPoolTransaction = (await _cypherNetworkCore.MemPool()).Get(id.HexToByte());
+            var memPoolTransaction = _cypherNetworkCore.MemPool().Get(id.HexToByte());
             if (memPoolTransaction is { })
                 return new ObjectResult(new { memPoolTransaction });
 
-            var pPosMemPoolTransaction = (await _cypherNetworkCore.PPoS()).Get(id.HexToByte());
+            var pPosMemPoolTransaction = _cypherNetworkCore.PPoS().Get(id.HexToByte());
             if (pPosMemPoolTransaction is { })
                 return new ObjectResult(new { pPosMemPoolTransaction });
         }
@@ -97,8 +97,8 @@ public class MemoryPoolController : Controller
     {
         try
         {
-            var memPoolCount = (await _cypherNetworkCore.MemPool()).Count();
-            var pPoSCount = (await _cypherNetworkCore.PPoS()).Count();
+            var memPoolCount = _cypherNetworkCore.MemPool().Count();
+            var pPoSCount = _cypherNetworkCore.PPoS().Count();
             var total = memPoolCount + pPoSCount;
             return new ObjectResult(new { count = total });
         }
