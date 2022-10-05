@@ -7,7 +7,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using CypherNetwork.Extensions;
 using CypherNetwork.Helper;
-using CypherNetwork.Ledger;
 using CypherNetwork.Models;
 using CypherNetwork.Wallet.Models;
 using Dawn;
@@ -57,19 +56,19 @@ public struct WalletTransaction
 public class NodeWallet : INodeWallet
 {
     private const string HardwarePath = "m/44'/847177'/0'/0/";
-    private readonly ICypherNetworkCore _cypherNetworkCore;
+    private readonly ICypherSystemCore _cypherSystemCore;
     private readonly ILogger _logger;
     private readonly NBitcoin.Network _network;
 
     /// <summary>
     /// </summary>
-    /// <param name="cypherNetworkCore"></param>
+    /// <param name="cypherSystemCore"></param>
     /// <param name="logger"></param>
-    public NodeWallet(ICypherNetworkCore cypherNetworkCore, ILogger logger)
+    public NodeWallet(ICypherSystemCore cypherSystemCore, ILogger logger)
     {
-        _cypherNetworkCore = cypherNetworkCore;
+        _cypherSystemCore = cypherSystemCore;
         _logger = logger;
-        _network = cypherNetworkCore.AppOptions.Network.Environment == NetworkSetting.Mainnet
+        _network = cypherSystemCore.Node.Network.Environment == Node.Mainnet
             ? NBitcoin.Network.Main
             : NBitcoin.Network.TestNet;
     }
@@ -87,7 +86,7 @@ public class NodeWallet : INodeWallet
         Guard.Argument(address, nameof(address)).NotNull().NotEmpty().NotWhiteSpace();
         try
         {
-            var session = await _cypherNetworkCore.WalletSession();
+            var session = _cypherSystemCore.WalletSession();
             if (session.KeySet is null) return new WalletTransaction(default, "Node wallet login required");
             if (session.CacheTransactions.Count == 0)
                 return new WalletTransaction(default, "Node wallet payments required");
@@ -108,7 +107,7 @@ public class NodeWallet : INodeWallet
                 return new WalletTransaction(default, "The stake amount exceeds the available commitment amount");
             var (transaction, message) = RingConfidentialTransaction(session);
             if (transaction.IsDefault()) return new WalletTransaction(default, message);
-            var validator = _cypherNetworkCore.Validator();
+            var validator = _cypherSystemCore.Validator();
             var verifyOutputCommitments = await validator.VerifyCommitmentOutputsAsync(transaction);
             var verifyKeyImage = await validator.VerifyKeyImageNotExistsAsync(transaction);
             if (verifyOutputCommitments == VerifyResult.CommitmentNotFound ||
@@ -149,11 +148,7 @@ public class NodeWallet : INodeWallet
     {
         try
         {
-            var session = AsyncHelper.RunSync(async delegate
-            {
-                var value = await _cypherNetworkCore.WalletSession();
-                return value;
-            });
+            var session = _cypherSystemCore.WalletSession();
             var keySet = session.KeySet;
             var masterKey = MasterKey(MessagePackSerializer.Deserialize<KeySet>(keySet.FromSecureString().HexToByte()));
             var spendKey = masterKey.Derive(new KeyPath($"{HardwarePath}0")).PrivateKey;
@@ -217,11 +212,7 @@ public class NodeWallet : INodeWallet
         var balances = new List<Balance>();
         try
         {
-            var session = AsyncHelper.RunSync(async delegate
-            {
-                var value = await _cypherNetworkCore.WalletSession();
-                return value;
-            });
+            var session = _cypherSystemCore.WalletSession();
             var (_, scan) = Unlock();
             var outputs = session.CacheTransactions.GetItems()
                 .Where(x => !session.CacheConsumed.GetItems().Any(c => x.C.Xor(c.Commit))).ToArray();
@@ -258,7 +249,7 @@ public class NodeWallet : INodeWallet
         using var mlsag = new MLSAG();
         var imageKey = mlsag.ToKeyImage(oneTimeSpendKey.ToHex().HexToByte(), oneTimeSpendKey.PubKey.ToBytes());
         var result = AsyncHelper.RunSync(async () =>
-            await _cypherNetworkCore.Validator().VerifyKeyImageNotExistsAsync(imageKey));
+            await _cypherSystemCore.Validator().VerifyKeyImageNotExistsAsync(imageKey));
         if (result != VerifyResult.Succeed) session.CacheTransactions.Remove(output.C);
         return result != VerifyResult.Succeed;
     }
@@ -382,7 +373,7 @@ public class NodeWallet : INodeWallet
                                        let vtime = tx.Vtime
                                        where !vtime.IsDefault()
                                        let verifyLockTime =
-                                           _cypherNetworkCore.Validator()
+                                           _cypherSystemCore.Validator()
                                                .VerifyLockTime(new LockTime(Utils.UnixTimeToDateTime(tx.Vtime.L)), tx.Vtime.S)
                                        where verifyLockTime != VerifyResult.UnableToVerify
                                        select tx).ToArray();
@@ -527,12 +518,7 @@ public class NodeWallet : INodeWallet
     /// <returns></returns>
     private byte[] ShortPublicKey()
     {
-        var result = AsyncHelper.RunSync(async delegate
-        {
-            var value = (await _cypherNetworkCore.PeerDiscovery()).GetLocalNode().PublicKey[..6];
-            return value;
-        });
-        return result;
+        return _cypherSystemCore.PeerDiscovery().GetLocalNode().PublicKey[..6];
     }
 
     /// <summary>

@@ -2,10 +2,7 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
-using System.IO;
-using System.Runtime.InteropServices;
 using System.Text;
-using Microsoft.IO;
 
 namespace CypherNetwork.Helper;
 

@@ -1,4 +1,4 @@
-﻿// CypherNetwork by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+// CypherNetwork by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
@@ -15,14 +15,14 @@ namespace CypherNetwork.Controllers;
 [ApiController]
 public class MembershipController : Controller
 {
-    private readonly ICypherNetworkCore _cypherNetworkCore;
+    private readonly ICypherSystemCore _cypherNetworkCore;
     private readonly ILogger _logger;
 
     /// <summary>
     /// </summary>
     /// <param name="cypherNetworkCore"></param>
     /// <param name="logger"></param>
-    public MembershipController(ICypherNetworkCore cypherNetworkCore, ILogger logger)
+    public MembershipController(ICypherSystemCore cypherNetworkCore, ILogger logger)
     {
         _cypherNetworkCore = cypherNetworkCore;
         _logger = logger.ForContext("SourceContext", nameof(MembershipController));
@@ -100,7 +100,7 @@ public class MembershipController : Controller
     {
         try
         {
-            return new ObjectResult(new { count = (await _cypherNetworkCore.PeerDiscovery()).Count() });
+            return new ObjectResult(new { count = _cypherNetworkCore.PeerDiscovery().Count() });
         }
         catch (Exception ex)
         {

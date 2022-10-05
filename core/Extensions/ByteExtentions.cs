@@ -77,7 +77,7 @@ public static class ByteExtensions
         for (var i = 0; i < countOfArray; i++) yield return value.Skip(i * bufferLength).Take(bufferLength).ToArray();
     }
 
-    public static bool Xor(this byte[] a, byte[] b)
+    public static bool Xor(this byte[] a, Span<byte> b)
     {
         if (a == null) return false;
         var x = a.Length ^ b.Length;

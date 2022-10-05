@@ -33,21 +33,20 @@ public interface IMemoryPool
 /// </summary>
 public class MemoryPool : IMemoryPool, IDisposable
 {
-    private readonly ICypherNetworkCore _cypherNetworkCore;
+    private readonly ICypherSystemCore _cypherSystemCore;
     private readonly ILogger _logger;
     private readonly Caching<string> _syncCacheSeenTransactions = new();
     private readonly Caching<Transaction> _syncCacheTransactions = new();
-
     private IDisposable _disposableHandelSeenTransactions;
     private bool _disposed;
 
     /// <summary>
     /// </summary>
-    /// <param name="cypherNetworkCore"></param>
+    /// <param name="cypherSystemCore"></param>
     /// <param name="logger"></param>
-    public MemoryPool(ICypherNetworkCore cypherNetworkCore, ILogger logger)
+    public MemoryPool(ICypherSystemCore cypherSystemCore, ILogger logger)
     {
-        _cypherNetworkCore = cypherNetworkCore;
+        _cypherSystemCore = cypherSystemCore;
         _logger = logger.ForContext("SourceContext", nameof(MemoryPool));
         Init();
     }
@@ -70,10 +69,10 @@ public class MemoryPool : IMemoryPool, IDisposable
             if (transaction.HasErrors().Any()) return VerifyResult.Invalid;
             if (!_syncCacheSeenTransactions.Contains(transaction.TxnId))
             {
-                var broadcast = _cypherNetworkCore.Broadcast();
+                var broadcast = _cypherSystemCore.Broadcast();
                 _syncCacheTransactions.Add(transaction.TxnId, transaction);
                 _syncCacheSeenTransactions.Add(transaction.TxnId, transaction.TxnId.ByteToHex());
-                await broadcast.PublishAsync((TopicType.AddTransaction, MessagePackSerializer.Serialize(transaction)));
+                await broadcast.PostAsync((TopicType.AddTransaction, MessagePackSerializer.Serialize(transaction)));
             }
         }
         catch (Exception ex)
@@ -121,7 +120,7 @@ public class MemoryPool : IMemoryPool, IDisposable
     {
         Guard.Argument(take, nameof(take)).NotNegative();
         var validTransactions = new List<Transaction>();
-        var validator = _cypherNetworkCore.Validator();
+        var validator = _cypherSystemCore.Validator();
         foreach (var transaction in _syncCacheTransactions.GetItems().Take(take).Select(x => x)
                      .OrderByDescending(x => x.Vtime.I))
         {
@@ -156,7 +155,7 @@ public class MemoryPool : IMemoryPool, IDisposable
         _disposableHandelSeenTransactions = Observable.Interval(TimeSpan.FromHours(1))
             .Subscribe(_ =>
             {
-                if (_cypherNetworkCore.ApplicationLifetime.ApplicationStopping.IsCancellationRequested) return;
+                if (_cypherSystemCore.ApplicationLifetime.ApplicationStopping.IsCancellationRequested) return;
                 try
                 {
                     var removeTransactionsBeforeTimestamp = Util.GetUtcNow().AddHours(-1).ToUnixTimestamp();
