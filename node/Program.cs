@@ -1,4 +1,4 @@
-﻿// CypherNetwork by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
+// CypherNetwork by Matthew Hellyer is licensed under CC BY-NC-ND 4.0.
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
@@ -138,24 +138,15 @@ public static class Program
         {
             webBuilder.UseStartup<Startup>().UseKestrel(options =>
             {
-                IPAddress ipAddress;
-                var endPoint = Util.TryParseAddress(configurationRoot["Node:HttpEndPoint"][7..]);
-                switch (endPoint.Address.ToString())
-                {
-                    case "127.0.0.1":
-                        ipAddress = IPAddress.Loopback;
-                        break;
-                    case "0.0.0.0":
-                        ipAddress = IPAddress.Any;
-                        break;
-                    default:
-                        if (IPAddress.TryParse(endPoint.Address.ToString(), out ipAddress)) break;
-                        Log.Fatal("The specified IP Address is invalid");
-                        throw new Exception("[Invalid IP Address]");
-                }
-
-                options.Listen(ipAddress, endPoint.Port);
-                options.Listen(ipAddress, Convert.ToInt32(configurationRoot["Node:HttpsPort"]), listenOptions =>
+                var ipAddress = Util.GetIpAddress();
+                var port = Convert.ToInt32(configurationRoot["Node:Network:HttpPort"]);
+                var endPoint = new IPEndPoint(ipAddress, port);
+                options.Listen(ipAddress, port);
+                Log.Information("Http Listening on {Endpoint}", endPoint);
+                var certMode = configurationRoot["Node:Network:CertificateMode"];
+                if (certMode != "self") return;
+                Log.Information("Certificate Mode: self");
+                options.Listen(ipAddress, Convert.ToInt32(configurationRoot["Node:Network:HttpsPort"]), listenOptions =>
                 {
                     if (!string.IsNullOrEmpty(configurationRoot["Node:Network:X509Certificate:CertPath"]) &&
                         !string.IsNullOrEmpty(configurationRoot["Node:Network:X509Certificate:Password"]))
