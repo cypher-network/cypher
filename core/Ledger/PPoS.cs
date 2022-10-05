@@ -61,21 +61,20 @@ public class PPoS : IPPoS, IDisposable
     private readonly ICypherSystemCore _cypherSystemCore;
     private readonly ILogger _logger;
     private readonly Caching<Transaction> _syncCacheTransactions = new();
-    private readonly ThreadFiber _threadFiber = new(new DefaultQueue(), "CypherNetworkCore-PPoS");
+    private readonly IDisposable _stakeDisposable;
     private bool _disposed;
     private int _running;
 
     /// <summary>
     /// </summary>
-    /// <param name="cypherNetworkCore"></param>
+    /// <param name="cypherSystemCore"></param>
     /// <param name="logger"></param>
     public PPoS(ICypherSystemCore cypherSystemCore, ILogger logger)
     {
         _cypherSystemCore = cypherSystemCore;
         _logger = logger.ForContext("SourceContext", nameof(PPoS));
-        const uint again = LedgerConstant.BlockProposalTimeFromSeconds * 1 * 1000;
-        _threadFiber.ScheduleOnInterval(() => InitAsync().ConfigureAwait(false), 0, again);
-        _threadFiber.Start();
+        _stakeDisposable = Observable.Interval(TimeSpan.FromSeconds(LedgerConstant.BlockProposalTimeFromSeconds))
+            .Subscribe(_ => { InitAsync().Wait(); });
     }
 
     /// <summary>
@@ -252,8 +251,16 @@ public class PPoS : IPPoS, IDisposable
         var verifiedTransactions = Array.Empty<Transaction>();
         if (_syncCacheTransactions.Count < _cypherSystemCore.Node.Staking.MaxTransactionsPerBlock)
             verifiedTransactions = await memPool.GetVerifiedTransactionsAsync(
-                _cypherNetworkCore.AppOptions.Staking.TransactionsPerBlock - _syncCacheTransactions.Count);
-        foreach (var transaction in verifiedTransactions) _syncCacheTransactions.Add(transaction.TxnId, transaction);
+                _cypherSystemCore.Node.Staking.MaxTransactionsPerBlock - _syncCacheTransactions.Count);
+        var txsSize = 0;
+        foreach (var transaction in verifiedTransactions)
+        {
+            txsSize += transaction.GetSize();
+            if (txsSize <= _cypherSystemCore.Node.Staking.MaxTransactionSizePerBlock)
+            {
+                _syncCacheTransactions.Add(transaction.TxnId, transaction);
+            }
+        }
         RemoveAnyDuplicateImageKeys();
         await RemoveAnyUnVerifiedTransactionsAsync();
         if (_cypherSystemCore.Graph().HashTransactions(
@@ -498,7 +505,7 @@ public class PPoS : IPPoS, IDisposable
 
         if (disposing)
         {
-            _threadFiber?.Dispose();
+            _stakeDisposable.Dispose();
         }
 
         _disposed = true;
