@@ -30,48 +30,48 @@ public static class Program
     /// <returns></returns>
     public static async Task<int> Main(string[] args)
     {
-        var config = new ConfigurationBuilder()
-            .SetBasePath(Directory.GetCurrentDirectory())
-            .AddJsonFile(AppSettingsFile, false, true)
-            .AddCommandLine(args)
-            .Build();
+        try
+        {
+            var config = new ConfigurationBuilder()
+                .SetBasePath(AppDomain.CurrentDomain.BaseDirectory)
+                .AddJsonFile(AppSettingsFile, false, true)
+                .AddCommandLine(args)
+                .Build();
 
-        // args = new string[] { "--configure", "--showkey" };
-        // args = new string[] { "--configure" };
-        var settingsExists = File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, AppSettingsFile));
-        if (!settingsExists)
-        {
-            await Console.Error.WriteLineAsync($"{AppSettingsFile} not found.");
-            return 1;
-        }
-        if (args.FirstOrDefault(arg => arg == "--configure") != null)
-        {
-            var commands = args.Where(x => x != "--configure").ToArray();
-            if (commands.Contains("--showkey"))
+            // args = new string[] { "--configure", "--showkey" };
+            // args = new string[] { "--configure" };
+            var settingsExists = File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, AppSettingsFile));
+            if (!settingsExists)
             {
-                Startup.ShowPrivateKey = true;
+                await Console.Error.WriteLineAsync($"{AppSettingsFile} not found.");
+                return 1;
+            }
+            if (args.FirstOrDefault(arg => arg == "--configure") != null)
+            {
+                var commands = args.Where(x => x != "--configure").ToArray();
+                if (commands.Contains("--showkey"))
+                {
+                    Startup.ShowPrivateKey = true;
+                }
+                else
+                {
+                    var _ = new Utility(config.Get<Config>());
+                    return 0;
+                }
+            }
+
+            const string logSectionName = "Log";
+            if (config.GetSection(logSectionName) != null)
+            {
+                Log.Logger = new LoggerConfiguration()
+                    .ReadFrom.Configuration(config, logSectionName)
+                    .CreateLogger();
             }
             else
             {
-                var _ = new Utility(config.Get<Config>());
-                return 0;
+                throw new Exception($"No \"{logSectionName}\" section found in appsettings.json");
             }
-        }
-
-        const string logSectionName = "Log";
-        if (config.GetSection(logSectionName) != null)
-        {
-            Log.Logger = new LoggerConfiguration()
-                .ReadFrom.Configuration(config, logSectionName)
-                .CreateLogger();
-        }
-        else
-        {
-            throw new Exception($"No \"{logSectionName}\" section found in appsettings.json");
-        }
-
-        try
-        {
+            
             Console.ForegroundColor = ConsoleColor.DarkMagenta;
             Console.WriteLine(@$"
    ______               __                                      __        
