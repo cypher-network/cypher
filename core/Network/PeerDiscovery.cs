@@ -78,7 +78,6 @@ public interface IPeerDiscovery
 /// </summary>
 public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
 {
-    private const int PrunedTimeoutFromSeconds = 10;
     private readonly Caching<Peer> _caching = new();
     private readonly Caching<PeerCooldown> _peerCooldownCaching = new();
     private readonly ICypherSystemCore _cypherSystemCore;
@@ -255,7 +254,7 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
                 var seedNode = _seedNodes[i];
                 try
                 {
-                    var _ = await _cypherSystemCore.P2PDeviceReq().SendAsync<Nothing>(seedNode.IpAddress,
+                    var _ = await _cypherSystemCore.P2PDeviceReq().SendAsync<EmptyMessage>(seedNode.IpAddress,
                         seedNode.TcpPort,
                         seedNode.PublicKey,
                         readOnlySequenceMsg.IsSingleSegment
@@ -306,21 +305,17 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
         {
             try
             {
-                var _ = await _cypherSystemCore.P2PDeviceReq().SendAsync<Nothing>(peer.IpAddress, peer.TcpPort,
-                        peer.PublicKey, readOnlySequenceMsg.IsSingleSegment
-                            ? readOnlySequenceMsg.First
-                            : readOnlySequenceMsg.ToArray(), false);
+                if (await _cypherSystemCore.P2PDeviceReq().SendAsync<Ping>(peer.IpAddress, peer.TcpPort, peer.PublicKey,
+                        readOnlySequenceMsg.IsSingleSegment ? readOnlySequenceMsg.First : readOnlySequenceMsg.ToArray(),
+                        false) is null)
+                {
+                    _caching.Remove(peer.IpAddress);
+                }
+                    
             }
             catch (Exception ex)
             {
                 _logger.Here().Error("{@Message}", ex.Message);
-            }
-            finally
-            {
-                if (Util.GetAdjustedTimeAsUnixTimestamp() > peer.Timestamp + PrunedTimeoutFromSeconds || peer.Timestamp == 0)
-                {
-                    _caching.Remove(peer.IpAddress);
-                }
             }
         }
     }

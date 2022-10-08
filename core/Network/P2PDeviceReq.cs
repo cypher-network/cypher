@@ -23,8 +23,8 @@ public interface IP2PDeviceReq
         ReadOnlyMemory<byte> value, bool deserialize = true);
 }
 
-public class Nothing { }
-public class Ok { }
+public class EmptyMessage { }
+public class Ping { }
 
 /// <summary>
 /// 
@@ -33,17 +33,13 @@ public class P2PDeviceReq : IP2PDeviceReq
 {
     private readonly ICypherSystemCore _cypherSystemCore;
     private readonly ILogger _logger;
-
+    private readonly Ping _ping = new();
+    
     public P2PDeviceReq(ICypherSystemCore cypherSystemCore)
     {
         _cypherSystemCore = cypherSystemCore;
         using var serviceScope = cypherSystemCore.ServiceScopeFactory.CreateScope();
         _logger = serviceScope.ServiceProvider.GetService<ILogger>()?.ForContext("SourceContext", nameof(P2PDeviceReq));
-
-        var soc = NngFactorySingleton.Instance.Factory.RequesterOpen();
-
-        var ireq = soc.Unwrap();
-
     }
 
     /// <summary>
@@ -88,8 +84,9 @@ public class P2PDeviceReq : IP2PDeviceReq
             foreach (var memory in packetStream.GetReadOnlySequence()) nngMsg.Append(memory.Span);
 
             var nngResult = await ctx.Send(nngMsg);
-            if (typeof(T) == typeof(Nothing)) return default;
             if (!nngResult.IsOk()) return default;
+            if (typeof(T) == typeof(EmptyMessage)) return default;
+            if (typeof(T) == typeof(Ping)) return (T)(object)_ping;
             var nngRecvMsg = nngResult.Unwrap();
             var message = await _cypherSystemCore.P2PDevice().DecryptAsync(nngRecvMsg);
             nngRecvMsg.Dispose();
