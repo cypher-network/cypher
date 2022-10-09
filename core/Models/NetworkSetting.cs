@@ -10,6 +10,7 @@ namespace CypherNetwork.Models;
 public class Config
 {
     public Node Node { get; set; }
+    public Log Log { get; set; }
 }
 
 public record Node
@@ -30,7 +31,7 @@ public record Network
     public int AutoSyncEveryMinutes { get; set; }
     public LettuceEncrypt LettuceEncrypt { get; set; }
     public X509Certificate X509Certificate { get; set; }
-    public TransactionLeakRateConfigurationOption TransactionRateConfig { get; set; }
+    public TransactionLeakRateConfigurationOption MemoryPoolTransactionRateLimit { get; set; }
     public string SigningKeyRingName { get; set; }
     public int HttpPort { get; set; }
     public int HttpsPort { get; set; }
@@ -72,5 +73,40 @@ public record Staking
     public int MaxTransactionsPerBlock { get; set; }
     public int MaxTransactionSizePerBlock { get; set; }
     public string RewardAddress { get; set; }
+}
 
+public class Args
+{
+    public string outputTemplate { get; set; }
+    public string formatter { get; set; }
+    public string path { get; set; }
+    public int? fileSizeLimitBytes { get; set; }
+    public bool? rollOnFileSizeLimit { get; set; }
+    public string rollingInterval { get; set; }
+    public int? retainedFileCountLimit { get; set; }
+}
+
+public class Log
+{
+    public MinimumLevel MinimumLevel { get; set; }
+    public string Enrich { get; set; }
+    public List<WriteTo> WriteTo { get; set; }
+}
+
+public class MinimumLevel
+{
+    public string Default { get; set; }
+    public Override Override { get; set; }
+}
+
+public class Override
+{
+    public string System { get; set; }
+    public string Microsoft { get; set; }
+}
+
+public class WriteTo
+{
+    public string Name { get; set; }
+    public Args Args { get; set; }
 }
