@@ -22,7 +22,6 @@ public class P2PDeviceWorker : ReceivedActor<INngMsg>
     private readonly IRepReqAsyncContext<INngMsg> _ctx;
     private readonly ILogger _logger;
     private readonly AutoResetEvent _autoReset = new(false);
-    private readonly INngMsg _nngMsg = NngFactorySingleton.Instance.Factory.CreateMessage();
     public P2PDeviceWorker(ICypherSystemCore cypherSystemCore, IRepReqAsyncContext<INngMsg> ctx, ILogger logger)
         : base(new ExecutionDataflowBlockOptions { BoundedCapacity = 1, MaxDegreeOfParallelism = 1 })
     {
@@ -60,6 +59,7 @@ public class P2PDeviceWorker : ReceivedActor<INngMsg>
             var unwrapMessage = await P2PDevice.UnWrapAsync(message.Memory);
             if (unwrapMessage.ProtocolCommand != ProtocolCommand.NotFound)
             {
+                var newMsg = NngFactorySingleton.Instance.Factory.CreateMessage();
                 try
                 {
                     var response =
@@ -78,8 +78,8 @@ public class P2PDeviceWorker : ReceivedActor<INngMsg>
                         await using var packetStream = Util.Manager.GetStream() as RecyclableMemoryStream;
                         packetStream.Write(_cypherSystemCore.KeyPair.PublicKey[1..33].WrapLengthPrefix());
                         packetStream.Write(cipher.WrapLengthPrefix());
-                        foreach (var memory in packetStream.GetReadOnlySequence()) _nngMsg.Append(memory.Span);
-                        (await _ctx.Reply(_nngMsg)).Unwrap();
+                        foreach (var memory in packetStream.GetReadOnlySequence()) newMsg.Append(memory.Span);
+                        (await _ctx.Reply(newMsg)).Unwrap();
                         return;
                     }
                 }
@@ -89,15 +89,15 @@ public class P2PDeviceWorker : ReceivedActor<INngMsg>
                 }
                 catch (AccessViolationException ex)
                 {
-                    _logger.Fatal("{@Message}", ex.Message);
+                    _logger.Here().Fatal("{@Message}", ex.Message);
                 }
                 catch (Exception ex)
                 {
-                    _logger.Fatal("{@Message}", ex.Message);
+                    _logger.Here().Fatal("{@Message}", ex.Message);
                 }
                 finally
                 {
-                    _nngMsg.Take();
+                    newMsg.Dispose();
                 }
             }
 
@@ -114,6 +114,14 @@ public class P2PDeviceWorker : ReceivedActor<INngMsg>
     /// </summary>
     private async Task EmptyReplyAsync()
     {
-        (await _ctx.Reply(_nngMsg)).Unwrap();
+        try
+        {
+            var newMsg = NngFactorySingleton.Instance.Factory.CreateMessage();
+            (await _ctx.Reply(newMsg)).Unwrap();
+        }
+        catch (Exception)
+        {
+            // Ignore
+        }
     }
 }
