@@ -13,6 +13,7 @@ using CypherNetwork.Models.Messages;
 using Dawn;
 using MessagePack;
 using Serilog;
+using Spectre.Console;
 using Block = CypherNetwork.Models.Block;
 
 namespace CypherNetwork.Ledger;
@@ -60,9 +61,9 @@ public class Sync : ISync, IDisposable
             {
                 if (Running) return;
                 _running = 1;
-                SynchronizeAsync().SafeFireAndForget(exception =>
+                SynchronizeAsync().SafeFireAndForget(ex =>
                 {
-                    _logger.Here().Error("{@Message}", exception.Message);
+                    _logger.Here().Error("{@Message}", ex.Message);
                 });
             }
             catch (TaskCanceledException)
@@ -169,12 +170,14 @@ public class Sync : ISync, IDisposable
             {
                 _logger.Information("CONTINUE BOOTSTRAPPING");
                 _logger.Information("CHECKING [BLOCK HEIGHTS]");
-
                 var verifyNoDuplicateBlockHeights = validator.VerifyNoDuplicateBlockHeights(blocks);
                 if (verifyNoDuplicateBlockHeights == VerifyResult.AlreadyExists)
                 {
                     _cypherSystemCore.PeerDiscovery().SetPeerCooldown(new PeerCooldown
-                    { IpAddress = peer.IpAddress, PublicKey = peer.PublicKey });
+                    {
+                        IpAddress = peer.IpAddress,
+                        PublicKey = peer.PublicKey
+                    });
                     _logger.Warning("Duplicate block heights [UNABLE TO VERIFY]");
                     return false;
                 }
@@ -191,24 +194,43 @@ public class Sync : ISync, IDisposable
                 _logger.Information("Fork rule check [OK]");
             }
 
-            _logger.Information("SYNCHRONIZING [{@BlockCount}] Block(s)", blocks.Count);
-            foreach (var block in blocks.OrderBy(x => x.Height))
-                try
-                {
-                    _logger.Information("SYNCING block height: [{@Height}]", block.Height);
-                    var verifyBlockHeader = await validator.VerifyBlockAsync(block);
-                    if (verifyBlockHeader != VerifyResult.Succeed) return false;
-                    _logger.Information("SYNCHRONIZED [OK]");
-                    var saveBlockResponse = await _cypherSystemCore.Graph().SaveBlockAsync(new SaveBlockRequest(block));
-                    if (saveBlockResponse.Ok) continue;
-                    _logger.Error("Unable to save block: {@Hash}", block.Hash);
-                    return false;
-                }
-                catch (Exception ex)
-                {
-                    _logger.Here().Error(ex, "Unable to save block: {@Hash}", block.Hash.ByteToHex());
-                    return false;
-                }
+            await AnsiConsole.Progress().AutoClear(false).Columns(new TaskDescriptionColumn(), new ProgressBarColumn(),
+                new PercentageColumn(), new SpinnerColumn()).StartAsync(async ctx =>
+            {
+                var warpTask = ctx.AddTask($"SYNCHRONIZING [bold yellow]{blocks.Count}[/] Block(s)", false).IsIndeterminate();
+                warpTask.MaxValue(blocks.Count);
+                warpTask.StartTask();
+                warpTask.IsIndeterminate(false);
+                while (!ctx.IsFinished)
+                    foreach (var block in blocks.OrderBy(x => x.Height))
+                        try
+                        {
+                            var verifyBlockHeader = await validator.VerifyBlockAsync(block);
+                            if (verifyBlockHeader != VerifyResult.Succeed)
+                            {
+                                warpTask.StopTask();
+                                return;
+                            }
+                            var saveBlockResponse =
+                                await _cypherSystemCore.Graph().SaveBlockAsync(new SaveBlockRequest(block));
+                            if (saveBlockResponse.Ok)
+                            {
+                                await Task.Delay(1);
+                                warpTask.Increment(1);
+                                continue;
+                            }
+
+                            warpTask.StopTask();
+                            AnsiConsole.MarkupLine("[red]LOG:[/] " + $"Unable to save block: {block.Hash}" + "[red]...[/]");
+                            return;
+                        }
+                        catch (Exception ex)
+                        {
+                            warpTask.StopTask();
+                            _logger.Here().Error(ex, "Unable to save block: {@Hash}", block.Hash.ByteToHex());
+                            return;
+                        }
+            });
         }
         catch (Exception ex)
         {
@@ -237,18 +259,47 @@ public class Sync : ISync, IDisposable
         Guard.Argument(skip, nameof(skip)).NotNegative();
         Guard.Argument(take, nameof(take)).NotNegative();
         _logger.Information("Synchronizing with {@Host} ({@Skip})/({@Take})", peer.IpAddress.FromBytes(), skip, take);
+        var iSkip = skip;
         try
         {
             _logger.Information("Fetching [{@Range}] block(s)", Math.Abs(take - (int)skip));
-            var blocksResponse = await _cypherSystemCore.P2PDeviceReq().SendAsync<BlocksResponse>(peer.IpAddress,
-                peer.TcpPort, peer.PublicKey,
-                MessagePackSerializer.Serialize(new Parameter[]
+            const int maxBlocks = 10;
+            var chunks = Enumerable.Repeat(maxBlocks, take / maxBlocks).ToList();
+            if (take % maxBlocks != 0) chunks.Add(take % maxBlocks);
+
+            // Show progress
+            var blocks = await AnsiConsole.Progress().AutoClear(false).Columns(new TaskDescriptionColumn(),
+                    new ProgressBarColumn(), new PercentageColumn(), new SpinnerColumn())
+                .StartAsync(async ctx =>
                 {
-                    new() { Value = skip.ToBytes(), ProtocolCommand = ProtocolCommand.GetBlocks },
-                    new() { Value = take.ToBytes(), ProtocolCommand = ProtocolCommand.GetBlocks }
-                }));
-            _logger.Information("Finished with [{@BlockCount}] block(s)", blocksResponse.Blocks.Count);
-            return blocksResponse.Blocks;
+                    var blocks = new List<Block>();
+                    var warpTask = ctx.AddTask("DOWNLOADING", false).IsIndeterminate();
+                    warpTask.MaxValue(chunks.Count);
+                    warpTask.StartTask();
+                    warpTask.IsIndeterminate(false);
+                    while (!ctx.IsFinished)
+                        foreach (var chunk in chunks)
+                        {
+                            var blocksResponse = await _cypherSystemCore.P2PDeviceReq().SendAsync<BlocksResponse>(
+                                peer.IpAddress, peer.TcpPort, peer.PublicKey,
+                                MessagePackSerializer.Serialize(new Parameter[]
+                                {
+                                    new() { Value = iSkip.ToBytes(), ProtocolCommand = ProtocolCommand.GetBlocks },
+                                    new() { Value = chunk.ToBytes(), ProtocolCommand = ProtocolCommand.GetBlocks }
+                                }), 500);
+                            if (blocksResponse?.Blocks is null)
+                            {
+                                warpTask.StopTask();
+                                break;
+                            }
+                            blocks.AddRange(blocksResponse.Blocks);
+                            iSkip += (ulong)chunk;
+                            await Task.Delay(100);
+                            warpTask.Increment(chunk);
+                        }
+                    return blocks;
+                });
+            return blocks;
         }
         catch (Exception ex)
         {
