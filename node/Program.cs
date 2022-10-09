@@ -16,6 +16,7 @@ using CypherNetwork.Helper;
 using CypherNetwork.Models;
 using CypherNetworkNode.Configuration;
 using Microsoft.AspNetCore.DataProtection.XmlEncryption;
+using Log = Serilog.Log;
 
 namespace CypherNetworkNode;
 
@@ -71,7 +72,7 @@ public static class Program
             {
                 throw new Exception($"No \"{logSectionName}\" section found in appsettings.json");
             }
-            
+
             Console.ForegroundColor = ConsoleColor.DarkMagenta;
             Console.WriteLine(@$"
    ______               __                                      __        

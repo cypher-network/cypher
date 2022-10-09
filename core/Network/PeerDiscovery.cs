@@ -255,11 +255,10 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
                 try
                 {
                     var _ = await _cypherSystemCore.P2PDeviceReq().SendAsync<EmptyMessage>(seedNode.IpAddress,
-                        seedNode.TcpPort,
-                        seedNode.PublicKey,
+                        seedNode.TcpPort, seedNode.PublicKey,
                         readOnlySequenceMsg.IsSingleSegment
                             ? readOnlySequenceMsg.First
-                            : readOnlySequenceMsg.ToArray(), false);
+                            : readOnlySequenceMsg.ToArray());
                 }
                 catch (Exception ex)
                 {
@@ -306,12 +305,11 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
             try
             {
                 if (await _cypherSystemCore.P2PDeviceReq().SendAsync<Ping>(peer.IpAddress, peer.TcpPort, peer.PublicKey,
-                        readOnlySequenceMsg.IsSingleSegment ? readOnlySequenceMsg.First : readOnlySequenceMsg.ToArray(),
-                        false) is null)
+                        readOnlySequenceMsg.IsSingleSegment ? readOnlySequenceMsg.First : readOnlySequenceMsg.ToArray()) is null)
                 {
                     _caching.Remove(peer.IpAddress);
                 }
-                    
+
             }
             catch (Exception ex)
             {

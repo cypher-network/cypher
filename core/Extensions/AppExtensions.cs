@@ -79,7 +79,7 @@ public static class AppExtensions
                             Thumbprint = configuration["Node:Network:X509Certificate:Thumbprint"],
                             CertPath = configuration["Node:Network:X509Certificate:CertPath"]
                         },
-                    TransactionRateConfig = new TransactionLeakRateConfigurationOption
+                    MemoryPoolTransactionRateLimit = new TransactionLeakRateConfigurationOption
                     {
                         LeakRate =
                             Convert.ToInt32(
