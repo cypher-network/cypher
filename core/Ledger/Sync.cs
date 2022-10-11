@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using CypherNetwork.Extensions;
 using CypherNetwork.Models;
 using CypherNetwork.Models.Messages;
+using CypherNetwork.Network;
 using Dawn;
 using MessagePack;
 using Serilog;
@@ -81,9 +82,8 @@ public class Sync : ISync, IDisposable
         _logger.Information("Begin... [SYNCHRONIZATION]");
         try
         {
-            var blockCountResponse =
-                await _cypherSystemCore.Graph().GetBlockCountAsync();
-            _logger.Information("OPENING block height [{@Height}]", blockCountResponse?.Count);
+            var blockCount = _cypherSystemCore.UnitOfWork().HashChainRepository.Count;
+            _logger.Information("OPENING block height [{@Height}]", blockCount);
             var currentRetry = 0;
             for (; ; )
             {
@@ -95,10 +95,9 @@ public class Sync : ISync, IDisposable
 
             foreach (var peer in _cypherSystemCore.PeerDiscovery().GetDiscoveryStore())
             {
-                if (blockCountResponse?.Count < (long)peer.BlockCount)
+                if (blockCount < peer.BlockCount)
                 {
-                    var skip = blockCountResponse.Count - 6; // +- Depth of blocks to compare.
-                    skip = skip < 0 ? blockCountResponse.Count : skip;
+                    var skip = blockCount - 6; // +- Depth of blocks to compare.
                     var synchronized = await SynchronizeAsync(peer, (ulong)skip, (int)peer.BlockCount);
                     if (!synchronized) continue;
                     _logger.Information(
@@ -107,7 +106,7 @@ public class Sync : ISync, IDisposable
                     break;
                 }
 
-                blockCountResponse = await _cypherSystemCore.Graph().GetBlockCountAsync();
+                blockCount = _cypherSystemCore.UnitOfWork().HashChainRepository.Count;
             }
         }
         catch (Exception ex)
@@ -117,8 +116,8 @@ public class Sync : ISync, IDisposable
         finally
         {
             Interlocked.Exchange(ref _running, 0);
-            var blockCountResponse = await _cypherSystemCore.Graph().GetBlockCountAsync();
-            _logger.Information("LOCAL NODE block height: [{@LocalHeight}]", blockCountResponse?.Count);
+            var blockCount = _cypherSystemCore.UnitOfWork().HashChainRepository.Count;
+            _logger.Information("LOCAL NODE block height: [{@LocalHeight}]", blockCount);
             _logger.Information("End... [SYNCHRONIZATION]");
             _logger.Information("Next...[SYNCHRONIZATION] in {@Message} minute(s)",
                 _cypherSystemCore.Node.Network.AutoSyncEveryMinutes);
@@ -176,7 +175,9 @@ public class Sync : ISync, IDisposable
                     _cypherSystemCore.PeerDiscovery().SetPeerCooldown(new PeerCooldown
                     {
                         IpAddress = peer.IpAddress,
-                        PublicKey = peer.PublicKey
+                        PublicKey = peer.PublicKey,
+                        ClientId = peer.ClientId,
+                        PeerState = PeerState.DupBlocks
                     });
                     _logger.Warning("Duplicate block heights [UNABLE TO VERIFY]");
                     return false;
@@ -239,9 +240,9 @@ public class Sync : ISync, IDisposable
         }
         finally
         {
-            var blockCountResponse = await _cypherSystemCore.Graph().GetBlockCountAsync();
-            _logger.Information("Local node block height set to ({@LocalHeight})", blockCountResponse?.Count);
-            if (blockCountResponse?.Count == take) isSynchronized = true;
+            var blockCount = _cypherSystemCore.UnitOfWork().HashChainRepository.Count;
+            _logger.Information("Local node block height set to ({@LocalHeight})", blockCount);
+            if (blockCount == (ulong)take) isSynchronized = true;
         }
 
         return isSynchronized;

@@ -14,7 +14,7 @@ namespace CypherNetwork.Models.Messages;
 /// </summary>
 /// <param name="Count"></param>
 [MessagePackObject]
-public record BlockCountResponse([property: Key(0)] long Count);
+public record BlockCountResponse([property: Key(0)] ulong Count);
 public record BlockCountRequest;
 
 /// <summary>
@@ -22,7 +22,7 @@ public record BlockCountRequest;
 /// </summary>
 /// <param name="Count"></param>
 [MessagePackObject]
-public record BlockHeightResponse([property: Key(0)] long Count);
+public record BlockHeightResponse([property: Key(0)] ulong Count);
 public record BlockHeightRequest(ulong Height);
 public record BlockByHeightRequest(ulong Height);
 

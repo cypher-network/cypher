@@ -40,8 +40,6 @@ public interface IGraph
     Task<TransactionResponse> GetTransactionAsync(TransactionRequest transactionRequest);
     Task<Block> GetPreviousBlockAsync();
     Task<SafeguardBlocksResponse> GetSafeguardBlocksAsync(SafeguardBlocksRequest safeguardBlocksRequest);
-    Task<BlockHeightResponse> GetBlockHeightAsync();
-    Task<BlockCountResponse> GetBlockCountAsync();
     Task<SaveBlockResponse> SaveBlockAsync(SaveBlockRequest saveBlockRequest);
     Task<BlocksResponse> GetBlocksAsync(BlocksRequest blocksRequest);
     Task PostAsync(BlockGraph blockGraph);
@@ -114,7 +112,7 @@ public sealed class Graph : ReceivedActor<BlockGraph>, IGraph, IDisposable
     {
         Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
         if (_cypherSystemCore.Sync().Running) return;
-        if (blockGraph.Block.Round != await NextRoundAsync()) return;
+        if (blockGraph.Block.Round != NextRound()) return;
         if (await BlockHeightExistsAsync(new BlockHeightExistsRequest(blockGraph.Block.Round)) != VerifyResult.Succeed) return;
         if (!_syncCacheSeenBlockGraph.Contains(blockGraph.ToIdentifier()))
         {
@@ -221,10 +219,10 @@ public sealed class Graph : ReceivedActor<BlockGraph>, IGraph, IDisposable
     /// <returns></returns>
     public async Task<Block> GetPreviousBlockAsync()
     {
-        var unitOfWork = _cypherSystemCore.UnitOfWork();
-        var height = await unitOfWork.HashChainRepository.GetBlockHeightAsync();
+        var hashChainRepository = _cypherSystemCore.UnitOfWork().HashChainRepository;
         var prevBlock =
-            await unitOfWork.HashChainRepository.GetAsync(x => new ValueTask<bool>(x.Height == (ulong)height));
+            await hashChainRepository.GetAsync(x =>
+                new ValueTask<bool>(x.Height == hashChainRepository.Height));
         return prevBlock;
     }
 
@@ -237,10 +235,9 @@ public sealed class Graph : ReceivedActor<BlockGraph>, IGraph, IDisposable
         Guard.Argument(safeguardBlocksRequest, nameof(safeguardBlocksRequest)).NotNull();
         try
         {
-            var unitOfWork = _cypherSystemCore.UnitOfWork();
-            var height = (await GetBlockHeightAsync()).Count - safeguardBlocksRequest.NumberOfBlocks;
-            height = height < 0x0 ? 0x0 : height;
-            var blocks = await unitOfWork.HashChainRepository.OrderByRangeAsync(x => x.Height, (int)height,
+            var hashChainRepository = _cypherSystemCore.UnitOfWork().HashChainRepository;
+            var height = hashChainRepository.Height - (ulong)safeguardBlocksRequest.NumberOfBlocks;
+            var blocks = await hashChainRepository.OrderByRangeAsync(x => x.Height, (int)height,
                 safeguardBlocksRequest.NumberOfBlocks);
             if (blocks.Any()) return new SafeguardBlocksResponse(blocks, string.Empty);
         }
@@ -293,25 +290,6 @@ public sealed class Graph : ReceivedActor<BlockGraph>, IGraph, IDisposable
     }
 
     /// <summary>
-    /// 
-    /// </summary>
-    /// <returns></returns>
-    public async Task<BlockCountResponse> GetBlockCountAsync()
-    {
-        try
-        {
-            var height = await _cypherSystemCore.UnitOfWork().HashChainRepository.CountAsync();
-            return new BlockCountResponse(height);
-        }
-        catch (Exception ex)
-        {
-            _logger.Here().Error("{@Message}", ex.Message);
-        }
-
-        return new BlockCountResponse(0);
-    }
-
-    /// <summary>
     /// </summary>
     /// <param name="blocksRequest"></param>
     public async Task<BlocksResponse> GetBlocksAsync(BlocksRequest blocksRequest)
@@ -330,24 +308,6 @@ public sealed class Graph : ReceivedActor<BlockGraph>, IGraph, IDisposable
         }
 
         return new BlocksResponse(null);
-    }
-
-    /// <summary>
-    /// </summary>
-    public async Task<BlockHeightResponse> GetBlockHeightAsync()
-    {
-        try
-        {
-            var count = (await GetBlockCountAsync()).Count;
-            if (count > 0) count--;
-            return new BlockHeightResponse(count);
-        }
-        catch (Exception ex)
-        {
-            _logger.Here().Error("{@Message}", ex.Message);
-        }
-
-        return new BlockHeightResponse(0);
     }
 
     /// <summary>
@@ -650,7 +610,7 @@ public sealed class Graph : ReceivedActor<BlockGraph>, IGraph, IDisposable
         foreach (var deliveredBlock in blocks)
             try
             {
-                if (deliveredBlock.Round != await NextRoundAsync()) continue;
+                if (deliveredBlock.Round != NextRound()) continue;
                 await using var stream = Util.Manager.GetStream(deliveredBlock.Data.AsSpan()) as RecyclableMemoryStream;
                 var block = await MessagePackSerializer.DeserializeAsync<Block>(stream);
                 _syncCacheDelivered.AddOrUpdate(block.Hash, block);
@@ -690,7 +650,7 @@ public sealed class Graph : ReceivedActor<BlockGraph>, IGraph, IDisposable
             };
             if (block is { })
             {
-                if (block.Height != await NextRoundAsync()) return;
+                if (block.Height != NextRound()) return;
                 if (await BlockHeightExistsAsync(new BlockHeightExistsRequest(block.Height)) == VerifyResult.AlreadyExists)
                 {
                     _logger.Error("Block winner already exists");
@@ -744,17 +704,7 @@ public sealed class Graph : ReceivedActor<BlockGraph>, IGraph, IDisposable
     /// <returns></returns>
     private ulong GetRound()
     {
-        return AsyncHelper.RunSync(GetRoundAsync);
-    }
-
-    /// <summary>
-    /// 
-    /// </summary>
-    /// <returns></returns>
-    private async Task<ulong> GetRoundAsync()
-    {
-        var blockHeightResponse = await GetBlockHeightAsync();
-        return (ulong)blockHeightResponse.Count;
+        return _cypherSystemCore.UnitOfWork().HashChainRepository.Height;
     }
 
     /// <summary>
@@ -763,16 +713,7 @@ public sealed class Graph : ReceivedActor<BlockGraph>, IGraph, IDisposable
     /// <returns></returns>
     private ulong NextRound()
     {
-        return AsyncHelper.RunSync(NextRoundAsync);
-    }
-
-    /// <summary>
-    /// 
-    /// </summary>
-    /// <returns></returns>
-    private async Task<ulong> NextRoundAsync()
-    {
-        return await GetRoundAsync() + 1;
+        return _cypherSystemCore.UnitOfWork().HashChainRepository.Count;
     }
 
     /// <summary>
@@ -784,7 +725,7 @@ public sealed class Graph : ReceivedActor<BlockGraph>, IGraph, IDisposable
         Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
         try
         {
-            if (blockGraph.Block.Round == await NextRoundAsync())
+            if (blockGraph.Block.Round == NextRound())
                 await _cypherSystemCore.Broadcast().PostAsync((TopicType.AddBlockGraph,
                     MessagePackSerializer.Serialize(blockGraph)));
         }

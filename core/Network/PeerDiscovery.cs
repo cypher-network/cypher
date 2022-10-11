@@ -138,14 +138,7 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
     /// </summary>
     private void UpdateLocalPeerInfo()
     {
-        var blockCountResponse = AsyncHelper.RunSync(async delegate
-        {
-            var value = await _cypherSystemCore.Graph().GetBlockCountAsync();
-            return value;
-        });
-
-        _localPeer.BlockCount = (ulong)blockCountResponse.Count;
-        _localPeer.Timestamp = Util.GetAdjustedTimeAsUnixTimestamp();
+        _localPeer.BlockCount = _cypherSystemCore.UnitOfWork().HashChainRepository.Count;
     }
 
     /// <summary>
