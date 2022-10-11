@@ -37,7 +37,7 @@ public interface IRepository<T>
     ValueTask<List<T>> SkipAsync(int skip);
     ValueTask<List<T>> TakeAsync(int take);
     bool Delete(byte[] key);
-    Task<IList<T>> TakeLongAsync(long take);
+    Task<IList<T>> TakeLongAsync(ulong take);
     IAsyncEnumerable<T> IterateAsync();
 }
 
@@ -444,7 +444,7 @@ public class Repository<T> : IRepository<T> where T : class, new()
     /// </summary>
     /// <param name="take"></param>
     /// <returns></returns>
-    public async Task<IList<T>> TakeLongAsync(long take)
+    public async Task<IList<T>> TakeLongAsync(ulong take)
     {
         Guard.Argument(take, nameof(take)).NotNegative();
         IList<T> entries = new List<T>();
@@ -453,7 +453,7 @@ public class Repository<T> : IRepository<T> where T : class, new()
             using (_sync.Read())
             {
                 take = take == 0 ? 1 : take;
-                var iTake = 0;
+                ulong iTake = 0;
                 var cf = _storeDb.Rocks.GetColumnFamily(_tableName);
                 using var iterator = _storeDb.Rocks.NewIterator(cf, _readOptions);
                 for (iterator.SeekToFirst(); iterator.Valid(); iterator.Next())

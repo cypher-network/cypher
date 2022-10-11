@@ -7,6 +7,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using CypherNetwork.Extensions;
+using CypherNetwork.Helper;
 using CypherNetwork.Models;
 using Dawn;
 using MessagePack;
@@ -20,6 +21,8 @@ public interface IHashChainRepository : IRepository<Block>
 {
     ValueTask<List<Block>> OrderByRangeAsync(Func<Block, ulong> selector, int skip, int take);
     new Task<bool> PutAsync(byte[] key, Block data);
+    ulong Height { get; }
+    ulong Count { get; }
 }
 
 /// <summary>
@@ -41,7 +44,19 @@ public class HashChainRepository : Repository<Block>, IHashChainRepository
         _logger = logger.ForContext("SourceContext", nameof(HashChainRepository));
 
         SetTableName(StoreDb.HashChainTable.ToString());
+        Height = (ulong)AsyncHelper.RunSync(GetBlockHeightAsync);
+        Count = Height + 1;
     }
+
+    /// <summary>
+    /// 
+    /// </summary>
+    public ulong Height { get; private set; }
+
+    /// <summary>
+    /// 
+    /// </summary>
+    public ulong Count { get; private set; }
 
     /// <summary>
     /// </summary>
@@ -58,8 +73,10 @@ public class HashChainRepository : Repository<Block>, IHashChainRepository
             using (_sync.Write())
             {
                 var cf = _storeDb.Rocks.GetColumnFamily(GetTableNameAsString());
-                _storeDb.Rocks.Put(StoreDb.Key(StoreDb.HashChainTable.ToString(), key), MessagePackSerializer.Serialize(data),
-                    cf);
+                _storeDb.Rocks.Put(StoreDb.Key(StoreDb.HashChainTable.ToString(), key),
+                    MessagePackSerializer.Serialize(data), cf);
+                Height = data.Height;
+                Count++;
                 return Task.FromResult(true);
             }
         }

@@ -79,7 +79,7 @@ public static class AppExtensions
                             Thumbprint = configuration["Node:Network:X509Certificate:Thumbprint"],
                             CertPath = configuration["Node:Network:X509Certificate:CertPath"]
                         },
-                    TransactionRateConfig = new TransactionLeakRateConfigurationOption
+                    MemoryPoolTransactionRateLimit = new TransactionLeakRateConfigurationOption
                     {
                         LeakRate =
                             Convert.ToInt32(
@@ -107,7 +107,7 @@ public static class AppExtensions
                 var endpoint = Util.GetIpEndPoint(selection.item.Value);
                 var endpointFromHost = Util.GetIpEndpointFromHostPort(endpoint.Address.ToString(), endpoint.Port);
                 var publicKey = remotePublicKeys[selection.index].Value;
-                node.Network.SeedList.Add($"{endpointFromHost.Address}:{endpointFromHost.Port}");
+                node.Network.SeedList.Add($"{endpointFromHost.Address.ToString()}:{endpointFromHost.Port}");
                 node.Network.SeedListPublicKeys.Add(publicKey);
             }
 

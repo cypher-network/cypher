@@ -360,7 +360,7 @@ public static class Util
         try
         {
             Task.Delay(100);
-            var localEp = new IPEndPoint(IPAddress.Any, port);
+            var localEp = new IPEndPoint(GetIpAddress(), port);
             socket.Bind(localEp);
         }
         catch (SocketException ex)

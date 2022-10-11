@@ -8,5 +8,8 @@ public enum PeerState : byte
     Alive = 0x00,
     Dead = 0x01,
     Suspicious = 0x02,
-    Retry = 0x03
+    Retry = 0x03,
+    Unreachable = 0x04,
+    DupBlocks = 0x05,
+    Ready = 0x99
 }

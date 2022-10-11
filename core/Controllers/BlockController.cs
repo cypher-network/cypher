@@ -156,9 +156,7 @@ public class BlockController : Controller
     {
         try
         {
-            var blockCountResponse =
-                await _cypherNetworkCore.Graph().GetBlockCountAsync();
-            return new ObjectResult(new { height = blockCountResponse?.Count });
+            return new ObjectResult(new { height = _cypherNetworkCore.UnitOfWork().HashChainRepository.Count });
         }
         catch (Exception ex)
         {

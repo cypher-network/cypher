@@ -2,6 +2,7 @@
 // To view a copy of this license, visit https://creativecommons.org/licenses/by-nc-nd/4.0
 
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Net;
 using System.Reactive.Linq;
@@ -140,7 +141,7 @@ public sealed class P2PDevice : IP2PDevice, IDisposable
         try
         {
             _repSocket = NngFactorySingleton.Instance.Factory.ReplierOpen()
-                .ThenListen($"{GetTransportType(transport)}://{ipEndPoint.Address.ToString()}:{ipEndPoint.Port}").Unwrap();
+                .ThenListen($"{GetTransportType(transport)}://{ipEndPoint.Address.ToString()}:{ipEndPoint.Port}", Defines.NngFlag.NNG_FLAG_NONBLOCK).Unwrap();
             _repSocket.SetOpt(Defines.NNG_OPT_RECVMAXSZ, 20000000);
             for (var i = 0; i < workerCount; i++)
             {
@@ -150,8 +151,7 @@ public sealed class P2PDevice : IP2PDevice, IDisposable
                     if (_cypherSystemCore.ApplicationLifetime.ApplicationStopping.IsCancellationRequested) return;
                     try
                     {
-                        var p2PDeviceWorker = new P2PDeviceWorker(_cypherSystemCore, ctx, _logger);
-                        p2PDeviceWorker.WorkerAsync().Wait();
+                        WorkerAsync(ctx).Wait();
                     }
                     catch (AggregateException)
                     {
@@ -171,9 +171,95 @@ public sealed class P2PDevice : IP2PDevice, IDisposable
     /// <summary>
     /// 
     /// </summary>
+    /// <param name="ctx"></param>
+    private async Task WorkerAsync(IRepReqAsyncContext<INngMsg> ctx)
+    {
+        var nngResult = (await ctx.Receive()).Unwrap();
+        try
+        {
+            var message = await _cypherSystemCore.P2PDevice().DecryptAsync(nngResult);
+            if (message.Memory.Length == 0)
+            {
+                await EmptyReplyAsync(ctx);
+                return;
+            }
+
+            var unwrapMessage = await UnWrapAsync(message.Memory);
+            if (unwrapMessage.ProtocolCommand != ProtocolCommand.NotFound)
+            {
+                var newMsg = NngFactorySingleton.Instance.Factory.CreateMessage();
+                try
+                {
+                    var response =
+                        await _cypherSystemCore.P2PDeviceApi().Commands[(int)unwrapMessage.ProtocolCommand](
+                            unwrapMessage.Parameters);
+                    if (unwrapMessage.ProtocolCommand == ProtocolCommand.UpdatePeers)
+                    {
+                        await EmptyReplyAsync(ctx);
+                        return;
+                    }
+
+                    var cipher = _cypherSystemCore.Crypto().BoxSeal(
+                        response.IsSingleSegment ? response.First.Span : response.ToArray(), message.PublicKey);
+                    if (cipher.Length != 0)
+                    {
+                        await using var packetStream = Util.Manager.GetStream() as RecyclableMemoryStream;
+                        packetStream.Write(_cypherSystemCore.KeyPair.PublicKey[1..33].WrapLengthPrefix());
+                        packetStream.Write(cipher.WrapLengthPrefix());
+                        foreach (var memory in packetStream.GetReadOnlySequence()) newMsg.Append(memory.Span);
+                        (await ctx.Reply(newMsg)).Unwrap();
+                        return;
+                    }
+                }
+                catch (MessagePackSerializationException)
+                {
+                    // Ignore
+                }
+                catch (AccessViolationException ex)
+                {
+                    _logger.Here().Fatal("{@Message}", ex.Message);
+                }
+                catch (Exception ex)
+                {
+                    _logger.Here().Fatal("{@Message}", ex.Message);
+                }
+                finally
+                {
+                    newMsg.Dispose();
+                }
+            }
+
+            await EmptyReplyAsync(ctx);
+        }
+        finally
+        {
+            nngResult.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="ctx"></param>
+    private static async Task EmptyReplyAsync(IRepReqAsyncContext<INngMsg> ctx)
+    {
+        try
+        {
+            var newMsg = NngFactorySingleton.Instance.Factory.CreateMessage();
+            (await ctx.Reply(newMsg)).Unwrap();
+        }
+        catch (Exception)
+        {
+            // Ignore
+        }
+    }
+
+    /// <summary>
+    /// 
+    /// </summary>
     /// <param name="msg"></param>
     /// <returns></returns>
-    public static async Task<UnwrapMessage> UnWrapAsync(ReadOnlyMemory<byte> msg)
+    private static async Task<UnwrapMessage> UnWrapAsync(ReadOnlyMemory<byte> msg)
     {
         try
         {
@@ -184,13 +270,13 @@ public sealed class P2PDevice : IP2PDevice, IDisposable
                 return new UnwrapMessage(parameters, command);
             }
         }
-        catch (ArgumentOutOfRangeException)
+        catch (ArgumentOutOfRangeException ex)
         {
-            // Ignore
+            Console.WriteLine("ArgumentOutOfRangeException: " + ex.Message);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // Ignore
+            Console.WriteLine("Exception: " + ex);
         }
 
         return default;

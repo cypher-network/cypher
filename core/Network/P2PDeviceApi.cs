@@ -96,7 +96,7 @@ public class P2PDeviceApi : IP2PDeviceApi
     /// <returns></returns>
     private Task<ReadOnlySequence<byte>> OnGetPeersAsync(Parameter[] none = default)
     {
-        var nodePeersResponse = _cypherSystemCore.PeerDiscovery().Reply();
+        var nodePeersResponse = _cypherSystemCore.PeerDiscovery().GetPeers();
         return Task.FromResult(nodePeersResponse);
     }
 
@@ -141,16 +141,14 @@ public class P2PDeviceApi : IP2PDeviceApi
     /// </summary>
     private async Task<ReadOnlySequence<byte>> OnGetBlockHeightAsync(Parameter[] none = default)
     {
-        var blockHeightResponse = await _cypherSystemCore.Graph().GetBlockHeightAsync();
-        return await SerializeAsync(blockHeightResponse);
+        return await SerializeAsync(new BlockHeightResponse(_cypherSystemCore.UnitOfWork().HashChainRepository.Height));
     }
 
     /// <summary>
     /// </summary>
     private async Task<ReadOnlySequence<byte>> OnGetBlockCountAsync(Parameter[] none = default)
     {
-        var blockCountResponse = await _cypherSystemCore.Graph().GetBlockCountAsync();
-        return await SerializeAsync(blockCountResponse);
+        return await SerializeAsync(new BlockCountResponse(_cypherSystemCore.UnitOfWork().HashChainRepository.Count));
     }
 
     /// <summary>

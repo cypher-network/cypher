@@ -234,9 +234,8 @@ public class PPoS : IPPoS, IDisposable
     {
         var peers = await _cypherSystemCore.PeerDiscovery().GetDiscoveryAsync();
         if (!peers.Any()) return true;
-        var blockCountResponse = await _cypherSystemCore.Graph().GetBlockCountAsync();
         var maxBlockHeight = peers.Max(x => x.BlockCount);
-        return blockCountResponse?.Count >= (long)maxBlockHeight;
+        return _cypherSystemCore.UnitOfWork().HashChainRepository.Count >= maxBlockHeight;
     }
 
     /// <summary>
@@ -324,8 +323,7 @@ public class PPoS : IPPoS, IDisposable
         var validator = _cypherSystemCore.Validator();
         var solution = await validator.SolutionAsync(kernel.CalculatedVrfSignature, kernel.Hash).ConfigureAwait(false);
         if (solution == 0) return null;
-        var height = await _cypherSystemCore.UnitOfWork().HashChainRepository.CountAsync() + 1;
-        var networkShare = validator.NetworkShare(solution, (ulong)height);
+        var networkShare = validator.NetworkShare(solution, _cypherSystemCore.UnitOfWork().HashChainRepository.Count + 1);
         var bits = validator.Bits(solution, networkShare);
         _logger.Information("Begin...      [COINSTAKE]");
         var walletTransaction = await _cypherSystemCore.Wallet()
@@ -412,11 +410,11 @@ public class PPoS : IPPoS, IDisposable
             var block = new Block
             {
                 Hash = new byte[32],
-                Height = 1 + previousBlock.Height,
+                Height = previousBlock.Height + 1,
                 BlockHeader = new BlockHeader
                 {
                     Version = 2,
-                    Height = previousBlock.BlockHeader.Height,
+                    Height = previousBlock.Height + 1,
                     Locktime = lockTime,
                     LocktimeScript =
                         new Script(Op.GetPushOp(lockTime), OpcodeType.OP_CHECKLOCKTIMEVERIFY).ToString().ToBytes(),

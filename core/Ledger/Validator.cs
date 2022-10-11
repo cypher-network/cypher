@@ -89,9 +89,8 @@ public class Validator : IValidator
     {
         Guard.Argument(block, nameof(block)).NotNull();
         using var hasher = Hasher.New();
-        var unitOfWork = _cypherSystemCore.UnitOfWork();
-        var height = await unitOfWork.HashChainRepository.GetBlockHeightAsync();
-        var prevBlock = await unitOfWork.HashChainRepository.GetAsync(x => new ValueTask<bool>(x.Height == (ulong)height));
+        var hashChainRepository = _cypherSystemCore.UnitOfWork().HashChainRepository;
+        var prevBlock = await hashChainRepository.GetAsync(x => new ValueTask<bool>(x.Height == hashChainRepository.Height));
         if (prevBlock is null)
         {
             _logger.Here().Error("No previous block available");
@@ -112,9 +111,9 @@ public class Validator : IValidator
     public async Task<VerifyResult> VerifyMerkleAsync(Block block)
     {
         Guard.Argument(block, nameof(block)).NotNull();
-        var unitOfWork = _cypherSystemCore.UnitOfWork();
-        var height = await unitOfWork.HashChainRepository.GetBlockHeightAsync();
-        var prevBlock = await unitOfWork.HashChainRepository.GetAsync(x => new ValueTask<bool>(x.Height == (ulong)height));
+        var hashChainRepository = _cypherSystemCore.UnitOfWork().HashChainRepository;
+        var prevBlock =
+            await hashChainRepository.GetAsync(x => new ValueTask<bool>(x.Height == hashChainRepository.Height));
         if (prevBlock is null)
         {
             _logger.Here().Error("No previous block available");
@@ -718,15 +717,15 @@ public class Validator : IValidator
         {
             var unitOfWork = _cypherSystemCore.UnitOfWork();
             var runningDistributionTotal = LedgerConstant.Distribution;
-            var height = await unitOfWork.HashChainRepository.CountAsync() + 1;
+            var height = unitOfWork.HashChainRepository.Count + 1;
             var blockHeaders = await unitOfWork.HashChainRepository.TakeLongAsync(height);
             var orderedBlockHeaders = blockHeaders.OrderBy(x => x.Height).ToArray(blockHeaders.Count);
-            var length = height > orderedBlockHeaders.Length
+            var length = height > (ulong)orderedBlockHeaders.Length
                 ? orderedBlockHeaders.LongLength
                 : orderedBlockHeaders.Length - 1;
             for (var i = 0; i < length; i++)
             {
-                runningDistributionTotal -= NetworkShare(orderedBlockHeaders[i].BlockPos.Solution, (ulong)height);
+                runningDistributionTotal -= NetworkShare(orderedBlockHeaders[i].BlockPos.Solution, height);
             }
 
             return runningDistributionTotal;

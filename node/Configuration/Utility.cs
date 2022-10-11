@@ -57,7 +57,7 @@ public class Utility
         HttpPort();
         WriteDivider("Auto Sync Time");
         AutoSyncTime();
-        var jsonWriteOptions = new JsonSerializerOptions { WriteIndented = true };
+        var jsonWriteOptions = new JsonSerializerOptions { WriteIndented = true, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull };
         jsonWriteOptions.Converters.Add(new JsonStringEnumConverter());
         var newJson = JsonSerializer.Serialize(config, jsonWriteOptions);
         var appSettingsPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "appsettings.json");

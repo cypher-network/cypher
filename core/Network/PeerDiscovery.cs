@@ -71,7 +71,7 @@ public interface IPeerDiscovery
     /// 
     /// </summary>
     /// <returns></returns>
-    ReadOnlySequence<byte> Reply();
+    ReadOnlySequence<byte> GetPeers();
 }
 
 /// <summary>
@@ -82,6 +82,8 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
     private readonly Caching<PeerCooldown> _peerCooldownCaching = new();
     private readonly ICypherSystemCore _cypherSystemCore;
     private readonly ILogger _logger;
+
+    private LocalNode _localNode;
     private IDisposable _receiverDisposable;
     private IDisposable _coolDownDisposable;
     private Peer _localPeer;
@@ -138,14 +140,7 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
     /// </summary>
     private void UpdateLocalPeerInfo()
     {
-        var blockCountResponse = AsyncHelper.RunSync(async delegate
-        {
-            var value = await _cypherSystemCore.Graph().GetBlockCountAsync();
-            return value;
-        });
-
-        _localPeer.BlockCount = (ulong)blockCountResponse.Count;
-        _localPeer.Timestamp = Util.GetAdjustedTimeAsUnixTimestamp();
+        _localPeer.BlockCount = _cypherSystemCore.UnitOfWork().HashChainRepository.Count;
     }
 
     /// <summary>
@@ -153,7 +148,50 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
     /// <returns></returns>
     public LocalNode GetLocalNode()
     {
-        return new LocalNode
+        return _localNode;
+    }
+
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <returns></returns>
+    public ReadOnlySequence<byte> GetPeers()
+    {
+        var sequence = new Sequence<byte>();
+        UpdateLocalPeerInfo();
+        IList<Peer> discoveryStore = _caching.GetItems().ToList();
+        discoveryStore.Add(_localPeer);
+        ReadOnlyPeerSequence(ref discoveryStore, ref sequence);
+        return sequence.AsReadOnlySequence;
+    }
+
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="clientId"></param>
+    /// <param name="ipAddress"></param>
+    /// <param name="peer"></param>
+    private void UpdatePeer(ulong clientId, byte[] ipAddress, Peer peer)
+    {
+        _caching.AddOrUpdate(StoreDb.Key(clientId.ToString(), ipAddress), peer);
+    }
+
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="clientId"></param>
+    /// <param name="ipAddress"></param>
+    /// <returns></returns>
+    private static byte[] GetKey(ulong clientId, byte[] ipAddress)
+    {
+        return StoreDb.Key(clientId.ToString(), ipAddress);
+    }
+
+    /// <summary>
+    /// </summary>
+    private void Init()
+    {
+        _localNode = new LocalNode
         {
             IpAddress = _cypherSystemCore.Node.EndPoint.Address.ToString().ToBytes(),
             Identifier = _cypherSystemCore.KeyPair.PublicKey.ToHashIdentifier(),
@@ -165,37 +203,17 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
             PublicKey = _cypherSystemCore.KeyPair.PublicKey,
             Version = Util.GetAssemblyVersion().ToBytes()
         };
-    }
-
-    /// <summary>
-    /// 
-    /// </summary>
-    /// <returns></returns>
-    public ReadOnlySequence<byte> Reply()
-    {
-        var sequence = new Sequence<byte>();
-        UpdateLocalPeerInfo();
-        IList<Peer> discoveryStore = new List<Peer> { _localPeer };
-        ReadOnlyPeerSequence(ref discoveryStore, ref sequence);
-        return sequence.AsReadOnlySequence;
-    }
-
-    /// <summary>
-    /// </summary>
-    private void Init()
-    {
-        var localNode = GetLocalNode();
         _localPeer = new Peer
         {
-            IpAddress = localNode.IpAddress,
-            HttpPort = localNode.HttpPort,
-            HttpsPort = localNode.HttpsPort,
-            ClientId = localNode.PublicKey.ToHashIdentifier(),
-            TcpPort = localNode.TcpPort,
-            WsPort = localNode.WsPort,
-            Name = localNode.Name,
-            PublicKey = localNode.PublicKey,
-            Version = localNode.Version
+            IpAddress = _localNode.IpAddress,
+            HttpPort = _localNode.HttpPort,
+            HttpsPort = _localNode.HttpsPort,
+            ClientId = _localNode.PublicKey.ToHashIdentifier(),
+            TcpPort = _localNode.TcpPort,
+            WsPort = _localNode.WsPort,
+            Name = _localNode.Name,
+            PublicKey = _localNode.PublicKey,
+            Version = _localNode.Version
         };
         _seedNodes = new RemoteNode[_cypherSystemCore.Node.Network.SeedList.Count];
         foreach (var seedNode in _cypherSystemCore.Node.Network.SeedList.WithIndex())
@@ -220,7 +238,7 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
             if (!Monitor.TryEnter(LockOnReady)) return;
             try
             {
-                TryBootstrap();
+                if (_seedNodes.Length != 0) TryBootstrap();
                 if (_caching.Count == 0) return;
                 OnReadyAsync().Wait();
             }
@@ -243,9 +261,9 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
         IList<Peer> discoveryStore = new List<Peer> { _localPeer };
         var parameter = new Parameter[]
         {
-            new() { ProtocolCommand = ProtocolCommand.UpdatePeers, Value = (await P2PDeviceApi.SerializeAsync(discoveryStore)).ToArray() }
+            new() { ProtocolCommand = ProtocolCommand.UpdatePeers, Value = MessagePackSerializer.Serialize(discoveryStore) }
         };
-        var readOnlySequenceMsg = await P2PDeviceApi.SerializeAsync(parameter);
+        var msg = MessagePackSerializer.Serialize(parameter);
         for (var index = 0; index < _seedNodes.Length; index++)
         {
             var i = index;
@@ -255,11 +273,8 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
                 try
                 {
                     var _ = await _cypherSystemCore.P2PDeviceReq().SendAsync<EmptyMessage>(seedNode.IpAddress,
-                        seedNode.TcpPort,
-                        seedNode.PublicKey,
-                        readOnlySequenceMsg.IsSingleSegment
-                            ? readOnlySequenceMsg.First
-                            : readOnlySequenceMsg.ToArray(), false);
+                        seedNode.TcpPort, seedNode.PublicKey,
+                        msg);
                 }
                 catch (Exception ex)
                 {
@@ -298,20 +313,42 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
         discoveryStore.Add(_localPeer);
         var parameter = new Parameter[]
         {
-            new() { ProtocolCommand = ProtocolCommand.UpdatePeers, Value =  (await P2PDeviceApi.SerializeAsync(discoveryStore)).ToArray() }
+            new() { ProtocolCommand = ProtocolCommand.UpdatePeers, Value =  MessagePackSerializer.Serialize(discoveryStore) }
         };
-        var readOnlySequenceMsg = await P2PDeviceApi.SerializeAsync(parameter);
-        foreach (var peer in discoveryStore)
+        var msg = MessagePackSerializer.Serialize(parameter);
+        for (var index = 0; index < discoveryStore.Count; index++)
         {
+            var peer = discoveryStore[index];
+            if (peer.ClientId == _localPeer.ClientId) continue;
+            var storePeer = peer;
             try
             {
-                if (await _cypherSystemCore.P2PDeviceReq().SendAsync<Ping>(peer.IpAddress, peer.TcpPort, peer.PublicKey,
-                        readOnlySequenceMsg.IsSingleSegment ? readOnlySequenceMsg.First : readOnlySequenceMsg.ToArray(),
-                        false) is null)
+                if (await _cypherSystemCore.P2PDeviceReq().SendAsync<Ping>(storePeer.IpAddress, storePeer.TcpPort,
+                        storePeer.PublicKey, msg) is not null)
                 {
-                    _caching.Remove(peer.IpAddress);
+                    if (storePeer.Retries == 0) continue;
+                    storePeer.Retries = 0;
+                    UpdatePeer(storePeer.ClientId, storePeer.IpAddress, storePeer);
                 }
-                    
+                else
+                {
+                    if (storePeer.Retries >= 30)
+                    {
+                        SetPeerCooldown(new PeerCooldown
+                        {
+                            IpAddress = peer.IpAddress,
+                            PublicKey = peer.PublicKey,
+                            ClientId = peer.ClientId,
+                            PeerState = PeerState.Unreachable
+                        });
+                        _caching.Remove(GetKey(peer.ClientId, peer.IpAddress));
+                    }
+                    else
+                    {
+                        storePeer.Retries++;
+                        UpdatePeer(storePeer.ClientId, storePeer.IpAddress, storePeer);
+                    }
+                }
             }
             catch (Exception ex)
             {
@@ -334,20 +371,27 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
             var elementSequence = await reader.ReadAsync(CancellationToken.None);
             if (elementSequence == null) continue;
             var peer = MessagePackSerializer.Deserialize<Peer>(elementSequence.Value);
+
             if (peer.ClientId == _localPeer.ClientId) continue;
 #if !DEBUG
             if (!IsAcceptedAddress(peer.IpAddress)) return;
 #endif
-            if (!_caching.TryGet(peer.IpAddress, out var cachedPeer))
+            var key = GetKey(peer.ClientId, peer.IpAddress);
+            if (!_caching.TryGet(key, out var cachedPeer))
             {
-                _caching.AddOrUpdate(peer.IpAddress, peer);
+                if (_peerCooldownCaching[key].IsDefault())
+                {
+                    UpdatePeer(peer.ClientId, peer.IpAddress, peer);
+                }
             }
             else if (cachedPeer.BlockCount != peer.BlockCount)
             {
-                _caching.AddOrUpdate(peer.IpAddress, peer);
+                peer.Retries = cachedPeer.Retries;
+                UpdatePeer(peer.ClientId, peer.IpAddress, peer);
             }
         }
     }
+
 
     /// <summary>
     /// 
@@ -386,9 +430,9 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
     /// <param name="peer"></param>
     public void SetPeerCooldown(PeerCooldown peer)
     {
-        if (!_peerCooldownCaching.TryGet(peer.IpAddress, out _))
+        if (!_peerCooldownCaching.TryGet(GetKey(peer.ClientId, peer.IpAddress), out _))
         {
-            _peerCooldownCaching.AddOrUpdate(peer.IpAddress, peer);
+            _peerCooldownCaching.AddOrUpdate(StoreDb.Key(peer.ClientId.ToString(), peer.IpAddress), peer);
         }
     }
 
@@ -397,7 +441,7 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
     /// </summary>
     private void HandlePeerCooldown()
     {
-        _coolDownDisposable = Observable.Interval(TimeSpan.FromMinutes(30)).Subscribe(_ =>
+        _coolDownDisposable = Observable.Interval(TimeSpan.FromMinutes(10)).Subscribe(_ =>
         {
             if (_cypherSystemCore.ApplicationLifetime.ApplicationStopping.IsCancellationRequested) return;
             try
@@ -405,7 +449,7 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
 
                 var removePeersCooldown = AsyncHelper.RunSync(async delegate
                 {
-                    var removePeerCooldownBeforeTimestamp = Util.GetUtcNow().AddMinutes(-30).ToUnixTimestamp();
+                    var removePeerCooldownBeforeTimestamp = Util.GetUtcNow().AddMinutes(-10).ToUnixTimestamp();
                     return await _peerCooldownCaching.WhereAsync(x =>
                         new ValueTask<bool>(x.Value.Timestamp < removePeerCooldownBeforeTimestamp));
                 });

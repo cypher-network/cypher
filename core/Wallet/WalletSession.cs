@@ -247,10 +247,9 @@ public class WalletSession : IWalletSession, IDisposable
             {
                 if (_cypherSystemCore.ApplicationLifetime.ApplicationStopping.IsCancellationRequested) return;
 
-                var unitOfWork = _cypherSystemCore.UnitOfWork();
-                var height = (await _cypherSystemCore.Graph().GetBlockHeightAsync()).Count - 147;
-                height = height < 0 ? 0 : height;
-                var blocks = await unitOfWork.HashChainRepository.OrderByRangeAsync(x => x.Height, (int)height, 147);
+                var hashChainRepository = _cypherSystemCore.UnitOfWork().HashChainRepository;
+                var height = hashChainRepository.Height - 147;
+                var blocks = await hashChainRepository.OrderByRangeAsync(x => x.Height, (int)height, 147);
                 if (!blocks.Any()) return;
 
                 lock (Locking)
