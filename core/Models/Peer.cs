@@ -3,6 +3,7 @@
 
 using System;
 using CypherNetwork.Extensions;
+using CypherNetwork.Network;
 using MessagePack;
 
 namespace CypherNetwork.Models;
@@ -20,7 +21,7 @@ public struct Peer : IComparable<Peer>
     [Key(7)] public byte[] Name { get; set; }
     [Key(8)] public byte[] PublicKey { get; set; }
     [Key(9)] public byte[] Version { get; set; }
-    [Key(10)] public long Timestamp { get; set; }
+    [IgnoreMember] public int Retries { get; set; }
 
     /// <summary>
     /// </summary>
