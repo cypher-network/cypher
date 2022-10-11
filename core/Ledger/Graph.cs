@@ -236,7 +236,7 @@ public sealed class Graph : ReceivedActor<BlockGraph>, IGraph, IDisposable
         try
         {
             var hashChainRepository = _cypherSystemCore.UnitOfWork().HashChainRepository;
-            var height = hashChainRepository.Height - (ulong)safeguardBlocksRequest.NumberOfBlocks;
+            var height = hashChainRepository.Height == 0 ? 0 : hashChainRepository.Height - (ulong)safeguardBlocksRequest.NumberOfBlocks;
             var blocks = await hashChainRepository.OrderByRangeAsync(x => x.Height, (int)height,
                 safeguardBlocksRequest.NumberOfBlocks);
             if (blocks.Any()) return new SafeguardBlocksResponse(blocks, string.Empty);

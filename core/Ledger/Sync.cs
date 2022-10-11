@@ -97,7 +97,7 @@ public class Sync : ISync, IDisposable
             {
                 if (blockCount < peer.BlockCount)
                 {
-                    var skip = blockCount - 6; // +- Depth of blocks to compare.
+                    var skip = blockCount == 0 ? 0 : blockCount - 6; // +- Depth of blocks to compare.
                     var synchronized = await SynchronizeAsync(peer, (ulong)skip, (int)peer.BlockCount);
                     if (!synchronized) continue;
                     _logger.Information(

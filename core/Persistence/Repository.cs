@@ -75,6 +75,7 @@ public class Repository<T> : IRepository<T> where T : class, new()
     public async Task<long> GetBlockHeightAsync()
     {
         var height = await CountAsync() - 1;
+        if (height < 0) height = 0;
         return height;
     }
 
