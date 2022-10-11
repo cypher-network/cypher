@@ -45,7 +45,7 @@ public class HashChainRepository : Repository<Block>, IHashChainRepository
 
         SetTableName(StoreDb.HashChainTable.ToString());
         Height = (ulong)AsyncHelper.RunSync(GetBlockHeightAsync);
-        Count = Height + 1;
+        Count = (ulong)AsyncHelper.RunSync(CountAsync);
     }
 
     /// <summary>
