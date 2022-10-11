@@ -236,9 +236,9 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
         IList<Peer> discoveryStore = new List<Peer> { _localPeer };
         var parameter = new Parameter[]
         {
-            new() { ProtocolCommand = ProtocolCommand.UpdatePeers, Value = (await P2PDeviceApi.SerializeAsync(discoveryStore)).ToArray() }
+            new() { ProtocolCommand = ProtocolCommand.UpdatePeers, Value = MessagePackSerializer.Serialize(discoveryStore) }
         };
-        var readOnlySequenceMsg = await P2PDeviceApi.SerializeAsync(parameter);
+        var msg = MessagePackSerializer.Serialize(parameter);
         for (var index = 0; index < _seedNodes.Length; index++)
         {
             var i = index;
@@ -249,9 +249,7 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
                 {
                     var _ = await _cypherSystemCore.P2PDeviceReq().SendAsync<EmptyMessage>(seedNode.IpAddress,
                         seedNode.TcpPort, seedNode.PublicKey,
-                        readOnlySequenceMsg.IsSingleSegment
-                            ? readOnlySequenceMsg.First
-                            : readOnlySequenceMsg.ToArray());
+                        msg);
                 }
                 catch (Exception ex)
                 {
@@ -290,17 +288,17 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
         discoveryStore.Add(_localPeer);
         var parameter = new Parameter[]
         {
-            new() { ProtocolCommand = ProtocolCommand.UpdatePeers, Value =  (await P2PDeviceApi.SerializeAsync(discoveryStore)).ToArray() }
+            new() { ProtocolCommand = ProtocolCommand.UpdatePeers, Value =  MessagePackSerializer.Serialize(discoveryStore) }
         };
-        var readOnlySequenceMsg = await P2PDeviceApi.SerializeAsync(parameter);
+        var msg = MessagePackSerializer.Serialize(parameter);
         foreach (var peer in discoveryStore)
         {
             try
             {
-                if (await _cypherSystemCore.P2PDeviceReq().SendAsync<Ping>(peer.IpAddress, peer.TcpPort, peer.PublicKey,
-                        readOnlySequenceMsg.IsSingleSegment ? readOnlySequenceMsg.First : readOnlySequenceMsg.ToArray()) is null)
+                if (await _cypherSystemCore.P2PDeviceReq().SendAsync<Ping>(storePeer.IpAddress, storePeer.TcpPort,
+                        storePeer.PublicKey, msg) is not null)
                 {
-                    _caching.Remove(peer.IpAddress);
+                    if (storePeer.Retries == 0) continue;
                 }
 
             }
