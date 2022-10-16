@@ -187,20 +187,25 @@ public sealed class P2PDevice : IP2PDevice, IDisposable
             var unwrapMessage = await UnWrapAsync(message.Memory);
             if (unwrapMessage.ProtocolCommand != ProtocolCommand.NotFound)
             {
-                var newMsg = NngFactorySingleton.Instance.Factory.CreateMessage();
                 try
                 {
-                    var response =
-                        await _cypherSystemCore.P2PDeviceApi().Commands[(int)unwrapMessage.ProtocolCommand](
-                            unwrapMessage.Parameters);
                     if (unwrapMessage.ProtocolCommand == ProtocolCommand.UpdatePeers)
                     {
+                        unwrapMessage.Parameters[0].Sender = message.PublicKey;
+                        _ = await _cypherSystemCore.P2PDeviceApi().Commands[(int)unwrapMessage.ProtocolCommand](
+                                unwrapMessage.Parameters);
                         await EmptyReplyAsync(ctx);
                         return;
                     }
 
+                    var newMsg = NngFactorySingleton.Instance.Factory.CreateMessage();
+                    var readOnlySequence =
+                        await _cypherSystemCore.P2PDeviceApi().Commands[(int)unwrapMessage.ProtocolCommand](
+                            unwrapMessage.Parameters);
+
                     var cipher = _cypherSystemCore.Crypto().BoxSeal(
-                        response.IsSingleSegment ? response.First.Span : response.ToArray(), message.PublicKey);
+                        readOnlySequence.IsSingleSegment ? readOnlySequence.First.Span : readOnlySequence.ToArray(),
+                        message.PublicKey);
                     if (cipher.Length != 0)
                     {
                         await using var packetStream = Util.Manager.GetStream() as RecyclableMemoryStream;
@@ -208,6 +213,7 @@ public sealed class P2PDevice : IP2PDevice, IDisposable
                         packetStream.Write(cipher.WrapLengthPrefix());
                         foreach (var memory in packetStream.GetReadOnlySequence()) newMsg.Append(memory.Span);
                         (await ctx.Reply(newMsg)).Unwrap();
+                        newMsg.Dispose();
                         return;
                     }
                 }
@@ -222,10 +228,6 @@ public sealed class P2PDevice : IP2PDevice, IDisposable
                 catch (Exception ex)
                 {
                     _logger.Here().Fatal("{@Message}", ex.Message);
-                }
-                finally
-                {
-                    newMsg.Dispose();
                 }
             }
 

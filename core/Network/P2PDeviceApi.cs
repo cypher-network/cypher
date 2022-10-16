@@ -107,7 +107,7 @@ public class P2PDeviceApi : IP2PDeviceApi
     /// <returns></returns>
     private async Task<ReadOnlySequence<byte>> OnUpdatePeersAsync(Parameter[] parameters)
     {
-        await _cypherSystemCore.PeerDiscovery().ReceivedPeersAsync(parameters[0].Value);
+        await _cypherSystemCore.PeerDiscovery().ReceivedPeersAsync(parameters[0].Value, parameters[0].Sender);
         return _updatePeersResponse;
     }
 
