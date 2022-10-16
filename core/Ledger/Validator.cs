@@ -54,7 +54,7 @@ public interface IValidator
     Task<decimal> GetRunningDistributionAsync();
     VerifyResult VerifyNetworkShare(ulong solution, decimal previousNetworkShare, decimal runningDistributionTotal, ulong height);
     Task<VerifyResult> VerifyBlockHashAsync(Block block);
-    Task<VerifyResult> VerifyVrfProof(byte[] publicKey, byte[] vrfProof, byte[] kernel);
+    Task<VerifyResult> VerifyVrfProofAsync(byte[] publicKey, byte[] vrfProof, byte[] kernel);
     Task<VerifyResult> VerifyMerkleAsync(Block block);
     VerifyResult VerifyTransactionTime(in Transaction transaction);
     byte[] Kernel(byte[] prevHash, byte[] hash, ulong round);
@@ -161,8 +161,7 @@ public class Validator : IValidator
                 }
             }
 
-            var node = blockGraph.Block.Node;
-            if (blockGraph.Dependencies.Any(dep => dep.Block.Node == node))
+            if (blockGraph.Dependencies.Any(dep => dep.Block.Node == blockGraph.Block.Node))
             {
                 _logger.Error(
                     "Block references includes a block from the same node in block {@Round} from node {@Node}",
@@ -360,7 +359,7 @@ public class Validator : IValidator
             return VerifyResult.UnableToVerify;
         }
 
-        if (await VerifyVrfProof(block.BlockPos.PublicKey, block.BlockPos.VrfProof, kernel) != VerifyResult.Succeed)
+        if (await VerifyVrfProofAsync(block.BlockPos.PublicKey, block.BlockPos.VrfProof, kernel) != VerifyResult.Succeed)
         {
             _logger.Fatal("Unable to verify the Vrf Proof");
             return VerifyResult.UnableToVerify;
@@ -659,7 +658,7 @@ public class Validator : IValidator
     /// <param name="vrfProof"></param>
     /// <param name="kernel"></param>
     /// <returns></returns>
-    public async Task<VerifyResult> VerifyVrfProof(byte[] publicKey, byte[] vrfProof, byte[] kernel)
+    public async Task<VerifyResult> VerifyVrfProofAsync(byte[] publicKey, byte[] vrfProof, byte[] kernel)
     {
         Guard.Argument(publicKey, nameof(publicKey)).NotNull().MaxCount(33);
         Guard.Argument(vrfProof, nameof(vrfProof)).NotNull().MaxCount(96);
