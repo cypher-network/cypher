@@ -11,4 +11,5 @@ public record Parameter
 {
     [Key(0)] public byte[] Value { get; init; }
     [Key(1)] public ProtocolCommand ProtocolCommand { get; init; }
+    [IgnoreMember] public byte[] Sender { get; set; }
 }

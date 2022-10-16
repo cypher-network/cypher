@@ -65,8 +65,9 @@ public interface IPeerDiscovery
     /// 
     /// </summary>
     /// <param name="msg"></param>
+    /// <param name="publicKey"></param>
     /// <returns></returns>
-    Task ReceivedPeersAsync(ReadOnlyMemory<byte> msg);
+    Task ReceivedPeersAsync(ReadOnlyMemory<byte> msg, ReadOnlyMemory<byte> publicKey);
     /// <summary>
     /// 
     /// </summary>
@@ -361,7 +362,8 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
     /// 
     /// </summary>
     /// <param name="msg"></param>
-    public async Task ReceivedPeersAsync(ReadOnlyMemory<byte> msg)
+    /// <param name="publicKey"></param>
+    public async Task ReceivedPeersAsync(ReadOnlyMemory<byte> msg, ReadOnlyMemory<byte> publicKey)
     {
         await using var stream = Util.Manager.GetStream(msg.Span) as RecyclableMemoryStream;
         using var reader = new MessagePackStreamReader(stream);
@@ -383,6 +385,11 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
                 {
                     UpdatePeer(peer.ClientId, peer.IpAddress, peer);
                 }
+                else if (peer.PublicKey[1..33].Xor(publicKey.ToArray()))
+                {
+                    _peerCooldownCaching.Remove(key);
+                    UpdatePeer(peer.ClientId, peer.IpAddress, peer);
+                }
             }
             else if (cachedPeer.BlockCount != peer.BlockCount)
             {
@@ -391,7 +398,6 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
             }
         }
     }
-
 
     /// <summary>
     /// 
