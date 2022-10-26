@@ -21,6 +21,7 @@ public interface IHashChainRepository : IRepository<Block>
 {
     ValueTask<List<Block>> OrderByRangeAsync(Func<Block, ulong> selector, int skip, int take);
     new Task<bool> PutAsync(byte[] key, Block data);
+    new bool Delete(byte[] key);
     ulong Height { get; }
     ulong Count { get; }
 }
@@ -86,6 +87,33 @@ public class HashChainRepository : Repository<Block>, IHashChainRepository
         }
 
         return Task.FromResult(false);
+    }
+
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="key"></param>
+    /// <returns></returns>
+    public new bool Delete(byte[] key)
+    {
+        Guard.Argument(key, nameof(key)).NotNull().NotEmpty();
+        try
+        {
+            using (_sync.Write())
+            {
+                var cf = _storeDb.Rocks.GetColumnFamily(GetTableNameAsString());
+                _storeDb.Rocks.Remove(StoreDb.Key(GetTableNameAsString(), key), cf);
+                Height--;
+                Count--;
+                return true;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Here().Error(ex, "Error while removing from database");
+        }
+
+        return false;
     }
 
     /// <summary>
