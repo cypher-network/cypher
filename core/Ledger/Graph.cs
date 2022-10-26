@@ -236,7 +236,7 @@ public sealed class Graph : ReceivedActor<BlockGraph>, IGraph, IDisposable
         try
         {
             var hashChainRepository = _cypherSystemCore.UnitOfWork().HashChainRepository;
-            var height = hashChainRepository.Height == 0 ? 0 : hashChainRepository.Height - (ulong)safeguardBlocksRequest.NumberOfBlocks;
+            var height = hashChainRepository.Height <= (ulong)safeguardBlocksRequest.NumberOfBlocks ? hashChainRepository.Height : hashChainRepository.Height - (ulong)safeguardBlocksRequest.NumberOfBlocks;
             var blocks = await hashChainRepository.OrderByRangeAsync(x => x.Height, (int)height,
                 safeguardBlocksRequest.NumberOfBlocks);
             if (blocks.Any()) return new SafeguardBlocksResponse(blocks, string.Empty);
@@ -474,7 +474,7 @@ public sealed class Graph : ReceivedActor<BlockGraph>, IGraph, IDisposable
         Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
         try
         {
-            if (_cypherSystemCore.Validator().VerifyBlockGraphSignatureNodeRound(blockGraph).Result != VerifyResult.Succeed)
+            if (_cypherSystemCore.Validator().VerifyBlockGraphSignatureNodeRound(blockGraph) != VerifyResult.Succeed)
             {
                 _logger.Error("Unable to verify block for {@Node} and round {@Round}", blockGraph.Block.Node,
                     blockGraph.Block.Round);

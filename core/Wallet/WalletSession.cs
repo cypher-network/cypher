@@ -9,6 +9,7 @@ using System.Security;
 using System.Threading.Tasks;
 using CypherNetwork.Extensions;
 using CypherNetwork.Models;
+using CypherNetwork.Models.Messages;
 using CypherNetwork.Persistence;
 using CypherNetwork.Wallet.Models;
 using Dawn;
@@ -245,16 +246,18 @@ public class WalletSession : IWalletSession, IDisposable
         _disposableHandleSafeguardBlocks = Observable.Timer(TimeSpan.Zero, TimeSpan.FromMilliseconds(155520000))
             .Select(_ => Observable.FromAsync(async () =>
             {
-                if (_cypherSystemCore.ApplicationLifetime.ApplicationStopping.IsCancellationRequested) return;
-
-                var hashChainRepository = _cypherSystemCore.UnitOfWork().HashChainRepository;
-                var height = hashChainRepository.Height == 0 ? 0 : hashChainRepository.Height - 147;
-                var blocks = await hashChainRepository.OrderByRangeAsync(x => x.Height, (int)height, 147);
-                if (!blocks.Any()) return;
-
-                lock (Locking)
+                try
                 {
-                    _readOnlySafeGuardBlocks = blocks;
+                    if (_cypherSystemCore.ApplicationLifetime.ApplicationStopping.IsCancellationRequested) return;
+                    var blocksResponse = await _cypherSystemCore.Graph().GetSafeguardBlocksAsync(new SafeguardBlocksRequest(147));
+                    lock (Locking)
+                    {
+                        _readOnlySafeGuardBlocks = blocksResponse.Blocks;
+                    }
+                }
+                catch (Exception)
+                {
+                    // Ignore
                 }
             }))
             .Merge()
