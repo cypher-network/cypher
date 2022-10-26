@@ -51,6 +51,8 @@ public class Utility
         StepIpAddress();
         WriteDivider("Public TCP Port");
         TcpPort();
+        WriteDivider("Public Peer Discovery Port");
+        DiscoveryPort();
         WriteDivider("Public Web Socket Port");
         WebSocketPort();
         WriteDivider("Public HTTP Port");
@@ -74,6 +76,7 @@ public class Utility
                     .AddRow("Http Port", _node.Network.HttpPort.ToString())
                     .AddRow("Tcp Port", _node.Network.P2P.TcpPort.ToString())
                     .AddRow("Web Socket Port", _node.Network.P2P.WsPort.ToString())
+                    .AddRow("Discovery Peer Port", _node.Network.P2P.DsPort.ToString())
                     .AddRow("Auto Sync Time", _node.Network.AutoSyncEveryMinutes.ToString()));
         }
         catch (Exception ex)
@@ -172,7 +175,7 @@ public class Utility
             .Title("Your node exposes an API which needs to be accessible by other nodes in the network. This " +
                    "API listens on a configurable public TCP port, the default tcp port number is " +
                    "[bold yellow]7946[/]. You have to make sure that this port is properly." +
-                   "configured in your firewall or router.").AddChoices(new[] { UseDefaultPort, ManuallyEnterPort }));
+                   "configured in your firewall or router.").AddChoices(UseDefaultPort, ManuallyEnterPort));
         if (tcpPortChoice == UseDefaultPort)
         {
             _node.Network.P2P = new P2P { TcpPort = 7946 };
@@ -196,13 +199,43 @@ public class Utility
     /// <summary>
     /// 
     /// </summary>
+    private void DiscoveryPort()
+    {
+        var tcpPortChoice = AnsiConsole.Prompt(new SelectionPrompt<string>()
+            .Title("Your node exposes an API which needs to be accessible by other nodes in the network. This " +
+                   "API listens on a configurable public Peer discovery port, the default Peer discovery port number is " +
+                   "[bold yellow]5146[/]. You have to make sure that this port is properly." +
+                   "configured in your firewall or router.").AddChoices(UseDefaultPort, ManuallyEnterPort));
+        if (tcpPortChoice == UseDefaultPort)
+        {
+            _node.Network.P2P = _node.Network.P2P with { DsPort = 5146 };
+        }
+        else
+        {
+            var port = AnsiConsole.Prompt(new TextPrompt<int>("Enter [bold green]port[/]:").ValidationErrorMessage("")
+                .Validate(p =>
+                {
+                    var pass = p is >= -1 and <= int.MaxValue;
+                    return pass switch
+                    {
+                        true => ValidationResult.Success(),
+                        false => ValidationResult.Error("[red]Something went wrong[/]")
+                    };
+                }));
+            _node.Network.P2P = _node.Network.P2P with { DsPort = port };
+        }
+    }
+
+    /// <summary>
+    /// 
+    /// </summary>
     private void WebSocketPort()
     {
         var tcpPortChoice = AnsiConsole.Prompt(new SelectionPrompt<string>()
             .Title("Your node exposes an API which needs to be accessible by other nodes in the network. This " +
                    "API listens on a configurable public TCP port, the default web socket port number is " +
                    "[bold yellow]7947[/]. You have to make sure that this port is properly." +
-                   "configured in your firewall or router.").AddChoices(new[] { UseDefaultPort, ManuallyEnterPort }));
+                   "configured in your firewall or router.").AddChoices(UseDefaultPort, ManuallyEnterPort));
         if (tcpPortChoice == UseDefaultPort)
         {
             _node.Network.P2P = _node.Network.P2P with { WsPort = 7947 };
@@ -232,7 +265,7 @@ public class Utility
             .Title("Your node exposes an API which needs to be accessible by other nodes in the network. This " +
                    "API listens on a configurable public TCP port, the default http port number is " +
                    "[bold yellow]48655[/]. You have to make sure that this port is properly." +
-                   "configured in your firewall or router.").AddChoices(new[] { UseDefaultPort, ManuallyEnterPort }));
+                   "configured in your firewall or router.").AddChoices(UseDefaultPort, ManuallyEnterPort));
         if (tcpPortChoice == UseDefaultPort)
         {
             _node.Network.HttpPort = 48655;
@@ -262,7 +295,7 @@ public class Utility
             .Title("Your node exposes an API which needs to be accessible by other nodes in the network. This " +
                    "API listens on a configurable public TCP port, the default https port number is " +
                    "[bold yellow]44333[/]. You have to make sure that this port is properly." +
-                   "configured in your firewall or router.").AddChoices(new[] { UseDefaultPort, ManuallyEnterPort }));
+                   "configured in your firewall or router.").AddChoices(UseDefaultPort, ManuallyEnterPort));
         if (tcpPortChoice == UseDefaultPort)
         {
             _node.Network.HttpsPort = 44333;
@@ -290,7 +323,7 @@ public class Utility
     {
         var syncTimeChoice = AnsiConsole.Prompt(new SelectionPrompt<string>()
             .Title("Node automatically starts syncing with network peers on discovery " +
-                   "By default, the auto sync time is set to [bold yellow]10 minutes[/].").AddChoices(new[] { UseDefaultSyncTime, ManuallyEnterSyncTime }));
+                   "By default, the auto sync time is set to [bold yellow]10 minutes[/].").AddChoices(UseDefaultSyncTime, ManuallyEnterSyncTime));
         if (syncTimeChoice == UseDefaultSyncTime)
         {
             _node.Network.AutoSyncEveryMinutes = 10;
