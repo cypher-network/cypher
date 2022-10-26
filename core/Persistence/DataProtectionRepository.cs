@@ -55,7 +55,7 @@ public class DataProtectionRepository : Repository<DataProtection>, IDataProtect
             {
                 var cf = _storeDb.Rocks.GetColumnFamily(GetTableNameAsString());
                 var buffer = MessagePackSerializer.Serialize(data);
-                _storeDb.Rocks.Put(StoreDb.Key(StoreDb.DataProtectionTable.ToString(), key), buffer, cf);
+                _storeDb.Rocks.Put(StoreDb.Key(GetTableNameAsString(), key), buffer, cf);
                 saved = true;
             }
         }

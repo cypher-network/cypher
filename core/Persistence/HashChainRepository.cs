@@ -73,7 +73,7 @@ public class HashChainRepository : Repository<Block>, IHashChainRepository
             using (_sync.Write())
             {
                 var cf = _storeDb.Rocks.GetColumnFamily(GetTableNameAsString());
-                _storeDb.Rocks.Put(StoreDb.Key(StoreDb.HashChainTable.ToString(), key),
+                _storeDb.Rocks.Put(StoreDb.Key(GetTableNameAsString(), key),
                     MessagePackSerializer.Serialize(data), cf);
                 Height = data.Height;
                 Count++;

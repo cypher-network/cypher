@@ -32,7 +32,7 @@ namespace CypherNetwork.Ledger;
 /// </summary>
 public interface IValidator
 {
-    Task<VerifyResult> VerifyBlockGraphSignatureNodeRound(BlockGraph blockGraph);
+    VerifyResult VerifyBlockGraphSignatureNodeRound(BlockGraph blockGraph);
     VerifyResult VerifyBulletProof(Transaction transaction);
     VerifyResult VerifyCoinbaseTransaction(Vout coinbase, ulong solution, decimal runningDistribution, ulong height);
     VerifyResult VerifySolution(byte[] vrfBytes, byte[] kernel, ulong solution);
@@ -88,7 +88,6 @@ public class Validator : IValidator
     public async Task<VerifyResult> VerifyBlockHashAsync(Block block)
     {
         Guard.Argument(block, nameof(block)).NotNull();
-        using var hasher = Hasher.New();
         var hashChainRepository = _cypherSystemCore.UnitOfWork().HashChainRepository;
         var prevBlock = await hashChainRepository.GetAsync(x => new ValueTask<bool>(x.Height == hashChainRepository.Height));
         if (prevBlock is null)
@@ -96,7 +95,7 @@ public class Validator : IValidator
             _logger.Here().Error("No previous block available");
             return VerifyResult.UnableToVerify;
         }
-
+        using var hasher = Hasher.New();
         hasher.Update(prevBlock.Hash);
         hasher.Update(block.ToHash());
         var hash = hasher.Finalize();
@@ -129,14 +128,13 @@ public class Validator : IValidator
     /// </summary>
     /// <param name="blockGraph"></param>
     /// <returns></returns>
-    public async Task<VerifyResult> VerifyBlockGraphSignatureNodeRound(BlockGraph blockGraph)
+    public VerifyResult VerifyBlockGraphSignatureNodeRound(BlockGraph blockGraph)
     {
         Guard.Argument(blockGraph, nameof(blockGraph)).NotNull();
         try
         {
             if (!_cypherSystemCore.Crypto()
-                    .VerifySignature(new VerifySignatureManualRequest(blockGraph.Signature, blockGraph.PublicKey,
-                        blockGraph.ToHash())))
+                    .VerifySignature(blockGraph.PublicKey, blockGraph.ToHash(), blockGraph.Signature))
             {
                 _logger.Error("Unable to verify the signature for block {@Round} from node {@Node}",
                     blockGraph.Block.Round, blockGraph.Block.Node);
