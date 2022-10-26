@@ -16,6 +16,7 @@ public record LocalNode
     public byte[] Name { get; init; }
     public byte[] TcpPort { get; init; }
     public byte[] WsPort { get; init; }
+    public byte[] DsPort { get; init; }
     public byte[] HttpPort { get; init; }
     public byte[] HttpsPort { get; init; }
     public byte[] IpAddress { get; init; }

@@ -189,15 +189,6 @@ public sealed class P2PDevice : IP2PDevice, IDisposable
             {
                 try
                 {
-                    if (unwrapMessage.ProtocolCommand == ProtocolCommand.UpdatePeers)
-                    {
-                        unwrapMessage.Parameters[0].Sender = message.PublicKey;
-                        _ = await _cypherSystemCore.P2PDeviceApi().Commands[(int)unwrapMessage.ProtocolCommand](
-                                unwrapMessage.Parameters);
-                        await EmptyReplyAsync(ctx);
-                        return;
-                    }
-
                     var newMsg = NngFactorySingleton.Instance.Factory.CreateMessage();
                     var readOnlySequence =
                         await _cypherSystemCore.P2PDeviceApi().Commands[(int)unwrapMessage.ProtocolCommand](

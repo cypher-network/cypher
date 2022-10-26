@@ -12,6 +12,7 @@ using CypherNetwork.Models;
 using CypherNetwork.Models.Messages;
 using CypherNetwork.Network;
 using Dawn;
+using libsignal.util;
 using MessagePack;
 using Serilog;
 using Spectre.Console;
@@ -37,6 +38,8 @@ public class Sync : ISync, IDisposable
 
     private bool _disposed;
     private int _running;
+
+    private static readonly object LockOnSync = new();
 
     /// <summary>
     /// </summary>
@@ -93,20 +96,25 @@ public class Sync : ISync, IDisposable
                 currentRetry++;
             }
 
-            foreach (var peer in _cypherSystemCore.PeerDiscovery().GetDiscoveryStore())
+            var peers = _cypherSystemCore.PeerDiscovery().GetDiscoveryStore().Where(x => x.BlockCount > blockCount).ToArray();
+            if (peers.Any() != true) return;
+            peers.Shuffle();
+            var maxBlockHeight = peers.Max(x => (long)x.BlockCount);
+            var chunk = maxBlockHeight / peers.Length;
+            _logger.Information("Peer count [{@PeerCount}]", peers.Length);
+            _logger.Information("Network block height [{@MaxBlockHeight}]", maxBlockHeight);
+            foreach (var peer in peers)
             {
-                if (blockCount < peer.BlockCount)
+                var skip = blockCount <= 6 ? blockCount : blockCount - 6; // +- Depth of blocks to compare.
+                var take = (int)((int)blockCount + chunk);
+                if (take > (int)maxBlockHeight)
                 {
-                    var skip = blockCount == 0 ? 0 : blockCount - 6; // +- Depth of blocks to compare.
-                    var synchronized = await SynchronizeAsync(peer, (ulong)skip, (int)peer.BlockCount);
-                    if (!synchronized) continue;
-                    _logger.Information(
-                        "Successfully SYNCHRONIZED with node:{@NodeName} host:{@Host} version:{@Version}",
-                        peer.Name.FromBytes(), peer.IpAddress.FromBytes(), peer.Version.FromBytes());
-                    break;
+                    take = (int)(maxBlockHeight - (long)blockCount) + (int)blockCount;
                 }
-
+                SynchronizeAsync(peer, skip, take).Wait();
                 blockCount = _cypherSystemCore.UnitOfWork().HashChainRepository.Count;
+                _logger.Information("Local block height ({@LocalHeight})", blockCount);
+                if (blockCount == (ulong)maxBlockHeight) break;
             }
         }
         catch (Exception ex)
@@ -150,7 +158,7 @@ public class Sync : ISync, IDisposable
     /// <param name="skip"></param>
     /// <param name="take"></param>
     /// <returns></returns>
-    private async Task<bool> SynchronizeAsync(Peer peer, ulong skip, int take)
+    private async Task SynchronizeAsync(Peer peer, ulong skip, int take)
     {
         Guard.Argument(peer, nameof(peer)).HasValue();
         Guard.Argument(skip, nameof(skip)).NotNegative();
@@ -160,7 +168,7 @@ public class Sync : ISync, IDisposable
         {
             var validator = _cypherSystemCore.Validator();
             var blocks = await FetchBlocksAsync(peer, skip, take);
-            if (blocks?.Any() != true) return false;
+            if (blocks?.Any() != true) return;
             if (skip == 0)
             {
                 _logger.Warning("FIRST TIME BOOTSTRAPPING");
@@ -168,7 +176,7 @@ public class Sync : ISync, IDisposable
             else
             {
                 _logger.Information("CONTINUE BOOTSTRAPPING");
-                _logger.Information("CHECKING [BLOCK HEIGHTS]");
+                _logger.Information("CHECKING [BLOCK DUPLICATES]");
                 var verifyNoDuplicateBlockHeights = validator.VerifyNoDuplicateBlockHeights(blocks);
                 if (verifyNoDuplicateBlockHeights == VerifyResult.AlreadyExists)
                 {
@@ -179,26 +187,26 @@ public class Sync : ISync, IDisposable
                         ClientId = peer.ClientId,
                         PeerState = PeerState.DupBlocks
                     });
-                    _logger.Warning("Duplicate block heights [UNABLE TO VERIFY]");
-                    return false;
+                    _logger.Warning("DUPLICATE block height [UNABLE TO VERIFY]");
+                    return;
                 }
 
                 _logger.Information("CHECKING [FORK RULE]");
                 var forkRuleBlocks = await validator.VerifyForkRuleAsync(blocks.OrderBy(x => x.Height).ToArray());
                 if (forkRuleBlocks.Length == 0)
                 {
-                    _logger.Fatal("Fork rule check [UNABLE TO VERIFY]");
-                    return false;
+                    _logger.Fatal("FORK RULE CHECK [UNABLE TO VERIFY]");
+                    return;
                 }
 
                 blocks = forkRuleBlocks.ToList();
-                _logger.Information("Fork rule check [OK]");
+                _logger.Information("FORK RULE CHECK [OK]");
             }
 
             await AnsiConsole.Progress().AutoClear(false).Columns(new TaskDescriptionColumn(), new ProgressBarColumn(),
                 new PercentageColumn(), new SpinnerColumn()).StartAsync(async ctx =>
             {
-                var warpTask = ctx.AddTask($"SYNCHRONIZING [bold yellow]{blocks.Count}[/] Block(s)", false).IsIndeterminate();
+                var warpTask = ctx.AddTask($"[bold green]SYNCHRONIZING[/] [bold yellow]{blocks.Count}[/] Block(s)", false).IsIndeterminate();
                 warpTask.MaxValue(blocks.Count);
                 warpTask.StartTask();
                 warpTask.IsIndeterminate(false);
@@ -236,16 +244,7 @@ public class Sync : ISync, IDisposable
         catch (Exception ex)
         {
             _logger.Here().Error(ex, "SYNCHRONIZATION [FAILED]");
-            return false;
         }
-        finally
-        {
-            var blockCount = _cypherSystemCore.UnitOfWork().HashChainRepository.Count;
-            _logger.Information("Local node block height set to ({@LocalHeight})", blockCount);
-            if (blockCount == (ulong)take) isSynchronized = true;
-        }
-
-        return isSynchronized;
     }
 
     /// <summary>
@@ -259,14 +258,13 @@ public class Sync : ISync, IDisposable
         Guard.Argument(peer, nameof(peer)).HasValue();
         Guard.Argument(skip, nameof(skip)).NotNegative();
         Guard.Argument(take, nameof(take)).NotNegative();
-        _logger.Information("Synchronizing with {@Host} ({@Skip})/({@Take})", peer.IpAddress.FromBytes(), skip, take);
         var iSkip = skip;
         try
         {
-            _logger.Information("Fetching [{@Range}] block(s)", Math.Abs(take - (int)skip));
             const int maxBlocks = 10;
-            var chunks = Enumerable.Repeat(maxBlocks, take / maxBlocks).ToList();
-            if (take % maxBlocks != 0) chunks.Add(take % maxBlocks);
+            var iTake = take - (int)skip;
+            var chunks = Enumerable.Repeat(maxBlocks, iTake / maxBlocks).ToList();
+            if (iTake % maxBlocks != 0) chunks.Add(iTake % maxBlocks);
 
             // Show progress
             var blocks = await AnsiConsole.Progress().AutoClear(false).Columns(new TaskDescriptionColumn(),
@@ -274,8 +272,8 @@ public class Sync : ISync, IDisposable
                 .StartAsync(async ctx =>
                 {
                     var blocks = new List<Block>();
-                    var warpTask = ctx.AddTask("DOWNLOADING", false).IsIndeterminate();
-                    warpTask.MaxValue(chunks.Count);
+                    var warpTask = ctx.AddTask($"[bold green]DOWNLOADING[/] [bold yellow]{Math.Abs(take - (int)skip)}[/] block(s) from [bold yellow]{peer.Name.FromBytes()}[/] v{peer.Version.FromBytes()}", false).IsIndeterminate();
+                    warpTask.MaxValue(take - (int)skip);
                     warpTask.StartTask();
                     warpTask.IsIndeterminate(false);
                     while (!ctx.IsFinished)

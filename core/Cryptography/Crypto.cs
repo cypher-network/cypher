@@ -22,8 +22,9 @@ public interface ICrypto
     Task<Models.KeyPair> GetOrUpsertKeyNameAsync(string keyName);
     Task<byte[]> GetPublicKeyAsync(string keyName);
     Task<SignatureResponse> SignAsync(string keyName, byte[] message);
+    byte[] Sign(byte[] privateKey, byte[] message);
     bool VerifySignature(byte[] signature, byte[] message);
-    bool VerifySignature(VerifySignatureManualRequest verifySignatureManualRequest);
+    bool VerifySignature(byte[] publicKey, byte[] message, byte[] signature);
     byte[] GetCalculateVrfSignature(ECPrivateKey ecPrivateKey, byte[] msg);
     byte[] GetVerifyVrfSignature(ECPublicKey ecPublicKey, byte[] msg, byte[] sig);
     // byte[] EncryptChaCha20Poly1305(byte[] data, byte[] key, byte[] associatedData, out byte[] tag, out byte[] nonce);
@@ -132,6 +133,28 @@ public class Crypto : ICrypto
     }
 
     /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="privateKey"></param>
+    /// <param name="message"></param>
+    /// <returns></returns>
+    public byte[] Sign(byte[] privateKey, byte[] message)
+    {
+        Guard.Argument(privateKey, nameof(privateKey)).NotNull();
+        Guard.Argument(message, nameof(message)).NotNull();
+        try
+        {
+            return Curve.calculateSignature(Curve.decodePrivatePoint(privateKey), message);
+        }
+        catch (Exception ex)
+        {
+            _logger.Here().Error(ex, "Unable to sign the message");
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// </summary>
     /// <param name="signature"></param>
     /// <param name="message"></param>
@@ -155,22 +178,21 @@ public class Crypto : ICrypto
     }
 
     /// <summary>
+    /// 
     /// </summary>
-    /// <param name="verifySignatureManualRequest"></param>
+    /// <param name="publicKey"></param>
+    /// <param name="message"></param>
+    /// <param name="signature"></param>
     /// <returns></returns>
-    public bool VerifySignature(VerifySignatureManualRequest verifySignatureManualRequest)
+    public bool VerifySignature(byte[] publicKey, byte[] message, byte[] signature)
     {
-        Guard.Argument(verifySignatureManualRequest, nameof(verifySignatureManualRequest)).NotNull();
-        Guard.Argument(verifySignatureManualRequest.Signature, nameof(verifySignatureManualRequest.Signature))
-            .NotNull();
-        Guard.Argument(verifySignatureManualRequest.PublicKey, nameof(verifySignatureManualRequest.PublicKey))
-            .NotNull();
-        Guard.Argument(verifySignatureManualRequest.Message, nameof(verifySignatureManualRequest.Message)).NotNull();
+        Guard.Argument(publicKey, nameof(publicKey)).NotNull();
+        Guard.Argument(message, nameof(message)).NotNull();
+        Guard.Argument(signature, nameof(signature)).NotNull();
         var verified = false;
         try
         {
-            verified = Curve.verifySignature(Curve.decodePoint(verifySignatureManualRequest.PublicKey, 0),
-                verifySignatureManualRequest.Message, verifySignatureManualRequest.Signature);
+            verified = Curve.verifySignature(Curve.decodePoint(publicKey, 0), message, signature);
         }
         catch (Exception ex)
         {

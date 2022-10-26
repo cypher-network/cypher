@@ -47,7 +47,6 @@ public static class AppExtensions
         builder.Register(c =>
         {
             var remoteNodes = configuration.GetSection("Node:Network:SeedList").GetChildren().ToArray();
-            var remotePublicKeys = configuration.GetSection("Node:Network:SeedListPublicKeys").GetChildren().ToArray();
             var node = new Node
             {
                 EndPoint = new IPEndPoint(Util.GetIpAddress(), 0),
@@ -67,11 +66,11 @@ public static class AppExtensions
                     P2P =
                         new P2P
                         {
+                            DsPort = Convert.ToInt32(configuration["Node:Network:P2P:DsPort"]),
                             TcpPort = Convert.ToInt32(configuration["Node:Network:P2P:TcpPort"]),
                             WsPort = Convert.ToInt32(configuration["Node:Network:P2P:WsPort"])
                         },
                     SeedList = new List<string>(remoteNodes.Length),
-                    SeedListPublicKeys = new List<string>(remoteNodes.Length),
                     X509Certificate =
                         new Models.X509Certificate
                         {
@@ -106,9 +105,7 @@ public static class AppExtensions
             {
                 var endpoint = Util.GetIpEndPoint(selection.item.Value);
                 var endpointFromHost = Util.GetIpEndpointFromHostPort(endpoint.Address.ToString(), endpoint.Port);
-                var publicKey = remotePublicKeys[selection.index].Value;
                 node.Network.SeedList.Add($"{endpointFromHost.Address.ToString()}:{endpointFromHost.Port}");
-                node.Network.SeedListPublicKeys.Add(publicKey);
             }
 
             var cypherSystemCore = new CypherSystemCore(c.Resolve<IHostApplicationLifetime>(),

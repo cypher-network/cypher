@@ -48,6 +48,7 @@ public class MembershipController : Controller
                 HttpsPort = peer.HttpsPort.FromBytes(),
                 TcpPort = peer.TcpPort.FromBytes(),
                 WsPort = peer.WsPort.FromBytes(),
+                DsPort = peer.DsPort.FromBytes(),
                 Name = peer.Name.FromBytes(),
                 PublicKey = peer.PublicKey.ByteToHex(),
                 Version = peer.Version.FromBytes()
@@ -81,6 +82,7 @@ public class MembershipController : Controller
                 HttpsPort = peer.HttpsPort.FromBytes(),
                 TcpPort = peer.TcpPort.FromBytes(),
                 WsPort = peer.WsPort.FromBytes(),
+                DsPort = peer.DsPort.FromBytes(),
                 Name = peer.Name.FromBytes(),
                 PublicKey = peer.PublicKey.ByteToHex(),
                 Version = peer.Version.FromBytes()

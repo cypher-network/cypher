@@ -64,7 +64,6 @@ public class P2PDeviceApi : IP2PDeviceApi
     {
         Commands.Add((int)ProtocolCommand.GetPeer, OnGetPeerAsync);
         Commands.Add((int)ProtocolCommand.GetPeers, OnGetPeersAsync);
-        Commands.Add((int)ProtocolCommand.UpdatePeers, OnUpdatePeersAsync);
         Commands.Add((int)ProtocolCommand.GetBlocks, OnGetBlocksAsync);
         Commands.Add((int)ProtocolCommand.SaveBlock, OnSaveBlockAsync);
         Commands.Add((int)ProtocolCommand.GetBlockHeight, OnGetBlockHeightAsync);
@@ -85,8 +84,8 @@ public class P2PDeviceApi : IP2PDeviceApi
     /// <returns></returns>
     private async Task<ReadOnlySequence<byte>> OnGetPeerAsync(Parameter[] none = default)
     {
-        var nodeDetailsResponse = _cypherSystemCore.PeerDiscovery().GetLocalPeer();
-        return await SerializeAsync(nodeDetailsResponse);
+        var localPeerResponse = _cypherSystemCore.PeerDiscovery().GetLocalPeer();
+        return await SerializeAsync(localPeerResponse);
     }
 
     /// <summary>
@@ -94,21 +93,9 @@ public class P2PDeviceApi : IP2PDeviceApi
     /// </summary>
     /// <param name="none"></param>
     /// <returns></returns>
-    private Task<ReadOnlySequence<byte>> OnGetPeersAsync(Parameter[] none = default)
+    private async Task<ReadOnlySequence<byte>> OnGetPeersAsync(Parameter[] none = default)
     {
-        var nodePeersResponse = _cypherSystemCore.PeerDiscovery().GetPeers();
-        return Task.FromResult(nodePeersResponse);
-    }
-
-    /// <summary>
-    /// 
-    /// </summary>
-    /// <param name="parameters"></param>
-    /// <returns></returns>
-    private async Task<ReadOnlySequence<byte>> OnUpdatePeersAsync(Parameter[] parameters)
-    {
-        await _cypherSystemCore.PeerDiscovery().ReceivedPeersAsync(parameters[0].Value, parameters[0].Sender);
-        return _updatePeersResponse;
+        return await SerializeAsync(_cypherSystemCore.PeerDiscovery());
     }
 
     /// <summary>

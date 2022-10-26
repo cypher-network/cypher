@@ -37,12 +37,12 @@ public record Network
     public int HttpsPort { get; set; }
     public P2P P2P { get; set; }
     public IList<string> SeedList { get; set; }
-    public IList<string> SeedListPublicKeys { get; set; }
     public string CertificateMode { get; set; }
 }
 
 public record P2P
 {
+    public int DsPort { get; set; }
     public int TcpPort { get; set; }
     public int WsPort { get; set; }
 }

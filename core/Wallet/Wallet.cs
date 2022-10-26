@@ -338,6 +338,7 @@ public class NodeWallet : INodeWallet
         var (spendKey, scanKey) = Unlock();
         var transactions = session.GetSafeGuardBlocks()
             .SelectMany(x => x.Txs).ToArray();
+        if (transactions.Any() != true) return null;
         transactions.Shuffle();
 
         for (var k = 0; k < nRows - 1; ++k)
