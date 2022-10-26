@@ -80,7 +80,7 @@ public static class Program
  / /    / / / // __ \ / __ \ / _ \ / ___// __ \ / / / // __ \ / //_// ___/
 / /___ / /_/ // /_/ // / / //  __// /   / /_/ // /_/ // / / // ,<  (__  ) 
 \____/ \__, // .___//_/ /_/ \___//_/   / .___/ \__,_//_/ /_//_/|_|/____/  
-      /____//_/                       /_/         write code: v{Util.GetAssemblyVersion()} RC1");
+      /____//_/                       /_/         write code: v{Util.GetAssemblyVersion()} RC2");
 
             Console.WriteLine();
             Console.ResetColor();
