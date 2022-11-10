@@ -79,7 +79,7 @@ public class Broadcast : ReceivedActor<(TopicType, byte[])>, IBroadcast
                         if (cancellationToken.IsCancellationRequested) return ValueTask.CompletedTask;
                         var _ = _cypherSystemCore.P2PDeviceReq().SendAsync<EmptyMessage>(knownPeer.IpAddress,
                             knownPeer.TcpPort,
-                            knownPeer.PublicKey, msg).SafeForgetAsync(_logger).ConfigureAwait(false);
+                            knownPeer.PublicKey, msg, 250).SafeForgetAsync(_logger).ConfigureAwait(false);
                     }
                     catch (Exception)
                     {

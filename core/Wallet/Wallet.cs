@@ -335,12 +335,13 @@ public class NodeWallet : INodeWallet
         Guard.Argument(m, nameof(m)).NotNull().NotEmpty();
         using var pedersen = new Pedersen();
         using var secp256K1 = new Secp256k1();
-        var (spendKey, scanKey) = Unlock();
         var transactions = session.GetSafeGuardBlocks()
             .SelectMany(x => x.Txs).ToArray();
         if (transactions.Any() != true) return null;
         transactions.Shuffle();
 
+        var (spendKey, scanKey) = Unlock();
+        
         for (var k = 0; k < nRows - 1; ++k)
             for (var i = 0; i < nCols; ++i)
             {
