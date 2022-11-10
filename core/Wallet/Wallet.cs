@@ -341,7 +341,7 @@ public class NodeWallet : INodeWallet
         transactions.Shuffle();
 
         var (spendKey, scanKey) = Unlock();
-        
+
         for (var k = 0; k < nRows - 1; ++k)
             for (var i = 0; i < nCols; ++i)
             {

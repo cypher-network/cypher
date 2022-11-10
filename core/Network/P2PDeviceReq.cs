@@ -78,7 +78,7 @@ public class P2PDeviceReq : IP2PDeviceReq
                 socket.SetOpt(Defines.NNG_OPT_RECVTIMEO, new nng_duration { TimeMs = timeMs });
                 socket.SetOpt(Defines.NNG_OPT_SENDTIMEO, new nng_duration { TimeMs = timeMs });
             }
-            
+
             using var ctx = socket.CreateAsyncContext(NngFactorySingleton.Instance.Factory).Unwrap();
             var cipher = _cypherSystemCore.Crypto().BoxSeal(value.Span, publicKey.Span[1..33]);
 
