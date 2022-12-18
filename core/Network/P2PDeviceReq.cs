@@ -20,7 +20,7 @@ namespace CypherNetwork.Network;
 public interface IP2PDeviceReq
 {
     Task<T> SendAsync<T>(ReadOnlyMemory<byte> ipAddress, ReadOnlyMemory<byte> tcpPort, ReadOnlyMemory<byte> publicKey,
-        ReadOnlyMemory<byte> value, int timeMs = 200, bool deserialize = true);
+        ReadOnlyMemory<byte> value, int timeMs = 0, bool deserialize = true);
 }
 
 public class EmptyMessage { }
@@ -55,7 +55,7 @@ public class P2PDeviceReq : IP2PDeviceReq
     /// <returns></returns>
     /// <exception cref="Exception"></exception>
     public async Task<T> SendAsync<T>(ReadOnlyMemory<byte> ipAddress, ReadOnlyMemory<byte> tcpPort, ReadOnlyMemory<byte> publicKey,
-        ReadOnlyMemory<byte> value, int timeMs = 200, bool deserialize = true)
+        ReadOnlyMemory<byte> value, int timeMs = 0, bool deserialize = true)
     {
         var nngMsg = NngFactorySingleton.Instance.Factory.CreateMessage();
         try
@@ -73,8 +73,11 @@ public class P2PDeviceReq : IP2PDeviceReq
             using var socket = NngFactorySingleton.Instance.Factory.RequesterOpen()
                 .ThenDial($"tcp://{address}:{port}", Defines.NngFlag.NNG_FLAG_NONBLOCK).Unwrap();
 
-            socket.SetOpt(Defines.NNG_OPT_RECVTIMEO, new nng_duration { TimeMs = timeMs });
-            socket.SetOpt(Defines.NNG_OPT_SENDTIMEO, new nng_duration { TimeMs = timeMs });
+            if (timeMs != 0)
+            {
+                socket.SetOpt(Defines.NNG_OPT_RECVTIMEO, new nng_duration { TimeMs = timeMs });
+                socket.SetOpt(Defines.NNG_OPT_SENDTIMEO, new nng_duration { TimeMs = timeMs });
+            }
 
             using var ctx = socket.CreateAsyncContext(NngFactorySingleton.Instance.Factory).Unwrap();
             var cipher = _cypherSystemCore.Crypto().BoxSeal(value.Span, publicKey.Span[1..33]);

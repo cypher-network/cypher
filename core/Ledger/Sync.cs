@@ -285,7 +285,7 @@ public class Sync : ISync, IDisposable
                                 {
                                     new() { Value = iSkip.ToBytes(), ProtocolCommand = ProtocolCommand.GetBlocks },
                                     new() { Value = chunk.ToBytes(), ProtocolCommand = ProtocolCommand.GetBlocks }
-                                }), 500);
+                                }));
                             if (blocksResponse?.Blocks is null)
                             {
                                 warpTask.StopTask();

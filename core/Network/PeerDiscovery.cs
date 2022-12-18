@@ -61,7 +61,7 @@ public interface IPeerDiscovery
 /// </summary>
 public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
 {
-    private const int PrunedTimeoutFromSeconds = 30;
+    private const int PrunedTimeoutFromSeconds = 120;
     private const int SurveyorWaitTimeMilliseconds = 2500;
     private const int ReceiveWaitTimeMilliseconds = 1000;
     private readonly Caching<Peer> _caching = new();
@@ -378,7 +378,7 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
                 }
                 finally
                 {
-                    if (peer.Timestamp < Util.GetUtcNow().AddSeconds(-30).ToUnixTimestamp())
+                    if (peer.Timestamp < Util.GetUtcNow().AddSeconds(-PrunedTimeoutFromSeconds).ToUnixTimestamp())
                     {
                         SetPeerCooldown(new PeerCooldown
                         {
@@ -461,7 +461,8 @@ public sealed class PeerDiscovery : IDisposable, IPeerDiscovery
             if (!cachedPeer.IsDefault())
             {
                 if (cachedPeer.Timestamp >= peer.Timestamp) continue;
-                UpdatePeer(peer.ClientId, peer.IpAddress, peer);
+                // ReSharper disable once RedundantAssignment
+                cachedPeer = peer;
                 continue;
             }
 
